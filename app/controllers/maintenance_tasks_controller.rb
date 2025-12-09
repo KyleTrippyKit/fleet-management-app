@@ -1,0 +1,2 @@
+class MaintenanceTasksController < ApplicationController
+end

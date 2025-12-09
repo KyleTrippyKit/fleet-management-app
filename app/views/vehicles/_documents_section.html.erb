@@ -1,0 +1,64 @@
+<h3 class="mt-4">Vehicle Documents</h3>
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-body">
+    <!-- Upload Form -->
+    <%= form_with model: [vehicle, VehicleDocument.new], local: true, html: { multipart: true } do |f| %>
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <%= f.label :doc_type %>
+          <%= f.select :doc_type, ["Insurance", "Registration", "Inspection"], {}, class: "form-select" %>
+        </div>
+        <div class="col-md-4">
+          <%= f.label :expires_on %>
+          <%= f.date_field :expires_on, class: "form-control" %>
+        </div>
+        <div class="col-md-4">
+          <%= f.label :file %>
+          <%= f.file_field :file, class: "form-control" %>
+        </div>
+      </div>
+      <%= f.submit "Upload Document", class: "btn btn-primary" %>
+    <% end %>
+  </div>
+</div>
+
+<% if vehicle.vehicle_documents.any? %>
+  <table class="table table-striped table-hover">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Expires On</th>
+        <th>File</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% vehicle.vehicle_documents.order(expires_on: :asc).each do |doc| %>
+        <tr>
+          <td><%= doc.doc_type %></td>
+          <td><%= doc.expires_on || "-" %></td>
+          <td>
+            <% if doc.file.attached? %>
+              <%= link_to "Download",
+                          rails_blob_path(doc.file, disposition: "attachment"),
+                          class: "btn btn-sm btn-info" %>
+            <% else %>
+              <span class="text-muted">No file</span>
+            <% end %>
+          </td>
+          <td>
+            <%# Use button_to to ensure DELETE works properly %>
+            <%= button_to "Delete",
+                          vehicle_vehicle_document_path(vehicle, doc),
+                          method: :delete,
+                          data: { confirm: "Are you sure you want to delete this document?" },
+                          class: "btn btn-sm btn-danger" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p>No documents uploaded yet.</p>
+<% end %>

@@ -1,0 +1,113 @@
+<div class="container py-4">
+  <h1 class="mb-4 text-primary fw-bold">Vehicles</h1>
+
+  <!-- Navigation Tabs -->
+  <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
+    <li class="nav-item">
+      <%= link_to "Vehicle List", vehicles_path, class: "nav-link #{'active' if request.path == vehicles_path}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Usage Analytics", vehicle_usage_path, class: "nav-link #{'active' if request.path == vehicle_usage_path || request.path == analytics_vehicles_path}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Maintenance Gantt Chart", gantt_path, class: "nav-link #{'active' if request.path == gantt_path}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Maintenance", maintenance_dashboard_vehicles_path, class: "nav-link #{'active' if request.path == maintenance_dashboard_vehicles_path}" %>
+    </li>
+  </ul>
+
+  <!-- Top Controls: Search, Filter, Add Vehicle -->
+  <%= form_with url: vehicles_path, method: :get, local: true,
+        html: { id: "vehicles_filter_form" },
+        class: "row g-2 align-items-end mb-4" do |f| %>
+
+    <div class="col-md-5">
+      <%= f.text_field :query,
+            value: @query,
+            placeholder: "Search by make, model, or plate...",
+            class: "form-control shadow-sm rounded" %>
+    </div>
+
+    <div class="col-md-3">
+      <%= f.select :owner,
+            options_for_select(["All", "PTSC", "Police", "Fire Service"], @owner_filter || "All"),
+            {},
+            { class: "form-select shadow-sm rounded", id: "owner_filter" } %>
+    </div>
+
+    <div class="col-md-4 d-flex justify-content-md-end gap-2">
+      <%= f.submit "Search", class: "btn btn-primary shadow-sm" %>
+      <%= link_to "Add Vehicle", new_vehicle_path, class: "btn btn-success shadow-sm" %>
+    </div>
+
+  <% end %>
+
+  <!-- Vehicle Cards -->
+  <% if @vehicles.any? %>
+    <div class="row g-4">
+      <% @vehicles.each do |vehicle| %>
+        <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
+          <div class="card h-100 shadow-sm border-0 rounded hover-shadow transition">
+            <%= link_to vehicle_path(vehicle) do %>
+              <%= image_tag vehicle_image(vehicle), class: "card-img-top rounded-top", style: "height:180px; object-fit:cover;" %>
+            <% end %>
+
+            <div class="card-body">
+              <h5 class="card-title fw-bold mb-2">
+                <%= vehicle.make %> <%= vehicle.model %>
+                <% if vehicle.license_plate.present? %>
+                  <span class="badge bg-secondary ms-1"><%= vehicle.license_plate %></span>
+                <% end %>
+              </h5>
+
+              <p class="text-muted mb-1"><strong>Owner:</strong> <%= vehicle.service_owner %></p>
+
+              <% last_maintenance = vehicle.maintenances.order(date: :desc).first %>
+              <p class="text-muted mb-3">
+                <small>Last Maintenance: <%= last_maintenance&.date || "No maintenance yet" %></small>
+              </p>
+
+              <div class="d-flex justify-content-between">
+                <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45" %>
+                <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45" %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="alert alert-info rounded">
+      No vehicles found. <%= link_to "Add your first vehicle", new_vehicle_path, class: "alert-link" %>
+    </div>
+  <% end %>
+</div>
+
+<style>
+  /* Smooth hover effect for cards */
+  .hover-shadow:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+    transition: all 0.3s ease-in-out;
+  }
+
+  /* Buttons width adjustment */
+  .w-45 { width: 45%; }
+
+  .transition { transition: all 0.3s ease-in-out; }
+</style>
+
+<!-- Auto-submit owner filter on change -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const ownerSelect = document.getElementById("owner_filter");
+    const filterForm = document.getElementById("vehicles_filter_form");
+
+    if (ownerSelect && filterForm) {
+      ownerSelect.addEventListener("change", () => {
+        filterForm.submit();
+      });
+    }
+  });
+</script>

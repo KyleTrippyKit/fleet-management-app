@@ -1,0 +1,131 @@
+<%= form_with(model: vehicle, local: true, html: { multipart: true, class: "needs-validation" }) do |form| %>
+  <% if vehicle.errors.any? %>
+    <div class="alert alert-danger">
+      <h5><%= pluralize(vehicle.errors.count, "error") %> prevented this vehicle from saving:</h5>
+      <ul>
+        <% vehicle.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="row g-3">
+    <!-- Left Column -->
+    <div class="col-md-6">
+      <div class="mb-3">
+        <%= form.label :make %>
+        <%= form.text_field :make, class: "form-control", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :model %>
+        <%= form.text_field :model, class: "form-control", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :vehicle_type %>
+        <%= form.text_field :vehicle_type, class: "form-control", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :color %>
+        <%= form.text_field :color, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :year_of_manufacture %>
+        <%= form.number_field :year_of_manufacture, class: "form-control", min: 1900, max: Time.now.year %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :chassis_number %>
+        <%= form.text_field :chassis_number, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :serial_number %>
+        <%= form.text_field :serial_number, class: "form-control" %>
+      </div>
+
+      <!-- Certified Copy Fields -->
+      <div class="mb-3">
+        <%= form.label :engine_number %>
+        <%= form.text_field :engine_number, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :fuel_type %>
+        <%= form.text_field :fuel_type, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :transmission %>
+        <%= form.text_field :transmission, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :body_style %>
+        <%= form.text_field :body_style, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :modifications %>
+        <%= form.text_area :modifications, class: "form-control", rows: 3 %>
+      </div>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-md-6">
+      <div class="mb-3">
+        <%= form.label :license_plate %>
+        <%= form.text_field :license_plate, class: "form-control", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :registration_number %>
+        <%= form.text_field :registration_number, class: "form-control", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :service_owner %>
+        <%= form.select :service_owner, Vehicle::VALID_OWNERS, { prompt: "Select Owner" }, class: "form-select", required: true %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :mileage %>
+        <%= form.number_field :mileage, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :image, "Vehicle Image" %>
+        <%= form.file_field :image, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :picture, "Additional Picture" %>
+        <%= form.file_field :picture, class: "form-control" %>
+      </div>
+
+      <div class="mb-3">
+        <%= form.label :gallery_images, "Gallery Images" %>
+        <%= form.file_field :gallery_images, multiple: true, class: "form-control" %>
+
+        <% if vehicle.gallery_images.attached? %>
+          <div class="mt-2 d-flex flex-wrap gap-2">
+            <% vehicle.gallery_images.each do |img| %>
+              <div class="position-relative">
+                <%= image_tag img.variant(resize_to_limit: [100, 100]), class: "border rounded" %>
+                <%= check_box_tag "remove_gallery_image_ids[]", img.id %> Remove
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    <%= form.submit class: "btn btn-primary" %>
+  </div>
+<% end %>

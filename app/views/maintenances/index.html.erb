@@ -1,0 +1,142 @@
+<h1 class="mb-4">Maintenance Records</h1>
+
+<% @dates ||= [] %>
+<% @statuses ||= {} %>
+<% @maintenances ||= [] %>
+
+<!-- BAR CHART -->
+<h2 class="mb-4">Maintenance Trends</h2>
+<div class="mb-5">
+  <canvas id="maintenanceBarChart" width="400" height="150"></canvas>
+</div>
+
+<!-- GANTT CHART -->
+<h2 class="mb-4">Maintenance Gantt Chart</h2>
+<div class="mb-5">
+  <canvas id="maintenanceGanttChart" width="900" height="400"></canvas>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // --- BAR CHART ---
+  const barCtx = document.getElementById('maintenanceBarChart').getContext('2d');
+  const labels = <%= raw @dates.to_json %>;
+  const pendingData = <%= raw (@dates.map { |date| @statuses[[date, "Pending"]] || 0 }).to_json %>;
+  const completedData = <%= raw (@dates.map { |date| @statuses[[date, "Completed"]] || 0 }).to_json %>;
+
+  new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Pending', data: pendingData, backgroundColor: 'rgba(255, 99, 132, 0.7)' },
+        { label: 'Completed', data: completedData, backgroundColor: 'rgba(75, 192, 192, 0.7)' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        title: { display: true, text: 'Maintenance Tasks by Date' }
+      }
+    }
+  });
+
+  // --- GANTT CHART ---
+  const ganttCtx = document.getElementById('maintenanceGanttChart').getContext('2d');
+  const vehicles = <%= raw @maintenances.map { |m| "#{m.vehicle.make} - #{m.vehicle.license_plate}" }.uniq.to_json %> || [];
+  const ganttDatasets = <%= raw @maintenances.map { |m|
+    {
+      label: "#{m.details} (#{m.status})",
+      backgroundColor: m.status == 'Completed' ? 'rgba(75, 192, 192, 0.7)' : 'rgba(255, 99, 132, 0.7)',
+      data: [{
+        x: m.date.strftime("%Y-%m-%d"),
+        x2: (m.date + 1.day).strftime("%Y-%m-%d"),
+        y: "#{m.vehicle.make} - #{m.vehicle.license_plate}"
+      }]
+    }
+  }.to_json %> || [];
+
+  if (ganttDatasets.length > 0) {
+    ganttDatasets.forEach(ds => {
+      ds.data.forEach(d => {
+        d.x = new Date(d.x).getTime();
+        d.x2 = new Date(d.x2).getTime();
+      });
+    });
+  }
+
+  new Chart(ganttCtx, {
+    type: 'bar',
+    data: { labels: vehicles, datasets: ganttDatasets },
+    options: {
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const d = context.raw;
+              return context.dataset.label + ": " +
+                     new Date(d.x).toLocaleDateString() + " - " +
+                     new Date(d.x2).toLocaleDateString();
+            }
+          }
+        },
+        title: { display: true, text: 'Maintenance Gantt Chart' }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { unit: 'day' },
+          title: { display: true, text: 'Date' },
+          min: vehicles.length > 0 ? undefined : null
+        },
+        y: {
+          title: { display: true, text: 'Vehicles' }
+        }
+      }
+    }
+  });
+});
+</script>
+
+<div class="mb-3 text-end">
+  <%= link_to "Add Maintenance", new_maintenance_path, class: "btn btn-primary" %>
+</div>
+
+<table class="table table-striped table-bordered align-middle">
+  <thead class="table-dark">
+    <tr>
+      <th>Date</th>
+      <th>Task</th>
+      <th>Status</th>
+      <th>Vehicle</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @maintenances.each do |maintenance| %>
+      <tr>
+        <td><%= maintenance.date.strftime("%Y-%m-%d") %></td>
+        <td><%= maintenance.details %></td>
+        <td>
+          <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
+            <%= maintenance.status %>
+          </span>
+        </td>
+        <td><%= maintenance.vehicle.make %> - <%= maintenance.vehicle.license_plate %></td>
+        <td>
+          <%= link_to "Edit", edit_maintenance_path(maintenance), class: "btn btn-sm btn-warning me-1" %>
+          <%= link_to "Delete", maintenance, method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-danger" %>
+        </td>
+      </tr>
+    <% end %>
+
+    <% if @maintenances.empty? %>
+      <tr>
+        <td colspan="5" class="text-center">No maintenance records found</td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

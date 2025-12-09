@@ -1,0 +1,251 @@
+<h1 class="mb-4">Maintenance Gantt Chart</h1>
+
+<% if @maintenances.empty? %>
+  <p>No maintenance records found.</p>
+<% else %>
+
+  <style>
+    .gantt-container {
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      background: #f9f9f9;
+    }
+    .legend, .filters, .export-buttons { margin-bottom: 15px; }
+    .legend-item { display: inline-flex; align-items: center; margin-right: 15px; font-size: 14px; }
+    .legend-color { width: 16px; height: 16px; display: inline-block; margin-right: 5px; border-radius: 3px; }
+    .filters select { margin-right: 10px; padding: 4px 6px; }
+    .export-buttons button { margin-right: 10px; }
+  </style>
+
+  <!-- Filters -->
+  <div class="filters">
+    <label>Vehicle:</label>
+    <select id="vehicleFilter">
+      <option value="All">All</option>
+      <% @maintenances.map { |m| "#{m.vehicle.make} #{m.vehicle.model} - #{m.vehicle.license_plate}" }.uniq.each do |v| %>
+        <option value="<%= v %>"><%= v %></option>
+      <% end %>
+    </select>
+
+    <label>Status:</label>
+    <select id="statusFilter">
+      <option value="All">All</option>
+      <option value="Completed">Completed</option>
+      <option value="Pending">Pending</option>
+    </select>
+
+    <label>Category:</label>
+    <select id="categoryFilter">
+      <option value="All">All</option>
+      <% @maintenances.map { |m| m.category || "General" }.uniq.each do |c| %>
+        <option value="<%= c %>"><%= c %></option>
+      <% end %>
+    </select>
+  </div>
+
+  <!-- Export Buttons -->
+  <div class="export-buttons">
+    <button id="exportPNG" class="btn btn-sm btn-primary">Export PNG</button>
+    <button id="exportPDF" class="btn btn-sm btn-secondary">Export PDF</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: rgba(60, 179, 113, 0.9)"></span> Completed
+    </div>
+    <div class="legend-item">
+      <span class="legend-color" style="background-color: rgba(255, 99, 132, 0.9)"></span> Pending
+    </div>
+  </div>
+
+  <!-- Debug missing dates -->
+  <% missing_dates = @maintenances.select { |m| m.start_date.nil? || m.end_date.nil? } %>
+  <% if missing_dates.any? %>
+    <div class="alert alert-warning">
+      <strong>Warning:</strong> Some maintenance records were missing start or end dates; defaults applied.
+      <ul>
+        <% missing_dates.each do |m| %>
+          <li>
+            Vehicle: <%= "#{m.vehicle.make} #{m.vehicle.model} - #{m.vehicle.license_plate}" %>,
+            Assignment: <%= m.assignment_type %>,
+            Start: <%= m.start_date || "DEFAULT" %>,
+            End: <%= m.end_date || "DEFAULT" %>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <!-- Chart -->
+  <div class="gantt-container mb-5">
+    <canvas id="maintenanceGanttChart" width="1800" height="<%= (@maintenances.map(&:vehicle_id).uniq.count * 80) + 200 %>"></canvas>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const ctx = document.getElementById('maintenanceGanttChart').getContext('2d');
+
+      let originalData = <%= raw @maintenances.map { |m|
+        {
+          label: m.assignment_type,
+          vehicle: "#{m.vehicle.make} #{m.vehicle.model} - #{m.vehicle.license_plate}",
+          status: m.status,
+          category: m.category || "General",
+          technician: m.service_provider&.name || "N/A",
+          mileage: m.mileage || "N/A",
+          start_date: m.start_date || m.date || Date.today,
+          end_date: m.end_date || m.date || Date.today + 1
+        }
+      }.to_json %>;
+
+      console.log("originalData:", originalData);
+
+      function buildDatasets(data) {
+        return data.map(m => ({
+          label: `${m.label} (${m.status})`,
+          vehicle: m.vehicle,
+          backgroundColor: m.status === "Completed" ? "rgba(60, 179, 113, 0.9)" : "rgba(255, 99, 132, 0.9)",
+          borderWidth: 2,
+          borderColor: "rgba(0,0,0,0.25)",
+          data: [{ x: new Date(m.start_date), x2: new Date(m.end_date), y: m.vehicle, category: m.category, technician: m.technician, mileage: m.mileage, start: m.start_date, end: m.end_date }]
+        }));
+      }
+
+      let vehicles = [...new Set(originalData.map(m => m.vehicle))];
+
+      const horizontalStripesPlugin = {
+        id: 'horizontalStripes',
+        beforeDraw(chart) {
+          const { ctx, chartArea, scales } = chart;
+          const yScale = scales.y;
+          ctx.save();
+          for (let i = 0; i < yScale.ticks.length; i++) {
+            const y = yScale.getPixelForTick(i);
+            const nextY = y + (yScale.height / yScale.ticks.length);
+            ctx.fillStyle = i % 2 === 0 ? "rgba(230,230,230,0.3)" : "rgba(255,255,255,1)";
+            ctx.fillRect(chartArea.left, y, chartArea.right - chartArea.left, nextY - y);
+          }
+          ctx.restore();
+        }
+      };
+
+      const todayLinePlugin = {
+        id: 'todayLine',
+        afterDraw(chart) {
+          const { ctx, chartArea, scales } = chart;
+          const xScale = scales.x;
+          const today = new Date();
+          if(today < xScale.min || today > xScale.max) return;
+          const x = xScale.getPixelForValue(today);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5,5]);
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+          ctx.restore();
+        }
+      };
+
+      const maintenanceChart = new Chart(ctx, {
+        type: "bar",
+        data: { labels: vehicles, datasets: buildDatasets(originalData) },
+        options: {
+          indexAxis: "y",
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label(ctx) {
+                  const d = ctx.raw;
+                  const start = new Date(d.start);
+                  const end = new Date(d.end);
+                  const days = Math.ceil((end - start) / (1000*60*60*24));
+                  return [
+                    `Vehicle: ${ctx.dataset.vehicle}`,
+                    `Task: ${ctx.dataset.label}`,
+                    `Category: ${d.category}`,
+                    `Technician: ${d.technician}`,
+                    `Mileage: ${d.mileage}`,
+                    `From: ${start.toLocaleDateString()}`,
+                    `To: ${end.toLocaleDateString()}`,
+                    `Duration: ${days} days`
+                  ];
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: { unit: 'day', tooltipFormat: 'PP' },
+              title: { display: true, text: 'Timeline' },
+              ticks: { maxRotation: 0 },
+              grid: { color: 'rgba(180,180,180,0.3)' }
+            },
+            y: {
+              title: { display: true, text: 'Vehicles' },
+              ticks: { font: { size: 14 } },
+              grid: { display: false }
+            }
+          },
+          barThickness: 40,
+          categoryPercentage: 0.7,
+          barPercentage: 0.9,
+          responsive: true,
+          maintainAspectRatio: false
+        },
+        plugins: [horizontalStripesPlugin, todayLinePlugin]
+      });
+
+      function filterChart() {
+        const vFilter = document.getElementById("vehicleFilter").value;
+        const sFilter = document.getElementById("statusFilter").value;
+        const cFilter = document.getElementById("categoryFilter").value;
+
+        const filteredData = originalData.filter(m => 
+          (vFilter === "All" || m.vehicle === vFilter) &&
+          (sFilter === "All" || m.status === sFilter) &&
+          (cFilter === "All" || m.category === cFilter)
+        );
+
+        vehicles = [...new Set(filteredData.map(m => m.vehicle))];
+
+        maintenanceChart.data.labels = vehicles;
+        maintenanceChart.data.datasets = buildDatasets(filteredData);
+        maintenanceChart.update();
+      }
+
+      document.getElementById("vehicleFilter").addEventListener("change", filterChart);
+      document.getElementById("statusFilter").addEventListener("change", filterChart);
+      document.getElementById("categoryFilter").addEventListener("change", filterChart);
+
+      document.getElementById("exportPNG").addEventListener("click", () => {
+        const link = document.createElement('a');
+        link.href = maintenanceChart.toBase64Image();
+        link.download = `maintenance_gantt_${new Date().toISOString().split("T")[0]}.png`;
+        link.click();
+      });
+
+      document.getElementById("exportPDF").addEventListener("click", () => {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1800, 800] });
+        pdf.addImage(maintenanceChart.toBase64Image(), 'PNG', 10, 10, 1780, 780);
+        pdf.save(`maintenance_gantt_${new Date().toISOString().split("T")[0]}.pdf`);
+      });
+
+    });
+  </script>
+
+<% end %>

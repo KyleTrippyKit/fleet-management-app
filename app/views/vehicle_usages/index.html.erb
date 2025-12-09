@@ -1,0 +1,161 @@
+<div class="container py-3">
+  <h1 class="mb-4">Vehicle Usage Analytics</h1>
+
+  <!-- Filter Form -->
+  <div class="card mb-3 p-3">
+    <%= form_with url: vehicle_usages_path, method: :get, local: true,
+                  class: "row g-2 align-items-end",
+                  data: { turbo_frame: "vehicle_usage_frame" } do %>
+
+      <div class="col-md-3">
+        <%= label_tag :from, "From", class: "form-label" %>
+        <%= date_field_tag :from, params[:from], class: "form-control form-control-sm" %>
+      </div>
+
+      <div class="col-md-3">
+        <%= label_tag :to, "To", class: "form-label" %>
+        <%= date_field_tag :to, params[:to], class: "form-control form-control-sm" %>
+      </div>
+
+      <div class="col-md-3">
+        <%= label_tag :owner, "Service Owner", class: "form-label" %>
+        <%= select_tag :owner,
+            options_for_select(["All", "PTSC", "Police", "Fire Service"],
+            params[:owner] || "All"),
+            class: "form-select form-select-sm" %>
+      </div>
+
+      <div class="col-md-3">
+        <%= submit_tag "Filter", class: "btn btn-primary btn-sm w-100" %>
+      </div>
+
+    <% end %>
+  </div>
+
+  <%= turbo_frame_tag "vehicle_usage_frame" do %>
+
+    <!-- DAILY UTILIZATION CHART -->
+    <div class="card shadow-sm p-3 mb-4">
+      <h5 class="card-title mb-2">Daily Utilization (%)</h5>
+
+      <% if @chart_data_daily.present? %>
+        <%= line_chart @chart_data_daily,
+              height: "280px",
+              xtitle: "Date",
+              ytitle: "Utilization (%)",
+              points: true,
+              download: true %>
+      <% else %>
+        <p class="text-center mb-0">No daily data available</p>
+      <% end %>
+    </div>
+
+    <!-- THREE BAR CHARTS -->
+    <div class="row mb-3">
+
+      <!-- Distance -->
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-2">
+          <div class="card-header bg-primary text-white py-1">Distance (km)</div>
+          <div class="card-body p-2">
+            <% if @chart_data_distance.present? %>
+              <%= bar_chart @chart_data_distance,
+                    height: "250px",
+                    download: true %>
+            <% else %>
+              <p class="mb-0 text-center">No data available</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hours -->
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-2">
+          <div class="card-header bg-success text-white py-1">Hours</div>
+          <div class="card-body p-2">
+            <% if @chart_data_hours.present? %>
+              <%= bar_chart @chart_data_hours,
+                    height: "250px",
+                    download: true %>
+            <% else %>
+              <p class="mb-0 text-center">No data available</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Utilization -->
+      <div class="col-md-4 mb-3">
+        <div class="card shadow-sm p-2">
+          <div class="card-header bg-info text-white py-1">Utilization (%)</div>
+          <div class="card-body p-2">
+            <% if @chart_data_util.present? %>
+              <%= bar_chart @chart_data_util,
+                    height: "250px",
+                    download: true %>
+            <% else %>
+              <p class="mb-0 text-center">No data available</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TABLE -->
+    <div class="card shadow-sm p-2">
+      <div class="card-header bg-secondary text-white py-1">Usage Entries</div>
+
+      <div class="card-body p-1">
+        <% if @vehicle_usages.any? %>
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>Vehicle</th>
+                <th>License Plate</th>
+                <th>Owner</th>
+                <th>Trips</th>
+                <th>Distance (km)</th>
+                <th>Hours</th>
+                <th style="width: 160px;">Utilization</th>
+              </tr>
+            </thead>
+            <tbody>
+
+              <% @vehicle_usages.each do |v| %>
+                <tr>
+                  <td><%= v[:name] %></td>
+                  <td><%= v[:registration_number] %></td>
+                  <td><%= v[:service_owner] %></td>
+                  <td><%= v[:trip_count] %></td>
+                  <td><%= v[:distance_km] %></td>
+                  <td><%= v[:hours_plied] %></td>
+
+                  <!-- MINI UTILIZATION BAR (your favorite style) -->
+                  <td>
+                    <div class="d-flex" style="height: 16px;">
+                      <% v[:daily_usage].each do |day| %>
+                        <div title="<%= "#{day[:date]}: #{day[:percent]}%" %>"
+                             style="
+                               flex: 1;
+                               background-color: <%= day[:percent] > 0 ? '#0dcaf0' : '#e9ecef' %>;
+                               border-right: 1px solid #ffffff22;
+                             ">
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+
+            </tbody>
+          </table>
+        <% else %>
+          <p class="p-2 mb-0 text-center">No usage entries found.</p>
+        <% end %>
+      </div>
+    </div>
+
+  <% end %>
+</div>

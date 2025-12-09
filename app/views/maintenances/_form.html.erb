@@ -1,0 +1,103 @@
+<%= form_with(model: vehicle, local: true, html: { multipart: true }) do |form| %>
+
+  <% if vehicle.errors.any? %>
+    <div class="alert alert-danger">
+      <h5><%= pluralize(vehicle.errors.count, "error") %> prevented this vehicle from saving:</h5>
+      <ul>
+        <% vehicle.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <!-- Vehicle Fields -->
+      <div class="mb-3">
+        <%= form.label :make, class: "form-label fw-semibold" %>
+        <%= form.text_field :make, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :model, class: "form-label fw-semibold" %>
+        <%= form.text_field :model, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :license_plate, "Plate Number", class: "form-label fw-semibold" %>
+        <%= form.text_field :license_plate, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :vehicle_type, "Type", class: "form-label fw-semibold" %>
+        <%= form.text_field :vehicle_type, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :color, class: "form-label fw-semibold" %>
+        <%= form.text_field :color, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :service_owner, class: "form-label fw-semibold" %>
+        <%= form.select :service_owner, options_for_select(Vehicle::VALID_OWNERS, vehicle.service_owner), { prompt: "Select owner" }, class: "form-select" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :mileage, "Current Mileage (km)", class: "form-label fw-semibold" %>
+        <%= form.number_field :mileage, class: "form-control" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :image, "Upload Vehicle Image", class: "form-label fw-semibold" %>
+        <%= form.file_field :image, accept: "image/*", class: "form-control", id: "vehicle_image_input" %>
+      </div>
+      <div class="d-flex gap-2">
+        <%= form.submit "Save Vehicle", class: "btn btn-primary" %>
+        <%= link_to "Cancel", vehicles_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+
+    <!-- Image Preview -->
+    <div class="col-md-6">
+      <h5 class="fw-bold">Image Preview</h5>
+      <div id="image_preview_container" class="d-flex flex-wrap gap-2">
+        <% has_image = vehicle.respond_to?(:image) && vehicle.image.attached? rescue false %>
+        <% if has_image %>
+          <%= image_tag vehicle.image, class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
+        <% else %>
+          <%= image_tag "placeholders/default.png", class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const imageInput = document.getElementById("vehicle_image_input");
+  const previewContainer = document.getElementById("image_preview_container");
+
+  if (imageInput) {
+    imageInput.addEventListener("change", () => {
+      previewContainer.innerHTML = "";
+
+      const file = imageInput.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement("img");
+          img.src = e.target.result;
+          img.className = "img-fluid rounded";
+          img.style.maxWidth = "100%";
+          img.style.height = "auto";
+          previewContainer.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Show placeholder if no file selected
+        const placeholder = document.createElement("img");
+        placeholder.src = "<%= asset_path('placeholders/default.png') %>";
+        placeholder.className = "img-fluid rounded";
+        placeholder.style.maxWidth = "100%";
+        placeholder.style.height = "auto";
+        previewContainer.appendChild(placeholder);
+      }
+    });
+  }
+});
+</script>

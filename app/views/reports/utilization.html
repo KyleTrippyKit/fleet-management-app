@@ -1,0 +1,57 @@
+<h1 class="mb-4">Vehicle Utilization Report</h1>
+
+<div class="card p-3 mb-4">
+  <h4>Select Date Range</h4>
+
+  <%= form_with url: utilization_reports_path, method: :get, local: true do %>
+    <div class="row">
+      <div class="col-md-4">
+        <label>Start Date</label>
+        <%= date_field_tag :start_date, @start_date, class: "form-control" %>
+      </div>
+      <div class="col-md-4">
+        <label>End Date</label>
+        <%= date_field_tag :end_date, @end_date, class: "form-control" %>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Apply</button>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<div class="card p-3 mb-4">
+  <h4>Utilization Chart</h4>
+
+  <% if @chart_data.present? %>
+    <%= line_chart @chart_data, height: "350px", library: { curveType: "function" } %>
+  <% else %>
+    <p>No data available for this range.</p>
+  <% end %>
+</div>
+
+<div class="card p-3">
+  <h4>Vehicle Details</h4>
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>Vehicle</th>
+        <th>Owner</th>
+        <th>Distance</th>
+        <th>Hours</th>
+        <th>Utilization</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @table_rows.each do |row| %>
+        <tr>
+          <td><%= row.vehicle_id %></td>
+          <td><%= row.owner %></td>
+          <td><%= row.distance %></td>
+          <td><%= row.hours %></td>
+          <td><%= row.utilization %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

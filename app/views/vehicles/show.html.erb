@@ -1,0 +1,71 @@
+<div class="container py-4">
+
+  <!-- Vehicle Header Card -->
+  <div class="card mb-4 shadow-sm" style="max-width: 540px;">
+    <div class="row g-0">
+      <div class="col-md-4">
+        <%= image_tag vehicle_image(@vehicle), class: "img-fluid rounded-start" %>
+      </div>
+      <div class="col-md-8">
+        <div class="card-body">
+          <h5 class="card-title">
+            <%= @vehicle.make %> <%= @vehicle.model %>
+            <% if @vehicle.license_plate.present? %>
+              <span class="badge bg-secondary"><%= @vehicle.license_plate %></span>
+            <% end %>
+          </h5>
+          <p class="card-text"><strong>Service Owner:</strong> <%= @vehicle.service_owner %></p>
+          <p class="card-text">
+            <small class="text-body-secondary">
+              Last Maintenance: 
+              <% last_maintenance_header = @vehicle.maintenances.order(date: :desc).first %>
+              <%= last_maintenance_header&.date || "No maintenance yet" %>
+            </small>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle Info Card -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <p><strong>Type:</strong> <%= @vehicle.vehicle_type %></p>
+      <p><strong>Color:</strong> <%= @vehicle.color %></p>
+      <p><strong>Mileage:</strong> <%= @vehicle.mileage || "Unknown" %> km</p>
+
+      <% if @next_service_mileage && @mileage_left %>
+        <p><strong>Next Service Mileage:</strong> <%= @next_service_mileage %> km</p>
+        <p><strong>Mileage until next service:</strong>
+          <% if @mileage_left > 2000 %>
+            <span class="badge bg-success"><%= @mileage_left %> km</span>
+          <% elsif @mileage_left > 0 %>
+            <span class="badge bg-warning"><%= @mileage_left %> km</span>
+          <% else %>
+            <span class="badge bg-danger">Overdue!</span>
+          <% end %>
+        </p>
+      <% else %>
+        <p><strong>Next Service Mileage:</strong> Unknown</p>
+      <% end %>
+
+      <!-- NEW: View Full Vehicle Details Button -->
+      <%= link_to "View Full Vehicle Details", full_details_vehicle_path(@vehicle), class: "btn btn-primary mt-3" %>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- Document Uploads & Lists -->
+  <%= render "documents_section", vehicle: @vehicle %>
+
+  <!-- Maintenance Section -->
+  <%= render "maintenances_section", vehicle: @vehicle %>
+
+  <hr>
+
+  <!-- Bottom Navigation -->
+  <%= link_to "Back to Vehicles", vehicles_path, class: "btn btn-outline-secondary" %>
+  <%= link_to "Edit Vehicle", edit_vehicle_path(@vehicle), class: "btn btn-warning ms-2" %>
+
+</div>
