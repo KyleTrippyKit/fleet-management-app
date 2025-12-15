@@ -1,79 +1,95 @@
+# frozen_string_literal: true
+
 source "https://rubygems.org"
 
-# Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
+# =============================
+# Rails
+# =============================
+# Edge Rails alternative (optional): gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.1"
-# The modern asset pipeline for Rails [https://github.com/rails/propshaft]
-gem "propshaft"
-# Use postgresql as the database for Active Record
-gem "pg", "~> 1.1"
-# Use the Puma web server [https://github.com/puma/puma]
-gem "puma", ">= 5.0"
-# Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
-gem "importmap-rails"
-# Bundle and process CSS [https://github.com/rails/cssbundling-rails]
-gem "cssbundling-rails"
-# Build JSON APIs with ease [https://github.com/rails/jbuilder]
+
+# =============================
+# Database
+# =============================
+gem "pg", "~> 1.1"         # PostgreSQL as DB
+gem "tzinfo-data", platforms: %i[windows jruby] # Windows timezone support
+
+# =============================
+# Web Server
+# =============================
+gem "puma", ">= 5.0"       # Puma server
+
+# =============================
+# JavaScript & CSS
+# =============================
+gem "importmap-rails"      # ESM import maps for JS
+gem "jsbundling-rails", "~> 1.3" # Optional for bundling JS via esbuild/webpack
+gem "cssbundling-rails"    # CSS bundling
+gem "bootstrap", "~> 5.3"  # CSS framework
+
+# =============================
+# Hotwire / Stimulus / Turbo
+# =============================
+gem "turbo-rails"
+gem "stimulus-rails", "~> 1.3"
+
+# =============================
+# Authentication
+# =============================
+gem "devise"
+
+# =============================
+# API & JSON
+# =============================
 gem "jbuilder"
+gem "groupdate"             # Optional: grouping by dates in queries
 
-# Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
-# gem "bcrypt", "~> 3.1.7"
+# =============================
+# File / Image Handling
+# =============================
+gem "propshaft"             # Modern asset pipeline
+gem "image_processing", "~> 1.2" # Active Storage variants
 
-# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
-gem "tzinfo-data", platforms: %i[ windows jruby ]
+# =============================
+# Caching, Queues, and Action Cable
+# =============================
+gem "solid_cache"           # Cache adapter
+gem "solid_queue"           # Background job adapter
+gem "solid_cable"           # Action Cable adapter
 
-# Use the database-backed adapters for Rails.cache, Active Job, and Action Cable
-gem "solid_cache"
-gem "solid_queue"
-gem "solid_cable"
+# =============================
+# Utilities / Deployment
+# =============================
+gem "bootsnap", require: false # Speeds up boot times
+gem "kamal", require: false     # Deploy anywhere as Docker container
+gem "thruster", require: false  # HTTP caching/compression for Puma
+gem "chartkick"                 # Charts
 
-# Reduces boot times through caching; required in config/boot.rb
-gem "bootsnap", require: false
-
-# Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
-gem "kamal", require: false
-
-# Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
-gem "thruster", require: false
-
-# Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
-gem "image_processing", "~> 1.2"
+# =============================
+# Development & Debugging
+# =============================
+group :development do
+  gem "web-console"           # Console on exception pages
+end
 
 group :development, :test do
-  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
-  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
-
-  # Audits gems for known security defects (use config/bundler-audit.yml to ignore issues)
-  gem "bundler-audit", require: false
-
-  # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
-  gem "brakeman", require: false
-
-  # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
-  gem "rubocop-rails-omakase", require: false
+  gem "debug", platforms: %i[mri windows], require: "debug/prelude"
+  gem "bundler-audit", require: false # Security audits
+  gem "brakeman", require: false      # Static analysis for vulnerabilities
+  gem "rubocop-rails-omakase", require: false # Ruby style linting
 end
 
-group :development do
-  # Use console on exceptions pages [https://github.com/rails/web-console]
-  gem "web-console"
-end
-
+# =============================
+# Testing
+# =============================
 group :test do
-  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
-  gem "capybara"
+  gem "capybara"              # System tests
   gem "selenium-webdriver"
 end
 
-gem "jsbundling-rails", "~> 1.3"
-gem "chartkick"
+# =============================
+# Optional: Active Model Passwords
+# =============================
+# gem "bcrypt", "~> 3.1.7"
 
-gem "bootstrap", "~> 5.3"
-gem 'devise'
-
-gem "stimulus-rails", "~> 1.3"
-
-gem "turbo-rails"
-
-gem "groupdate" # optional, if using grouping by dates
-
-gem "image_processing", "~> 1.2"
-
+gem 'kaminari'

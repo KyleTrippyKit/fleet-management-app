@@ -1,0 +1,120 @@
+<div class="container py-4">
+  <!-- ============================================================
+       Header and Add Driver Button
+  ============================================================ -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Drivers</h1>
+    <%= link_to "Add Driver",
+          new_driver_path,
+          class: "btn btn-primary",
+          data: { turbo_frame: "_top" } %>
+  </div>
+
+  <!-- ============================================================
+       Search & Filters (targets turbo frame)
+  ============================================================ -->
+  <div class="mb-3">
+    <%= form_with url: drivers_path,
+                  method: :get,
+                  data: { turbo_frame: "drivers_table" } do |f| %>
+      <div class="input-group">
+        <%= f.text_field :query,
+              value: params[:query],
+              placeholder: "Search drivers...",
+              class: "form-control",
+              aria: { label: "Search drivers" } %>
+        <button class="btn btn-outline-secondary" type="submit">
+          Search
+        </button>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- ============================================================
+       Drivers Table (Turbo Frame)
+  ============================================================ -->
+  <%= turbo_frame_tag "drivers_table" do %>
+    <% if @drivers.any? %>
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th><%= sortable("name", "Name") %></th>
+            <th><%= sortable("license_number", "License") %></th>
+            <th><%= sortable("status", "Status") %></th>
+            <th>Assigned Vehicles</th>
+            <th>Trips</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% @drivers.each do |driver| %>
+            <tr>
+              <td>
+                <%= link_to driver.name,
+                      driver_path(driver),
+                      class: "text-decoration-none",
+                      data: { turbo_frame: "_top" } %>
+              </td>
+
+              <td><%= driver.license_number.presence || "—" %></td>
+
+              <td>
+                <span class="badge
+                  <%= case driver.status
+                        when "active" then "bg-success"
+                        when "suspended" then "bg-warning"
+                        else "bg-secondary"
+                      end %>">
+                  <%= driver.status.capitalize %>
+                </span>
+              </td>
+
+              <td>
+                <% if driver.assigned_vehicles.any? %>
+                  <%= driver.assigned_vehicles.map(&:display_name).join(", ") %>
+                <% else %>
+                  <span class="text-muted">None</span>
+                <% end %>
+              </td>
+
+              <td><%= driver.trips.count %></td>
+
+              <td class="text-end">
+                <%= link_to "Edit",
+                      edit_driver_path(driver),
+                      class: "btn btn-sm btn-outline-secondary me-1",
+                      data: { turbo_frame: "_top" } %>
+
+                <% if driver.trips.exists? || driver.vehicle_usages.exists? %>
+                  <button class="btn btn-sm btn-outline-danger" disabled
+                    title="<%= driver.trips.exists? ?
+                      'Cannot delete driver with trips' :
+                      'Cannot delete driver with assigned vehicles' %>">
+                    Delete
+                  </button>
+                <% else %>
+                  <%= link_to "Delete",
+                        driver_path(driver),
+                        method: :delete,
+                        data: {
+                          turbo_confirm: "Are you sure you want to delete this driver?",
+                          turbo_frame: "_top"
+                        },
+                        class: "btn btn-sm btn-outline-danger" %>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="d-flex justify-content-center mt-3">
+        <%= paginate @drivers %>
+      </div>
+    <% else %>
+      <p class="text-muted">No drivers found.</p>
+    <% end %>
+  <% end %>
+</div>

@@ -1,20 +1,42 @@
 Rails.application.routes.draw do
+  # =====================================================
   # Root
+  # =====================================================
   root "vehicles#index"
 
-  # Devise user authentication
+  # =====================================================
+  # Authentication
+  # =====================================================
   devise_for :users
 
-  # Vehicles and nested resources
+  # =====================================================
+  # Vehicles (Core Resource)
+  # =====================================================
   resources :vehicles do
+    # ---------------------------
+    # Vehicle-specific pages
+    # ---------------------------
     member do
       get :full_details
-      patch :mark_maintenance_completed   # <-- added for completing maintenance
     end
 
-    resources :maintenances
+    # ---------------------------
+    # Maintenance (nested, correct)
+    # ---------------------------
+    resources :maintenances do
+      member do
+        patch :mark_completed
+      end
+    end
+
+    # ---------------------------
+    # Vehicle Documents
+    # ---------------------------
     resources :vehicle_documents, only: [:create, :destroy]
 
+    # ---------------------------
+    # Vehicle-level dashboards
+    # ---------------------------
     collection do
       get :analytics
       get :gantt
@@ -22,20 +44,36 @@ Rails.application.routes.draw do
     end
   end
 
-  # Global Vehicle Usage page
+  # =====================================================
+  # Drivers
+  # =====================================================
+  resources :drivers do
+    # Nested trips for driver-specific trips
+    resources :trips, only: [:index, :show]
+  end
+
+  # =====================================================
+  # Vehicle Usage
+  # =====================================================
   resources :vehicle_usages, only: [:index, :new, :create]
   get "vehicle_usage", to: "vehicle_usages#index", as: :vehicle_usage
 
-  # Additional maintenance routes
+  # =====================================================
+  # Maintenance (global / utility routes)
+  # =====================================================
   resources :maintenances, only: [] do
     collection do
       get :new_with_rfid
     end
   end
 
-  # Gantt chart
+  # =====================================================
+  # Gantt (global view)
+  # =====================================================
   get "gantt", to: "maintenances#gantt", as: :gantt
 
-  # Health check
-  get "up" => "rails/health#show", as: :rails_health_check
+  # =====================================================
+  # Health Check
+  # =====================================================
+  get "up", to: "rails/health#show", as: :rails_health_check
 end

@@ -7,13 +7,13 @@ pin "application"
 pin "@hotwired/turbo-rails", to: "turbo.min.js", preload: true
 pin "@hotwired/stimulus", to: "stimulus.min.js"
 pin "@hotwired/stimulus-loading", to: "stimulus-loading.js"
+
+# Pin all controllers
 pin_all_from "app/javascript/controllers", under: "controllers"
 
-# Bootstrap JS
+# Bootstrap
 pin "bootstrap", to: "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
 
-# Chart.js and dependencies
-pin "chart.js", to: "https://cdn.jsdelivr.net/npm/chart.js"
-
-# Chartkick
-pin "chartkick", to: "https://ga.jspm.io/npm:chartkick@5.0.2/dist/chartkick.mjs"
+# Charting (optional, if used)
+pin "chartkick", to: "chartkick.js"
+pin "chart.js", to: "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
