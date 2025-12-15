@@ -1,0 +1,140 @@
+<div class="container py-4">
+  <!-- ============================================================
+       Header Section
+       ============================================================ -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Driver Details: <%= @driver.name %></h1>
+    <%= link_to "Back to Drivers", drivers_path, class: "btn btn-secondary" %>
+  </div>
+
+  <!-- ============================================================
+       Delete Confirmation Section
+       ============================================================ -->
+  <% if params[:confirm] == "true" %>
+    <div class="alert alert-warning">
+      Are you sure you want to delete this driver? This action cannot be undone.
+    </div>
+    <div class="d-flex gap-2 mb-4">
+        <form action="<%= driver_path(@driver) %>" method="post" class="d-inline">
+            <input type="hidden" name="_method" value="delete">
+            <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+            <button type="submit" class="btn btn-danger">Confirm Deletion</button>
+        </form>
+      <%= link_to "Cancel", driver_path(@driver),
+                  class: "btn btn-secondary" %>
+    </div>
+  <% else %>
+    <div class="mb-3">
+      <!-- Trigger delete confirmation -->
+      <%= link_to "Delete Driver", driver_path(@driver, confirm: true),
+                  class: "btn btn-outline-danger" %>
+    </div>
+  <% end %>
+
+  <!-- ============================================================
+       Driver Info Card
+       ============================================================ -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Driver Information</h5>
+      <p><strong>Name:</strong> <%= @driver.name %></p>
+      <p><strong>License Number:</strong> <%= @driver.license_number.presence || "—" %></p>
+      <p><strong>Phone:</strong> <%= @driver.phone.presence || "—" %></p>
+      <p>
+        <strong>Status:</strong>
+        <% status_class = case @driver.status
+                         when "active" then "bg-success"
+                         when "suspended" then "bg-warning"
+                         else "bg-secondary"
+                         end %>
+        <span class="badge <%= status_class %>"><%= @driver.status.capitalize %></span>
+      </p>
+      <p><strong>Notes:</strong> <%= @driver.notes.presence || "—" %></p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Currently Assigned Vehicles
+       ============================================================ -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Currently Assigned Vehicles</h5>
+      <% if @assigned_vehicles.any? %>
+        <ul class="list-group list-group-flush">
+          <% @assigned_vehicles.each do |vehicle| %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <%= vehicle.display_name %>
+              <span class="badge bg-primary"><%= vehicle.service_owner %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-muted">No assigned vehicles.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Historical Vehicles
+       ============================================================ -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Historical Vehicles</h5>
+      <% if @historical_vehicles.any? %>
+        <ul class="list-group list-group-flush">
+          <% @historical_vehicles.each do |vehicle| %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <%= vehicle.display_name %>
+              <span class="badge bg-secondary"><%= vehicle.service_owner %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-muted">No historical vehicles.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Trips Table with Turbo and Sorting
+       ============================================================ -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">Trips</h5>
+
+      <%= turbo_frame_tag "driver_trips" do %>
+        <% if @trips.any? %>
+          <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+              <thead>
+                <tr>
+                  <th><%= sortable_trip("vehicle_id", "Vehicle") %></th>
+                  <th><%= sortable_trip("start_time", "Start Time") %></th>
+                  <th><%= sortable_trip("end_time", "End Time") %></th>
+                  <th>Duration (hrs)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @trips.each do |trip| %>
+                  <tr>
+                    <td><%= trip.vehicle.display_name %></td>
+                    <td><%= trip.start_time.strftime("%b %d, %Y %I:%M %p") %></td>
+                    <td><%= trip.end_time.strftime("%b %d, %Y %I:%M %p") %></td>
+                    <td><%= "%.2f" % trip.duration_hours %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Controls (like index) -->
+          <div class="d-flex justify-content-center mt-3">
+            <%= paginate @trips, param_name: :trip_page %>
+          </div>
+        <% else %>
+          <p class="text-muted">No trips recorded for this driver.</p>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,62 @@
+<%= form_with model: @driver, local: true do |f| %>
+  <% if @driver.errors.any? %>
+    <div class="alert alert-danger">
+      <ul>
+        <% @driver.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <!-- Driver Name -->
+  <div class="mb-3">
+    <%= f.label :name, class: "form-label" %>
+    <%= f.text_field :name, class: "form-control" %>
+  </div>
+
+  <!-- License Number -->
+  <div class="mb-3">
+    <%= f.label :license_number, class: "form-label" %>
+    <%= f.text_field :license_number, class: "form-control" %>
+  </div>
+
+  <!-- Phone -->
+  <div class="mb-3">
+    <%= f.label :phone, class: "form-label" %>
+    <%= f.text_field :phone, class: "form-control" %>
+  </div>
+
+  <!-- Status -->
+  <div class="mb-3">
+    <%= f.label :status, class: "form-label" %>
+    <%= f.select :status, Driver::STATUSES, {}, class: "form-select" %>
+  </div>
+
+  <!-- Notes -->
+  <div class="mb-3">
+    <%= f.label :notes, class: "form-label" %>
+    <%= f.text_area :notes, rows: 3, class: "form-control" %>
+  </div>
+
+  <!-- Vehicle Assignment -->
+  <div class="mb-3">
+    <%= f.label :vehicles, "Assign Vehicles", class: "form-label" %>
+
+    <!-- 
+      Multiple select for vehicles.
+      Preselects currently assigned vehicles (assigned_vehicles)
+      Avoids creating VehicleUsage before Driver exists
+    -->
+    <%= f.collection_select :vehicle_ids,
+          Vehicle.order(:make, :model),
+          :id,
+          :display_name,
+          { selected: @driver.assigned_vehicles.map(&:id) },
+          { multiple: true, class: "form-select" } %>
+
+    <small class="text-muted">Hold Ctrl (or Cmd) to select multiple vehicles</small>
+  </div>
+
+  <%= f.submit class: "btn btn-primary" %>
+<% end %>

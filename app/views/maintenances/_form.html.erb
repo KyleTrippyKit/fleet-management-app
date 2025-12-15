@@ -1,10 +1,9 @@
-<%= form_with(model: vehicle, local: true, html: { multipart: true }) do |form| %>
-
-  <% if vehicle.errors.any? %>
+<%= form_with(model: [@vehicle, @maintenance], local: true, html: { multipart: true }) do |f| %>
+  <% if @maintenance.errors.any? %>
     <div class="alert alert-danger">
-      <h5><%= pluralize(vehicle.errors.count, "error") %> prevented this vehicle from saving:</h5>
+      <h5><%= pluralize(@maintenance.errors.count, "error") %> prevented this maintenance from saving:</h5>
       <ul>
-        <% vehicle.errors.full_messages.each do |msg| %>
+        <% @maintenance.errors.full_messages.each do |msg| %>
           <li><%= msg %></li>
         <% end %>
       </ul>
@@ -13,52 +12,79 @@
 
   <div class="row g-3">
     <div class="col-md-6">
-      <!-- Vehicle Fields -->
+      <!-- Assignment Type -->
       <div class="mb-3">
-        <%= form.label :make, class: "form-label fw-semibold" %>
-        <%= form.text_field :make, class: "form-control" %>
+        <%= f.label :assignment_type, "Assignment Type", class: "form-label fw-semibold" %>
+        <%= f.select :assignment_type,
+                     options_for_select(Maintenance::ASSIGNMENT_TYPES.map { |a| [a.titleize, a] }, @maintenance.assignment_type),
+                     { prompt: "Select assignment type" },
+                     class: "form-select" %>
       </div>
+
+      <!-- Maintenance Dates -->
       <div class="mb-3">
-        <%= form.label :model, class: "form-label fw-semibold" %>
-        <%= form.text_field :model, class: "form-control" %>
+        <%= f.label :date, "Maintenance Date", class: "form-label fw-semibold" %>
+        <%= f.text_field :date, class: "form-control datepicker", value: @maintenance.date&.strftime("%d/%m/%Y") %>
       </div>
+
       <div class="mb-3">
-        <%= form.label :license_plate, "Plate Number", class: "form-label fw-semibold" %>
-        <%= form.text_field :license_plate, class: "form-control" %>
+        <%= f.label :next_due_date, "Next Due Date", class: "form-label fw-semibold" %>
+        <%= f.text_field :next_due_date, class: "form-control datepicker", value: @maintenance.next_due_date&.strftime("%d/%m/%Y") %>
       </div>
+
       <div class="mb-3">
-        <%= form.label :vehicle_type, "Type", class: "form-label fw-semibold" %>
-        <%= form.text_field :vehicle_type, class: "form-control" %>
+        <%= f.label :reminder_sent_at, "Reminder Sent Date", class: "form-label fw-semibold" %>
+        <%= f.text_field :reminder_sent_at, class: "form-control datepicker", value: @maintenance.reminder_sent_at&.strftime("%d/%m/%Y") %>
       </div>
+
+      <!-- Service Type -->
       <div class="mb-3">
-        <%= form.label :color, class: "form-label fw-semibold" %>
-        <%= form.text_field :color, class: "form-control" %>
+        <%= f.label :service_type, "Service Type", class: "form-label fw-semibold" %>
+        <%= f.select :service_type,
+                     options_for_select(["Oil Change", "Brake Service", "Tire Rotation", "Inspection", "Other"], @maintenance.service_type),
+                     { prompt: "Select service type" },
+                     class: "form-select" %>
       </div>
+
+      <!-- Status -->
       <div class="mb-3">
-        <%= form.label :service_owner, class: "form-label fw-semibold" %>
-        <%= form.select :service_owner, options_for_select(Vehicle::VALID_OWNERS, vehicle.service_owner), { prompt: "Select owner" }, class: "form-select" %>
+        <%= f.label :status, "Status", class: "form-label fw-semibold" %>
+        <%= f.select :status,
+                     options_for_select(Maintenance::STATUSES, @maintenance.status),
+                     { prompt: "Select status" },
+                     class: "form-select" %>
       </div>
+
+      <!-- Cost & Notes -->
       <div class="mb-3">
-        <%= form.label :mileage, "Current Mileage (km)", class: "form-label fw-semibold" %>
-        <%= form.number_field :mileage, class: "form-control" %>
+        <%= f.label :cost, "Cost", class: "form-label fw-semibold" %>
+        <%= f.number_field :cost, class: "form-control", placeholder: "Enter the cost here", step: 0.01 %>
       </div>
+
       <div class="mb-3">
-        <%= form.label :image, "Upload Vehicle Image", class: "form-label fw-semibold" %>
-        <%= form.file_field :image, accept: "image/*", class: "form-control", id: "vehicle_image_input" %>
+        <%= f.label :notes, "Notes", class: "form-label fw-semibold" %>
+        <%= f.text_area :notes, class: "form-control", placeholder: "Enter any notes here", rows: 3 %>
       </div>
+
+      <!-- Service Provider -->
+      <div class="mb-3">
+        <%= f.label :service_provider_id, "Service Provider", class: "form-label fw-semibold" %>
+        <%= f.collection_select :service_provider_id, @service_providers, :id, :name, { prompt: "Select provider" }, class: "form-select" %>
+      </div>
+
+      <!-- Form Actions -->
       <div class="d-flex gap-2">
-        <%= form.submit "Save Vehicle", class: "btn btn-primary" %>
-        <%= link_to "Cancel", vehicles_path, class: "btn btn-outline-secondary" %>
+        <%= f.submit "Save Maintenance", class: "btn btn-primary" %>
+        <%= link_to "Cancel", vehicle_path(@vehicle), class: "btn btn-outline-secondary" %>
       </div>
     </div>
 
-    <!-- Image Preview -->
+    <!-- Vehicle Image Preview -->
     <div class="col-md-6">
-      <h5 class="fw-bold">Image Preview</h5>
+      <h5 class="fw-bold">Vehicle Image</h5>
       <div id="image_preview_container" class="d-flex flex-wrap gap-2">
-        <% has_image = vehicle.respond_to?(:image) && vehicle.image.attached? rescue false %>
-        <% if has_image %>
-          <%= image_tag vehicle.image, class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
+        <% if @vehicle.image.attached? %>
+          <%= image_tag @vehicle.image, class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
         <% else %>
           <%= image_tag "placeholders/default.png", class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
         <% end %>
@@ -67,37 +93,15 @@
   </div>
 <% end %>
 
+<!-- Flatpickr -->
+<%= javascript_include_tag "https://cdn.jsdelivr.net/npm/flatpickr" %>
+<%= stylesheet_link_tag "https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" %>
+
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  const imageInput = document.getElementById("vehicle_image_input");
-  const previewContainer = document.getElementById("image_preview_container");
-
-  if (imageInput) {
-    imageInput.addEventListener("change", () => {
-      previewContainer.innerHTML = "";
-
-      const file = imageInput.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const img = document.createElement("img");
-          img.src = e.target.result;
-          img.className = "img-fluid rounded";
-          img.style.maxWidth = "100%";
-          img.style.height = "auto";
-          previewContainer.appendChild(img);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // Show placeholder if no file selected
-        const placeholder = document.createElement("img");
-        placeholder.src = "<%= asset_path('placeholders/default.png') %>";
-        placeholder.className = "img-fluid rounded";
-        placeholder.style.maxWidth = "100%";
-        placeholder.style.height = "auto";
-        previewContainer.appendChild(placeholder);
-      }
-    });
-  }
+  flatpickr(".datepicker", {
+    dateFormat: "d/m/Y",
+    allowInput: true
+  });
 });
 </script>
