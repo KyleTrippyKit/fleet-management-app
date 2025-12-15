@@ -1,20 +1,27 @@
-// Import Rails UJS, Turbo, and Stimulus
-import "@hotwired/turbo-rails"
-import "./controllers"
-import "@rails/ujs"
-import "chartkick/chart.js"
-import Chart from "chart.js/auto"
+// app/javascript/application.js
+console.log("🚀 Application starting (Importmap)");
 
-// Redraw Chartkick charts on Turbo load
+// Turbo (Importmap)
+import "@hotwired/turbo-rails";
+
+// Stimulus controllers (auto-loaded)
+import "./controllers";
+
+// Chartkick & Chart.js are provided via importmap pins
+// Available globally as window.Chartkick / window.Chart
+
+// Redraw Chartkick charts on Turbo page load
 document.addEventListener("turbo:load", () => {
   if (window.Chartkick) {
-    Chartkick.eachChart(chart => chart.redraw())
+    Chartkick.eachChart(chart => chart.redraw());
   }
-})
+});
 
-// Optional: you can also redraw when a turbo frame updates
-document.addEventListener("turbo:frame-load", (event) => {
+// Redraw charts when Turbo Frames update
+document.addEventListener("turbo:frame-load", () => {
   if (window.Chartkick) {
-    Chartkick.eachChart(chart => chart.redraw())
+    Chartkick.eachChart(chart => chart.redraw());
   }
-})
+});
+
+console.log("✅ Application JS loaded");

@@ -1,16 +1,13 @@
 // app/javascript/controllers/index.js
-import { application } from "controllers/application"
 
-// Explicitly import your chart controller
-import ChartController from "./chart_controller"
+import { application } from "./application";
 
-// Register your chart controller with the application
-application.register("chart", ChartController)
+// Import controllers via importmap alias (IMPORTANT)
+import HelloController from "controllers/hello_controller";
+import ExampleController from "controllers/example_controller";
 
-// Import and register all your controllers from the importmap via controllers/**/*_controller
-import { eagerLoadControllersFrom } from "@hotwired/stimulus-loading"
-eagerLoadControllersFrom("controllers", application)
+// Register controllers
+application.register("hello", HelloController);
+application.register("example", ExampleController);
 
-import ImagePreviewController from "./image_preview_controller"
-application.register("image-preview", ImagePreviewController)
-
+console.log("✅ Stimulus controllers registered");

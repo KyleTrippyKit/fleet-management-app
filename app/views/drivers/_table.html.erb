@@ -1,0 +1,56 @@
+<turbo-frame id="drivers_table">
+  <% if @drivers.any? %>
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th><%= sortable("name", "Name") %></th>
+          <th><%= sortable("license_number", "License") %></th>
+          <th><%= sortable("status", "Status") %></th>
+          <th>Assigned Vehicles</th>
+          <th>Trips</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% @drivers.each do |driver| %>
+          <tr>
+            <td>
+              <%= link_to driver.name, driver_path(driver),
+                  class: "text-decoration-none",
+                  data: { turbo_frame: "_top" } %>
+            </td>
+
+            <td><%= driver.license_number.presence || "—" %></td>
+
+            <td>
+              <span class="badge <%= driver.status == "active" ? "bg-success" : "bg-secondary" %>">
+                <%= driver.status.capitalize %>
+              </span>
+            </td>
+
+            <td>
+              <%= driver.assigned_vehicles.any? ?
+                    driver.assigned_vehicles.map(&:display_name).join(", ") :
+                    content_tag(:span, "None", class: "text-muted") %>
+            </td>
+
+            <td><%= driver.trips.count %></td>
+
+            <td class="text-end">
+              <%= link_to "Edit", edit_driver_path(driver),
+                    class: "btn btn-sm btn-outline-secondary",
+                    data: { turbo_frame: "_top" } %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <div class="d-flex justify-content-center mt-3">
+      <%= paginate @drivers %>
+    </div>
+  <% else %>
+    <p class="text-muted">No drivers found.</p>
+  <% end %>
+</turbo-frame>

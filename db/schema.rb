@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_14_201622) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,9 +45,21 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
   create_table "damage_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
+    t.bigint "driver_id"
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
+    t.index ["driver_id"], name: "index_damage_reports_on_driver_id"
     t.index ["vehicle_id"], name: "index_damage_reports_on_vehicle_id"
+  end
+
+  create_table "drivers", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "license_number"
+    t.string "name", null: false
+    t.text "notes"
+    t.string "phone"
+    t.string "status", default: "active"
+    t.datetime "updated_at", null: false
   end
 
   create_table "maintenance_parts", force: :cascade do |t|
@@ -79,8 +91,10 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
     t.integer "estimated_delivery"
     t.date "estimated_delivery_date"
     t.integer "mileage"
+    t.date "next_due_date"
     t.text "notes"
     t.boolean "part_in_stock"
+    t.datetime "reminder_sent_at"
     t.bigint "service_provider_id"
     t.string "service_type"
     t.string "source"
@@ -88,6 +102,8 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
     t.string "status"
     t.string "technician"
     t.datetime "updated_at", null: false
+    t.string "urgency"
+    t.string "urgency_label"
     t.string "urgency_status"
     t.bigint "vehicle_id", null: false
     t.index ["service_provider_id"], name: "index_maintenances_on_service_provider_id"
@@ -167,11 +183,24 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
     t.index ["vehicle_id"], name: "index_vehicle_documents_on_vehicle_id"
   end
 
+  create_table "vehicle_usages", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "driver_id", null: false
+    t.datetime "end_date"
+    t.datetime "start_date"
+    t.string "status"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["driver_id"], name: "index_vehicle_usages_on_driver_id"
+    t.index ["vehicle_id"], name: "index_vehicle_usages_on_vehicle_id"
+  end
+
   create_table "vehicles", force: :cascade do |t|
     t.string "body_style"
     t.string "chassis_number"
     t.string "color"
     t.datetime "created_at", null: false
+    t.bigint "driver_id"
     t.string "engine_number"
     t.string "fuel_type"
     t.string "license_plate"
@@ -189,11 +218,13 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
     t.datetime "updated_at", null: false
     t.string "vehicle_type"
     t.integer "year_of_manufacture"
+    t.index ["driver_id"], name: "index_vehicles_on_driver_id"
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "damage_reports", "drivers"
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"
@@ -204,4 +235,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_04_120000) do
   add_foreign_key "trips", "users", column: "driver_id"
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
+  add_foreign_key "vehicle_usages", "drivers"
+  add_foreign_key "vehicle_usages", "vehicles"
+  add_foreign_key "vehicles", "drivers"
 end
