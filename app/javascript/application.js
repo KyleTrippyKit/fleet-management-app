@@ -1,27 +1,7 @@
-// app/javascript/application.js
-console.log("🚀 Application starting (Importmap)");
+// Import Turbo
+import "@hotwired/turbo-rails"
 
-// Turbo (Importmap)
-import "@hotwired/turbo-rails";
+// Import Stimulus controllers
+import "./controllers"
 
-// Stimulus controllers (auto-loaded)
-import "./controllers";
-
-// Chartkick & Chart.js are provided via importmap pins
-// Available globally as window.Chartkick / window.Chart
-
-// Redraw Chartkick charts on Turbo page load
-document.addEventListener("turbo:load", () => {
-  if (window.Chartkick) {
-    Chartkick.eachChart(chart => chart.redraw());
-  }
-});
-
-// Redraw charts when Turbo Frames update
-document.addEventListener("turbo:frame-load", () => {
-  if (window.Chartkick) {
-    Chartkick.eachChart(chart => chart.redraw());
-  }
-});
-
-console.log("✅ Application JS loaded");
+console.log("Application JavaScript loaded")

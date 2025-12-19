@@ -4,22 +4,14 @@ class Driver < ApplicationRecord
   # ============================================================
   # Associations
   # ============================================================
-  
-  # Historical vehicle usage (do NOT destroy history automatically)
-  has_many :vehicle_usages, dependent: :restrict_with_error
-  has_many :vehicles, through: :vehicle_usages
-
-  # Vehicles currently assigned to the driver (vehicle_usages with no end_date)
-  has_many :assigned_vehicles,
-           -> { where(vehicle_usages: { end_date: nil }) },
-           through: :vehicle_usages,
-           source: :vehicle
-
-  # Trips by this driver
   has_many :trips, dependent: :nullify
-
-  # Optional future-proofing
   has_many :damage_reports, dependent: :nullify
+
+  # Multi-vehicle assignment via a join table
+  has_and_belongs_to_many :vehicles,
+                          join_table: :drivers_vehicles,
+                          association_foreign_key: :vehicle_id,
+                          dependent: :nullify
 
   # ============================================================
   # Validations
@@ -41,8 +33,27 @@ class Driver < ApplicationRecord
     status == "active"
   end
 
-  # Display names of currently assigned vehicles
+  # Display names of assigned vehicles
   def assigned_vehicle_names
-    assigned_vehicles.pluck(:registration_number).join(", ")
+    vehicles.pluck(:registration_number).join(", ")
+  end
+
+  # Compute usage stats for this driver
+  def usage_stats(from: 30.days.ago.to_date, to: Date.today)
+    trips_in_range = trips.where(start_time: from.beginning_of_day..to.end_of_day)
+
+    distance_sum = trips_in_range.sum(:distance_km).to_f
+    hours_sum    = trips_in_range.sum(&:duration_hours).to_f
+    trip_count   = trips_in_range.count
+
+    total_days = (to - from + 1).to_i
+    utilization = total_days.positive? ? ((hours_sum / (total_days * 24.0)) * 100).round(1) : 0
+
+    {
+      distance_km: distance_sum,
+      hours_plied: hours_sum,
+      trip_count: trip_count,
+      utilization_percent: utilization
+    }
   end
 end

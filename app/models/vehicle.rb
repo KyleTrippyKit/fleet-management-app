@@ -2,41 +2,24 @@ class Vehicle < ApplicationRecord
   # ------------------------------------------------------------
   # Associations
   # ------------------------------------------------------------
-
-  # A vehicle can have many maintenance records.
-  # If a vehicle is deleted, all its maintenances are deleted too.
   has_many :maintenances, dependent: :destroy
-
-  # Logs that track usage over time (e.g., hours, distance)
-  has_many :usage_logs, dependent: :destroy
-
-  # Trips made by this vehicle
   has_many :trips, dependent: :destroy
-
-  # Uploaded documents (insurance, inspection, etc.)
+  has_many :drivers, through: :trips
   has_many :vehicle_documents, dependent: :destroy
 
-  # Current driver assignment
   belongs_to :driver, optional: true
 
-  # Historical usage
-  has_many :vehicle_usages, dependent: :destroy
-  has_many :drivers, through: :vehicle_usages
-
-  # ------------------------------------------------------------
   # ActiveStorage attachments
-  # ------------------------------------------------------------
-  has_one_attached :image        # Main image for cards/listings
-  has_one_attached :picture      # Optional alternative picture
-  has_many_attached :gallery_images # Optional gallery
+  has_one_attached :image
+  has_one_attached :picture
+  has_many_attached :gallery_images
 
   # ------------------------------------------------------------
   # Trinidad & Tobago license plate rules
   # ------------------------------------------------------------
-  TT_PRIMARY_PREFIXES = %w[P H T G].freeze  # Standard plate letters
-  TT_SPECIAL_PREFIXES = %w[CD RR D R].freeze # Government/diplomatic
+  TT_PRIMARY_PREFIXES  = %w[P H T G].freeze
+  TT_SPECIAL_PREFIXES  = %w[CD RR D R].freeze
 
-  # Normalize license plate before validation
   before_validation :normalize_license_plate
 
   # ------------------------------------------------------------
@@ -96,4 +79,27 @@ class Vehicle < ApplicationRecord
     return all if query.blank?
     where("make ILIKE :q OR model ILIKE :q OR license_plate ILIKE :q", q: "%#{query}%")
   }
+
+  # ------------------------------------------------------------
+  # Usage analytics helper
+  # ------------------------------------------------------------
+  def usage_stats(from:, to:)
+    trips_in_range = trips.where(start_time: from.beginning_of_day..to.end_of_day)
+
+    # Use pluck + sum to avoid calling method on ActiveRecord relation
+    distance_sum = trips_in_range.sum(:distance_km).to_f
+    hours_sum    = trips_in_range.pluck(:id).sum { |id| Trip.find(id).duration_hours.to_f }
+    trip_count   = trips_in_range.count
+
+    total_days = [(to - from + 1).to_i, 1].max # prevent division by zero
+    utilization = ((hours_sum / (total_days * 24.0)) * 100).round(1)
+
+    {
+      name: "#{make} #{model} (#{registration_number || 'N/A'})",
+      distance_km: distance_sum,
+      hours_plied: hours_sum,
+      trip_count: trip_count,
+      utilization_percent: utilization
+    }
+  end
 end

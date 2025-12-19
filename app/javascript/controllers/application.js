@@ -1,34 +1,13 @@
-// app/javascript/application.js
-console.log("🚀 Application starting (Importmap)...");
+import { Application } from "@hotwired/stimulus"
+import "@hotwired/turbo-rails"
+import "controllers"
 
-// Import Turbo (from importmap)
-import "@hotwired/turbo-rails";
+console.log("Application loaded")
 
-// Import Stimulus
-import { Application } from "@hotwired/stimulus";
-import { definitionsFromContext } from "@hotwired/stimulus-loading";
+const application = Application.start()
 
-// Start Stimulus
-const application = Application.start();
+// Configure Stimulus development experience
+application.debug = false
+window.Stimulus   = application
 
-// Automatically load all controllers from the `controllers` directory
-const context = require.context("./controllers", true, /_controller\.js$/);
-application.load(definitionsFromContext(context));
-
-// Export for debugging
-window.StimulusApplication = application;
-window.Stimulus = application;
-
-console.log("✅ Stimulus started with controllers:", 
-  Array.from(application.router.modules.keys()));
-
-// Add CSRF token to all Turbo requests
-document.addEventListener("turbo:before-fetch-request", (event) => {
-  const token = document.querySelector("meta[name='csrf-token']")?.content;
-  if (token) {
-    event.detail.fetchOptions.headers = event.detail.fetchOptions.headers || {};
-    event.detail.fetchOptions.headers["X-CSRF-Token"] = token;
-  }
-});
-
-console.log("✅ Application setup complete");
+export { application }
