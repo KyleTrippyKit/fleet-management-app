@@ -4,41 +4,43 @@ FROM ruby:$RUBY_VERSION-slim AS base
 
 WORKDIR /rails
 
-# Install base runtime dependencies
+# Runtime dependencies only
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y \
-      curl libjemalloc2 libvips postgresql-client && \
+    apt-get install -y --no-install-recommends \
+      curl libjemalloc2 libvips postgresql-client bzip2 xz-utils && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Set environment variables
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development:test" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so"
 
-# Build stage for gems
+# --- Build stage ---
 FROM base AS build
 
+# Install build dependencies
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y \
+    apt-get install -y --no-install-recommends \
       build-essential git libpq-dev libyaml-dev pkg-config python-is-python3 && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# Install application gems
-COPY Gemfile Gemfile.lock vendor ./
+# Copy Gemfiles
+COPY Gemfile Gemfile.lock ./
+
+# Install gems (build dependencies present here)
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
     bundle exec bootsnap precompile -j 1 --gemfile
 
-# Copy the application code
+# Copy the app code
 COPY . .
 
-# Precompile bootsnap for app directories
+# Precompile bootsnap cache for app directories
 RUN bundle exec bootsnap precompile -j 1 app/ lib/
 
-# Final production image
+# --- Final production image ---
 FROM base
 
 # Create non-root user
@@ -50,11 +52,8 @@ USER 1000:1000
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
 
-# Entrypoint prepares the database
+# Entrypoint & command
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
-
-# Expose port 80
-EXPOSE 80
-
-# Default command: start Rails server
 CMD ["./bin/rails", "server", "-b", "0.0.0.0"]
+
+EXPOSE 80

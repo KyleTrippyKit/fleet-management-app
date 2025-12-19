@@ -13,7 +13,7 @@ gem "pg", "~> 1.5", group: :production
 # Server
 gem "puma", ">= 5.0"
 
-# Boot speed optimization - REQUIRED
+# Boot speed optimization
 gem "bootsnap", require: false
 
 # JavaScript/CSS
@@ -22,7 +22,7 @@ gem "turbo-rails"
 gem "stimulus-rails"
 gem "sassc-rails"
 
-# Your app gems
+# App gems
 gem "devise", "~> 4.9"
 gem "kaminari"
 gem "activerecord-import"
