@@ -65,4 +65,6 @@ COPY --chown=rails:rails --from=build /rails /rails
 
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 EXPOSE 80
+
+# Default command: start Rails server
 CMD ["./bin/thrust", "./bin/rails", "server"]

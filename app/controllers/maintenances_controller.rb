@@ -104,7 +104,7 @@ class MaintenancesController < ApplicationController
       :date, :next_due_date, :reminder_sent_at, :service_type, :cost,
       :notes, :mileage, :status, :assignment_type, :part_in_stock,
       :service_provider_id, :estimated_delivery_date, :source, :start_date,
-      :end_date, :category, :urgency_label
+      :end_date, :category, :urgency
     )
   end
 end

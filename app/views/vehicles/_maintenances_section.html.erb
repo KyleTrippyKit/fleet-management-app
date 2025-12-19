@@ -1,7 +1,6 @@
 <h3 class="mt-4">Maintenance Records</h3>
 
 <% if vehicle.maintenances.any? %>
-  <!-- Show 'Add Maintenance' button -->
   <%= link_to "Add Maintenance", new_vehicle_maintenance_path(vehicle), class: "btn btn-primary mb-3" %>
 
   <div class="table-responsive">
@@ -22,32 +21,25 @@
       </thead>
       <tbody>
         <% vehicle.maintenances.order(date: :desc).each do |m| %>
-          <tr>
+          <% days_diff = m.next_due_date ? (m.next_due_date - Date.today).to_i : nil %>
+          <% row_class = if days_diff && days_diff < 0
+                           "table-danger"
+                         elsif days_diff && days_diff <= 30
+                           "table-warning"
+                         else
+                           ""
+                         end %>
+
+          <tr class="<%= row_class %>">
             <td><%= m.date %></td>
+            <td><%= urgency_badge(m) %></td>
 
-            <!-- Next Due Column with Badge -->
-            <td>
-              <% if m.next_due_date %>
-                <%= m.next_due_date %>
-                <% if m.next_due_date < Date.today %>
-                  <span class="badge bg-danger">Overdue!</span>
-                <% elsif m.next_due_date <= Date.today + 30 %>
-                  <span class="badge bg-warning text-dark">Soon</span>
-                <% else %>
-                  <span class="badge bg-success">OK</span>
-                <% end %>
-              <% else %>
-                <span class="badge bg-secondary">N/A</span>
-              <% end %>
-            </td>
-
-            <!-- Reminder Sent Column with Badge -->
             <td>
               <% if m.reminder_sent_at %>
                 <%= m.reminder_sent_at.strftime("%b %d, %Y %I:%M %p") %>
-                <span class="badge bg-success">Sent</span>
+                <span class="badge bg-success" data-bs-toggle="tooltip" title="Reminder sent on <%= m.reminder_sent_at.strftime('%b %d, %Y %I:%M %p') %>">Sent</span>
               <% else %>
-                <span class="badge bg-danger">Not Sent</span>
+                <span class="badge bg-danger" data-bs-toggle="tooltip" title="Reminder not sent">Not Sent</span>
               <% end %>
             </td>
 
@@ -55,16 +47,9 @@
             <td><%= m.status %></td>
             <td><%= m.cost.present? ? number_to_currency(m.cost) : "-" %></td>
             <td><%= m.notes.presence || "-" %></td>
-            <td>
-              <% if m.urgency_label == "Fast" %>
-                <span class="badge bg-success">Fast</span>
-              <% else %>
-                <span class="badge bg-warning">Soon</span>
-              <% end %>
-            </td>
+            <td><%= urgency_badge(m) %></td>
             <td><%= m.service_provider&.name || "Not assigned" %></td>
 
-            <!-- Actions Dropdown -->
             <td>
               <div class="dropdown">
                 <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -73,11 +58,7 @@
                 <ul class="dropdown-menu">
                   <li><%= link_to "Show", vehicle_maintenance_path(vehicle, m), class: "dropdown-item" %></li>
                   <li><%= link_to "Edit", edit_vehicle_maintenance_path(vehicle, m), class: "dropdown-item" %></li>
-                  <!-- Delete now goes to confirmation page -->
-                  <li>
-                    <%= link_to "Delete", confirm_delete_vehicle_maintenance_path(vehicle, m), 
-                      class: "dropdown-item text-danger" %>
-                  </li>
+                  <li><%= link_to "Delete", confirm_delete_vehicle_maintenance_path(vehicle, m), class: "dropdown-item text-danger" %></li>
                 </ul>
               </div>
             </td>
@@ -86,9 +67,17 @@
       </tbody>
     </table>
   </div>
-
 <% else %>
   <div class="alert alert-info">
     No maintenance records yet. <%= link_to "Add one now", new_vehicle_maintenance_path(vehicle), class: "alert-link" %>
   </div>
 <% end %>
+
+<script>
+  document.addEventListener("turbo:load", () => {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  });
+</script>
