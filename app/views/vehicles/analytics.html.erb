@@ -1,69 +1,127 @@
 <div class="container py-4">
   <h1 class="mb-4 text-primary fw-bold">Vehicle Usage Analytics</h1>
 
-  <!-- Navigation Tabs -->
+  <!-- ============================================================
+       Navigation Tabs
+       ============================================================ -->
   <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
     <li class="nav-item" role="presentation">
-      <%= link_to "Vehicle List", vehicles_path, class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
+      <%= link_to "Vehicle List",
+            vehicles_path,
+            class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
     </li>
+
     <li class="nav-item" role="presentation">
-      <%= link_to "Usage Analytics", analytics_vehicles_path, class: "nav-link #{'active' if current_page?(analytics_vehicles_path)}" %>
+      <%= link_to "Usage Analytics",
+            analytics_vehicles_path,
+            class: "nav-link #{'active' if current_page?(analytics_vehicles_path)}" %>
     </li>
   </ul>
 
-  <!-- Filter Form -->
-  <%= form_with url: analytics_vehicles_path, method: :get, local: true, class: "row g-3 align-items-end mb-4 shadow-sm p-3 rounded" do %>
+  <!-- ============================================================
+       Filter Form
+       ============================================================ -->
+  <%= form_with url: analytics_vehicles_path, method: :get, local: true,
+        class: "row g-3 align-items-end mb-4 shadow-sm p-3 rounded" do %>
+
     <div class="col-md-3">
       <%= label_tag :from, "From", class: "form-label fw-semibold" %>
-      <%= date_field_tag :from, params[:from], class: "form-control form-control-sm" %>
+      <%= date_field_tag :from, params[:from] || 30.days.ago.to_date, class: "form-control form-control-sm" %>
     </div>
+
     <div class="col-md-3">
       <%= label_tag :to, "To", class: "form-label fw-semibold" %>
-      <%= date_field_tag :to, params[:to], class: "form-control form-control-sm" %>
+      <%= date_field_tag :to, params[:to] || Date.today, class: "form-control form-control-sm" %>
     </div>
+
     <div class="col-md-3">
       <%= label_tag :owner, "Service Owner", class: "form-label fw-semibold" %>
-      <%= select_tag :owner, options_for_select(["All", "PTSC", "Police", "Fire Service"], params[:owner] || "All"), class: "form-select form-select-sm auto-submit-owner" %>
+      <%= select_tag :owner,
+            options_for_select(["All", "PTSC", "Police", "Fire Service"], params[:owner] || "All"),
+            class: "form-select form-select-sm auto-submit-owner" %>
     </div>
+
     <div class="col-md-3">
       <%= submit_tag "Filter", class: "btn btn-primary btn-sm w-100" %>
     </div>
+
   <% end %>
 
-  <!-- Charts -->
+  <!-- ============================================================
+       Charts
+       ============================================================ -->
   <div class="row g-3">
     <div class="col-md-4">
       <div class="card shadow-sm rounded p-3">
         <h6 class="fw-semibold text-muted">Distance (km)</h6>
-        <%= bar_chart @chart_data_distance, height: "250px" %>
+        <% data_distance = @chart_data_distance.presence || [["No Data", 0]] %>
+        <%= bar_chart data_distance, height: "250px",
+              library: {
+                legend: { display: false },
+                tooltips: {
+                  callbacks: {
+                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} km" }
+                  }
+                },
+                scales: { yAxes: [{ ticks: { beginAtZero: true } }] }
+              } %>
       </div>
     </div>
+
     <div class="col-md-4">
       <div class="card shadow-sm rounded p-3">
         <h6 class="fw-semibold text-muted">Hours</h6>
-        <%= bar_chart @chart_data_hours, height: "250px" %>
+        <% data_hours = @chart_data_hours.presence || [["No Data", 0]] %>
+        <%= bar_chart data_hours, height: "250px",
+              library: {
+                legend: { display: false },
+                tooltips: {
+                  callbacks: {
+                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} hrs" }
+                  }
+                },
+                scales: { yAxes: [{ ticks: { beginAtZero: true } }] }
+              } %>
       </div>
     </div>
+
     <div class="col-md-4">
       <div class="card shadow-sm rounded p-3">
         <h6 class="fw-semibold text-muted">Utilization (%)</h6>
-        <%= bar_chart @chart_data_util, height: "250px" %>
+        <% data_util = @chart_data_util.presence || [["No Data", 0]] %>
+        <%= bar_chart data_util, height: "250px",
+              library: {
+                legend: { display: false },
+                tooltips: {
+                  callbacks: {
+                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} %" }
+                  }
+                },
+                scales: { yAxes: [{ ticks: { beginAtZero: true, max: 100 } }] }
+              } %>
       </div>
     </div>
   </div>
 </div>
 
+<!-- ============================================================
+     Styles
+     ============================================================ -->
 <style>
-.transition { transition: all 0.3s ease-in-out; }
+  .transition { transition: all 0.3s ease-in-out; }
+  .card h6 { font-size: 0.9rem; }
 </style>
 
+<!-- ============================================================
+     Auto-submit owner filter
+     ============================================================ -->
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".auto-submit-owner").forEach(select => {
-    select.addEventListener("change", () => {
-      const form = select.closest("form");
-      if (form) form.submit();
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".auto-submit-owner").forEach(select => {
+      select.addEventListener("change", () => {
+        const form = select.closest("form");
+        if (form) form.submit();
+      });
     });
   });
-});
 </script>

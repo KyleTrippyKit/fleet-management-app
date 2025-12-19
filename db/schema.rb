@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_19_063021) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -57,6 +57,14 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
     t.string "phone"
     t.string "status", default: "active"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "drivers_vehicles", id: false, force: :cascade do |t|
+    t.integer "driver_id", null: false
+    t.integer "vehicle_id", null: false
+    t.index ["driver_id", "vehicle_id"], name: "index_drivers_vehicles_on_driver_id_and_vehicle_id", unique: true
+    t.index ["driver_id"], name: "index_drivers_vehicles_on_driver_id"
+    t.index ["vehicle_id"], name: "index_drivers_vehicles_on_vehicle_id"
   end
 
   create_table "maintenance_parts", force: :cascade do |t|
@@ -182,18 +190,6 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
     t.index ["vehicle_id"], name: "index_vehicle_documents_on_vehicle_id"
   end
 
-  create_table "vehicle_usages", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "driver_id", null: false
-    t.datetime "end_date"
-    t.datetime "start_date"
-    t.string "status"
-    t.datetime "updated_at", null: false
-    t.bigint "vehicle_id", null: false
-    t.index ["driver_id"], name: "index_vehicle_usages_on_driver_id"
-    t.index ["vehicle_id"], name: "index_vehicle_usages_on_vehicle_id"
-  end
-
   create_table "vehicles", force: :cascade do |t|
     t.string "body_style"
     t.string "chassis_number"
@@ -225,6 +221,8 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "damage_reports", "drivers"
   add_foreign_key "damage_reports", "vehicles"
+  add_foreign_key "drivers_vehicles", "drivers"
+  add_foreign_key "drivers_vehicles", "vehicles"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"
   add_foreign_key "maintenance_tasks", "maintenances"
@@ -235,7 +233,5 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
   add_foreign_key "trips", "users", column: "driver_id"
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
-  add_foreign_key "vehicle_usages", "drivers"
-  add_foreign_key "vehicle_usages", "vehicles"
   add_foreign_key "vehicles", "drivers"
 end

@@ -4,16 +4,16 @@
   <!-- Navigation Tabs -->
   <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
     <li class="nav-item">
-      <%= link_to "Vehicle List", vehicles_path, class: "nav-link #{'active' if request.path == vehicles_path}" %>
+      <%= link_to "Vehicle List", vehicles_path, class: "nav-link #{current_page?(vehicles_path) ? 'active' : ''}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Usage Analytics", vehicle_usage_path, class: "nav-link #{'active' if request.path == vehicle_usage_path || request.path == analytics_vehicles_path}" %>
+      <%= link_to "Usage Analytics", analytics_vehicles_path, class: "nav-link #{current_page?(analytics_vehicles_path) ? 'active' : ''}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Maintenance Gantt Chart", gantt_path, class: "nav-link #{'active' if request.path == gantt_path}" %>
+      <%= link_to "Maintenance Gantt Chart", gantt_path, class: "nav-link #{current_page?(gantt_path) ? 'active' : ''}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Maintenance", maintenance_dashboard_vehicles_path, class: "nav-link #{'active' if request.path == maintenance_dashboard_vehicles_path}" %>
+      <%= link_to "Maintenance", maintenance_dashboard_vehicles_path, class: "nav-link #{current_page?(maintenance_dashboard_vehicles_path) ? 'active' : ''}" %>
     </li>
   </ul>
 
@@ -106,19 +106,9 @@
                 <% sorted_maintenances.each do |m| %>
                   <% days_diff = m.next_due_date ? (m.next_due_date - Date.today).to_i : nil %>
                   <% if days_diff && days_diff < 0 %>
-                    <% if days_diff >= -7 %>
-                      <% cell_style = "background-color: rgb(255, 200, 200);" %>
-                      <% badge_text = "Overdue #{days_diff.abs}d ⚠️" %>
-                      <% badge_class = "bg-danger" %>
-                    <% elsif days_diff >= -30 %>
-                      <% cell_style = "background-color: rgb(255, 150, 150);" %>
-                      <% badge_text = "Overdue #{days_diff.abs}d 🔴" %>
-                      <% badge_class = "bg-danger" %>
-                    <% else %>
-                      <% cell_style = "background-color: rgb(255, 100, 100);" %>
-                      <% badge_text = "Overdue #{days_diff.abs}d 🔴" %>
-                      <% badge_class = "bg-danger" %>
-                    <% end %>
+                    <% cell_style = "background-color: rgb(255, 150, 150);" %>
+                    <% badge_text = "Overdue #{days_diff.abs}d ⚠️" %>
+                    <% badge_class = "bg-danger" %>
                   <% elsif days_diff && days_diff <= 14 %>
                     <% cell_style = "background-color: #fff3cd;" %>
                     <% badge_text = "Soon ⚠️" %>
@@ -153,7 +143,6 @@
                     <td style="<%= cell_style %>"><%= m.notes.presence || "-" %></td>
                     <td style="<%= cell_style %>"><%= badge_text %></td>
                     <td style="<%= cell_style %>"><%= m.service_provider&.name || "Not assigned" %></td>
-                    <!-- Actions Dropdown -->
                     <td style="<%= cell_style %>">
                       <div class="dropdown">
                         <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="maintenanceActions<%= m.id %>" data-bs-toggle="dropdown" aria-expanded="false">
