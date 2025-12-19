@@ -32,8 +32,9 @@ end
 group :development do
   gem "web-console"
 end
-gem 'pg', '~> 1.5'
-gem 'pg', '~> 1.5'
 gem 'bootstrap', '~> 5.3'
 gem 'jquery-rails'
 gem 'popper_js', '~> 2.0'
+gem 'sqlite3'
+gem 'chartkick'
+gem 'groupdate'

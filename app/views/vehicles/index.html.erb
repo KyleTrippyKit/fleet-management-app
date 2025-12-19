@@ -1,28 +1,34 @@
 <div class="container py-4">
   <h1 class="mb-4 text-primary fw-bold">Vehicles</h1>
 
-  <!-- Navigation Tabs -->
+  <!-- ============================================================
+       Navigation Tabs
+       ============================================================ -->
   <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
     <li class="nav-item">
       <%= link_to "Vehicle List",
             vehicles_path,
             class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
     </li>
+
     <li class="nav-item">
       <%= link_to "Usage Analytics",
-            vehicle_usage_path,
-            class: "nav-link #{'active' if current_page?(vehicle_usage_path) || current_page?(analytics_vehicles_path)}" %>
+            analytics_vehicles_path,
+            class: "nav-link #{'active' if current_page?(analytics_vehicles_path)}" %>
     </li>
+
     <li class="nav-item">
       <%= link_to "Maintenance Gantt Chart",
             gantt_path,
             class: "nav-link #{'active' if current_page?(gantt_path)}" %>
     </li>
+
     <li class="nav-item">
       <%= link_to "Maintenance",
             maintenance_dashboard_vehicles_path,
             class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
     </li>
+
     <li class="nav-item">
       <%= link_to "Drivers",
             drivers_path,
@@ -30,7 +36,9 @@
     </li>
   </ul>
 
-  <!-- Top Controls: Search, Filter, Add Vehicle -->
+  <!-- ============================================================
+       Top Controls: Search, Filter, Add Vehicle
+       ============================================================ -->
   <%= form_with url: vehicles_path, method: :get, local: true,
         html: { id: "vehicles_filter_form" },
         class: "row g-2 align-items-end mb-4" do |f| %>
@@ -56,14 +64,18 @@
 
   <% end %>
 
-  <!-- Vehicle Cards -->
+  <!-- ============================================================
+       Vehicle Cards
+       ============================================================ -->
   <% if @vehicles.any? %>
     <div class="row g-4">
       <% @vehicles.each do |vehicle| %>
         <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
           <div class="card h-100 shadow-sm border-0 rounded hover-shadow transition">
             <%= link_to vehicle_path(vehicle) do %>
-              <%= image_tag vehicle_image(vehicle), class: "card-img-top rounded-top", style: "height:180px; object-fit:cover;" %>
+              <%= image_tag vehicle_image(vehicle),
+                    class: "card-img-top rounded-top",
+                    style: "height:180px; object-fit:cover;" %>
             <% end %>
 
             <div class="card-body">
@@ -97,6 +109,9 @@
   <% end %>
 </div>
 
+<!-- ============================================================
+     Styles
+     ============================================================ -->
 <style>
   /* Smooth hover effect for cards */
   .hover-shadow:hover {
@@ -111,7 +126,9 @@
   .transition { transition: all 0.3s ease-in-out; }
 </style>
 
-<!-- Auto-submit owner filter on change -->
+<!-- ============================================================
+     Auto-submit owner filter on change
+     ============================================================ -->
 <script>
   document.addEventListener("turbo:load", () => {
     const ownerSelect = document.getElementById("owner_filter");
@@ -119,9 +136,8 @@
 
     if (ownerSelect && filterForm) {
       ownerSelect.addEventListener("change", () => {
-        filterForm.requestSubmit(); // safer than submit(), works with Rails UJS
+        filterForm.requestSubmit(); // safe with Rails UJS / Turbo
       });
     }
   });
 </script>
-

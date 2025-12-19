@@ -9,7 +9,7 @@ class VehiclesController < ApplicationController
     @query = params[:query]
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
 
-    @vehicles = Vehicle.all.includes(:driver) # Include drivers for display efficiency
+    @vehicles = Vehicle.all.includes(:driver)
     @vehicles = @vehicles.search(@query) if @query.present?
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.order(:make, :model)
@@ -21,17 +21,25 @@ class VehiclesController < ApplicationController
   def analytics
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
     from = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
-    to = params[:to].present? ? Date.parse(params[:to]) : Date.today
+    to   = params[:to].present?   ? Date.parse(params[:to])   : Date.today
 
-    @vehicles = Vehicle.all.includes(:usage_logs, :driver)
+    @vehicles = Vehicle.all.includes(:trips, :driver)
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
 
+    # Compute usage stats per vehicle
     @vehicle_usages = @vehicles.map { |v| v.usage_stats(from: from, to: to) }
 
-    # Prepare chart data
-    @chart_data_distance = @vehicle_usages.map { |v| [v[:name], v[:distance_km]] }.presence || [["No Data", 0]]
-    @chart_data_hours    = @vehicle_usages.map { |v| [v[:name], v[:hours_plied]] }.presence || [["No Data", 0]]
-    @chart_data_util     = @vehicle_usages.map { |v| [v[:name], v[:utilization_percent]] }.presence || [["No Data", 0]]
+    # Ensure numeric values to prevent chart "loading"
+    @chart_data_distance = @vehicle_usages.map { |v| [v[:name], v[:distance_km] || 0] }
+    @chart_data_hours    = @vehicle_usages.map { |v| [v[:name], v[:hours_plied] || 0] }
+    @chart_data_util     = @vehicle_usages.map { |v| [v[:name], v[:utilization_percent] || 0] }
+
+    # Fallback if no vehicles
+    if @chart_data_distance.empty?
+      @chart_data_distance = [["No Data", 0]]
+      @chart_data_hours    = [["No Data", 0]]
+      @chart_data_util     = [["No Data", 0]]
+    end
   end
 
   # ====================================================
@@ -45,27 +53,26 @@ class VehiclesController < ApplicationController
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.search(@query) if @query.present?
 
-    # Add pending and completed maintenance methods to each vehicle
+    # Add pending, completed, and overdue methods to each vehicle
     @vehicles.each do |vehicle|
       vehicle.define_singleton_method(:pending_maintenances) do
-        vehicle.maintenances.where(status: "Pending").order(date: :asc)
+        maintenances.where(status: "Pending").order(date: :asc)
       end
 
       vehicle.define_singleton_method(:completed_maintenances) do
-        vehicle.maintenances.where(status: "Completed").order(date: :desc)
+        maintenances.where(status: "Completed").order(date: :desc)
       end
 
       vehicle.define_singleton_method(:overdue_maintenances) do
-        vehicle.maintenances.overdue
+        maintenances.overdue
       end
 
-      # Upcoming trips for this vehicle
       vehicle.define_singleton_method(:upcoming_trips) do
-        vehicle.trips.where("start_time >= ?", Time.current).order(:start_time)
+        trips.where("start_time >= ?", Time.current).order(:start_time)
       end
     end
 
-    # Sort vehicles: pending maintenance first
+    # Sort vehicles with pending maintenance first
     @vehicles = @vehicles.sort_by { |v| v.pending_maintenances.any? ? 0 : 1 }
   end
 
@@ -83,15 +90,12 @@ class VehiclesController < ApplicationController
       @mileage_left = @next_service_mileage - @vehicle.mileage
     end
 
-    # Load driver info for display
     @driver = @vehicle.driver
-
-    # Upcoming trips
     @upcoming_trips = @vehicle.trips.where("start_time >= ?", Time.current).order(:start_time)
   end
 
   # ====================================================
-  # Full vehicle details (for modal or detailed view)
+  # Full vehicle details
   # ====================================================
   def full_details
     @maintenances = @vehicle.maintenances.order(date: :desc)
@@ -148,30 +152,21 @@ class VehiclesController < ApplicationController
 
   private
 
-  # ====================================================
-  # Set vehicle before actions
-  # ====================================================
   def set_vehicle
     @vehicle = Vehicle.find(params[:id])
   end
 
-  # ====================================================
-  # Strong parameters
-  # ====================================================
   def vehicle_params
     params.require(:vehicle).permit(
       :make, :model, :vehicle_type, :registration_number, :service_owner,
       :chassis_number, :year_of_manufacture, :serial_number, :color,
       :license_plate, :mileage, :image, :picture,
       :engine_number, :fuel_type, :transmission, :body_style, :modifications,
-      :driver_id,                # <-- allow assigning driver directly
+      :driver_id,
       gallery_images: []
     )
   end
 
-  # ====================================================
-  # Gallery image helpers
-  # ====================================================
   def attach_gallery_images
     return unless params[:vehicle][:gallery_images].present?
     params[:vehicle][:gallery_images].each { |img| @vehicle.gallery_images.attach(img) }
