@@ -11,13 +11,21 @@ vehicles = [
   { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "XYZ789", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police" }
 ].map { |v| Vehicle.create!(v) }
 
+puts "Seeding drivers.."
+drivers = [
+  { name: "Frank", license_number: "Hbc 2054", phone: "2964764" },
+  { name: "Sean", license_number: "Pdc 7547", phone: "7647454" },
+  { name: "John", license_number: "Paz 9045", phone: "7021921" }
+].map { |d| Driver.create!(d) }
+
 puts "Seeding trips..."
 now = Time.current
 
+
 trips_data = [
-  { vehicle: vehicles[0], driver: users[1], start_time: now - 1.hour, end_time: now + 1.hour, distance_km: 100 },
-  { vehicle: vehicles[0], driver: users[2], start_time: now + 2.hours, end_time: now + 4.hours, distance_km: 80 },
-  { vehicle: vehicles[1], driver: users[2], start_time: now + 1.hour, end_time: now + 3.hours, distance_km: 50 }
+  { vehicle: vehicles[0], driver: drivers[1], start_time: now - 2.hour, end_time: now - 1.hour, distance_km: 100 },
+  { vehicle: vehicles[0], driver: drivers[2], start_time: now - 2.hours, end_time: now - 1.hours, distance_km: 80 },
+  { vehicle: vehicles[1], driver: drivers[2], start_time: now - 2.hour, end_time: now - 1.hours, distance_km: 50 }
 ]
 
 trips_data.each do |trip_attrs|
