@@ -3,9 +3,10 @@ Rails.application.routes.draw do
   devise_for :users
 
   resources :vehicles do
-    member do
-      get :full_details
-    end
+    resources :vehicle_usages
+      member do
+        get :full_details
+  end
 
     resources :maintenances do
       member do
