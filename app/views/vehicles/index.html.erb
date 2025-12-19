@@ -4,16 +4,29 @@
   <!-- Navigation Tabs -->
   <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
     <li class="nav-item">
-      <%= link_to "Vehicle List", vehicles_path, class: "nav-link #{'active' if request.path == vehicles_path}" %>
+      <%= link_to "Vehicle List",
+            vehicles_path,
+            class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Usage Analytics", vehicle_usage_path, class: "nav-link #{'active' if request.path == vehicle_usage_path || request.path == analytics_vehicles_path}" %>
+      <%= link_to "Usage Analytics",
+            vehicle_usage_path,
+            class: "nav-link #{'active' if current_page?(vehicle_usage_path) || current_page?(analytics_vehicles_path)}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Maintenance Gantt Chart", gantt_path, class: "nav-link #{'active' if request.path == gantt_path}" %>
+      <%= link_to "Maintenance Gantt Chart",
+            gantt_path,
+            class: "nav-link #{'active' if current_page?(gantt_path)}" %>
     </li>
     <li class="nav-item">
-      <%= link_to "Maintenance", maintenance_dashboard_vehicles_path, class: "nav-link #{'active' if request.path == maintenance_dashboard_vehicles_path}" %>
+      <%= link_to "Maintenance",
+            maintenance_dashboard_vehicles_path,
+            class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Drivers",
+            drivers_path,
+            class: "nav-link #{'active' if controller_name == 'drivers'}" %>
     </li>
   </ul>
 
@@ -100,14 +113,15 @@
 
 <!-- Auto-submit owner filter on change -->
 <script>
-  document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("turbo:load", () => {
     const ownerSelect = document.getElementById("owner_filter");
     const filterForm = document.getElementById("vehicles_filter_form");
 
     if (ownerSelect && filterForm) {
       ownerSelect.addEventListener("change", () => {
-        filterForm.submit();
+        filterForm.requestSubmit(); // safer than submit(), works with Rails UJS
       });
     }
   });
 </script>
+

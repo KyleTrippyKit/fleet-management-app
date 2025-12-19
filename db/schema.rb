@@ -10,10 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_14_201622) do
-  # These are extensions that must be enabled in order to support this database
-  enable_extension "pg_catalog.plpgsql"
-
+ActiveRecord::Schema[8.1].define(version: 2025_12_15_025945) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -75,9 +72,11 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_14_201622) do
   create_table "maintenance_tasks", force: :cascade do |t|
     t.bigint "assigned_to_id", null: false
     t.datetime "created_at", null: false
+    t.bigint "maintenance_id", null: false
     t.string "name"
     t.datetime "updated_at", null: false
     t.index ["assigned_to_id"], name: "index_maintenance_tasks_on_assigned_to_id"
+    t.index ["maintenance_id"], name: "index_maintenance_tasks_on_maintenance_id"
   end
 
   create_table "maintenances", force: :cascade do |t|
@@ -228,6 +227,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_14_201622) do
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"
+  add_foreign_key "maintenance_tasks", "maintenances"
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
