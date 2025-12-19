@@ -7,6 +7,8 @@ ruby "3.3.10"
 gem "rails", "~> 8.1.1"
 
 # Database
+gem "sqlite3", "~> 2.8", group: [:development, :test]
+gem "pg", "~> 1.5", group: :production
 
 # Server
 gem "puma", ">= 5.0"
@@ -26,15 +28,15 @@ gem "kaminari"
 gem "activerecord-import"
 
 group :development, :test do
-  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+  gem "debug", platforms: %i[mri windows], require: "debug/prelude"
 end
 
 group :development do
   gem "web-console"
 end
+
 gem 'bootstrap', '~> 5.3'
 gem 'jquery-rails'
 gem 'popper_js', '~> 2.0'
-gem 'sqlite3'
 gem 'chartkick'
 gem 'groupdate'
