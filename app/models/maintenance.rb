@@ -2,7 +2,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Associations
   # =====================================================
-
   belongs_to :vehicle
   belongs_to :assigned_to, class_name: "User", optional: true
   belongs_to :service_provider, optional: true
@@ -12,16 +11,16 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Constants
   # =====================================================
-
   ASSIGNMENT_TYPES = %w[stores purchasing].freeze
-  STATUSES = %w[Pending Completed].freeze
+  STATUSES        = %w[Pending Completed].freeze
+  URGENCIES       = %w[routine scheduled emergency].freeze
 
   # =====================================================
   # Validations
   # =====================================================
-
   validates :status, inclusion: { in: STATUSES }
   validates :assignment_type, inclusion: { in: ASSIGNMENT_TYPES }, presence: true
+  validates :urgency, inclusion: { in: URGENCIES }, presence: true
   validates :service_provider, presence: true, unless: :completed?
 
   validate :next_due_date_not_before_date
@@ -29,30 +28,16 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Scopes
   # =====================================================
-
   scope :pending, -> { where(status: "Pending") }
   scope :completed, -> { where(status: "Completed") }
-
-  scope :overdue, -> {
-    pending.where("next_due_date < ?", Date.today)
-  }
-
-  scope :due_today, -> {
-    pending.where(next_due_date: Date.today)
-  }
-
-  scope :upcoming, -> {
-    pending.where(next_due_date: Date.today..30.days.from_now)
-  }
-
-  scope :without_due_date, -> {
-    where(next_due_date: nil)
-  }
+  scope :overdue, -> { pending.where("next_due_date < ?", Date.today) }
+  scope :due_today, -> { pending.where(next_due_date: Date.today) }
+  scope :upcoming, -> { pending.where(next_due_date: Date.today..30.days.from_now) }
+  scope :without_due_date, -> { where(next_due_date: nil) }
 
   # =====================================================
   # Status Helpers
   # =====================================================
-
   def completed?
     status == "Completed"
   end
@@ -64,7 +49,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Assignment Helpers
   # =====================================================
-
   def assignment_type_stores?
     assignment_type == "stores"
   end
@@ -74,10 +58,43 @@ class Maintenance < ApplicationRecord
   end
 
   # =====================================================
-  # Urgency & Dashboard Logic
+  # Urgency Helpers
   # =====================================================
+  def urgency_routine?
+    urgency == "routine"
+  end
 
-  # Single source of truth for urgency (DO NOT duplicate in views)
+  def urgency_scheduled?
+    urgency == "scheduled"
+  end
+
+  def urgency_emergency?
+    urgency == "emergency"
+  end
+
+  # Label for dropdown urgency (Routine / Scheduled / Emergency)
+  def urgency_dropdown_label
+    case urgency
+    when "routine"   then "Routine"
+    when "scheduled" then "Scheduled"
+    when "emergency" then "Emergency"
+    else "N/A"
+    end
+  end
+
+  # Badge class for dropdown urgency
+  def urgency_dropdown_badge_class
+    case urgency
+    when "routine"   then "bg-primary text-white"
+    when "scheduled" then "bg-warning text-dark"
+    when "emergency" then "bg-danger text-white"
+    else "bg-secondary"
+    end
+  end
+
+  # =====================================================
+  # Next Due & Dashboard Logic
+  # =====================================================
   def urgency_level
     return :completed if completed?
     return :na if next_due_date.blank?
@@ -118,7 +135,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Reminder Helpers
   # =====================================================
-
   def reminder_status
     return "Completed" if completed?
     return "Overdue" if next_due_date.present? && next_due_date < Date.today
@@ -131,7 +147,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Mileage Helpers
   # =====================================================
-
   def mileage_until_next_service(interval = 5_000)
     return nil unless mileage && vehicle&.mileage
 
@@ -142,7 +157,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # State Transitions
   # =====================================================
-
   def mark_completed!
     update!(
       status: "Completed",
@@ -155,7 +169,6 @@ class Maintenance < ApplicationRecord
   # =====================================================
   # Custom Validations
   # =====================================================
-
   def next_due_date_not_before_date
     return if next_due_date.blank? || date.blank?
 
