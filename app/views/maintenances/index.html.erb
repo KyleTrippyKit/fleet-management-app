@@ -111,31 +111,35 @@ document.addEventListener("DOMContentLoaded", () => {
       <th>Date</th>
       <th>Task</th>
       <th>Status</th>
+      <th>Urgency</th>
       <th>Vehicle</th>
       <th>Actions</th>
     </tr>
   </thead>
   <tbody>
-    <% @maintenances.each do |maintenance| %>
+    <% @maintenances.each do |m| %>
       <tr>
-        <td><%= maintenance.date.strftime("%Y-%m-%d") %></td>
-        <td><%= maintenance.details %></td>
+        <td><%= m.date.strftime("%Y-%m-%d") %></td>
+        <td><%= m.details %></td>
         <td>
-          <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
-            <%= maintenance.status %>
+          <span class="badge <%= m.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
+            <%= m.status %>
           </span>
         </td>
-        <td><%= maintenance.vehicle.make %> - <%= maintenance.vehicle.license_plate %></td>
         <td>
-          <%= link_to "Edit", edit_maintenance_path(maintenance), class: "btn btn-sm btn-warning me-1" %>
-          <%= link_to "Delete", maintenance, method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-danger" %>
+          <%= urgency_badge(m) %>
+        </td>
+        <td><%= m.vehicle.make %> - <%= m.vehicle.license_plate %></td>
+        <td>
+          <%= link_to "Edit", edit_maintenance_path(m), class: "btn btn-sm btn-warning me-1" %>
+          <%= link_to "Delete", m, method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-danger" %>
         </td>
       </tr>
     <% end %>
 
     <% if @maintenances.empty? %>
       <tr>
-        <td colspan="5" class="text-center">No maintenance records found</td>
+        <td colspan="6" class="text-center">No maintenance records found</td>
       </tr>
     <% end %>
   </tbody>

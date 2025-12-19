@@ -21,6 +21,22 @@
                      class: "form-select" %>
       </div>
 
+      <!-- Urgency with Badge Preview -->
+      <div class="mb-3">
+        <%= f.label :urgency, "Urgency", class: "form-label fw-semibold" %>
+        <div class="d-flex align-items-center gap-2">
+          <%= f.select :urgency,
+                       options_for_select(Maintenance::URGENCIES.map { |u| [u.titleize, u] }, @maintenance.urgency),
+                       { prompt: "Select urgency" },
+                       class: "form-select",
+                       id: "urgency_select" %>
+
+          <span id="urgency_badge_preview">
+            <%= urgency_badge(@maintenance) if @maintenance.urgency.present? %>
+          </span>
+        </div>
+      </div>
+
       <!-- Maintenance Dates -->
       <div class="mb-3">
         <%= f.label :date, "Maintenance Date", class: "form-label fw-semibold" %>
@@ -98,6 +114,51 @@ document.addEventListener("turbo:load", () => {
   flatpickr(".datepicker", {
     dateFormat: "d/m/Y",
     allowInput: true
+  });
+
+  // Update urgency badge dynamically
+  const urgencySelect = document.getElementById("urgency_select");
+  const badgePreview = document.getElementById("urgency_badge_preview");
+
+  urgencySelect?.addEventListener("change", (e) => {
+    const value = e.target.value;
+    let label = "";
+    let cssClass = "";
+    let tooltip = "";
+
+    if (value) {
+      switch (value.toLowerCase()) {
+        case "emergency":
+          label = "Emergency";
+          cssClass = "badge bg-danger text-white";
+          tooltip = "High urgency";
+          break;
+        case "scheduled":
+          label = "Scheduled";
+          cssClass = "badge bg-warning text-dark";
+          tooltip = "Scheduled maintenance";
+          break;
+        case "routine":
+          label = "Routine";
+          cssClass = "badge bg-primary text-white";
+          tooltip = "Routine maintenance";
+          break;
+        default:
+          label = "N/A";
+          cssClass = "badge bg-secondary";
+          tooltip = "No urgency selected";
+      }
+      badgePreview.innerHTML = `<span class="${cssClass}" data-bs-toggle="tooltip" title="${tooltip}">${label}</span>`;
+      new bootstrap.Tooltip(badgePreview.querySelector('[data-bs-toggle="tooltip"]'));
+    } else {
+      badgePreview.innerHTML = "";
+    }
+  });
+
+  // Initialize Bootstrap tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
   });
 });
 </script>

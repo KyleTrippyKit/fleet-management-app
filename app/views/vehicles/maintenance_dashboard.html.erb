@@ -63,12 +63,9 @@
   </div>
 
   <% if @vehicles.any? %>
-    <%# Sort vehicles by most urgent maintenance %>
     <% sorted_vehicles = @vehicles.sort_by do |v|
          if v.maintenances.any?
-           v.maintenances.map { |m|
-             m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999
-           }.min
+           v.maintenances.map { |m| m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999 }.min
          else
            10000
          end
@@ -82,9 +79,7 @@
         </h5>
 
         <% if vehicle.maintenances.any? %>
-          <% sorted_maintenances = vehicle.maintenances.sort_by do |m|
-               m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999
-             end %>
+          <% sorted_maintenances = vehicle.maintenances.sort_by { |m| m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999 } %>
 
           <div class="table-responsive">
             <table class="table align-middle table-hover">
@@ -105,31 +100,18 @@
               <tbody>
                 <% sorted_maintenances.each do |m| %>
                   <% days_diff = m.next_due_date ? (m.next_due_date - Date.today).to_i : nil %>
-                  <% if days_diff && days_diff < 0 %>
-                    <% cell_style = "background-color: rgb(255, 150, 150);" %>
-                    <% badge_text = "Overdue #{days_diff.abs}d ⚠️" %>
-                    <% badge_class = "bg-danger" %>
-                  <% elsif days_diff && days_diff <= 14 %>
-                    <% cell_style = "background-color: #fff3cd;" %>
-                    <% badge_text = "Soon ⚠️" %>
-                    <% badge_class = "bg-warning text-dark" %>
-                  <% else %>
-                    <% cell_style = "" %>
-                    <% badge_text = "OK ✅" %>
-                    <% badge_class = "bg-success" %>
-                  <% end %>
+                  <% row_class = if days_diff && days_diff < 0
+                                   "table-danger"
+                                 elsif days_diff && days_diff <= 14
+                                   "table-warning"
+                                 else
+                                   ""
+                                 end %>
 
-                  <tr>
-                    <td style="<%= cell_style %>"><%= m.date %></td>
-                    <td style="<%= cell_style %>">
-                      <% if m.next_due_date %>
-                        <%= m.next_due_date %>
-                        <span class="badge <%= badge_class %>"><%= badge_text %></span>
-                      <% else %>
-                        <span class="badge bg-secondary">N/A</span>
-                      <% end %>
-                    </td>
-                    <td style="<%= cell_style %>">
+                  <tr class="<%= row_class %>">
+                    <td><%= m.date %></td>
+                    <td><%= m.next_due_date ? m.next_due_date.strftime("%d/%m/%Y") : content_tag(:span, "N/A", class: "text-muted") %></td>
+                    <td>
                       <% if m.reminder_sent_at %>
                         <%= m.reminder_sent_at.strftime("%b %d, %Y %I:%M %p") %>
                         <span class="badge bg-success">Sent</span>
@@ -137,33 +119,25 @@
                         <span class="badge bg-danger">Not Sent</span>
                       <% end %>
                     </td>
-                    <td style="<%= cell_style %>"><%= m.service_type %></td>
-                    <td style="<%= cell_style %>"><%= m.status %></td>
-                    <td style="<%= cell_style %>"><%= m.cost.present? ? number_to_currency(m.cost) : "-" %></td>
-                    <td style="<%= cell_style %>"><%= m.notes.presence || "-" %></td>
-                    <td style="<%= cell_style %>"><%= badge_text %></td>
-                    <td style="<%= cell_style %>"><%= m.service_provider&.name || "Not assigned" %></td>
-                    <td style="<%= cell_style %>">
+                    <td><%= m.service_type %></td>
+                    <td>
+                      <span class="badge <%= m.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
+                        <%= m.status %>
+                      </span>
+                    </td>
+                    <td><%= m.cost.present? ? number_to_currency(m.cost) : "-" %></td>
+                    <td><%= m.notes.presence || "-" %></td>
+                    <td><%= urgency_badge(m) %></td>
+                    <td><%= m.service_provider&.name || "Not assigned" %></td>
+                    <td>
                       <div class="dropdown">
-                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="maintenanceActions<%= m.id %>" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                           Actions
                         </button>
-                        <ul class="dropdown-menu" aria-labelledby="maintenanceActions<%= m.id %>">
+                        <ul class="dropdown-menu">
                           <li><%= link_to "Edit", edit_vehicle_maintenance_path(vehicle, m), class: "dropdown-item" %></li>
-                          <li>
-                            <%= link_to "Mark Completed",
-                                        mark_completed_vehicle_maintenance_path(vehicle, m),
-                                        method: :patch,
-                                        data: { confirm: "Mark this maintenance as completed?" },
-                                        class: "dropdown-item" %>
-                          </li>
-                          <li>
-                            <%= link_to "Delete",
-                                        vehicle_maintenance_path(vehicle, m),
-                                        method: :delete,
-                                        data: { confirm: "Are you sure?" },
-                                        class: "dropdown-item text-danger" %>
-                          </li>
+                          <li><%= link_to "Mark Completed", mark_completed_vehicle_maintenance_path(vehicle, m), method: :patch, data: { confirm: "Mark this maintenance as completed?" }, class: "dropdown-item" %></li>
+                          <li><%= link_to "Delete", vehicle_maintenance_path(vehicle, m), method: :delete, data: { confirm: "Are you sure?" }, class: "dropdown-item text-danger" %></li>
                         </ul>
                       </div>
                     </td>
@@ -229,5 +203,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Initialize Bootstrap tooltips
+  const tooltipList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipList.map((el) => new bootstrap.Tooltip(el));
 });
 </script>
