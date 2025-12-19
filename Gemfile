@@ -11,7 +11,8 @@ gem "rails", "~> 8.1.1"
 # =============================
 # Database
 # =============================
-gem "pg", "~> 1.1"         # PostgreSQL as DB
+gem 'sqlite3'
+#gem "pg", "~> 1.1"         # PostgreSQL as DB
 gem "tzinfo-data", platforms: %i[windows jruby] # Windows timezone support
 
 # =============================

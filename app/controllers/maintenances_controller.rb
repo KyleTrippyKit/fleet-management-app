@@ -1,7 +1,7 @@
 class MaintenancesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_vehicle
-  before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed]
+  before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete]
 
   # GET /vehicles/:vehicle_id/maintenances
   def index
@@ -30,13 +30,24 @@ class MaintenancesController < ApplicationController
                     end
   end
 
-  # GET /vehicles/:vehicle_id/maintenances/gantt
-  def gantt
-    @maintenances = if @vehicle.present?
-                      @vehicle.maintenances.order(:date)
-                    else
-                      Maintenance.all.order(:date)
-                    end
+  # GET /vehicles/:vehicle_id/maintenances/:id/confirm_delete
+  def confirm_delete
+    # Renders a confirmation page before deletion
+  end
+
+  # DELETE /vehicles/:vehicle_id/maintenances/:id
+  def destroy
+    @maintenance.destroy
+    redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully deleted."
+  end
+
+  # PATCH /vehicles/:vehicle_id/maintenances/:id/mark_completed
+  def mark_completed
+    if @maintenance.update(status: "Completed")
+      redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance marked as completed."
+    else
+      redirect_to maintenance_dashboard_vehicles_path, alert: "Could not mark maintenance as completed."
+    end
   end
 
   # GET /vehicles/:vehicle_id/maintenances/:id
@@ -78,21 +89,6 @@ class MaintenancesController < ApplicationController
     end
   end
 
-  # PATCH /vehicles/:vehicle_id/maintenances/:id/mark_completed
-  def mark_completed
-    if @maintenance.update(status: "Completed")
-      redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance marked as completed."
-    else
-      redirect_to maintenance_dashboard_vehicles_path, alert: "Could not mark maintenance as completed."
-    end
-  end
-
-  # DELETE /vehicles/:vehicle_id/maintenances/:id
-  def destroy
-    @maintenance.destroy
-    redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully deleted."
-  end
-
   private
 
   def set_vehicle
@@ -105,23 +101,10 @@ class MaintenancesController < ApplicationController
 
   def maintenance_params
     params.require(:maintenance).permit(
-      :date,
-      :next_due_date,
-      :reminder_sent_at,
-      :service_type,
-      :cost,
-      :notes,
-      :mileage,
-      :status,
-      :assignment_type,
-      :part_in_stock,
-      :service_provider_id,
-      :estimated_delivery_date,
-      :source,
-      :start_date,
-      :end_date,
-      :category,
-      :urgency_label
+      :date, :next_due_date, :reminder_sent_at, :service_type, :cost,
+      :notes, :mileage, :status, :assignment_type, :part_in_stock,
+      :service_provider_id, :estimated_delivery_date, :source, :start_date,
+      :end_date, :category, :urgency_label
     )
   end
 end

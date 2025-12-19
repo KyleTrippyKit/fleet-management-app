@@ -21,11 +21,12 @@ Rails.application.routes.draw do
     end
 
     # ---------------------------
-    # Maintenance (nested, correct)
+    # Maintenance (nested)
     # ---------------------------
     resources :maintenances do
       member do
         patch :mark_completed
+        get :confirm_delete  # <-- Confirmation page for delete
       end
     end
 
@@ -48,7 +49,6 @@ Rails.application.routes.draw do
   # Drivers
   # =====================================================
   resources :drivers do
-    # Nested trips for driver-specific trips
     resources :trips, only: [:index, :show]
   end
 
