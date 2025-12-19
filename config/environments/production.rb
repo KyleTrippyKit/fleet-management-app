@@ -87,4 +87,10 @@ Rails.application.configure do
   #
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # config/environments/production.rb
+  # Add these lines:
+  config.action_cable.disable_request_forgery_protection = true
+  config.action_cable.allowed_request_origins = []
+  config.action_cable.mount_path = nil
 end
