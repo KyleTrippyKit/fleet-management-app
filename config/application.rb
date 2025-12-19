@@ -25,3 +25,15 @@ module ActivePlusDemo
     # config.eager_load_paths << Rails.root.join("extras")
   end
 end
+
+  module ActivePlusDemo
+    class Application < Rails::Application
+      # Disable Action Cable
+      config.action_cable.mount_path = nil
+      config.action_cable.url = nil
+      config.action_cable.allowed_request_origins = []
+      
+      # Or completely disable
+      config.action_cable.disable_request_forgery_protection = true
+    end
+  end
