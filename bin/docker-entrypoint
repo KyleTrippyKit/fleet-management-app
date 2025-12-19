@@ -1,8 +1,24 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
+# Move to the Rails app directory
+cd /rails
+
+# Detect Rails environment (default to development)
+RAILS_ENV=${RAILS_ENV:-development}
+echo "Starting Docker entrypoint for Rails environment: $RAILS_ENV"
+
+# Prepare database if running rails server
+if [[ "${@: -2:1}" == "./bin/rails" && "${@: -1:1}" == "server" ]]; then
+  echo "Preparing database..."
+  bundle exec rails db:prepare
 fi
 
-exec "${@}"
+# Precompile assets only in production
+if [[ "$RAILS_ENV" == "production" ]]; then
+  echo "Precompiling assets for production..."
+  bundle exec rails assets:precompile
+fi
+
+echo "Entrypoint finished, starting Rails..."
+exec "$@"
