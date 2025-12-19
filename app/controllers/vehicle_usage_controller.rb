@@ -12,18 +12,18 @@ class VehicleUsagesController < ApplicationController
     @vehicles = Vehicle.all
     @vehicles = @vehicles.where(service_owner: owner) if owner
 
-    # TABLE DATA
+    # ------------------------------------------------------------
+    # Initialize chart and table data
+    # ------------------------------------------------------------
     @vehicle_usages = []
+    @chart_data_distance = {}   # Bar chart: distance
+    @chart_data_hours    = {}   # Bar chart: hours
+    @chart_data_util     = {}   # Bar chart: utilization
+    @chart_data_daily    = []   # Line chart: daily utilization
 
-    # CHART DATA
-    @chart_data_distance = {}   # bar
-    @chart_data_hours    = {}   # bar
-    @chart_data_util     = {}   # bar
-    @chart_data_daily    = []   # line (array of series)
-
-    # --------------------------------------------------------------
-    # PROCESS EACH VEHICLE
-    # --------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Process each vehicle
+    # ------------------------------------------------------------
     @vehicles.each do |vehicle|
       trips = vehicle.trips.where(start_time: from.beginning_of_day..to.end_of_day)
 
@@ -31,24 +31,19 @@ class VehicleUsagesController < ApplicationController
       hours_sum    = trips.sum(:duration_hours).to_f
       trip_count   = trips.count
 
-      # DAILY UTILIZATION (for line chart)
+      # Daily utilization for line chart
       daily_usage = (from..to).map do |day|
         day_trips = trips.where(start_time: day.beginning_of_day..day.end_of_day)
         hours = day_trips.sum(:duration_hours).to_f
         percent = ((hours / 24.0) * 100).round(1)
-
         { date: day, percent: percent }
       end
 
-      # OVERALL UTILIZATION
+      # Overall utilization
       total_days = (to - from + 1).to_i
-      utilization = if total_days > 0
-        ((hours_sum / (total_days * 24.0)) * 100).round(1)
-      else
-        0
-      end
+      utilization = total_days > 0 ? ((hours_sum / (total_days * 24.0)) * 100).round(1) : 0
 
-      # TABLE ROW
+      # Add table row
       @vehicle_usages << {
         name: "#{vehicle.make} #{vehicle.model}",
         registration_number: vehicle.registration_number,
@@ -60,24 +55,13 @@ class VehicleUsagesController < ApplicationController
         daily_usage: daily_usage
       }
 
-      # LABEL FOR ALL CHARTS
       label = "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})"
 
-      # --------------------------------------------------------------
-      # BAR CHART DATA
-      # --------------------------------------------------------------
+      # Add chart data
       @chart_data_distance[label] = distance_sum
       @chart_data_hours[label]    = hours_sum
       @chart_data_util[label]     = utilization
-
-      # --------------------------------------------------------------
-      # DAILY LINE CHART DATA (Chartkick correct format)
-      # MUST be: [{ name: "...", data: {"2025-12-01" => 10, ...} }]
-      # --------------------------------------------------------------
-      @chart_data_daily << {
-        name: label,
-        data: daily_usage.map { |d| [d[:date].strftime("%Y-%m-%d"), d[:percent]] }.to_h
-      }
+      @chart_data_daily << { name: label, data: daily_usage.map { |d| [d[:date].strftime("%Y-%m-%d"), d[:percent]] }.to_h }
     end
   end
 

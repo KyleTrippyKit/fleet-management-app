@@ -2,14 +2,12 @@ class Trip < ApplicationRecord
   # ========================
   # Associations
   # ========================
-
   belongs_to :vehicle
   belongs_to :driver, optional: true
 
   # ========================
   # Validations
   # ========================
-
   validates :start_time, presence: true
   validates :end_time, presence: true, unless: :ongoing?
 
@@ -20,13 +18,10 @@ class Trip < ApplicationRecord
   # ========================
   # Scopes
   # ========================
-
   scope :between, ->(from, to) {
-    where(
-      "start_time >= ? AND (end_time <= ? OR end_time IS NULL)",
-      from.beginning_of_day,
-      to.end_of_day
-    )
+    where("start_time >= ? AND (end_time <= ? OR end_time IS NULL)",
+          from.beginning_of_day,
+          to.end_of_day)
   }
 
   scope :ongoing, -> { where(end_time: nil) }
@@ -40,14 +35,28 @@ class Trip < ApplicationRecord
     end_time.nil?
   end
 
+  # Returns trip duration in seconds
   def duration_seconds
-    return nil if ongoing?
+    return 0 if ongoing?
     (end_time - start_time).to_i
   end
 
+  # Returns trip duration in hours
   def duration_hours
-    return nil if ongoing?
+    return 0 if ongoing?
     duration_seconds / 3600.0
+  end
+
+  # Returns distance in km; defaults to 0 if nil
+  def distance_km
+    self[:distance_km].to_f
+  end
+
+  # ========================
+  # Display helper
+  # ========================
+  def display_name
+    "#{vehicle.display_name} - Trip ##{id}"
   end
 
   private
@@ -55,7 +64,6 @@ class Trip < ApplicationRecord
   # ========================
   # Custom Validators
   # ========================
-
   def start_time_not_in_future
     return if start_time.blank?
     errors.add(:start_time, "cannot be in the future") if start_time > Time.current

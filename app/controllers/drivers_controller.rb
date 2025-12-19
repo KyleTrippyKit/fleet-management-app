@@ -11,7 +11,7 @@ class DriversController < ApplicationController
     @sort_direction = params[:direction].presence_in(%w[asc desc]) || "asc"
 
     @drivers = Driver
-                .includes(:assigned_vehicles, :trips, :vehicle_usages)
+                .includes(:vehicles, :trips)
                 .order("#{@sort_column} #{@sort_direction}")
 
     if @query.present?
@@ -34,8 +34,7 @@ class DriversController < ApplicationController
   # Show driver details
   # ============================================================
   def show
-    @assigned_vehicles = @driver.assigned_vehicles
-    @historical_vehicles = @driver.vehicles
+    @vehicles = @driver.vehicles
 
     @trip_sort_column = params[:trip_sort].presence_in(%w[start_time end_time vehicle_id]) || "start_time"
     @trip_sort_direction = params[:trip_direction].presence_in(%w[asc desc]) || "desc"
@@ -54,10 +53,9 @@ class DriversController < ApplicationController
   end
 
   def create
-    @driver = Driver.new(driver_params.except(:vehicle_ids))
+    @driver = Driver.new(driver_params)
 
     if @driver.save
-      update_assigned_vehicles
       redirect_to drivers_path, notice: "Driver created successfully."
     else
       render :new, status: :unprocessable_entity
@@ -70,8 +68,7 @@ class DriversController < ApplicationController
   def edit; end
 
   def update
-    if @driver.update(driver_params.except(:vehicle_ids))
-      update_assigned_vehicles
+    if @driver.update(driver_params)
       redirect_to drivers_path, notice: "Driver updated successfully."
     else
       render :edit, status: :unprocessable_entity
@@ -82,7 +79,7 @@ class DriversController < ApplicationController
   # Destroy
   # ============================================================
   def destroy
-    if @driver.trips.exists? || @driver.vehicle_usages.exists?
+    if @driver.trips.exists? || @driver.vehicles.exists?
       redirect_to drivers_path,
                   alert: "Cannot delete driver with trips or assigned vehicles."
       return
@@ -107,19 +104,5 @@ class DriversController < ApplicationController
       :notes,
       vehicle_ids: []
     )
-  end
-
-  def update_assigned_vehicles
-    return unless params[:driver][:vehicle_ids]
-
-    @driver.vehicle_usages
-           .where.not(vehicle_id: params[:driver][:vehicle_ids])
-           .destroy_all
-
-    params[:driver][:vehicle_ids].reject(&:blank?).each do |vid|
-      @driver.vehicle_usages.find_or_create_by(vehicle_id: vid) do |vu|
-        vu.start_date ||= Time.current
-      end
-    end
   end
 end
