@@ -13,12 +13,12 @@ NULLCMD = :
 #### Start of system configuration section. ####
 
 srcdir = .
-topdir = /home/kyle/.rbenv/versions/3.3.2/include/ruby-3.3.0
+topdir = /opt/rubies/ruby-3.3.10/include/ruby-3.3.0
 hdrdir = $(topdir)
-arch_hdrdir = /home/kyle/.rbenv/versions/3.3.2/include/ruby-3.3.0/x86_64-linux
+arch_hdrdir = /opt/rubies/ruby-3.3.10/include/ruby-3.3.0/x86_64-linux
 PATH_SEPARATOR = :
 VPATH = $(srcdir):$(arch_hdrdir)/ruby:$(hdrdir)/ruby
-prefix = $(DESTDIR)/home/kyle/.rbenv/versions/3.3.2
+prefix = $(DESTDIR)/opt/rubies/ruby-3.3.10
 rubysitearchprefix = $(rubylibprefix)/$(sitearch)
 rubyarchprefix = $(rubylibprefix)/$(arch)
 rubylibprefix = $(libdir)/$(RUBY_BASE_NAME)
@@ -68,9 +68,9 @@ archdir = $(rubyarchdir)
 CC_WRAPPER = 
 CC = gcc
 CXX = g++
-LIBRUBY = $(LIBRUBY_SO)
+LIBRUBY = $(LIBRUBY_A)
 LIBRUBY_A = lib$(RUBY_SO_NAME)-static.a
-LIBRUBYARG_SHARED = -Wl,-rpath,$(libdir) -L$(libdir) -l$(RUBY_SO_NAME)
+LIBRUBYARG_SHARED = -Wl,-rpath,$(libdir) -L$(libdir) 
 LIBRUBYARG_STATIC = -Wl,-rpath,$(libdir) -L$(libdir) -l$(RUBY_SO_NAME)-static $(MAINLIBS)
 empty =
 OUTFLAG = -o $(empty)
@@ -85,12 +85,12 @@ debugflags = -ggdb3
 warnflags = -Wall -Wextra -Wdeprecated-declarations -Wdiv-by-zero -Wduplicated-cond -Wimplicit-function-declaration -Wimplicit-int -Wpointer-arith -Wwrite-strings -Wold-style-definition -Wimplicit-fallthrough=0 -Wmissing-noreturn -Wno-cast-function-type -Wno-constant-logical-operand -Wno-long-long -Wno-missing-field-initializers -Wno-overlength-strings -Wno-packed-bitfield-compat -Wno-parentheses-equality -Wno-self-assign -Wno-tautological-compare -Wno-unused-parameter -Wno-unused-value -Wsuggest-attribute=format -Wsuggest-attribute=noreturn -Wunused-variable -Wmisleading-indentation -Wundef
 cppflags = 
 CCDLFLAGS = -fPIC
-CFLAGS   = $(CCDLFLAGS) $(cflags)  -fPIC $(ARCH_FLAG)
+CFLAGS   = $(CCDLFLAGS) $(cflags) $(ARCH_FLAG)
 INCFLAGS = -I. -I$(arch_hdrdir) -I$(hdrdir)/ruby/backward -I$(hdrdir) -I$(srcdir)
 DEFS     = 
 CPPFLAGS = -DHAVE_RB_SYSERR_FAIL_STR -DHAVE_RB_INTERNED_STR_CSTR -DHAVE_RB_IO_PATH -DHAVE_RB_IO_DESCRIPTOR -DHAVE_RB_IO_GET_WRITE_IO -DHAVE_RB_IO_CLOSED_P -DHAVE_RB_IO_OPEN_DESCRIPTOR -DHAVE_RB_RACTOR_LOCAL_STORAGE_VALUE_NEWKEY -DHAVE_TERMIOS_H -DHAVE_CFMAKERAW -DHAVE_SYS_IOCTL_H -DHAVE_RB_IO_WAIT=1 -DHAVE_TTYNAME_R  $(DEFS) $(cppflags)
 CXXFLAGS = $(CCDLFLAGS)  $(ARCH_FLAG)
-ldflags  = -L. -fstack-protector-strong -rdynamic -Wl,-export-dynamic -Wl,--no-as-needed
+ldflags  = -L. -fstack-protector-strong -rdynamic -Wl,-export-dynamic
 dldflags = -Wl,--compress-debug-sections=zlib 
 ARCH_FLAG = 
 DLDFLAGS = $(ldflags) $(dldflags) $(ARCH_FLAG)
@@ -139,7 +139,7 @@ extout =
 extout_prefix = 
 target_prefix = /io
 LOCAL_LIBS = 
-LIBS = $(LIBRUBYARG_SHARED)  -lm -lpthread  -lc
+LIBS =   -lm -lpthread  -lc
 ORIG_SRCS = console.c
 SRCS = $(ORIG_SRCS) 
 OBJS = console.o

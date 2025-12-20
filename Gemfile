@@ -40,3 +40,4 @@ gem 'jquery-rails'
 gem 'popper_js', '~> 2.0'
 gem 'chartkick'
 gem 'groupdate'
+gem "image_processing", "~> 1.2"

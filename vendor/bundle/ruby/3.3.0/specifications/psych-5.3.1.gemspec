@@ -20,10 +20,10 @@ Gem::Specification.new do |s|
   s.licenses = ["MIT".freeze]
   s.rdoc_options = ["--main".freeze, "README.md".freeze]
   s.required_ruby_version = Gem::Requirement.new(">= 2.5.0".freeze)
-  s.rubygems_version = "3.5.9".freeze
+  s.rubygems_version = "3.6.9".freeze
   s.summary = "Psych is a YAML parser and emitter".freeze
 
-  s.installed_by_version = "3.5.9".freeze if s.respond_to? :installed_by_version
+  s.installed_by_version = "3.5.22".freeze
 
   s.specification_version = 4
 
