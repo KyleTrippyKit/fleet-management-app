@@ -8,7 +8,7 @@ gem "rails", "~> 8.1.1"
 
 # Database
 gem "sqlite3", "~> 2.8", group: [:development, :test]
-gem "pg", "~> 1.5", group: :production
+gem "pg", "~> 1.6", group: :production
 
 # Server
 gem "puma", ">= 5.0"
@@ -41,3 +41,4 @@ gem 'popper_js', '~> 2.0'
 gem 'chartkick'
 gem 'groupdate'
 gem "image_processing", "~> 1.2"
+gem "activestorage", "~> 8.1"
