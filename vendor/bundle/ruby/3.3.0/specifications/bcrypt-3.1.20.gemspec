@@ -18,10 +18,10 @@ Gem::Specification.new do |s|
   s.homepage = "https://github.com/bcrypt-ruby/bcrypt-ruby".freeze
   s.licenses = ["MIT".freeze]
   s.rdoc_options = ["--title".freeze, "bcrypt-ruby".freeze, "--line-numbers".freeze, "--inline-source".freeze, "--main".freeze, "README.md".freeze]
-  s.rubygems_version = "3.5.9".freeze
+  s.rubygems_version = "3.4.10".freeze
   s.summary = "OpenBSD's bcrypt() password hashing algorithm.".freeze
 
-  s.installed_by_version = "3.5.9".freeze if s.respond_to? :installed_by_version
+  s.installed_by_version = "3.5.22".freeze
 
   s.specification_version = 4
 

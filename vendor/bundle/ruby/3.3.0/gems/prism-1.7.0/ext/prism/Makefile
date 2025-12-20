@@ -13,12 +13,12 @@ NULLCMD = :
 #### Start of system configuration section. ####
 
 srcdir = .
-topdir = /home/kyle/.rbenv/versions/3.3.2/include/ruby-3.3.0
+topdir = /opt/rubies/ruby-3.3.10/include/ruby-3.3.0
 hdrdir = $(topdir)
-arch_hdrdir = /home/kyle/.rbenv/versions/3.3.2/include/ruby-3.3.0/x86_64-linux
+arch_hdrdir = /opt/rubies/ruby-3.3.10/include/ruby-3.3.0/x86_64-linux
 PATH_SEPARATOR = :
 VPATH = $(srcdir):$(arch_hdrdir)/ruby:$(hdrdir)/ruby:$(srcdir)/../../src:$(srcdir)/../../src/util
-prefix = $(DESTDIR)/home/kyle/.rbenv/versions/3.3.2
+prefix = $(DESTDIR)/opt/rubies/ruby-3.3.10
 rubysitearchprefix = $(rubylibprefix)/$(sitearch)
 rubyarchprefix = $(rubylibprefix)/$(arch)
 rubylibprefix = $(libdir)/$(RUBY_BASE_NAME)
@@ -68,9 +68,9 @@ archdir = $(rubyarchdir)
 CC_WRAPPER = 
 CC = gcc
 CXX = g++
-LIBRUBY = $(LIBRUBY_SO)
+LIBRUBY = $(LIBRUBY_A)
 LIBRUBY_A = lib$(RUBY_SO_NAME)-static.a
-LIBRUBYARG_SHARED = -Wl,-rpath,$(libdir) -L$(libdir) -l$(RUBY_SO_NAME)
+LIBRUBYARG_SHARED = -Wl,-rpath,$(libdir) -L$(libdir) 
 LIBRUBYARG_STATIC = -Wl,-rpath,$(libdir) -L$(libdir) -l$(RUBY_SO_NAME)-static $(MAINLIBS)
 empty =
 OUTFLAG = -o $(empty)
@@ -85,12 +85,12 @@ debugflags = -ggdb3
 warnflags = -Wall -Wextra -Wdeprecated-declarations -Wdiv-by-zero -Wduplicated-cond -Wimplicit-function-declaration -Wimplicit-int -Wpointer-arith -Wwrite-strings -Wold-style-definition -Wimplicit-fallthrough=0 -Wmissing-noreturn -Wno-cast-function-type -Wno-constant-logical-operand -Wno-long-long -Wno-missing-field-initializers -Wno-overlength-strings -Wno-packed-bitfield-compat -Wno-parentheses-equality -Wno-self-assign -Wno-tautological-compare -Wno-unused-parameter -Wno-unused-value -Wsuggest-attribute=format -Wsuggest-attribute=noreturn -Wunused-variable -Wmisleading-indentation -Wundef
 cppflags = 
 CCDLFLAGS = -fPIC
-CFLAGS   = $(CCDLFLAGS) $(cflags)  -fPIC -fvisibility=hidden $(ARCH_FLAG)
+CFLAGS   = $(CCDLFLAGS) $(cflags) -fvisibility=hidden $(ARCH_FLAG)
 INCFLAGS = -I. -I$(arch_hdrdir) -I$(hdrdir)/ruby/backward -I$(hdrdir) -I$(srcdir) -I/home/kyle/Projects/active_plus_demo/vendor/bundle/ruby/3.3.0/gems/prism-1.7.0/include -I/home/kyle/Projects/active_plus_demo/vendor/bundle/ruby/3.3.0/gems/prism-1.7.0/ext
 DEFS     = 
 CPPFLAGS =   $(DEFS) $(cppflags)
 CXXFLAGS = $(CCDLFLAGS)  $(ARCH_FLAG)
-ldflags  = -L. -fstack-protector-strong -rdynamic -Wl,-export-dynamic -Wl,--no-as-needed
+ldflags  = -L. -fstack-protector-strong -rdynamic -Wl,-export-dynamic
 dldflags = -Wl,--compress-debug-sections=zlib 
 ARCH_FLAG = 
 DLDFLAGS = $(ldflags) $(dldflags) $(ARCH_FLAG)
@@ -139,7 +139,7 @@ extout =
 extout_prefix = 
 target_prefix = /prism
 LOCAL_LIBS = 
-LIBS = $(LIBRUBYARG_SHARED)  -lm -lpthread  -lc
+LIBS =   -lm -lpthread  -lc
 ORIG_SRCS = api_node.c api_pack.c extension.c
 SRCS = $(ORIG_SRCS) diagnostic.c encoding.c node.c options.c pack.c prettyprint.c prism.c regexp.c serialize.c static_literals.c token_type.c pm_buffer.c pm_char.c pm_constant_pool.c pm_integer.c pm_list.c pm_memchr.c pm_newline_list.c pm_string.c pm_strncasecmp.c pm_strpbrk.c
 OBJS = api_node.o api_pack.o extension.o diagnostic.o encoding.o node.o options.o pack.o prettyprint.o prism.o regexp.o serialize.o static_literals.o token_type.o pm_buffer.o pm_char.o pm_constant_pool.o pm_integer.o pm_list.o pm_memchr.o pm_newline_list.o pm_string.o pm_strncasecmp.o pm_strpbrk.o
