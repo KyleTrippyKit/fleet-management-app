@@ -3,7 +3,7 @@ class Trip < ApplicationRecord
   # Associations
   # ========================
   belongs_to :vehicle
-  belongs_to :driver, optional: true
+  belongs_to :driver, class_name: "User", optional: true
 
   # ========================
   # Validations
@@ -20,14 +20,16 @@ class Trip < ApplicationRecord
   # Scopes
   # ========================
   scope :between, ->(from, to) {
-    where("start_time >= ? AND (end_time <= ? OR end_time IS NULL)",
-          from.beginning_of_day,
-          to.end_of_day)
+    where(
+      "start_time >= ? AND (end_time <= ? OR end_time IS NULL)",
+      from.beginning_of_day,
+      to.end_of_day
+    )
   }
 
   scope :ongoing, -> { where(end_time: nil) }
   scope :completed, -> { where.not(end_time: nil) }
-  
+
   # For vehicles controller analytics
   scope :in_date_range, ->(from, to) {
     where(start_time: from.beginning_of_day..to.end_of_day)
@@ -47,20 +49,12 @@ class Trip < ApplicationRecord
 
   # Returns trip status
   def status
-    if ongoing?
-      "In Progress"
-    else
-      "Completed"
-    end
+    ongoing? ? "In Progress" : "Completed"
   end
 
   # Returns CSS class for status badge
   def status_class
-    if ongoing?
-      "warning"
-    else
-      "success"
-    end
+    ongoing? ? "warning" : "success"
   end
 
   # Returns trip duration in seconds
@@ -78,11 +72,11 @@ class Trip < ApplicationRecord
   # Returns formatted duration
   def formatted_duration
     return "Ongoing" if ongoing?
-    
+
     hours = duration_hours.floor
     minutes = ((duration_hours - hours) * 60).round
-    
-    if hours > 0
+
+    if hours.positive?
       "#{hours}h #{minutes}m"
     else
       "#{minutes}m"
@@ -100,12 +94,12 @@ class Trip < ApplicationRecord
   end
 
   # ========================
-  # Display helper
+  # Display helpers
   # ========================
   def display_name
-    "#{vehicle.try(:display_name) || 'Vehicle'} - Trip ##{id}"
+    "#{vehicle&.display_name || 'Vehicle'} - Trip ##{id}"
   end
-  
+
   # For dropdowns and selects
   def to_s
     "Trip ##{id} - #{start_time.strftime('%Y-%m-%d %H:%M')}"
@@ -114,21 +108,21 @@ class Trip < ApplicationRecord
   # ========================
   # Class Methods
   # ========================
-  
+
   # Calculate total distance for a set of trips
   def self.total_distance(trips)
     trips.sum(:distance_km).to_f.round(2)
   end
-  
+
   # Calculate total hours for a set of trips
   def self.total_hours(trips)
     trips.sum(:duration_hours).to_f.round(2)
   end
-  
+
   # Calculate average distance per trip
   def self.average_distance(trips)
     count = trips.count
-    count > 0 ? (total_distance(trips) / count).round(2) : 0
+    count.positive? ? (total_distance(trips) / count).round(2) : 0
   end
 
   private

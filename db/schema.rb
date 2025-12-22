@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_21_224824) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_22_105111) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,7 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_21_224824) do
     t.timestamptz "created_at"
     t.date "date"
     t.text "details"
-    t.date "end_date"
+    t.date "end_date", null: false
     t.bigint "estimated_delivery"
     t.date "estimated_delivery_date"
     t.bigint "mileage"
@@ -108,7 +108,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_21_224824) do
     t.bigint "service_provider_id"
     t.text "service_type"
     t.text "source"
-    t.date "start_date"
+    t.date "start_date", null: false
     t.text "status"
     t.text "technician"
     t.timestamptz "updated_at"

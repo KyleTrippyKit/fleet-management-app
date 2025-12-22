@@ -4,14 +4,9 @@ class Driver < ApplicationRecord
   # ============================================================
   # Associations
   # ============================================================
+  has_many :vehicles, dependent: :nullify   # One driver can have many vehicles
   has_many :trips, dependent: :nullify
   has_many :damage_reports, dependent: :nullify
-
-  # Multi-vehicle assignment via a join table
-  has_and_belongs_to_many :vehicles,
-                          join_table: :drivers_vehicles,
-                          association_foreign_key: :vehicle_id,
-                          dependent: :nullify
 
   # ============================================================
   # Validations

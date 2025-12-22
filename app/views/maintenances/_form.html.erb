@@ -1,12 +1,13 @@
-<%= form_with(model: [@vehicle, @maintenance], local: true, html: { multipart: true }) do |f| %>
+<%= form_with(model: [@vehicle, @maintenance], local: true, html: { multipart: true, class: "needs-validation", novalidate: true }) do |f| %>
   <% if @maintenance.errors.any? %>
-    <div class="alert alert-danger">
+    <div class="alert alert-danger alert-dismissible fade show">
       <h5><%= pluralize(@maintenance.errors.count, "error") %> prevented this maintenance from saving:</h5>
-      <ul>
+      <ul class="mb-0">
         <% @maintenance.errors.full_messages.each do |msg| %>
           <li><%= msg %></li>
         <% end %>
       </ul>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
   <% end %>
 
@@ -31,77 +32,206 @@
                        class: "form-select",
                        id: "urgency_select" %>
 
-          <span id="urgency_badge_preview">
-            <%= urgency_badge(@maintenance) if @maintenance.urgency.present? %>
+         <span id="urgency_badge_preview">
+            <% if @maintenance.urgency.present? %>
+              <%= content_tag(:span, @maintenance.urgency.titleize, 
+                class: "badge #{maintenance_urgency_badge_class(@maintenance)}") %>
+            <% end %>
           </span>
         </div>
       </div>
 
-      <!-- Maintenance Dates -->
+      <!-- REQUIRED: Start and End Dates for Gantt Chart -->
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <%= f.label :start_date, "Start Date *", class: "form-label fw-semibold" %>
+          <%= f.text_field :start_date, 
+                class: "form-control datepicker", 
+                value: @maintenance.start_date || Date.today.strftime("%d/%m/%Y"), 
+                autocomplete: "off",
+                required: true %>
+          <div class="invalid-feedback">Please enter a start date.</div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <%= f.label :end_date, "End Date *", class: "form-label fw-semibold" %>
+          <%= f.text_field :end_date, 
+                class: "form-control datepicker", 
+                value: @maintenance.end_date || (Date.today + 7.days).strftime("%d/%m/%Y"), 
+                autocomplete: "off",
+                required: true %>
+          <div class="invalid-feedback">Please enter an end date.</div>
+          <small class="form-text text-muted">Required for Gantt timeline view</small>
+        </div>
+      </div>
+
+      <!-- Maintenance Date -->
       <div class="mb-3">
         <%= f.label :date, "Maintenance Date", class: "form-label fw-semibold" %>
-        <%= f.text_field :date, class: "form-control datepicker", value: @maintenance.date&.strftime("%d/%m/%Y"), autocomplete: "off" %>
+        <%= f.text_field :date, 
+              class: "form-control datepicker", 
+              value: @maintenance.date&.strftime("%d/%m/%Y") || Date.today.strftime("%d/%m/%Y"), 
+              autocomplete: "off" %>
       </div>
 
       <div class="mb-3">
         <%= f.label :next_due_date, "Next Due Date", class: "form-label fw-semibold" %>
-        <%= f.text_field :next_due_date, class: "form-control datepicker", value: @maintenance.next_due_date&.strftime("%d/%m/%Y"), autocomplete: "off" %>
+        <%= f.text_field :next_due_date, 
+              class: "form-control datepicker", 
+              value: @maintenance.next_due_date&.strftime("%d/%m/%Y") || (Date.today + 30.days).strftime("%d/%m/%Y"), 
+              autocomplete: "off" %>
       </div>
 
       <div class="mb-3">
         <%= f.label :reminder_sent_at, "Reminder Sent Date", class: "form-label fw-semibold" %>
-        <%= f.text_field :reminder_sent_at, class: "form-control datepicker", value: @maintenance.reminder_sent_at&.strftime("%d/%m/%Y"), autocomplete: "off" %>
+        <%= f.text_field :reminder_sent_at, 
+              class: "form-control datepicker", 
+              value: @maintenance.reminder_sent_at&.strftime("%d/%m/%Y"), 
+              autocomplete: "off" %>
       </div>
 
-      <!-- Other Fields -->
+      <!-- Service Type -->
       <div class="mb-3">
         <%= f.label :service_type, "Service Type", class: "form-label fw-semibold" %>
-        <%= f.select :service_type,
-                     options_for_select(["Oil Change", "Brake Service", "Tire Rotation", "Inspection", "Other"], @maintenance.service_type),
-                     { prompt: "Select service type" },
-                     class: "form-select" %>
+        <%= f.text_field :service_type, 
+              class: "form-control", 
+              placeholder: "e.g., Oil Change, Brake Service, Tire Rotation",
+              required: true %>
+        <div class="invalid-feedback">Please enter a service type.</div>
       </div>
 
+      <!-- Category -->
       <div class="mb-3">
-        <%= f.label :status, "Status", class: "form-label fw-semibold" %>
-        <%= f.select :status,
-                     options_for_select(Maintenance::STATUSES, @maintenance.status),
-                     { prompt: "Select status" },
+        <%= f.label :category, "Category", class: "form-label fw-semibold" %>
+        <%= f.select :category,
+                     options_for_select(Maintenance::CATEGORIES, @maintenance.category),
+                     { prompt: "Select category" },
                      class: "form-select" %>
       </div>
 
+      <!-- Status -->
+      <div class="mb-3">
+        <%= f.label :status, "Status *", class: "form-label fw-semibold" %>
+        <%= f.select :status,
+                     options_for_select(Maintenance::STATUSES, @maintenance.status || "Pending"),
+                     {},
+                     class: "form-select",
+                     required: true %>
+        <div class="invalid-feedback">Please select a status.</div>
+      </div>
+
+      <!-- Mileage -->
+      <div class="mb-3">
+        <%= f.label :mileage, "Mileage", class: "form-label fw-semibold" %>
+        <div class="input-group">
+          <%= f.number_field :mileage, 
+                class: "form-control", 
+                value: @maintenance.mileage || @vehicle.mileage,
+                placeholder: "Enter mileage" %>
+          <span class="input-group-text">km</span>
+        </div>
+        <small class="form-text text-muted">Vehicle current: <%= @vehicle.mileage %> km</small>
+      </div>
+
+      <!-- Cost -->
       <div class="mb-3">
         <%= f.label :cost, "Cost", class: "form-label fw-semibold" %>
-        <%= f.number_field :cost, class: "form-control", placeholder: "Enter the cost here", step: 0.01 %>
+        <div class="input-group">
+          <span class="input-group-text">R</span>
+          <%= f.number_field :cost, 
+                class: "form-control", 
+                placeholder: "Enter the cost here", 
+                step: 0.01 %>
+        </div>
       </div>
 
-      <div class="mb-3">
-        <%= f.label :notes, "Notes", class: "form-label fw-semibold" %>
-        <%= f.text_area :notes, class: "form-control", placeholder: "Enter any notes here", rows: 3 %>
-      </div>
-
+      <!-- Service Provider -->
       <div class="mb-3">
         <%= f.label :service_provider_id, "Service Provider", class: "form-label fw-semibold" %>
         <%= f.collection_select :service_provider_id, @service_providers, :id, :name, { prompt: "Select provider" }, class: "form-select" %>
       </div>
-
-      <div class="d-flex gap-2">
-        <%= f.submit "Save Maintenance", class: "btn btn-primary" %>
-        <%= link_to "Cancel", vehicle_path(@vehicle), class: "btn btn-outline-secondary" %>
-      </div>
     </div>
 
-    <!-- Vehicle Image Preview -->
     <div class="col-md-6">
-      <h5 class="fw-bold">Vehicle Image</h5>
-      <div id="image_preview_container" class="d-flex flex-wrap gap-2">
-        <% if @vehicle.image.attached? %>
-          <%= image_tag @vehicle.image, class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
-        <% else %>
-          <%= image_tag "placeholders/default.png", class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
-        <% end %>
+      <!-- Vehicle Image Preview -->
+      <div class="mb-4">
+        <h5 class="fw-bold mb-3">Vehicle Details</h5>
+        <div id="image_preview_container" class="d-flex flex-wrap gap-2">
+          <% if @vehicle.image.attached? %>
+            <%= image_tag @vehicle.image, class: "img-fluid rounded", style: "max-width:100%; height:auto;" %>
+          <% else %>
+            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width:100%; height:200px;">
+              <i class="bi bi-car-front text-muted" style="font-size: 4rem;"></i>
+            </div>
+          <% end %>
+        </div>
+        <div class="mt-3">
+          <p class="mb-1"><strong><%= @vehicle.make %> <%= @vehicle.model %></strong></p>
+          <p class="mb-1"><%= @vehicle.registration_number %></p>
+          <p class="mb-0">Owner: <span class="badge <%= owner_badge_class(@vehicle.service_owner) %>"><%= @vehicle.service_owner %></span></p>
+        </div>
+      </div>
+
+      <!-- Additional Fields -->
+      <div class="mb-3">
+        <%= f.label :source, "Source", class: "form-label fw-semibold" %>
+        <%= f.text_field :source, 
+              class: "form-control", 
+              placeholder: "e.g., Scheduled, Emergency, Inspection" %>
+      </div>
+
+      <div class="mb-3">
+        <%= f.label :technician, "Technician", class: "form-label fw-semibold" %>
+        <%= f.text_field :technician, 
+              class: "form-control", 
+              placeholder: "Name of technician" %>
+      </div>
+
+      <!-- Part in Stock -->
+      <div class="mb-3">
+        <div class="form-check">
+          <%= f.check_box :part_in_stock, class: "form-check-input" %>
+          <%= f.label :part_in_stock, "Part in Stock", class: "form-check-label fw-semibold" %>
+        </div>
+      </div>
+
+      <!-- Estimated Delivery Date -->
+      <div class="mb-3">
+        <%= f.label :estimated_delivery_date, "Estimated Delivery Date", class: "form-label fw-semibold" %>
+        <%= f.text_field :estimated_delivery_date, 
+              class: "form-control datepicker", 
+              value: @maintenance.estimated_delivery_date&.strftime("%d/%m/%Y"), 
+              autocomplete: "off" %>
+      </div>
+
+      <!-- Notes -->
+      <div class="mb-3">
+        <%= f.label :notes, "Notes", class: "form-label fw-semibold" %>
+        <%= f.text_area :notes, 
+              class: "form-control", 
+              placeholder: "Enter any notes here", 
+              rows: 4 %>
+      </div>
+
+      <!-- Details -->
+      <div class="mb-3">
+        <%= f.label :details, "Details", class: "form-label fw-semibold" %>
+        <%= f.text_area :details, 
+              class: "form-control", 
+              placeholder: "Detailed description of the maintenance work...", 
+              rows: 3 %>
       </div>
     </div>
+  </div>
+
+  <!-- Form Actions -->
+  <div class="d-flex gap-2 mt-4">
+    <%= f.submit @maintenance.persisted? ? "Update Maintenance" : "Save Maintenance", 
+          class: "btn btn-primary px-4" %>
+    <%= link_to "Cancel", vehicle_path(@vehicle), class: "btn btn-outline-secondary" %>
+    <% if @maintenance.persisted? %>
+      <%= link_to "View Timeline", gantt_path, class: "btn btn-outline-info ms-auto" %>
+    <% end %>
   </div>
 <% end %>
 
@@ -111,9 +241,11 @@
 
 <script>
 document.addEventListener("turbo:load", () => {
+  // Initialize flatpickr
   flatpickr(".datepicker", {
     dateFormat: "d/m/Y",
-    allowInput: true
+    allowInput: true,
+    allowInvalidPreload: true
   });
 
   // Update urgency badge dynamically
@@ -122,12 +254,17 @@ document.addEventListener("turbo:load", () => {
 
   urgencySelect?.addEventListener("change", (e) => {
     const value = e.target.value;
+    updateUrgencyBadge(value);
+  });
+
+  // Function to update urgency badge
+  function updateUrgencyBadge(urgency) {
     let label = "";
     let cssClass = "";
     let tooltip = "";
 
-    if (value) {
-      switch (value.toLowerCase()) {
+    if (urgency) {
+      switch (urgency.toLowerCase()) {
         case "emergency":
           label = "Emergency";
           cssClass = "badge bg-danger text-white";
@@ -149,16 +286,112 @@ document.addEventListener("turbo:load", () => {
           tooltip = "No urgency selected";
       }
       badgePreview.innerHTML = `<span class="${cssClass}" data-bs-toggle="tooltip" title="${tooltip}">${label}</span>`;
-      new bootstrap.Tooltip(badgePreview.querySelector('[data-bs-toggle="tooltip"]'));
+      
+      // Initialize tooltip for the new badge
+      const newBadge = badgePreview.querySelector('[data-bs-toggle="tooltip"]');
+      if (newBadge) {
+        new bootstrap.Tooltip(newBadge);
+      }
     } else {
       badgePreview.innerHTML = "";
     }
-  });
+  }
+
+  // Set initial badge if urgency is already selected
+  const initialUrgency = document.getElementById("urgency_select")?.value;
+  if (initialUrgency) {
+    updateUrgencyBadge(initialUrgency);
+  }
 
   // Initialize Bootstrap tooltips
   var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
   var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
     return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+
+  // Form validation
+  const forms = document.querySelectorAll('.needs-validation');
+  
+  Array.from(forms).forEach(function(form) {
+    form.addEventListener('submit', function(event) {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      form.classList.add('was-validated');
+      
+      // Custom validation for date order
+      const startDate = document.getElementById('maintenance_start_date');
+      const endDate = document.getElementById('maintenance_end_date');
+      
+      if (startDate && endDate && startDate.value && endDate.value) {
+        // Convert d/m/Y to Date object
+        const startParts = startDate.value.split('/');
+        const endParts = endDate.value.split('/');
+        
+        const start = new Date(startParts[2], startParts[1] - 1, startParts[0]);
+        const end = new Date(endParts[2], endParts[1] - 1, endParts[0]);
+        
+        if (end < start) {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          if (!endDate.nextElementSibling.classList.contains('invalid-feedback')) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'invalid-feedback';
+            errorDiv.textContent = 'End date must be after start date';
+            endDate.parentNode.appendChild(errorDiv);
+          }
+          
+          endDate.classList.add('is-invalid');
+          form.classList.add('was-validated');
+        } else {
+          endDate.classList.remove('is-invalid');
+          const errorDiv = endDate.parentNode.querySelector('.invalid-feedback');
+          if (errorDiv && errorDiv.textContent === 'End date must be after start date') {
+            errorDiv.remove();
+          }
+        }
+      }
+    }, false);
+  });
+  
+  // Auto-set dates if empty
+  const startDateField = document.getElementById('maintenance_start_date');
+  const endDateField = document.getElementById('maintenance_end_date');
+  const dateField = document.getElementById('maintenance_date');
+  const nextDueField = document.getElementById('maintenance_next_due_date');
+  
+  // Set defaults on page load
+  if (startDateField && !startDateField.value) {
+    startDateField.value = new Date().toLocaleDateString('en-GB'); // dd/mm/yyyy
+  }
+  
+  if (endDateField && !endDateField.value) {
+    const today = new Date();
+    today.setDate(today.getDate() + 7);
+    endDateField.value = today.toLocaleDateString('en-GB');
+  }
+  
+  if (dateField && !dateField.value) {
+    dateField.value = new Date().toLocaleDateString('en-GB');
+  }
+  
+  if (nextDueField && !nextDueField.value) {
+    const today = new Date();
+    today.setDate(today.getDate() + 30);
+    nextDueField.value = today.toLocaleDateString('en-GB');
+  }
+  
+  // Auto-calculate end date if start date changes and end date is empty
+  startDateField?.addEventListener('change', function() {
+    if (endDateField && !endDateField.value) {
+      const parts = this.value.split('/');
+      const date = new Date(parts[2], parts[1] - 1, parts[0]);
+      date.setDate(date.getDate() + 7);
+      endDateField.value = date.toLocaleDateString('en-GB');
+    }
   });
 });
 </script>

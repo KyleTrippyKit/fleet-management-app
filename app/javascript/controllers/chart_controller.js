@@ -6,10 +6,12 @@ export default class extends Controller {
 
   connect() {
     console.log("🎯 CHART CONTROLLER CONNECTED!")
-    console.log("📊 Data available:", this.usageDataValue)
     
+    // Wait for Chart.js to load
     if (!window.Chart) {
-      console.error("❌ Chart.js not loaded")
+      console.error("❌ Chart.js not loaded, waiting...")
+      // Try again in a moment
+      setTimeout(() => this.renderChart(), 500)
       return
     }
     
@@ -25,6 +27,21 @@ export default class extends Controller {
       return
     }
     
+    // Destroy previous chart
+    if (this.chart) {
+      this.chart.destroy()
+      this.chart = null
+    }
+    
+    const data = this.usageDataValue || []
+    console.log("📊 Chart data:", data)
+    
+    if (data.length === 0) {
+      console.warn("⚠️ No data to display")
+      this.showNoDataMessage(canvas)
+      return
+    }
+    
     // Set canvas dimensions
     const container = canvas.parentElement
     canvas.width = container.offsetWidth
@@ -35,35 +52,16 @@ export default class extends Controller {
       console.error("❌ No canvas context")
       return
     }
-
-    // Destroy previous chart
-    if (this.chart) this.chart.destroy()
-
-    const data = this.usageDataValue || []
-    console.log("📊 Chart data:", data)
     
-    // ============================================
-    // NEW: Create clean labels with name + license plate
-    // ============================================
+    // Create clean labels
     const labels = data.map(item => {
       const regNumber = item.registration_number || ""
-      
-      // Extract vehicle name and license plate
-      // Format examples from your data:
-      // "Mitsubishi 2024 Mirage (5497595955697)" -> "Mitsubishi Mirage\n(5497595955697)"
-      // "Mercedes C-Class (ABC1234)" -> "Mercedes C-Class\n(ABC1234)"
-      // "Toyota Corolla (REG123)" -> "Toyota Corolla\n(REG123)"
-      // "isuzu ptsc bus (2141516)" -> "Isuzu Ptsc Bus\n(2141516)"
-      // "Ford F-150 (REG789)" -> "Ford F-150\n(REG789)"
-      
-      let vehicleName = regNumber
-      let licensePlate = ""
       
       // Try to extract license plate in parentheses
       const match = regNumber.match(/^(.*?)\s*\(([^)]+)\)$/)
       if (match) {
-        vehicleName = match[1].trim()
-        licensePlate = match[2].trim()
+        let vehicleName = match[1].trim()
+        const licensePlate = match[2].trim()
         
         // Clean up vehicle name (remove year if present)
         vehicleName = vehicleName.replace(/\d{4}\s*/, '').trim()
@@ -76,12 +74,19 @@ export default class extends Controller {
         return `${vehicleName}\n(${licensePlate})`
       }
       
-      // Fallback: just return original with line break
+      // Fallback
       return regNumber.replace(' (', '\n(')
     })
     
     const distances = data.map(item => item.distance_km || 0)
     const hours = data.map(item => item.hours_plied || 0)
+    
+    // Validate data
+    if (distances.every(d => d === 0) && hours.every(h => h === 0)) {
+      console.warn("⚠️ All data values are zero")
+      this.showNoDataMessage(canvas)
+      return
+    }
 
     try {
       this.chart = new Chart(ctx, {
@@ -116,7 +121,7 @@ export default class extends Controller {
             padding: {
               top: 20,
               right: 30,
-              bottom: 80, // Increased for 2-line labels
+              bottom: 80,
               left: 20
             }
           },
@@ -158,7 +163,6 @@ export default class extends Controller {
               },
               callbacks: {
                 title: (tooltipItems) => {
-                  // Show full registration number in tooltip
                   const item = data[tooltipItems[0].dataIndex]
                   return item.registration_number || "Unknown Vehicle"
                 },
@@ -168,9 +172,9 @@ export default class extends Controller {
                   const value = context.parsed.y
                   
                   if (datasetLabel === "Distance (km)") {
-                    return `Distance: ${value} km | Trips: ${item.trip_count}`
+                    return `Distance: ${value.toFixed(1)} km | Trips: ${item.trip_count || 0}`
                   } else {
-                    return `Hours: ${value} | Utilization: ${item.utilization}%`
+                    return `Hours: ${value.toFixed(1)} | Utilization: ${item.utilization || 0}%`
                   }
                 }
               }
@@ -207,14 +211,9 @@ export default class extends Controller {
                   size: 11,
                   lineHeight: 1.2
                 },
-                maxRotation: 0, // No rotation for 2-line labels
+                maxRotation: 0,
                 minRotation: 0,
-                padding: 10,
-                // Handle multi-line labels
-                callback: function(value, index) {
-                  const label = this.getLabelForValue(value)
-                  return label // Keep the \n for line break
-                }
+                padding: 10
               }
             }
           }
@@ -222,21 +221,48 @@ export default class extends Controller {
       })
       
       console.log("✅ SUCCESS! Chart rendered!")
-      console.log("📋 Clean labels:", labels)
       
-      // Hide backup table
-      document.querySelectorAll('.card h5').forEach(h5 => {
+      // Hide backup table if it exists
+      const backupTables = document.querySelectorAll('.card h5')
+      backupTables.forEach(h5 => {
         if (h5.textContent.includes('Backup') || h5.textContent.includes('Table View')) {
-          h5.closest('.row').style.display = 'none'
+          const row = h5.closest('.row')
+          if (row) row.style.display = 'none'
         }
       })
       
     } catch (error) {
       console.error("❌ Chart error:", error)
+      this.showErrorMessage(canvas, error.message)
+    }
+  }
+
+  showNoDataMessage(canvas) {
+    const container = canvas.parentElement
+    if (container) {
+      container.innerHTML = `
+        <div class="alert alert-info text-center">
+          <i class="bi bi-info-circle me-2"></i>
+          No usage data available for the selected period
+        </div>`
+    }
+  }
+
+  showErrorMessage(canvas, message) {
+    const container = canvas.parentElement
+    if (container) {
+      container.innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Failed to load chart: ${message}
+        </div>`
     }
   }
 
   disconnect() {
-    if (this.chart) this.chart.destroy()
+    if (this.chart) {
+      this.chart.destroy()
+      this.chart = null
+    }
   }
 }

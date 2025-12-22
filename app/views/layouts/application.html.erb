@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>ActivePlusDemo</title>
+    <title>Trinidad Fleet Management</title>
 
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <!-- ===============================
          Stylesheets FIRST
@@ -21,30 +27,173 @@
     >
 
     <!-- ===============================
-         Chart.js CDN (ADD THIS LINE)
+         JavaScript Libraries
     ================================ -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- Chart.js Date Adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.min.js"></script>
 
     <!-- ===============================
          Import Maps (Turbo + Stimulus)
-         THIS REPLACES ESBUILD
     ================================ -->
     <%= javascript_importmap_tags %>
-    <%= javascript_include_tag "https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.js" %>
-    <%= stylesheet_link_tag "https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.css" %>
 
     <!-- Favicon -->
     <link rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
+
+    <!-- Theme Support Styles -->
+    <style>
+      :root {
+        --bg-primary: #FFFFFF;
+        --bg-secondary: #F8F9FA;
+        --bg-card: #FFFFFF;
+        --border-color: #E9ECEF;
+        --text-primary: #212529;
+        --text-secondary: #6C757D;
+        --primary-color: #0055A4;
+        --secondary-color: #0066CC;
+        --success-color: #28A745;
+        --warning-color: #FFC107;
+        --danger-color: #DC3545;
+        --police-color: #BF0A30;
+        --ptsc-color: #F1BE48;
+        --fire-color: #DC3545;
+      }
+      
+      /* Theme 1: Modern Light (Default) */
+      body.theme-1 {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, #E9ECEF 100%);
+      }
+      
+      /* Theme 2: Dark Professional */
+      body.theme-2 {
+        background: linear-gradient(135deg, #121826 0%, #1A1F2E 100%);
+        color: #E2E8F0;
+      }
+      
+      body.theme-2 .card {
+        background: #1E2435;
+        border-color: #2D3748;
+        color: #E2E8F0;
+      }
+      
+      body.theme-2 .text-muted {
+        color: #94A3B8 !important;
+      }
+      
+      body.theme-2 .alert-info {
+        background-color: #1E293B;
+        border-color: #334155;
+        color: #E2E8F0;
+      }
+      
+      body.theme-2 .navbar {
+        background: #1A1F2E !important;
+        border-bottom: 1px solid #2D3748;
+      }
+      
+      body.theme-2 .nav-link {
+        color: #E2E8F0 !important;
+      }
+      
+      body.theme-2 .nav-link.active {
+        background: #3B82F6 !important;
+      }
+      
+      /* Theme 3: Trinidad Gradient */
+      body.theme-3 {
+        background: 
+          radial-gradient(circle at 10% 20%, rgba(0, 85, 164, 0.05) 0%, transparent 20%),
+          radial-gradient(circle at 90% 80%, rgba(241, 190, 72, 0.05) 0%, transparent 20%),
+          #FFFFFF;
+      }
+      
+      body.theme-3 .card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(191, 10, 48, 0.1);
+      }
+      
+      body.theme-3 .navbar {
+        background: linear-gradient(90deg, #0055A4 0%, #003366 100%) !important;
+      }
+      
+      /* Theme 4: Clean Admin */
+      body.theme-4 {
+        background: #F5F7FA;
+      }
+      
+      body.theme-4 .card {
+        border-top: 4px solid var(--primary-color);
+      }
+      
+      body.theme-4 .navbar {
+        background: #2C3E50 !important;
+      }
+      
+      /* Theme 5: Map Centric */
+      body.theme-5 {
+        background: 
+          linear-gradient(45deg, #E8F4FD 25%, transparent 25%),
+          linear-gradient(-45deg, #F0F7FF 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #E8F4FD 75%),
+          linear-gradient(-45deg, transparent 75%, #F0F7FF 75%);
+        background-size: 20px 20px;
+        background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      }
+      
+      body.theme-5 .card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 85, 164, 0.1);
+      }
+      
+      body.theme-5 .navbar {
+        background: #1E3A5F !important;
+      }
+      
+      /* Common theme adjustments */
+      .theme-applied .status-ribbon {
+        animation: none;
+      }
+      
+      /* Theme Preview Alert */
+      .theme-preview-alert {
+        animation: slideDown 0.3s ease-out;
+      }
+      
+      @keyframes slideDown {
+        from {
+          transform: translateY(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
 
-  <body class="bg-light">
+  <body class="bg-light" data-controller="theme">
+    <!-- ===============================
+         Theme Preview Alert (will be shown via JavaScript)
+    ================================ -->
+    <div id="themePreviewAlert" class="theme-preview-alert" style="display: none;">
+      <!-- Content will be injected by JavaScript -->
+    </div>
+
     <!-- ===============================
          Navbar
     ================================ -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
       <div class="container-fluid">
-        <a class="navbar-brand" href="/">ActivePlus Demo</a>
+        <a class="navbar-brand" href="/">
+          <i class="fas fa-car me-2"></i>Trinidad Fleet Management
+        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
@@ -53,7 +202,7 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
             <li class="nav-item">
-              <%= link_to "Vehicles",
+              <%= link_to "Vehicle List",
                     vehicles_path,
                     class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
             </li>
@@ -63,9 +212,24 @@
                     class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
             </li>
             <li class="nav-item">
+              <%= link_to "Maintenance Timeline",
+                    gantt_path,
+                    class: "nav-link #{'active' if current_page?(gantt_path)}" %>
+            </li>
+            <li class="nav-item">
+              <%= link_to "Maintenance Dashboard",
+                    maintenance_dashboard_vehicles_path,
+                    class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
+            </li>
+            <li class="nav-item">
               <%= link_to "Drivers",
                     drivers_path,
                     class: "nav-link #{'active' if current_page?(drivers_path)}" %>
+            </li>
+            <li class="nav-item">
+              <%= link_to "🎨 Pick Theme",
+                    themes_vehicles_path,
+                    class: "nav-link #{'active' if current_page?(themes_vehicles_path)}" %>
             </li>
           </ul>
         </div>
@@ -75,62 +239,232 @@
     <!-- ===============================
          Flash messages + content
     ================================ -->
-    <main class="container">
+    <main class="container-fluid px-4">
       <% if notice %>
-        <div class="alert alert-success"><%= notice %></div>
+        <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+          <%= notice %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
       <% end %>
 
       <% if alert %>
-        <div class="alert alert-danger"><%= alert %></div>
+        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+          <%= alert %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
       <% end %>
 
       <%= yield %>
     </main>
 
     <!-- ===============================
-         Bootstrap JS (via CDN)
-         OK with Import Maps
+         Bootstrap JS
     ================================ -->
     <script
       src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
-      defer>
+      integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+      crossorigin="anonymous">
     </script>
 
     <!-- ===============================
-         DEBUG: Turbo + Stimulus + Chart.js
+         Theme Controller Script
+    ================================ -->
+    <script>
+      // Theme Controller
+      class ThemeController {
+        constructor() {
+          this.themes = {
+            1: 'Modern Light',
+            2: 'Dark Professional', 
+            3: 'Trinidad Gradient',
+            4: 'Clean Admin',
+            5: 'Map-Centric'
+          };
+          
+          this.initialize();
+        }
+        
+        initialize() {
+          // Check for stored theme
+          const storedTheme = localStorage.getItem('selectedTheme');
+          const themeTestMode = localStorage.getItem('themeTestMode');
+          
+          if (storedTheme && themeTestMode === 'true') {
+            this.applyTheme(storedTheme);
+            this.showThemePreviewAlert(storedTheme);
+          }
+          
+          // Listen for theme changes
+          this.setupEventListeners();
+        }
+        
+        applyTheme(themeNumber) {
+          // Remove all theme classes
+          document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5');
+          
+          // Add selected theme class
+          document.body.classList.add(`theme-${themeNumber}`);
+          
+          // Apply CSS variables
+          this.applyThemeVariables(themeNumber);
+        }
+        
+        applyThemeVariables(themeNumber) {
+          const themes = {
+            1: {
+              '--bg-primary': '#FFFFFF',
+              '--bg-secondary': '#F8F9FA',
+              '--bg-card': '#FFFFFF',
+              '--border-color': '#E9ECEF',
+              '--text-primary': '#212529',
+              '--primary-color': '#0055A4'
+            },
+            2: {
+              '--bg-primary': '#121826',
+              '--bg-secondary': '#1A1F2E',
+              '--bg-card': '#1E2435',
+              '--border-color': '#2D3748',
+              '--text-primary': '#E2E8F0',
+              '--primary-color': '#3B82F6'
+            },
+            3: {
+              '--bg-primary': 'linear-gradient(135deg, #FFFFFF 0%, #E8F4FD 100%)',
+              '--bg-secondary': '#FFFFFF',
+              '--bg-card': 'rgba(255, 255, 255, 0.95)',
+              '--border-color': 'rgba(191, 10, 48, 0.1)',
+              '--text-primary': '#212529',
+              '--primary-color': '#0055A4'
+            },
+            4: {
+              '--bg-primary': '#F5F7FA',
+              '--bg-secondary': '#FFFFFF',
+              '--bg-card': '#FFFFFF',
+              '--border-color': '#E1E8ED',
+              '--text-primary': '#2C3E50',
+              '--primary-color': '#0055A4'
+            },
+            5: {
+              '--bg-primary': '#F0F2F5',
+              '--bg-secondary': '#FFFFFF',
+              '--bg-card': 'rgba(255, 255, 255, 0.95)',
+              '--border-color': 'rgba(0, 85, 164, 0.1)',
+              '--text-primary': '#1A202C',
+              '--primary-color': '#0055A4'
+            }
+          };
+          
+          const theme = themes[themeNumber] || themes[1];
+          
+          Object.entries(theme).forEach(([key, value]) => {
+            document.documentElement.style.setProperty(key, value);
+          });
+        }
+        
+        showThemePreviewAlert(themeNumber) {
+          const alertDiv = document.getElementById('themePreviewAlert');
+          const themeName = this.themes[themeNumber] || 'Unknown Theme';
+          
+          alertDiv.innerHTML = `
+            <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0" role="alert">
+              <div class="container-fluid">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <i class="fas fa-palette me-2"></i>
+                    <strong>Theme Preview Active:</strong> ${themeName}
+                    <span class="ms-2 small">Changes are temporary</span>
+                  </div>
+                  <div>
+                    <button onclick="window.themeController.clearTheme()" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-times me-1"></i> Clear Theme
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          alertDiv.style.display = 'block';
+          
+          // Auto-hide after 10 seconds
+          setTimeout(() => {
+            if (alertDiv.style.display !== 'none') {
+              alertDiv.style.opacity = '0';
+              alertDiv.style.transition = 'opacity 0.5s ease';
+              setTimeout(() => {
+                alertDiv.style.display = 'none';
+              }, 500);
+            }
+          }, 10000);
+        }
+        
+        clearTheme() {
+          localStorage.removeItem('selectedTheme');
+          localStorage.removeItem('themeTestMode');
+          
+          // Remove theme classes
+          document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5');
+          
+          // Hide alert
+          document.getElementById('themePreviewAlert').style.display = 'none';
+          
+          // Show confirmation
+          alert('Theme preview cleared. Page will reload.');
+          
+          // Reload to reset to default
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }
+        
+        setupEventListeners() {
+          // Listen for theme parameter in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const themeParam = urlParams.get('theme');
+          
+          if (themeParam && this.themes[themeParam]) {
+            localStorage.setItem('selectedTheme', themeParam);
+            localStorage.setItem('themeTestMode', 'true');
+            this.applyTheme(themeParam);
+            this.showThemePreviewAlert(themeParam);
+          }
+        }
+      }
+      
+      // Initialize theme controller when DOM is loaded
+      document.addEventListener('DOMContentLoaded', () => {
+        window.themeController = new ThemeController();
+      });
+      
+      // Also initialize on Turbo loads
+      document.addEventListener('turbo:load', () => {
+        if (!window.themeController) {
+          window.themeController = new ThemeController();
+        }
+      });
+    </script>
+
+    <!-- ===============================
+         DEBUG Script (Optional)
     ================================ -->
     <script>
       document.addEventListener("turbo:load", () => {
-        console.log("🚦 Turbo page loaded");
+        console.log("🚦 Turbo page loaded - Trinidad Fleet Management");
 
-        // Check Stimulus
-        if (window.Stimulus) {
-          console.log("✅ Stimulus loaded");
-          console.log("Stimulus version:", window.Stimulus.application.schema.version);
-        } else {
-          console.warn("❌ Stimulus not found");
-        }
-
-        // Check Turbo
-        if (window.Turbo) {
-          console.log("✅ Turbo loaded");
-        } else {
-          console.warn("❌ Turbo not found");
-        }
-
-        // Check Chart.js (ADDED)
+        // Check Chart.js
         if (window.Chart) {
-          console.log("✅ Chart.js loaded via CDN");
+          console.log("✅ Chart.js loaded");
           console.log("Chart.js version:", Chart.version);
-        } else {
-          console.error("❌ Chart.js not loaded - CDN failed");
         }
 
-        // Check for chart controller
-        const chartElement = document.querySelector('[data-controller="chart"]');
-        if (chartElement) {
-          console.log("📊 Chart element found:", chartElement);
-          console.log("📊 Chart data:", JSON.parse(chartElement.dataset.chartUsageDataValue || '[]'));
+        // Check Chart.js Date Adapter
+        if (typeof Chart !== 'undefined' && Chart._adapters && Chart._adapters._date) {
+          console.log("✅ Chart.js date adapter loaded");
+        }
+        
+        // Check theme status
+        const storedTheme = localStorage.getItem('selectedTheme');
+        if (storedTheme) {
+          console.log(`🎨 Active Theme: ${storedTheme} - ${window.themeController?.themes[storedTheme] || 'Unknown'}`);
         }
       });
     </script>

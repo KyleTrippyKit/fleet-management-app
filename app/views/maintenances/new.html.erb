@@ -1,18 +1,76 @@
-<h1 class="mb-4">Add Maintenance for <%= @vehicle.make %> <%= @vehicle.model %></h1>
+<div class="container py-4">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white border-bottom">
+          <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h4 mb-0">Add Maintenance</h1>
+            <span class="badge bg-primary">
+              <%= @vehicle.make %> <%= @vehicle.model %> (<%= @vehicle.registration_number %>)
+            </span>
+          </div>
+        </div>
+        <div class="card-body">
+          <%= render "form", vehicle: @vehicle, maintenance: @maintenance, service_providers: @service_providers %>
+        </div>
+        <div class="card-footer bg-white border-top">
+          <div class="d-flex justify-content-between">
+            <%= link_to vehicle_path(@vehicle), class: "btn btn-outline-secondary" do %>
+              <i class="bi bi-arrow-left me-2"></i>Back to Vehicle
+            <% end %>
+            <%= link_to "View Maintenance Timeline", gantt_path, class: "btn btn-outline-info" %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-<%= render "form", vehicle: @vehicle, maintenance: @maintenance, service_providers: @service_providers %>
-
-<%= link_to "Back to Vehicle", vehicle_path(@vehicle), class: "btn btn-outline-secondary mt-3" %>
-
-<!-- Flatpickr -->
 <%= javascript_include_tag "https://cdn.jsdelivr.net/npm/flatpickr" %>
 <%= stylesheet_link_tag "https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" %>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+  // Initialize flatpickr for date fields
   flatpickr(".datepicker", {
-    dateFormat: "d/m/Y", // Trinidad-style: DD/MM/YYYY
+    dateFormat: "Y-m-d",
     allowInput: true
+  });
+  
+  // Set default dates if not already set
+  const startDateField = document.getElementById('maintenance_start_date');
+  const endDateField = document.getElementById('maintenance_end_date');
+  const dateField = document.getElementById('maintenance_date');
+  
+  if (startDateField && !startDateField.value) {
+    startDateField.value = new Date().toISOString().split('T')[0];
+  }
+  
+  if (endDateField && !endDateField.value) {
+    const today = new Date();
+    today.setDate(today.getDate() + 7);
+    endDateField.value = today.toISOString().split('T')[0];
+  }
+  
+  if (dateField && !dateField.value) {
+    dateField.value = new Date().toISOString().split('T')[0];
+  }
+  
+  // Set next due date if not already set
+  const nextDueDateField = document.getElementById('maintenance_next_due_date');
+  if (nextDueDateField && !nextDueDateField.value) {
+    const today = new Date();
+    today.setDate(today.getDate() + 30);
+    nextDueDateField.value = today.toISOString().split('T')[0];
+  }
+  
+  // Auto-calculate end date if only start date is provided
+  startDateField?.addEventListener('change', function() {
+    if (endDateField && !endDateField.value) {
+      const startDate = new Date(this.value);
+      startDate.setDate(startDate.getDate() + 7);
+      endDateField.value = startDate.toISOString().split('T')[0];
+    }
   });
 });
 </script>

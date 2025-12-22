@@ -1,51 +1,30 @@
-<div class="container py-4">
-  <h1 class="mb-4 text-primary fw-bold">Vehicles</h1>
+<div class="container py-5" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh; position: relative;">
 
-  <!-- ============================================================
-       Navigation Tabs
-       ============================================================ -->
-  <!-- ============================================================
-     Navigation Tabs
-     ============================================================ -->
-<ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
-    <li class="nav-item">
-      <%= link_to "Vehicle List",
-            vehicles_path,
-            class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
-    </li>
+  <h1 class="mb-4 text-primary fw-bold display-5">Fleet Vehicles</h1>
 
-    <li class="nav-item">
-      <%= link_to "Usage Analytics",
-            vehicle_usages_path,
-            class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
-    </li>
+  <!-- Navigation Pills -->
+  <ul class="nav nav-pills mb-4 shadow-sm" id="vehiclesTab" role="tablist">
+    <% tabs = {
+      "Vehicle List" => vehicles_path,
+      "Usage Analytics" => vehicle_usages_path,
+      "Maintenance Gantt Chart" => gantt_path,
+      "Maintenance" => maintenance_dashboard_vehicles_path,
+      "Drivers" => drivers_path,
+      "Pick Your Theme" => themes_vehicles_path  # NEW THEME BUTTON
+    } %>
 
-    <li class="nav-item">
-      <%= link_to "Maintenance Gantt Chart",
-            gantt_path,
-            class: "nav-link #{'active' if current_page?(gantt_path)}" %>
-    </li>
-
-    <li class="nav-item">
-      <%= link_to "Maintenance",
-            maintenance_dashboard_vehicles_path,
-            class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
-    </li>
-
-    <li class="nav-item">
-      <%= link_to "Drivers",
-            drivers_path,
-            class: "nav-link #{'active' if controller_name == 'drivers'}" %>
-    </li>
+    <% tabs.each do |label, path| %>
+      <li class="nav-item">
+        <%= link_to label, path,
+              class: "nav-link #{'active' if current_page?(path)} rounded-pill px-3 py-2 shadow-sm" %>
+      </li>
+    <% end %>
   </ul>
 
-  <!-- ============================================================
-       Top Controls: Search, Filter, Add Vehicle
-       ============================================================ -->
+  <!-- Top Controls -->
   <%= form_with url: vehicles_path, method: :get, local: true,
         html: { id: "vehicles_filter_form" },
-        class: "row g-2 align-items-end mb-4" do |f| %>
-
+        class: "row g-3 align-items-end mb-5" do |f| %>
     <div class="col-md-5">
       <%= f.text_field :query,
             value: @query,
@@ -61,44 +40,107 @@
     </div>
 
     <div class="col-md-4 d-flex justify-content-md-end gap-2">
-      <%= f.submit "Search", class: "btn btn-primary shadow-sm" %>
-      <%= link_to "Add Vehicle", new_vehicle_path, class: "btn btn-success shadow-sm" %>
+      <%= f.submit "Search", class: "btn btn-primary shadow-sm fw-bold" %>
+      <%= link_to "Add Vehicle", new_vehicle_path, class: "btn btn-success shadow-sm fw-bold" %>
     </div>
-
   <% end %>
 
-  <!-- ============================================================
-       Vehicle Cards
-       ============================================================ -->
+  <!-- Vehicle Cards -->
   <% if @vehicles.any? %>
     <div class="row g-4">
       <% @vehicles.each do |vehicle| %>
+        <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
+        <% vehicle_status =
+             if last_maintenance.nil? || (last_maintenance.next_due_date && last_maintenance.next_due_date < Date.today)
+               "Maintenance Due"
+             else
+               "Active"
+             end %>
+
+        <% ribbon_color =
+             if vehicle.vehicle_type == 'Bus'
+               vehicle_status == 'Maintenance Due' ? '#145214' : '#28a745'
+             else
+               case vehicle.service_owner
+               when 'PTSC' then vehicle_status == 'Maintenance Due' ? '#004aad' : '#0d6efd'
+               when 'Police' then vehicle_status == 'Maintenance Due' ? '#002244' : '#003366'
+               when 'Fire Service' then vehicle_status == 'Maintenance Due' ? '#b02a37' : '#dc3545'
+               else vehicle_status == 'Maintenance Due' ? '#6c757d' : '#198754'
+               end
+             end %>
+
+        <% owner_icon =
+             case vehicle.service_owner
+             when 'PTSC' then '🚌'
+             when 'Police' then '🚓'
+             when 'Fire Service' then '🚒'
+             else ''
+             end %>
+
+        <% type_icon =
+             case vehicle.vehicle_type
+             when 'Bus' then '🚌'
+             when 'Van' then '🚐'
+             else ''
+             end %>
+
         <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
-          <div class="card h-100 shadow-sm border-0 rounded hover-shadow transition">
+          <div class="card h-100 shadow-lg border-0 rounded hover-shadow transition position-relative overflow-hidden">
+
+            <!-- Status Ribbon -->
+            <div class="status-ribbon fw-bold" style="background-color: <%= ribbon_color %>;">
+              <%= vehicle_status %>
+            </div>
+
+            <!-- Vehicle Image with LAZY LOADING and PLACEHOLDER -->
             <%= link_to vehicle_path(vehicle) do %>
-              <%= image_tag vehicle_image(vehicle),
-                    class: "card-img-top rounded-top",
-                    style: "height:180px; object-fit:cover;" %>
+              <div class="image-container" style="height: 180px; position: relative; overflow: hidden; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                <!-- Placeholder -->
+                <div class="image-placeholder" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; z-index: 1;">
+                  <i class="fas fa-car fa-2x mb-2"></i>
+                  <div class="small"><%= vehicle.make %></div>
+                </div>
+                
+                <!-- Actual Image (lazy loaded) -->
+                <%= image_tag vehicle_image(vehicle, variant: :thumb),
+                      class: "card-img-top rounded-top hover-zoom vehicle-image",
+                      style: "height: 100%; width: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s ease;",
+                      loading: "lazy",
+                      width: "400",
+                      height: "300",
+                      onload: "this.style.opacity = '1'; this.previousElementSibling.style.display = 'none';",
+                      onerror: "this.style.display = 'none'; this.previousElementSibling.style.display = 'flex';" %>
+              </div>
             <% end %>
 
             <div class="card-body">
               <h5 class="card-title fw-bold mb-2">
-                <%= vehicle.make %> <%= vehicle.model %>
+                <%= type_icon %> <%= vehicle.make %> <%= vehicle.model %>
                 <% if vehicle.license_plate.present? %>
-                  <span class="badge bg-secondary ms-1"><%= vehicle.license_plate %></span>
+                  <span class="badge bg-dark text-white ms-1"><%= vehicle.license_plate %></span>
                 <% end %>
               </h5>
 
-              <p class="text-muted mb-1"><strong>Owner:</strong> <%= vehicle.service_owner %></p>
-
-              <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
-              <p class="text-muted mb-3">
-                <small>Last Maintenance: <%= last_maintenance&.date || "No maintenance yet" %></small>
+              <!-- Owner Badge -->
+              <p class="mb-2">
+                <span class="badge service-badge
+                  <%=
+                    case vehicle.service_owner
+                    when 'PTSC' then 'bg-primary'
+                    when 'Police' then 'bg-police'
+                    when 'Fire Service' then 'bg-fire'
+                    else 'bg-secondary'
+                    end
+                  %>">
+                  <%= owner_icon %> <%= vehicle.service_owner %>
+                </span>
               </p>
 
+              <p class="text-muted mb-3"><small>Last Maintenance: <%= last_maintenance&.date || "No maintenance yet" %></small></p>
+
               <div class="d-flex justify-content-between">
-                <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45" %>
-                <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45" %>
+                <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45 fw-bold" %>
+                <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45 fw-bold" %>
               </div>
             </div>
           </div>
@@ -106,9 +148,7 @@
       <% end %>
     </div>
 
-    <!-- ============================================================
-         Pagination Links (ADDED)
-         ============================================================ -->
+    <!-- Pagination -->
     <div class="row mt-4">
       <div class="col-12">
         <div class="pagination justify-content-center">
@@ -116,66 +156,117 @@
         </div>
       </div>
     </div>
-
   <% else %>
-    <div class="alert alert-info rounded">
-      No vehicles found. <%= link_to "Add your first vehicle", new_vehicle_path, class: "alert-link" %>
+    <div class="alert alert-info rounded shadow-sm">
+      No vehicles found. <%= link_to "Add your first vehicle", new_vehicle_path, class: "alert-link fw-bold" %>
     </div>
   <% end %>
 </div>
 
-<!-- ============================================================
-     Styles
-     ============================================================ -->
+<!-- Add this JavaScript for better image handling -->
+<script>
+  document.addEventListener("turbo:load", function() {
+    // Intersection Observer for lazy loading
+    if ('IntersectionObserver' in window) {
+      const lazyImageObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            const lazyImage = entry.target;
+            lazyImage.src = lazyImage.dataset.src;
+            lazyImage.classList.remove('lazy');
+            lazyImageObserver.unobserve(lazyImage);
+          }
+        });
+      });
+      
+      document.querySelectorAll('.vehicle-image.lazy').forEach(function(lazyImage) {
+        lazyImageObserver.observe(lazyImage);
+      });
+    }
+    
+    // Owner filter auto-submit
+    const ownerSelect = document.getElementById("owner_filter");
+    const filterForm = document.getElementById("vehicles_filter_form");
+    if (ownerSelect && filterForm) {
+      ownerSelect.addEventListener("change", () => filterForm.requestSubmit());
+    }
+  });
+</script>
+
 <style>
-  /* Smooth hover effect for cards */
+  /* Card Hover & Zoom */
   .hover-shadow:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15) !important;
+    transition: all 0.3s ease-in-out;
+  }
+  .hover-zoom:hover {
+    transform: scale(1.05);
     transition: all 0.3s ease-in-out;
   }
 
-  /* Buttons width adjustment */
   .w-45 { width: 45%; }
 
-  /* Pagination styling */
-  .pagination {
-    margin-top: 2rem;
+  /* Status Ribbon */
+  .status-ribbon {
+    position: absolute;
+    top: 10px;
+    left: -30px;
+    padding: 5px 50px;
+    font-size: 0.8rem;
+    transform: rotate(-45deg);
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    animation: ribbon-bounce 1.5s ease-in-out infinite alternate;
   }
 
+  @keyframes ribbon-bounce {
+    0% { transform: rotate(-45deg) translateY(0); }
+    100% { transform: rotate(-45deg) translateY(-4px); }
+  }
+
+  /* Service Owner Badges */
+  .service-badge {
+    font-size: 1.2rem;
+    padding: 0.6rem 1rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 0.75rem;
+  }
+
+  /* Custom Service Owner Colors */
+  .bg-police { background-color: #003366 !important; color: #fff !important; }
+  .bg-fire { background-color: #dc3545 !important; color: #fff !important; }
+  .bg-primary { background-color: #0d6efd !important; color: #fff !important; }
+
+  .transition { transition: all 0.3s ease-in-out; }
+
+  /* Image optimization */
+  .image-container {
+    transition: all 0.3s ease;
+  }
+  
+  .vehicle-image {
+    will-change: opacity;
+  }
+
+  /* Pagination Styling */
   .pagination > .page-item > .page-link {
     border-color: #dee2e6;
     color: #495057;
     margin: 0 3px;
     border-radius: 4px;
   }
-
   .pagination > .page-item.active > .page-link {
     background-color: #0d6efd;
     border-color: #0d6efd;
     color: white;
   }
-
   .pagination > .page-item > .page-link:hover {
     background-color: #e9ecef;
     border-color: #dee2e6;
   }
-
-  .transition { transition: all 0.3s ease-in-out; }
 </style>
-
-<!-- ============================================================
-     Auto-submit owner filter on change
-     ============================================================ -->
-<script>
-  document.addEventListener("turbo:load", () => {
-    const ownerSelect = document.getElementById("owner_filter");
-    const filterForm = document.getElementById("vehicles_filter_form");
-
-    if (ownerSelect && filterForm) {
-      ownerSelect.addEventListener("change", () => {
-        filterForm.requestSubmit(); // safe with Rails UJS / Turbo
-      });
-    }
-  });
-</script>
