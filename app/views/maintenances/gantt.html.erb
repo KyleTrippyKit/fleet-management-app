@@ -506,220 +506,232 @@
     }
     
     <% if @gantt_tasks&.any? %>
-      // Initialize Gantt chart
-      const tasks = <%= raw @gantt_json.to_json %>;
-      
-      // Check if Gantt is available
-      if (typeof Gantt === 'undefined') {
-        console.error('Gantt library not loaded. Please include frappe-gantt.');
-        document.getElementById('ganttChart').innerHTML = 
-          '<div class="alert alert-danger m-3">Gantt chart library not loaded. Please check your internet connection.</div>';
-        return;
-      }
+      console.log('Raw gantt_json:', '<%= @gantt_json.to_json %>');
       
       try {
-        const gantt = new Gantt("#ganttChart", tasks, {
-          header_height: 50,
-          column_width: 30,
-          step: 24,
-          view_modes: ['Quarter', 'Month', 'Week', 'Day'],
-          bar_height: 22,
-          bar_corner_radius: 3,
-          arrow_curve: 5,
-          padding: 16,
-          view_mode: 'Month',
-          date_format: 'YYYY-MM-DD',
-          language: 'en',
-          custom_row_html: function(task) {
-            if (task.type === 'vehicle') {
-              return `
-                <div class="row-content vehicle-row">
-                  <div class="d-flex align-items-center w-100">
-                    <div class="me-2">
-                      <i class="bi bi-car-front-fill" style="color: ${task.color}"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div class="fw-bold">${task.name}</div>
-                      <div class="small text-muted">
-                        ${task.details.service_owner} • Driver: ${task.details.current_driver}
-                      </div>
-                    </div>
-                    <div class="text-end">
-                      <span class="badge bg-primary">${task.details.registration}</span>
-                      ${task.details.license_plate ? 
-                        `<span class="badge bg-secondary ms-1">${task.details.license_plate}</span>` : ''}
-                    </div>
-                  </div>
-                </div>
-              `;
-            } else if (task.type === 'folder') {
-              const timeClass = task.custom_class && task.custom_class.includes('this_week') ? 'danger' :
-                              task.custom_class && task.custom_class.includes('next_week') ? 'warning' :
-                              task.custom_class && task.custom_class.includes('this_month') ? 'success' : 'secondary';
-              
-              return `
-                <div class="row-content folder-row">
-                  <div class="d-flex align-items-center w-100">
-                    <div class="me-2">
-                      <i class="bi bi-folder-fill text-${timeClass}"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div>${task.name}</div>
-                      <div class="small text-muted">
-                        ${task.details ? task.details.count || 0 : 0} maintenance tasks
-                      </div>
-                    </div>
-                    <div class="text-end">
-                      <span class="badge bg-${timeClass}">${task.details ? task.details.time_period || '' : ''}</span>
-                    </div>
-                  </div>
-                </div>
-              `;
-            } else if (task.type === 'maintenance') {
-              const statusClass = task.details && task.details.status === 'Completed' ? 'success' : 
-                                task.custom_class && task.custom_class.includes('overdue') ? 'danger' : 'warning';
-              const urgencyClass = task.details && task.details.urgency === 'emergency' ? 'danger' :
-                                 task.details && task.details.urgency === 'scheduled' ? 'info' : 'primary';
-              
-              return `
-                <div class="row-content maintenance-row">
-                  <div class="d-flex align-items-center w-100">
-                    <div class="me-2">
-                      <i class="bi bi-tools text-${statusClass}"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div>${task.name}</div>
-                      <div class="small text-muted">
-                        ${task.details ? (task.details.technician || 'Unassigned') : 'Unassigned'} • 
-                        ${task.details ? (task.details.status || 'Pending') : 'Pending'} • 
-                        ${task.details && task.details.cost > 0 ? '$' + task.details.cost : 'No cost'}
-                      </div>
-                    </div>
-                    <div class="text-end">
-                      <span class="badge bg-${urgencyClass} me-1">
-                        ${task.details && task.details.urgency ? 
-                          task.details.urgency.charAt(0).toUpperCase() + task.details.urgency.slice(1) : 
-                          'Normal'}
-                      </span>
-                      <span class="badge bg-${statusClass}">
-                        ${task.details ? task.details.status : 'Pending'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              `;
-            }
-            return `<div class="row-content">${task.name || 'Task'}</div>`;
-          },
-          on_click: function(task) {
-            console.log("Task clicked:", task);
-          },
-          on_date_change: function(task, start, end) {
-            console.log("Date changed:", task, start, end);
-          },
-          on_progress_change: function(task, progress) {
-            console.log("Progress changed:", task, progress);
-          },
-          on_view_change: function(mode) {
-            console.log("View mode changed to:", mode);
-          }
-        });
+        const tasks = JSON.parse('<%= raw escape_javascript(@gantt_json) %>');
+        console.log('Parsed tasks:', tasks);
+        console.log('Is array?', Array.isArray(tasks));
+        console.log('Length:', tasks ? tasks.length : 0);
         
-        // Add custom classes for hierarchical styling
-        setTimeout(() => {
-          document.querySelectorAll('.gantt .grid-row').forEach((row, index) => {
-            if (tasks[index]) {
-              const task = tasks[index];
-              
-              // Add type class
-              if (task.type) {
-                row.classList.add(`${task.type}-row`);
-              }
-              
-              // Add color class based on urgency/status
-              if (task.type === 'maintenance') {
-                if (task.details && task.details.status === 'Completed') {
-                  row.classList.add('status-completed');
-                } else if (task.details && task.details.urgency === 'emergency') {
-                  row.classList.add('folder-emergency');
-                } else if (task.details && task.details.urgency === 'scheduled') {
-                  row.classList.add('folder-scheduled');
-                }
-                
-                // Add time period class
-                if (task.start) {
-                  const startDate = new Date(task.start);
-                  const today = new Date();
-                  const diffTime = startDate - today;
-                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                  
-                  if (diffDays <= 7) {
-                    row.classList.add('folder-this_week');
-                  } else if (diffDays <= 14) {
-                    row.classList.add('folder-next_week');
-                  } else if (diffDays <= 30) {
-                    row.classList.add('folder-this_month');
-                  } else {
-                    row.classList.add('folder-future');
-                  }
-                }
-              }
-            }
-          });
-        }, 100);
-        
-        // Zoom controls
-        document.getElementById('zoomIn').addEventListener('click', function() {
-          gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Day' : 
-                                gantt.view_mode === 'Week' ? 'Day' : 
-                                gantt.view_mode === 'Month' ? 'Week' : 'Month');
-        });
-        
-        document.getElementById('zoomOut').addEventListener('click', function() {
-          gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Week' : 
-                                gantt.view_mode === 'Week' ? 'Month' : 
-                                gantt.view_mode === 'Month' ? 'Quarter' : 'Quarter');
-        });
-        
-        document.getElementById('fitChart').addEventListener('click', function() {
-          gantt.refresh(tasks);
-        });
-        
-        // View mode selector
-        document.getElementById('viewMode').addEventListener('change', function() {
-          gantt.change_view_mode(this.value);
-        });
-        
-        // Export chart
-        document.getElementById('exportChart').addEventListener('click', function() {
-          try {
-            const svg = document.querySelector('#ganttChart svg');
-            if (!svg) {
-              alert('No chart to export. Please wait for the chart to load.');
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          // Simple test - just show the data
+          const container = document.getElementById('ganttChart');
+          container.innerHTML = `
+            <div class="alert alert-success m-3">
+              <h5>Gantt Data Loaded Successfully!</h5>
+              <p>Total tasks: ${tasks.length}</p>
+              <p>First task: ${JSON.stringify(tasks[0])}</p>
+              <button class="btn btn-primary" onclick="initGantt()">Initialize Gantt Chart</button>
+            </div>
+          `;
+          
+          window.initGantt = function() {
+            if (typeof Gantt === 'undefined') {
+              alert('Gantt library not loaded');
               return;
             }
-            const serializer = new XMLSerializer();
-            const source = serializer.serializeToString(svg);
-            const preface = '<?xml version="1.0" standalone="no"?>\r\n';
-            const svgBlob = new Blob([preface, source], {type: 'image/svg+xml;charset=utf-8'});
-            const url = URL.createObjectURL(svgBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'maintenance-gantt-' + new Date().toISOString().split('T')[0] + '.svg';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          } catch (error) {
-            console.error('Export failed:', error);
-            alert('Export failed. Please try again.');
-          }
-        });
-        
-        console.log('Gantt chart initialized with', tasks.length, 'tasks');
+            
+            try {
+              const gantt = new Gantt("#ganttChart", tasks, {
+                header_height: 50,
+                column_width: 30,
+                step: 24,
+                view_modes: ['Quarter', 'Month', 'Week', 'Day'],
+                bar_height: 22,
+                bar_corner_radius: 3,
+                arrow_curve: 5,
+                padding: 16,
+                view_mode: 'Month',
+                date_format: 'YYYY-MM-DD',
+                custom_row_html: function(task) {
+                  if (task.type === 'vehicle') {
+                    return `
+                      <div class="row-content vehicle-row">
+                        <div class="d-flex align-items-center w-100">
+                          <div class="me-2">
+                            <i class="bi bi-car-front-fill" style="color: ${task.color}"></i>
+                          </div>
+                          <div class="flex-grow-1">
+                            <div class="fw-bold">${task.name}</div>
+                            <div class="small text-muted">
+                              ${task.details.service_owner} • Driver: ${task.details.current_driver}
+                            </div>
+                          </div>
+                          <div class="text-end">
+                            <span class="badge bg-primary">${task.details.registration}</span>
+                            ${task.details.license_plate ? 
+                              `<span class="badge bg-secondary ms-1">${task.details.license_plate}</span>` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  } else if (task.type === 'folder') {
+                    const timeClass = task.custom_class && task.custom_class.includes('this_week') ? 'danger' :
+                                    task.custom_class && task.custom_class.includes('next_week') ? 'warning' :
+                                    task.custom_class && task.custom_class.includes('this_month') ? 'success' : 'secondary';
+                    
+                    return `
+                      <div class="row-content folder-row">
+                        <div class="d-flex align-items-center w-100">
+                          <div class="me-2">
+                            <i class="bi bi-folder-fill text-${timeClass}"></i>
+                          </div>
+                          <div class="flex-grow-1">
+                            <div>${task.name}</div>
+                            <div class="small text-muted">
+                              ${task.details ? task.details.count || 0 : 0} maintenance tasks
+                            </div>
+                          </div>
+                          <div class="text-end">
+                            <span class="badge bg-${timeClass}">${task.details ? task.details.period || '' : ''}</span>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  } else if (task.type === 'maintenance') {
+                    const statusClass = task.details && task.details.status === 'Completed' ? 'success' : 
+                                      task.custom_class && task.custom_class.includes('overdue') ? 'danger' : 'warning';
+                    const urgencyClass = task.details && task.details.urgency === 'emergency' ? 'danger' :
+                                       task.details && task.details.urgency === 'scheduled' ? 'info' : 'primary';
+                    
+                    return `
+                      <div class="row-content maintenance-row">
+                        <div class="d-flex align-items-center w-100">
+                          <div class="me-2">
+                            <i class="bi bi-tools text-${statusClass}"></i>
+                          </div>
+                          <div class="flex-grow-1">
+                            <div>${task.name}</div>
+                            <div class="small text-muted">
+                              ${task.details ? (task.details.technician || 'Unassigned') : 'Unassigned'} • 
+                              ${task.details ? (task.details.status || 'Pending') : 'Pending'} • 
+                              ${task.details && task.details.cost > 0 ? '$' + task.details.cost : 'No cost'}
+                            </div>
+                          </div>
+                          <div class="text-end">
+                            <span class="badge bg-${urgencyClass} me-1">
+                              ${task.details && task.details.urgency ? 
+                                task.details.urgency.charAt(0).toUpperCase() + task.details.urgency.slice(1) : 
+                                'Normal'}
+                            </span>
+                            <span class="badge bg-${statusClass}">
+                              ${task.details ? task.details.status : 'Pending'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  }
+                  return `<div class="row-content">${task.name || 'Task'}</div>`;
+                }
+              });
+              
+              // Add custom classes for hierarchical styling
+              setTimeout(() => {
+                document.querySelectorAll('.gantt .grid-row').forEach((row, index) => {
+                  if (tasks[index]) {
+                    const task = tasks[index];
+                    
+                    // Add type class
+                    if (task.type) {
+                      row.classList.add(`${task.type}-row`);
+                    }
+                    
+                    // Add color class based on urgency/status
+                    if (task.type === 'maintenance') {
+                      if (task.details && task.details.status === 'Completed') {
+                        row.classList.add('status-completed');
+                      } else if (task.details && task.details.urgency === 'emergency') {
+                        row.classList.add('folder-emergency');
+                      } else if (task.details && task.details.urgency === 'scheduled') {
+                        row.classList.add('folder-scheduled');
+                      }
+                      
+                      // Add time period class
+                      if (task.start) {
+                        const startDate = new Date(task.start);
+                        const today = new Date();
+                        const diffTime = startDate - today;
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        if (diffDays <= 7) {
+                          row.classList.add('folder-this_week');
+                        } else if (diffDays <= 14) {
+                          row.classList.add('folder-next_week');
+                        } else if (diffDays <= 30) {
+                          row.classList.add('folder-this_month');
+                        } else {
+                          row.classList.add('folder-future');
+                        }
+                      }
+                    }
+                  }
+                });
+              }, 100);
+              
+              // Zoom controls
+              document.getElementById('zoomIn').addEventListener('click', function() {
+                gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Day' : 
+                                      gantt.view_mode === 'Week' ? 'Day' : 
+                                      gantt.view_mode === 'Month' ? 'Week' : 'Month');
+              });
+              
+              document.getElementById('zoomOut').addEventListener('click', function() {
+                gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Week' : 
+                                      gantt.view_mode === 'Week' ? 'Month' : 
+                                      gantt.view_mode === 'Month' ? 'Quarter' : 'Quarter');
+              });
+              
+              document.getElementById('fitChart').addEventListener('click', function() {
+                gantt.refresh(tasks);
+              });
+              
+              // View mode selector
+              document.getElementById('viewMode').addEventListener('change', function() {
+                gantt.change_view_mode(this.value);
+              });
+              
+              // Export chart
+              document.getElementById('exportChart').addEventListener('click', function() {
+                try {
+                  const svg = document.querySelector('#ganttChart svg');
+                  if (!svg) {
+                    alert('No chart to export. Please wait for the chart to load.');
+                    return;
+                  }
+                  const serializer = new XMLSerializer();
+                  const source = serializer.serializeToString(svg);
+                  const preface = '<?xml version="1.0" standalone="no"?>\r\n';
+                  const svgBlob = new Blob([preface, source], {type: 'image/svg+xml;charset=utf-8'});
+                  const url = URL.createObjectURL(svgBlob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = 'maintenance-gantt-' + new Date().toISOString().split('T')[0] + '.svg';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                } catch (error) {
+                  console.error('Export failed:', error);
+                  alert('Export failed. Please try again.');
+                }
+              });
+              
+              console.log('Gantt chart initialized successfully');
+            } catch (error) {
+              console.error('Error initializing Gantt:', error);
+              alert('Error initializing Gantt chart: ' + error.message);
+            }
+          };
+        } else {
+          console.error('Tasks is not an array or is empty:', tasks);
+          document.getElementById('ganttChart').innerHTML = 
+            '<div class="alert alert-warning m-3">No valid tasks data found. Tasks is not an array or is empty.</div>';
+        }
       } catch (error) {
-        console.error('Gantt chart initialization error:', error);
+        console.error('Error parsing JSON:', error);
         document.getElementById('ganttChart').innerHTML = 
-          '<div class="alert alert-danger m-3">Error initializing Gantt chart: ' + error.message + '</div>';
+          `<div class="alert alert-danger m-3">Error parsing JSON data: ${error.message}</div>`;
       }
     <% else %>
       console.log('No gantt tasks available');
