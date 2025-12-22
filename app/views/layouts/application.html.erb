@@ -21,6 +21,11 @@
     >
 
     <!-- ===============================
+         Chart.js CDN (ADD THIS LINE)
+    ================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- ===============================
          Import Maps (Turbo + Stimulus)
          THIS REPLACES ESBUILD
     ================================ -->
@@ -49,6 +54,11 @@
               <%= link_to "Vehicles",
                     vehicles_path,
                     class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
+            </li>
+            <li class="nav-item">
+              <%= link_to "Usage Analytics",
+                    vehicle_usages_path,
+                    class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
             </li>
             <li class="nav-item">
               <%= link_to "Drivers",
@@ -85,26 +95,40 @@
     </script>
 
     <!-- ===============================
-         DEBUG: Turbo + Stimulus
+         DEBUG: Turbo + Stimulus + Chart.js
     ================================ -->
     <script>
       document.addEventListener("turbo:load", () => {
         console.log("🚦 Turbo page loaded");
 
-        if (window.StimulusApplication) {
+        // Check Stimulus
+        if (window.Stimulus) {
           console.log("✅ Stimulus loaded");
-          console.log(
-            "Controllers:",
-            Array.from(window.StimulusApplication.router.modules.keys())
-          );
+          console.log("Stimulus version:", window.Stimulus.application.schema.version);
         } else {
-          console.warn("❌ StimulusApplication not found");
+          console.warn("❌ Stimulus not found");
         }
 
+        // Check Turbo
         if (window.Turbo) {
           console.log("✅ Turbo loaded");
         } else {
           console.warn("❌ Turbo not found");
+        }
+
+        // Check Chart.js (ADDED)
+        if (window.Chart) {
+          console.log("✅ Chart.js loaded via CDN");
+          console.log("Chart.js version:", Chart.version);
+        } else {
+          console.error("❌ Chart.js not loaded - CDN failed");
+        }
+
+        // Check for chart controller
+        const chartElement = document.querySelector('[data-controller="chart"]');
+        if (chartElement) {
+          console.log("📊 Chart element found:", chartElement);
+          console.log("📊 Chart data:", JSON.parse(chartElement.dataset.chartUsageDataValue || '[]'));
         }
       });
     </script>

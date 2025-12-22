@@ -4,7 +4,10 @@
   <!-- ============================================================
        Navigation Tabs
        ============================================================ -->
-  <ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
+  <!-- ============================================================
+     Navigation Tabs
+     ============================================================ -->
+<ul class="nav nav-tabs mb-4" id="vehiclesTab" role="tablist">
     <li class="nav-item">
       <%= link_to "Vehicle List",
             vehicles_path,
@@ -13,8 +16,8 @@
 
     <li class="nav-item">
       <%= link_to "Usage Analytics",
-            analytics_vehicles_path,
-            class: "nav-link #{'active' if current_page?(analytics_vehicles_path)}" %>
+            vehicle_usages_path,
+            class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
     </li>
 
     <li class="nav-item">
@@ -88,7 +91,7 @@
 
               <p class="text-muted mb-1"><strong>Owner:</strong> <%= vehicle.service_owner %></p>
 
-              <% last_maintenance = vehicle.maintenances.order(date: :desc).first %>
+              <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
               <p class="text-muted mb-3">
                 <small>Last Maintenance: <%= last_maintenance&.date || "No maintenance yet" %></small>
               </p>
@@ -102,6 +105,18 @@
         </div>
       <% end %>
     </div>
+
+    <!-- ============================================================
+         Pagination Links (ADDED)
+         ============================================================ -->
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="pagination justify-content-center">
+          <%= paginate @vehicles %>
+        </div>
+      </div>
+    </div>
+
   <% else %>
     <div class="alert alert-info rounded">
       No vehicles found. <%= link_to "Add your first vehicle", new_vehicle_path, class: "alert-link" %>
@@ -122,6 +137,29 @@
 
   /* Buttons width adjustment */
   .w-45 { width: 45%; }
+
+  /* Pagination styling */
+  .pagination {
+    margin-top: 2rem;
+  }
+
+  .pagination > .page-item > .page-link {
+    border-color: #dee2e6;
+    color: #495057;
+    margin: 0 3px;
+    border-radius: 4px;
+  }
+
+  .pagination > .page-item.active > .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+  }
+
+  .pagination > .page-item > .page-link:hover {
+    background-color: #e9ecef;
+    border-color: #dee2e6;
+  }
 
   .transition { transition: all 0.3s ease-in-out; }
 </style>

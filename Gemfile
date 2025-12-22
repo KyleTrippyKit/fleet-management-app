@@ -42,3 +42,4 @@ gem 'chartkick'
 gem 'groupdate'
 gem "image_processing", "~> 1.2"
 gem "activestorage", "~> 8.1"
+gem 'bullet', group: :development
