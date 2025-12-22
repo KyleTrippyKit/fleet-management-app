@@ -3,6 +3,126 @@ class MaintenancesController < ApplicationController
   before_action :set_vehicle
   before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete]
 
+  # GET /gantt
+  # In MaintenancesController#gantt
+def gantt
+ # In MaintenancesController#gantt
+def gantt
+  @vehicles = Vehicle.includes(:maintenances, :driver).order(:service_owner, :make)
+  
+  @gantt_tasks = []
+  today = Date.today
+  
+  @vehicles.each do |vehicle|
+    # Skip vehicles with no maintenance
+    next if vehicle.maintenances.empty?
+    
+    # TIER 1: Vehicle parent task
+    @gantt_tasks << {
+      id: "vehicle_#{vehicle.id}",
+      name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
+      start: today.strftime("%Y-%m-%d"),
+      end: (today + 90.days).strftime("%Y-%m-%d"), # 90-day view
+      parent: 0,
+      type: 'vehicle',
+      color: '#6c757d',
+      details: {
+        service_owner: vehicle.service_owner,
+        license_plate: vehicle.license_plate,
+        current_driver: vehicle.driver&.name || 'Unassigned'
+      }
+    }
+    
+    # Group maintenances by time periods
+    maintenances = vehicle.maintenances.where.not(start_date: nil).order(:start_date)
+    
+    # Define time periods
+    time_periods = {
+      this_week: { name: "📅 This Week", start: today, end: today + 6.days },
+      next_week: { name: "📅 Next Week", start: today + 7.days, end: today + 13.days },
+      this_month: { name: "📅 This Month", start: today + 14.days, end: today.end_of_month },
+      future: { name: "📅 Future", start: today.end_of_month + 1.day, end: today + 90.days }
+    }
+    
+    # TIER 2: Time-based folders
+    time_periods.each do |period_key, period|
+      # Find maintenances in this time period
+      period_maintenances = maintenances.select do |m|
+        m.start_date && m.start_date.between?(period[:start], period[:end])
+      end
+      
+      next if period_maintenances.empty?
+      
+      folder_id = "folder_#{vehicle.id}_#{period_key}"
+      
+      # Calculate folder dates based on contained maintenances
+      folder_start = period_maintenances.map(&:start_date).min
+      folder_end = period_maintenances.map { |m| m.next_due_date || m.end_date || m.start_date }.max
+      
+      @gantt_tasks << {
+        id: folder_id,
+        name: period[:name],
+        start: folder_start.strftime("%Y-%m-%d"),
+        end: folder_end.strftime("%Y-%m-%d"),
+        parent: "vehicle_#{vehicle.id}",
+        type: 'folder',
+        color: time_period_color(period_key),
+        details: {
+          count: period_maintenances.count,
+          period: period[:name]
+        }
+      }
+      
+      # TIER 3: Individual maintenance tasks
+      period_maintenances.each do |maintenance|
+        maintenance_end = maintenance.next_due_date || maintenance.end_date || maintenance.start_date + 7.days
+        
+        @gantt_tasks << {
+          id: "maintenance_#{maintenance.id}",
+          name: "#{maintenance.service_type}",
+          start: maintenance.start_date.strftime("%Y-%m-%d"),
+          end: maintenance_end.strftime("%Y-%m-%d"),
+          parent: folder_id,
+          type: 'maintenance',
+          color: maintenance.gantt_bar_color, # Use your existing method
+          details: {
+            status: maintenance.status,
+            technician: maintenance.technician || 'Unassigned',
+            cost: maintenance.cost,
+            urgency: maintenance.urgency
+          }
+        }
+      end
+    end
+  end
+  
+  # Convert to JSON for JavaScript
+  @gantt_json = @gantt_tasks.to_json
+  
+  # Get filter data
+  @vehicles_for_filter = Vehicle.all.order(:make, :model)
+  @service_owners = Vehicle.distinct.pluck(:service_owner).compact
+  
+  render :gantt
+end
+
+private
+
+def time_period_color(period)
+  case period
+  when :this_week
+    '#dc3545' # Red - urgent
+  when :next_week
+    '#fd7e14' # Orange - soon
+  when :this_month
+    '#20c997' # Teal - scheduled
+  when :future
+    '#6c757d' # Grey - future
+  else
+    '#6c757d'
+  end
+end
+
   # GET /vehicles/:vehicle_id/maintenances
   def index
     @maintenances = if @vehicle.present?
