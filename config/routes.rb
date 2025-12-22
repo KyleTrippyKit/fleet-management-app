@@ -1,12 +1,12 @@
+# config/routes.rb
 Rails.application.routes.draw do
   root "vehicles#index"
   devise_for :users
 
   resources :vehicles do
-    resources :vehicle_usages
-      member do
-        get :full_details
-  end
+    member do
+      get :full_details
+    end
 
     resources :maintenances do
       member do
@@ -16,15 +16,19 @@ Rails.application.routes.draw do
     end
 
     resources :vehicle_documents, only: [:create, :destroy]
-
-    resources :vehicle_usages, only: [:index, :new, :create]
-
+    
     collection do
       get :analytics
       get :gantt
       get :maintenance_dashboard
     end
   end
+
+  # CHANGE THIS LINE:
+  # resources :vehicle_usages, only: [:index]
+  
+  # TO THIS:
+  get '/vehicle_usages', to: 'vehicles#analytics', as: :vehicle_usages
 
   resources :drivers do
     resources :trips, only: [:index, :show]

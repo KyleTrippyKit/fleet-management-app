@@ -1,5 +1,13 @@
-<div class="container py-4">
+<div class="container py-4" data-controller="chart" data-chart-usage-data-value="<%= @chart_data.to_json %>">
   <h1 class="mb-4 text-primary fw-bold">Vehicle Usage Analytics</h1>
+
+  <%# Add this right after the opening container div %>
+  <div class="debug-info" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+    <h3>Debug Chart Data</h3>
+    <pre><%= @chart_data.inspect %></pre>
+    <p>Chart data length: <%= @chart_data.length %></p>
+    <p>JSON data sent to JavaScript: <%= @chart_data.to_json[0..100] %>...</p>
+  </div>
 
   <!-- ============================================================
        Navigation Tabs
@@ -13,15 +21,33 @@
 
     <li class="nav-item" role="presentation">
       <%= link_to "Usage Analytics",
-            analytics_vehicles_path,
-            class: "nav-link #{'active' if current_page?(analytics_vehicles_path)}" %>
+            vehicle_usages_path,
+            class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
+    </li>
+
+    <li class="nav-item" role="presentation">
+      <%= link_to "Maintenance Gantt Chart",
+            gantt_path,
+            class: "nav-link #{'active' if current_page?(gantt_path)}" %>
+    </li>
+
+    <li class="nav-item" role="presentation">
+      <%= link_to "Maintenance",
+            maintenance_dashboard_vehicles_path,
+            class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
+    </li>
+
+    <li class="nav-item" role="presentation">
+      <%= link_to "Drivers",
+            drivers_path,
+            class: "nav-link #{'active' if controller_name == 'drivers'}" %>
     </li>
   </ul>
 
   <!-- ============================================================
        Filter Form
        ============================================================ -->
-  <%= form_with url: analytics_vehicles_path, method: :get, local: true,
+  <%= form_with url: vehicle_usages_path, method: :get, local: true,
         class: "row g-3 align-items-end mb-4 shadow-sm p-3 rounded" do %>
 
     <div class="col-md-3">
@@ -48,68 +74,138 @@
   <% end %>
 
   <!-- ============================================================
-       Charts
+       Chart Area - IMPROVED CONTAINER
        ============================================================ -->
   <div class="row g-3">
-    <div class="col-md-4">
-      <div class="card shadow-sm rounded p-3">
-        <h6 class="fw-semibold text-muted">Distance (km)</h6>
-        <% data_distance = @chart_data_distance.presence || [["No Data", 0]] %>
-        <%= bar_chart data_distance, height: "250px",
-              library: {
-                legend: { display: false },
-                tooltips: {
-                  callbacks: {
-                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} km" }
-                  }
-                },
-                scales: { yAxes: [{ ticks: { beginAtZero: true } }] }
-              } %>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm rounded p-3">
-        <h6 class="fw-semibold text-muted">Hours</h6>
-        <% data_hours = @chart_data_hours.presence || [["No Data", 0]] %>
-        <%= bar_chart data_hours, height: "250px",
-              library: {
-                legend: { display: false },
-                tooltips: {
-                  callbacks: {
-                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} hrs" }
-                  }
-                },
-                scales: { yAxes: [{ ticks: { beginAtZero: true } }] }
-              } %>
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card shadow-sm rounded p-3">
-        <h6 class="fw-semibold text-muted">Utilization (%)</h6>
-        <% data_util = @chart_data_util.presence || [["No Data", 0]] %>
-        <%= bar_chart data_util, height: "250px",
-              library: {
-                legend: { display: false },
-                tooltips: {
-                  callbacks: {
-                    label: ->(tooltipItem, data) { "#{tooltipItem.yLabel} %" }
-                  }
-                },
-                scales: { yAxes: [{ ticks: { beginAtZero: true, max: 100 } }] }
-              } %>
+    <div class="col-md-12">
+      <div class="card shadow-sm rounded">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">Vehicle Usage Chart</h5>
+        </div>
+        <div class="card-body p-0">
+          <% if @chart_data.present? %>
+            <div class="chart-container" style="height: 500px; padding: 20px;">
+              <canvas data-chart-target="canvas"></canvas>
+            </div>
+          <% else %>
+            <div class="alert alert-warning m-3">
+              No trip data found for the selected period.
+              <%= link_to "Add a trip", new_vehicle_vehicle_usage_path(Vehicle.first), class: "alert-link" if Vehicle.any? %>
+            </div>
+          <% end %>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- ============================================================
+       Data Table (Optional - shows raw data)
+       ============================================================ -->
+  <% if @vehicle_usages.present? %>
+    <div class="row mt-4">
+      <div class="col-md-12">
+        <div class="card shadow-sm">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">Usage Data</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Trips</th>
+                    <th>Distance (km)</th>
+                    <th>Hours</th>
+                    <th>Utilization %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @vehicle_usages.each do |usage| %>
+                    <tr>
+                      <td><%= usage[:name] %></td>
+                      <td><%= usage[:trip_count] %></td>
+                      <td><%= number_with_precision(usage[:distance_km], precision: 1) %></td>
+                      <td><%= number_with_precision(usage[:hours_plied], precision: 1) %></td>
+                      <td><%= number_with_precision(usage[:utilization], precision: 1) %>%</td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ============================================================
+       Backup Chart (in case Stimulus fails)
+       ============================================================ -->
+  <% if @chart_data.present? %>
+    <div class="row mt-4">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-header">
+            <h5>Usage Data (Table View - Backup)</h5>
+          </div>
+          <div class="card-body">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Trips</th>
+                  <th>Distance (km)</th>
+                  <th>Hours</th>
+                  <th>Utilization %</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @chart_data.each do |item| %>
+                  <tr>
+                    <td><%= item[:registration_number] %></td>
+                    <td><%= item[:trip_count] %></td>
+                    <td><%= number_with_precision(item[:distance_km], precision: 1) %></td>
+                    <td><%= number_with_precision(item[:hours_plied], precision: 1) %></td>
+                    <td><%= number_with_precision(item[:utilization], precision: 1) %>%</td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>
 
 <!-- ============================================================
-     Styles
+     Styles - IMPROVED CHART STYLING
      ============================================================ -->
 <style>
   .transition { transition: all 0.3s ease-in-out; }
   .card h6 { font-size: 0.9rem; }
+  
+  /* Show debug info when needed */
+  .debug-info:hover {
+    display: block !important;
+  }
+  
+  /* Chart container styling */
+  .chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 500px;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .chart-container {
+      height: 400px !important;
+      min-height: 400px;
+      padding: 15px !important;
+    }
+  }
 </style>
 
 <!-- ============================================================
@@ -123,5 +219,17 @@
         if (form) form.submit();
       });
     });
+    
+    // Optional: Log chart data to console for debugging
+    const chartContainer = document.querySelector('[data-controller="chart"]');
+    if (chartContainer) {
+      console.log('Chart data attribute:', chartContainer.dataset.chartUsageDataValue);
+      try {
+        const chartData = JSON.parse(chartContainer.dataset.chartUsageDataValue);
+        console.log('Parsed chart data:', chartData);
+      } catch (e) {
+        console.error('Failed to parse chart data:', e);
+      }
+    }
   });
 </script>
