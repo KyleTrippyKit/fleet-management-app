@@ -58,7 +58,9 @@ RUN bundle install && \
 COPY . .
 
 # Precompile caches & assets
-RUN bundle exec bootsnap precompile -j 1 app/ lib/ && \
+RUN SECRET_KEY_BASE=dummy \
+    bundle exec bootsnap precompile -j 1 app/ lib/ && \
+    SECRET_KEY_BASE=dummy \
     bundle exec rake assets:precompile
 
 #################################

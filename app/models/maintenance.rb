@@ -43,8 +43,8 @@ class Maintenance < ApplicationRecord
   
   # For Gantt chart
   scope :with_date_range, ->(start_date, end_date) {
-    where("date BETWEEN ? AND ? OR next_due_date BETWEEN ? AND ?", 
-          start_date, end_date, start_date, end_date)
+    where("(start_date BETWEEN ? AND ?) OR (end_date BETWEEN ? AND ?) OR (next_due_date BETWEEN ? AND ?)", 
+          start_date, end_date, start_date, end_date, start_date, end_date)
   }
 
   # =====================================================
@@ -135,12 +135,55 @@ class Maintenance < ApplicationRecord
     elsif completed?
       "#28a745" # Green for completed
     elsif urgency == "emergency"
-      "#ffc107" # Yellow for emergency
+      "#fd7e14" # Orange for emergency
     elsif urgency == "scheduled"
-      "#17a2b8" # Teal for scheduled
+      "#0dcaf0" # Teal for scheduled
     else
-      "#007bff" # Blue for routine/default
+      "#0d6efd" # Blue for routine/default
     end
+  end
+
+  # Time period classification for folders
+  def time_period_class
+    today = Date.today
+    diff_days = (gantt_start_date - today).to_i
+    
+    if diff_days <= 7
+      "this_week"
+    elsif diff_days <= 14
+      "next_week"
+    elsif diff_days <= 30
+      "this_month"
+    else
+      "future"
+    end
+  end
+
+  # Technician/Service provider name for display
+  def technician_name
+    technician.presence || service_provider&.name || 'Unassigned'
+  end
+
+  # Gantt task data structure
+  def to_gantt_task(vehicle_id:, folder_id:)
+    {
+      id: "maintenance_#{id}",
+      name: service_type.to_s,
+      start: gantt_start_date.strftime("%Y-%m-%d"),
+      end: gantt_end_date.strftime("%Y-%m-%d"),
+      parent: folder_id,
+      type: 'maintenance',
+      color: gantt_bar_color,
+      details: {
+        status: status,
+        technician: technician_name,
+        cost: cost,
+        urgency: urgency,
+        vehicle_id: vehicle_id,
+        maintenance_id: id,
+        notes: notes.to_s
+      }
+    }
   end
 
   # =====================================================

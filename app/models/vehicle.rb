@@ -51,10 +51,65 @@ class Vehicle < ApplicationRecord
   end
 
   # ------------------------------------------------------------
+  # Gantt Chart Helpers
+  # ------------------------------------------------------------
+  def current_driver_name
+    driver&.name || 'Unassigned'
+  end
+
+  def gantt_tasks(time_period_days: 90)
+    today = Date.today
+    
+    # Group maintenances by time periods
+    maintenances_with_dates = maintenances.where.not(start_date: nil).order(:start_date)
+    return [] if maintenances_with_dates.empty?
+    
+    # Define time periods
+    time_periods = {
+      this_week: { name: "📅 This Week", start: today, end: today + 6.days },
+      next_week: { name: "📅 Next Week", start: today + 7.days, end: today + 13.days },
+      this_month: { name: "📅 This Month", start: today + 14.days, end: today.end_of_month },
+      future: { name: "📅 Future", start: today.end_of_month + 1.day, end: today + time_period_days.days }
+    }
+    
+    gantt_data = []
+    
+    # TIER 2: Time-based folders
+    time_periods.each do |period_key, period|
+      # Find maintenances in this time period
+      period_maintenances = maintenances_with_dates.select do |m|
+        m.start_date && m.start_date.between?(period[:start], period[:end])
+      end
+      
+      next if period_maintenances.empty?
+      
+      folder_start = period_maintenances.map(&:start_date).min
+      folder_end = period_maintenances.map { |m| m.gantt_end_date }.max
+      
+      folder_data = {
+        name: period[:name],
+        start: folder_start,
+        end: folder_end,
+        type: 'folder',
+        period_key: period_key,
+        maintenances: period_maintenances
+      }
+      
+      gantt_data << folder_data
+    end
+    
+    gantt_data
+  end
+
+  # ------------------------------------------------------------
   # Display helpers
   # ------------------------------------------------------------
   def display_name
     "#{make} - #{license_plate}"
+  end
+
+  def full_display_name
+    "#{make} #{model} (#{registration_number})"
   end
 
   # ------------------------------------------------------------
