@@ -6,6 +6,7 @@ Rails.application.routes.draw do
   resources :vehicles do
     member do
       get :full_details
+      get :trips  # This will generate trips_vehicle_path
     end
 
     resources :maintenances do
@@ -21,11 +22,9 @@ Rails.application.routes.draw do
       get :analytics
       get :gantt
       get :maintenance_dashboard
+      get :export_csv
     end
   end
-
-  # CHANGE THIS LINE:
-  # resources :vehicle_usages, only: [:index]
   
   # TO THIS:
   get '/vehicle_usages', to: 'vehicles#analytics', as: :vehicle_usages

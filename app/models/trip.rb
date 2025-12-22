@@ -10,6 +10,7 @@ class Trip < ApplicationRecord
   # ========================
   validates :start_time, presence: true
   validates :end_time, presence: true, unless: :ongoing?
+  validates :distance_km, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   validate :start_time_not_in_future
   validate :end_time_after_start
@@ -26,6 +27,11 @@ class Trip < ApplicationRecord
 
   scope :ongoing, -> { where(end_time: nil) }
   scope :completed, -> { where.not(end_time: nil) }
+  
+  # For vehicles controller analytics
+  scope :in_date_range, ->(from, to) {
+    where(start_time: from.beginning_of_day..to.end_of_day)
+  }
 
   # ========================
   # Instance Methods
@@ -33,6 +39,28 @@ class Trip < ApplicationRecord
 
   def ongoing?
     end_time.nil?
+  end
+
+  def completed?
+    !ongoing?
+  end
+
+  # Returns trip status
+  def status
+    if ongoing?
+      "In Progress"
+    else
+      "Completed"
+    end
+  end
+
+  # Returns CSS class for status badge
+  def status_class
+    if ongoing?
+      "warning"
+    else
+      "success"
+    end
   end
 
   # Returns trip duration in seconds
@@ -47,16 +75,60 @@ class Trip < ApplicationRecord
     duration_seconds / 3600.0
   end
 
+  # Returns formatted duration
+  def formatted_duration
+    return "Ongoing" if ongoing?
+    
+    hours = duration_hours.floor
+    minutes = ((duration_hours - hours) * 60).round
+    
+    if hours > 0
+      "#{hours}h #{minutes}m"
+    else
+      "#{minutes}m"
+    end
+  end
+
   # Returns distance in km; defaults to 0 if nil
   def distance_km
     self[:distance_km].to_f
+  end
+
+  # Returns formatted distance
+  def formatted_distance
+    "#{distance_km.round(2)} km"
   end
 
   # ========================
   # Display helper
   # ========================
   def display_name
-    "#{vehicle.display_name} - Trip ##{id}"
+    "#{vehicle.try(:display_name) || 'Vehicle'} - Trip ##{id}"
+  end
+  
+  # For dropdowns and selects
+  def to_s
+    "Trip ##{id} - #{start_time.strftime('%Y-%m-%d %H:%M')}"
+  end
+
+  # ========================
+  # Class Methods
+  # ========================
+  
+  # Calculate total distance for a set of trips
+  def self.total_distance(trips)
+    trips.sum(:distance_km).to_f.round(2)
+  end
+  
+  # Calculate total hours for a set of trips
+  def self.total_hours(trips)
+    trips.sum(:duration_hours).to_f.round(2)
+  end
+  
+  # Calculate average distance per trip
+  def self.average_distance(trips)
+    count = trips.count
+    count > 0 ? (total_distance(trips) / count).round(2) : 0
   end
 
   private
