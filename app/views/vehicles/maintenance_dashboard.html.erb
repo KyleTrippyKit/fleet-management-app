@@ -62,14 +62,16 @@
     </div>
   </div>
 
-  <% if @vehicles.any? %>
+  <!-- In your maintenance_dashboard.html.erb -->
+<% if @vehicles.any? %>
     <% sorted_vehicles = @vehicles.sort_by do |v|
-         if v.maintenances.any?
-           v.maintenances.map { |m| m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999 }.min
-         else
-           10000
-         end
-       end %>
+        if v.maintenances.any?
+          # Use end_date instead of next_due_date, and handle nil values
+          v.maintenances.compact.map { |m| m.end_date ? (m.end_date - Date.today).to_i : 9999 }.min
+        else
+          10000
+        end
+      end %>
 
     <% sorted_vehicles.each do |vehicle| %>
       <div class="mb-4 border p-3 rounded shadow-sm">
@@ -79,14 +81,15 @@
         </h5>
 
         <% if vehicle.maintenances.any? %>
-          <% sorted_maintenances = vehicle.maintenances.sort_by { |m| m.next_due_date ? (m.next_due_date - Date.today).to_i : 9999 } %>
+          <% sorted_maintenances = vehicle.maintenances.compact.sort_by { |m| m.end_date ? (m.end_date - Date.today).to_i : 9999 } %>
 
           <div class="table-responsive">
             <table class="table align-middle table-hover">
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Next Due</th>
+                  <th>Start Date</th>
+                  <th>End Date</th>
                   <th>Reminder Sent</th>
                   <th>Type</th>
                   <th>Status</th>
@@ -99,18 +102,21 @@
               </thead>
               <tbody>
                 <% sorted_maintenances.each do |m| %>
-                  <% days_diff = m.next_due_date ? (m.next_due_date - Date.today).to_i : nil %>
+                  <% next if m.nil? %><!-- ADD THIS LINE TO SKIP NIL MAINTENANCES -->
+                  
+                  <% days_diff = m.end_date ? (m.end_date - Date.today).to_i : nil %>
                   <% row_class = if days_diff && days_diff < 0
-                                   "table-danger"
-                                 elsif days_diff && days_diff <= 14
-                                   "table-warning"
-                                 else
-                                   ""
-                                 end %>
+                                  "table-danger"
+                                elsif days_diff && days_diff <= 14
+                                  "table-warning"
+                                else
+                                  ""
+                                end %>
 
                   <tr class="<%= row_class %>">
-                    <td><%= m.date %></td>
-                    <td><%= m.next_due_date ? m.next_due_date.strftime("%d/%m/%Y") : content_tag(:span, "N/A", class: "text-muted") %></td>
+                    <td><%= m.date ? m.date.strftime("%d/%m/%Y") : content_tag(:span, "N/A", class: "text-muted") %></td>
+                    <td><%= m.start_date ? m.start_date.strftime("%d/%m/%Y") : content_tag(:span, "N/A", class: "text-muted") %></td>
+                    <td><%= m.end_date ? m.end_date.strftime("%d/%m/%Y") : content_tag(:span, "N/A", class: "text-muted") %></td>
                     <td>
                       <% if m.reminder_sent_at %>
                         <%= m.reminder_sent_at.strftime("%b %d, %Y %I:%M %p") %>
@@ -119,10 +125,10 @@
                         <span class="badge bg-danger">Not Sent</span>
                       <% end %>
                     </td>
-                    <td><%= m.service_type %></td>
+                    <td><%= m.service_type || content_tag(:span, "N/A", class: "text-muted") %></td>
                     <td>
                       <span class="badge <%= m.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
-                        <%= m.status %>
+                        <%= m.status || "Pending" %>
                       </span>
                     </td>
                     <td><%= m.cost.present? ? number_to_currency(m.cost) : "-" %></td>
@@ -136,7 +142,9 @@
                         </button>
                         <ul class="dropdown-menu">
                           <li><%= link_to "Edit", edit_vehicle_maintenance_path(vehicle, m), class: "dropdown-item" %></li>
-                          <li><%= link_to "Mark Completed", mark_completed_vehicle_maintenance_path(vehicle, m), method: :patch, data: { confirm: "Mark this maintenance as completed?" }, class: "dropdown-item" %></li>
+                          <% if m.pending? %>
+                            <li><%= link_to "Mark Completed", mark_completed_vehicle_maintenance_path(vehicle, m), method: :patch, data: { confirm: "Mark this maintenance as completed?" }, class: "dropdown-item" %></li>
+                          <% end %>
                           <li><%= link_to "Delete", vehicle_maintenance_path(vehicle, m), method: :delete, data: { confirm: "Are you sure?" }, class: "dropdown-item text-danger" %></li>
                         </ul>
                       </div>
@@ -164,6 +172,7 @@
   .shadow-sm { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
   .badge { font-size: 0.9em; }
   .table-hover tbody tr:hover { background-color: #f8f9fa; }
+  .text-muted { color: #6c757d !important; }
 </style>
 
 <script>

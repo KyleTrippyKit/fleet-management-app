@@ -3,6 +3,9 @@
 // Import Stimulus
 import { Application } from "@hotwired/stimulus"
 
+import "chartjs-adapter-date-fns"
+window.Chart = Chart
+
 // Initialize Stimulus
 const application = Application.start()
 

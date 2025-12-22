@@ -41,6 +41,7 @@ gem 'popper_js', '~> 2.0'
 gem 'chartkick'
 gem 'groupdate'
 gem "image_processing", "~> 1.2"
+gem 'vips'  # Faster than ImageMagick
 gem "activestorage", "~> 8.1"
 gem 'bullet', group: :development
 # For PDF export (optional)
@@ -49,3 +50,4 @@ gem 'bullet', group: :development
 
 # Or for HTML to PDF
 gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
+gem 'faker'

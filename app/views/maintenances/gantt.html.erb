@@ -1,49 +1,94 @@
-<%# app/views/maintenances/gantt.html.erb %>
 <div class="container-fluid py-4">
+  <!-- Debug Info (remove this section after testing) -->
+  <%# if Rails.env.development? %>
+    <!-- <div class="alert alert-info mb-4">
+      <h5 class="alert-heading">Debug Information</h5>
+      <p><strong>Maintenances found:</strong> <%#= @maintenances.count %></p>
+      <p><strong>Gantt tasks prepared:</strong> <%#= @gantt_tasks&.count || 0 %></p>
+      <p><strong>JSON length:</strong> <%#= @gantt_json&.length || 0 %></p>
+      <%# if @gantt_tasks&.any? %>
+        <p><strong>Sample task:</strong> <%#= @gantt_tasks.first.inspect %></p>
+      <%# end %>
+      <p><strong>Check console for more details</strong></p>
+    </div> -->
+  <%# end %>
+
+  <!-- Gantt Chart Debug Info -->
+  <%# if Rails.env.development? %>
+    <!-- <div class="alert alert-info mb-4">
+      <h5 class="alert-heading">Gantt Chart Debug Info</h5>
+      <p><strong>Total Tasks:</strong> <%#= @gantt_tasks&.count || 0 %></p>
+      <p><strong>Vehicles:</strong> <%#= @maintenances.map(&:vehicle).uniq.count %></p>
+      <p><strong>Date Range Filter:</strong> <%#= params[:date_range] || "90 days" %></p>
+      
+      <%# if @gantt_tasks&.any? %>
+        <div class="mt-3">
+          <p><strong>Sample Task Data:</strong></p>
+          <pre class="bg-light p-2 rounded small"><%#= JSON.pretty_generate(@gantt_tasks.first(2)) %></pre>
+        </div>
+        
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-secondary" type="button" onclick="document.getElementById('debugData').classList.toggle('d-none')">
+            Toggle All Data
+          </button>
+          <div id="debugData" class="d-none mt-2">
+            <pre class="bg-light p-2 rounded small" style="max-height: 300px; overflow: auto;"><%#= JSON.pretty_generate(@gantt_tasks) %></pre>
+          </div>
+        </div>
+      <%# end %>
+    </div> -->
+  <%# end %>
+
   <!-- Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h1 class="h2 mb-1">Maintenance Schedule Gantt Chart</h1>
+      <h1 class="h2 mb-1">Maintenance Schedule Timeline</h1>
       <p class="text-muted mb-0">Visual timeline of all vehicle maintenance tasks</p>
     </div>
     <div>
-      <%= link_to "Maintenance Dashboard", maintenance_dashboard_vehicles_path, class: "btn btn-outline-secondary me-2" %>
-      <%= link_to "Add Maintenance", new_vehicle_maintenance_path(Vehicle.first), class: "btn btn-primary" if Vehicle.any? %>
+      <%= link_to "Maintenance Dashboard", maintenance_dashboard_vehicles_path, 
+            class: "btn btn-outline-secondary me-2" %>
+      <%= link_to "Add Maintenance", new_vehicle_maintenance_path(Vehicle.first), 
+            class: "btn btn-primary" if Vehicle.any? %>
     </div>
   </div>
 
   <!-- Filters Card -->
-  <div class="card shadow-sm mb-4">
+  <div class="card shadow-sm mb-4 card-hover">
     <div class="card-body p-3">
-      <%= form_with url: gantt_path, method: :get, local: true, class: "row g-2 align-items-center" do %>
+      <%= form_with url: gantt_path, method: :get, local: true, class: "row g-2 align-items-center", id: "ganttFilters" do %>
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">View Mode</label>
           <select name="view_mode" id="viewMode" class="form-select form-select-sm">
-            <option value="Day">Day View</option>
-            <option value="Week">Week View</option>
-            <option value="Month" selected>Month View</option>
-            <option value="Quarter">Quarter View</option>
+            <option value="day" <%= 'selected' if params[:view_mode] == 'day' %>>Day View</option>
+            <option value="week" <%= 'selected' if params[:view_mode] == 'week' %>>Week View</option>
+            <option value="month" <%= params[:view_mode].blank? || params[:view_mode] == 'month' ? 'selected' : '' %>>Month View</option>
+            <option value="quarter" <%= 'selected' if params[:view_mode] == 'quarter' %>>Quarter View</option>
           </select>
         </div>
         
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">Date Range</label>
           <select name="date_range" id="dateRange" class="form-select form-select-sm">
-            <option value="30">Next 30 Days</option>
-            <option value="90" selected>Next 90 Days</option>
-            <option value="180">Next 6 Months</option>
-            <option value="365">Next Year</option>
-            <option value="custom">Custom Range</option>
+            <option value="30" <%= 'selected' if params[:date_range] == '30' %>>Next 30 Days</option>
+            <option value="90" <%= params[:date_range].blank? || params[:date_range] == '90' ? 'selected' : '' %>>Next 90 Days</option>
+            <option value="180" <%= 'selected' if params[:date_range] == '180' %>>Next 6 Months</option>
+            <option value="365" <%= 'selected' if params[:date_range] == '365' %>>Next Year</option>
+            <option value="custom" <%= 'selected' if params[:date_range] == 'custom' %>>Custom Range</option>
           </select>
         </div>
         
-        <div class="col-md-2" id="customDateRange" style="display: none;">
+        <div class="col-md-3" id="customDateRange" style="display: <%= params[:date_range] == 'custom' ? 'block' : 'none' %>;">
           <div class="row g-1">
             <div class="col-6">
-              <input type="date" name="start_date" class="form-control form-control-sm" value="<%= Date.today.strftime('%Y-%m-%d') %>">
+              <label class="form-label small fw-bold mb-1">Start Date</label>
+              <input type="date" name="start_date" class="form-control form-control-sm" 
+                     value="<%= params[:start_date] || Date.today.strftime('%Y-%m-%d') %>">
             </div>
             <div class="col-6">
-              <input type="date" name="end_date" class="form-control form-control-sm" value="<%= (Date.today + 90.days).strftime('%Y-%m-%d') %>">
+              <label class="form-label small fw-bold mb-1">End Date</label>
+              <input type="date" name="end_date" class="form-control form-control-sm" 
+                     value="<%= params[:end_date] || (Date.today + 90.days).strftime('%Y-%m-%d') %>">
             </div>
           </div>
         </div>
@@ -58,7 +103,7 @@
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">Status</label>
           <%= select_tag :status,
-                options_for_select(["All Statuses", "Pending", "Completed", "Overdue"], params[:status] || "All"),
+                options_for_select(["All Statuses", "Pending", "Completed"], params[:status] || "All"),
                 class: "form-select form-select-sm" %>
         </div>
         
@@ -83,7 +128,7 @@
   <!-- Statistics -->
   <div class="row mb-4">
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100 card-hover">
         <div class="card-body py-3">
           <div class="d-flex align-items-center">
             <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
@@ -99,7 +144,7 @@
     </div>
     
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100 card-hover">
         <div class="card-body py-3">
           <div class="d-flex align-items-center">
             <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
@@ -115,7 +160,7 @@
     </div>
     
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100 card-hover">
         <div class="card-body py-3">
           <div class="d-flex align-items-center">
             <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
@@ -131,7 +176,7 @@
     </div>
     
     <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
+      <div class="card border-0 shadow-sm h-100 card-hover">
         <div class="card-body py-3">
           <div class="d-flex align-items-center">
             <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
@@ -147,35 +192,37 @@
     </div>
   </div>
 
-  <!-- Gantt Chart Container -->
   <% if @gantt_tasks&.any? %>
-    <div class="card shadow-sm border-0">
+    <!-- Timeline Container -->
+    <div class="card shadow-sm border-0 card-hover">
       <div class="card-header bg-white border-0 py-3">
         <div class="d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Maintenance Timeline</h5>
           <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary" id="zoomIn">
+            <button type="button" class="btn btn-outline-secondary" id="zoomIn" title="Zoom In">
               <i class="bi bi-zoom-in"></i>
             </button>
-            <button type="button" class="btn btn-outline-secondary" id="zoomOut">
+            <button type="button" class="btn btn-outline-secondary" id="zoomOut" title="Zoom Out">
               <i class="bi bi-zoom-out"></i>
             </button>
-            <button type="button" class="btn btn-outline-secondary" id="fitChart">
-              <i class="bi bi-fullscreen"></i> Fit to Screen
+            <button type="button" class="btn btn-outline-secondary" id="fitChart" title="Fit to Screen">
+              <i class="bi bi-fullscreen"></i> Fit
             </button>
-            <button type="button" class="btn btn-outline-primary" id="exportChart">
+            <button type="button" class="btn btn-outline-primary" id="exportChart" title="Export as PNG">
               <i class="bi bi-download"></i> Export
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body p-0">
-        <div id="ganttChart" style="height: 700px; overflow-x: auto;"></div>
+      <div class="card-body p-3">
+        <div class="timeline-container chart-container" style="position: relative; height: 600px; overflow-x: auto;">
+          <canvas id="timelineChart"></canvas>
+        </div>
       </div>
     </div>
 
     <!-- Legend -->
-    <div class="card shadow-sm border-0 mt-4">
+    <div class="card shadow-sm border-0 mt-4 card-hover">
       <div class="card-body py-2">
         <div class="d-flex align-items-center">
           <span class="me-3 small fw-bold">Legend:</span>
@@ -206,7 +253,7 @@
     </div>
 
     <!-- Details Table -->
-    <div class="card shadow-sm border-0 mt-4">
+    <div class="card shadow-sm border-0 mt-4 card-hover">
       <div class="card-header bg-white border-0 py-3">
         <h5 class="mb-0">Maintenance Details</h5>
       </div>
@@ -234,11 +281,10 @@
                       <div class="me-3">
                         <% if maintenance.vehicle.image.attached? %>
                           <%= image_tag maintenance.vehicle.image.variant(resize_to_limit: [50, 50]), 
-                                class: "rounded-circle", 
+                                class: "rounded-circle vehicle-image-small", 
                                 style: "width: 40px; height: 40px; object-fit: cover;" %>
                         <% else %>
-                          <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" 
-                               style="width: 40px; height: 40px;">
+                          <div class="vehicle-image-placeholder" style="width: 40px; height: 40px;">
                             <i class="bi bi-car-front text-muted"></i>
                           </div>
                         <% end %>
@@ -262,7 +308,8 @@
                   <td>
                     <div class="fw-medium"><%= maintenance.service_type || maintenance.assignment_type %></div>
                     <% if maintenance.notes.present? %>
-                      <div class="small text-muted text-truncate" style="max-width: 150px;" title="<%= maintenance.notes %>">
+                      <div class="small text-muted text-truncate" style="max-width: 150px;" 
+                           data-bs-toggle="tooltip" title="<%= maintenance.notes %>">
                         <i class="bi bi-chat-left-text me-1"></i><%= truncate(maintenance.notes, length: 50) %>
                       </div>
                     <% end %>
@@ -270,39 +317,31 @@
                   <td><%= maintenance.start_date&.strftime("%b %d, %Y") %></td>
                   <td><%= maintenance.end_date&.strftime("%b %d, %Y") %></td>
                   <td>
-                    <% duration = (maintenance.end_date - maintenance.start_date).to_i + 1 %>
-                    <span class="badge bg-light text-dark"><%= duration %> days</span>
+                    <span class="badge bg-light text-dark"><%= maintenance.duration_days %> days</span>
                   </td>
                   <td>
-                    <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>">
-                      <%= maintenance.status %>
-                      <% if maintenance.overdue? %>
-                        <i class="bi bi-exclamation-triangle-fill ms-1"></i>
-                      <% end %>
-                    </span>
+                    <%= status_badge(maintenance) %>
                   </td>
                   <td>
-                    <span class="badge <%= urgency_badge_class(maintenance.urgency) %>">
+                    <span class="badge <%= maintenance.urgency_badge_class %>">
                       <%= maintenance.urgency&.titleize || "Normal" %>
                     </span>
                   </td>
                   <td>
-                    <div class="progress" style="height: 6px; width: 80px;">
-                      <div class="progress-bar <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>" 
-                           style="width: <%= maintenance.status == 'Completed' ? '100' : '50' %>%">
-                      </div>
-                    </div>
+                    <%= progress_bar(maintenance, show_label: true) %>
                   </td>
                   <td>
                     <div class="btn-group btn-group-sm">
                       <%= link_to vehicle_maintenance_path(maintenance.vehicle, maintenance), 
                             class: "btn btn-outline-primary", 
-                            title: "View Details" do %>
+                            title: "View Details",
+                            data: { turbo_frame: "_top" } do %>
                         <i class="bi bi-eye"></i>
                       <% end %>
                       <%= link_to edit_vehicle_maintenance_path(maintenance.vehicle, maintenance), 
                             class: "btn btn-outline-secondary", 
-                            title: "Edit" do %>
+                            title: "Edit",
+                            data: { turbo_frame: "_top" } do %>
                         <i class="bi bi-pencil"></i>
                       <% end %>
                       <% if maintenance.pending? %>
@@ -310,7 +349,8 @@
                               method: :patch,
                               class: "btn btn-outline-success",
                               title: "Mark Completed",
-                              form: { class: "d-inline" } do %>
+                              form: { class: "d-inline" },
+                              data: { turbo_confirm: "Mark this maintenance as completed?" } do %>
                           <i class="bi bi-check-circle"></i>
                         <% end %>
                       <% end %>
@@ -324,417 +364,492 @@
       </div>
     </div>
   <% else %>
-    <div class="card shadow-sm border-0">
+    <!-- No data message -->
+    <div class="card shadow-sm border-0 card-hover">
       <div class="card-body text-center py-5">
         <div class="mb-4">
           <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
         </div>
         <h4 class="mb-3">No maintenance scheduled</h4>
         <p class="text-muted mb-4">No maintenance records found for the selected filters and date range.</p>
+        <p class="small text-info">
+          <% if @maintenances.count > 0 %>
+            Found <%= @maintenances.count %> maintenance records, but they might not have start and end dates set.
+            <%= link_to "Add dates to maintenances", maintenance_dashboard_vehicles_path, class: "alert-link" %>
+          <% else %>
+            No maintenance records found in the system at all.
+          <% end %>
+        </p>
         <div class="d-flex justify-content-center gap-3">
           <%= link_to "View All Vehicles", vehicles_path, class: "btn btn-primary" %>
-          <%= link_to "Adjust Filters", "javascript:void(0)", onclick: "document.querySelector('form').scrollIntoView({behavior: 'smooth'});", class: "btn btn-outline-secondary" %>
+          <%= link_to "Add Maintenance", new_vehicle_maintenance_path(Vehicle.first), 
+                class: "btn btn-success" if Vehicle.any? %>
+          <button type="button" onclick="document.getElementById('ganttFilters').scrollIntoView({behavior: 'smooth'});" 
+                  class="btn btn-outline-secondary">
+            Adjust Filters
+          </button>
         </div>
       </div>
     </div>
   <% end %>
 </div>
 
-<!-- Gantt Chart Styles -->
 <style>
-  .gantt-container {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  }
-  
-  .gantt .bar {
-    rx: 3px;
-    ry: 3px;
-  }
-  
-  .gantt .bar-progress {
-    rx: 3px;
-    ry: 3px;
-  }
-  
-  .gantt .bar-label {
+  /* GANTT-SPECIFIC STYLES ONLY */
+  .maintenance-timeline-bar {
+    border-radius: 4px;
+    padding: 2px 6px;
     font-size: 11px;
+    color: white;
     font-weight: 500;
-    fill: white;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
   }
-  
-  .legend-dot {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
+
+  .maintenance-timeline-bar:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
   }
-  
-  .table th {
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #6c757d;
-    border-bottom-width: 2px;
-  }
-  
-  .progress {
-    background-color: #e9ecef;
-  }
-  
-  /* Custom scrollbar for gantt */
-  #ganttChart::-webkit-scrollbar {
+
+  /* Custom scrollbar for timeline - Gantt specific */
+  .timeline-container::-webkit-scrollbar,
+  .chart-container::-webkit-scrollbar {
+    width: 8px;
     height: 8px;
   }
-  
-  #ganttChart::-webkit-scrollbar-track {
+
+  .timeline-container::-webkit-scrollbar-track,
+  .chart-container::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 4px;
   }
-  
-  #ganttChart::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
+
+  .timeline-container::-webkit-scrollbar-thumb,
+  .chart-container::-webkit-scrollbar-thumb {
+    background: #888;
     border-radius: 4px;
   }
-  
-  #ganttChart::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
+
+  .timeline-container::-webkit-scrollbar-thumb:hover,
+  .chart-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
   }
-  
-  /* Hierarchical row styles */
-  .gantt .grid-row.vehicle-row {
-    background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%) !important;
-    border-left: 4px solid #0d6efd !important;
-    font-weight: 700 !important;
+
+  .chart-container {
+    min-width: 100%;
   }
-  
-  .gantt .grid-row.folder-row {
-    background-color: #fff !important;
-    border-left: 3px solid #ffc107 !important;
-    font-weight: 600 !important;
+
+  /* Simple timeline fallback styles - Gantt specific */
+  .simple-timeline {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    padding: 20px;
   }
-  
-  .gantt .grid-row.maintenance-row {
-    background-color: #f8f9fa !important;
-    border-left: 2px solid #6c757d !important;
-    font-size: 0.9em !important;
+
+  .vehicle-timeline {
+    border-left: 3px solid #6c757d;
+    padding-left: 15px;
+    margin-left: 10px;
+    margin-bottom: 20px;
   }
-  
-  /* Bar colors */
-  .gantt .bar.folder-emergency { 
-    fill: #dc3545 !important; 
-    stroke: #dc3545 !important;
+
+  .timeline-item {
+    border-left: 4px solid #0d6efd;
+    padding-left: 15px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    transition: all 0.2s;
   }
-  
-  .gantt .bar.folder-scheduled { 
-    fill: #0dcaf0 !important;
-    stroke: #0dcaf0 !important;
-  }
-  
-  .gantt .bar.folder-upcoming { 
-    fill: #20c997 !important;
-    stroke: #20c997 !important;
-  }
-  
-  .gantt .bar.folder-completed { 
-    fill: #6c757d !important;
-    stroke: #6c757d !important;
-  }
-  
-  /* Time-based folder colors */
-  .gantt .bar.folder-this_week { 
-    fill: #dc3545 !important;
-    stroke: #dc3545 !important;
-  }
-  
-  .gantt .bar.folder-next_week { 
-    fill: #fd7e14 !important;
-    stroke: #fd7e14 !important;
-  }
-  
-  .gantt .bar.folder-this_month { 
-    fill: #20c997 !important;
-    stroke: #20c997 !important;
-  }
-  
-  .gantt .bar.folder-future { 
-    fill: #6c757d !important;
-    stroke: #6c757d !important;
-  }
-  
-  /* Status-based maintenance colors */
-  .gantt .bar.status-completed { 
-    fill: #28a745 !important;
-    stroke: #28a745 !important;
-  }
-  
-  .gantt .bar.status-pending { 
-    fill: #ffc107 !important;
-    stroke: #ffc107 !important;
-  }
-  
-  .gantt .bar.status-overdue { 
-    fill: #dc3545 !important;
-    stroke: #dc3545 !important;
+
+  .timeline-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
 </style>
 
-<!-- Gantt Chart JavaScript -->
+<!-- Load Chart.js with Date Adapter -->
+<%= javascript_include_tag "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" %>
+<%= javascript_include_tag "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" %>
+
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // Show/hide custom date range
-    const dateRangeSelect = document.getElementById('dateRange');
-    const customDateRange = document.getElementById('customDateRange');
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+
+  // Show/hide custom date range
+  const dateRangeSelect = document.getElementById('dateRange');
+  const customDateRange = document.getElementById('customDateRange');
+  
+  if (dateRangeSelect) {
+    dateRangeSelect.addEventListener('change', function() {
+      if (this.value === 'custom') {
+        customDateRange.style.display = 'block';
+      } else {
+        customDateRange.style.display = 'none';
+      }
+    });
     
-    if (dateRangeSelect) {
-      dateRangeSelect.addEventListener('change', function() {
-        if (this.value === 'custom') {
-          customDateRange.style.display = 'block';
-        } else {
-          customDateRange.style.display = 'none';
+    // Trigger change on page load if custom is selected
+    if (dateRangeSelect.value === 'custom') {
+      customDateRange.style.display = 'block';
+    }
+  }
+  
+  // Reset filters
+  const resetButton = document.getElementById('resetFilters');
+  if (resetButton) {
+    resetButton.addEventListener('click', function() {
+      window.location.href = '<%= gantt_path %>';
+    });
+  }
+  
+  <% if @gantt_tasks&.any? %>
+    // Create the chart
+    createTimelineChart();
+  <% end %>
+  
+  function createTimelineChart() {
+    try {
+      // Parse the data
+      const tasks = JSON.parse('<%= raw escape_javascript(@gantt_json) %>');
+      
+      // Group data by vehicle
+      const vehicles = {};
+      tasks.forEach(task => {
+        if (task.type === 'vehicle') {
+          vehicles[task.id] = {
+            ...task,
+            maintenances: []
+          };
         }
       });
-    }
-    
-    // Reset filters
-    const resetButton = document.getElementById('resetFilters');
-    if (resetButton) {
-      resetButton.addEventListener('click', function() {
-        window.location.href = '<%= gantt_path %>';
-      });
-    }
-    
-    <% if @gantt_tasks&.any? %>
-      console.log('Raw gantt_json:', '<%= @gantt_json.to_json %>');
       
-      try {
-        const tasks = JSON.parse('<%= raw escape_javascript(@gantt_json) %>');
-        console.log('Parsed tasks:', tasks);
-        console.log('Is array?', Array.isArray(tasks));
-        console.log('Length:', tasks ? tasks.length : 0);
+      // Add maintenances to vehicles
+      tasks.forEach(task => {
+        if (task.type === 'maintenance' && vehicles[task.parent]) {
+          vehicles[task.parent].maintenances.push(task);
+        }
+      });
+      
+      // Prepare chart data
+      const labels = [];
+      const datasets = [];
+      
+      Object.values(vehicles).forEach((vehicle, vehicleIndex) => {
+        if (!vehicle.maintenances || vehicle.maintenances.length === 0) {
+          return;
+        }
         
-        if (Array.isArray(tasks) && tasks.length > 0) {
-          // Simple test - just show the data
-          const container = document.getElementById('ganttChart');
-          container.innerHTML = `
-            <div class="alert alert-success m-3">
-              <h5>Gantt Data Loaded Successfully!</h5>
-              <p>Total tasks: ${tasks.length}</p>
-              <p>First task: ${JSON.stringify(tasks[0])}</p>
-              <button class="btn btn-primary" onclick="initGantt()">Initialize Gantt Chart</button>
-            </div>
-          `;
+        labels.push(vehicle.name);
+        
+        // Add each maintenance
+        vehicle.maintenances.forEach(maintenance => {
+          // Convert timestamps to Date objects
+          const startDate = new Date(parseInt(maintenance.start));
+          const endDate = new Date(parseInt(maintenance.end));
           
-          window.initGantt = function() {
-            if (typeof Gantt === 'undefined') {
-              alert('Gantt library not loaded');
-              return;
-            }
-            
-            try {
-              const gantt = new Gantt("#ganttChart", tasks, {
-                header_height: 50,
-                column_width: 30,
-                step: 24,
-                view_modes: ['Quarter', 'Month', 'Week', 'Day'],
-                bar_height: 22,
-                bar_corner_radius: 3,
-                arrow_curve: 5,
-                padding: 16,
-                view_mode: 'Month',
-                date_format: 'YYYY-MM-DD',
-                custom_row_html: function(task) {
-                  if (task.type === 'vehicle') {
-                    return `
-                      <div class="row-content vehicle-row">
-                        <div class="d-flex align-items-center w-100">
-                          <div class="me-2">
-                            <i class="bi bi-car-front-fill" style="color: ${task.color}"></i>
-                          </div>
-                          <div class="flex-grow-1">
-                            <div class="fw-bold">${task.name}</div>
-                            <div class="small text-muted">
-                              ${task.details.service_owner} • Driver: ${task.details.current_driver}
-                            </div>
-                          </div>
-                          <div class="text-end">
-                            <span class="badge bg-primary">${task.details.registration}</span>
-                            ${task.details.license_plate ? 
-                              `<span class="badge bg-secondary ms-1">${task.details.license_plate}</span>` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  } else if (task.type === 'folder') {
-                    const timeClass = task.custom_class && task.custom_class.includes('this_week') ? 'danger' :
-                                    task.custom_class && task.custom_class.includes('next_week') ? 'warning' :
-                                    task.custom_class && task.custom_class.includes('this_month') ? 'success' : 'secondary';
-                    
-                    return `
-                      <div class="row-content folder-row">
-                        <div class="d-flex align-items-center w-100">
-                          <div class="me-2">
-                            <i class="bi bi-folder-fill text-${timeClass}"></i>
-                          </div>
-                          <div class="flex-grow-1">
-                            <div>${task.name}</div>
-                            <div class="small text-muted">
-                              ${task.details ? task.details.count || 0 : 0} maintenance tasks
-                            </div>
-                          </div>
-                          <div class="text-end">
-                            <span class="badge bg-${timeClass}">${task.details ? task.details.period || '' : ''}</span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  } else if (task.type === 'maintenance') {
-                    const statusClass = task.details && task.details.status === 'Completed' ? 'success' : 
-                                      task.custom_class && task.custom_class.includes('overdue') ? 'danger' : 'warning';
-                    const urgencyClass = task.details && task.details.urgency === 'emergency' ? 'danger' :
-                                       task.details && task.details.urgency === 'scheduled' ? 'info' : 'primary';
-                    
-                    return `
-                      <div class="row-content maintenance-row">
-                        <div class="d-flex align-items-center w-100">
-                          <div class="me-2">
-                            <i class="bi bi-tools text-${statusClass}"></i>
-                          </div>
-                          <div class="flex-grow-1">
-                            <div>${task.name}</div>
-                            <div class="small text-muted">
-                              ${task.details ? (task.details.technician || 'Unassigned') : 'Unassigned'} • 
-                              ${task.details ? (task.details.status || 'Pending') : 'Pending'} • 
-                              ${task.details && task.details.cost > 0 ? '$' + task.details.cost : 'No cost'}
-                            </div>
-                          </div>
-                          <div class="text-end">
-                            <span class="badge bg-${urgencyClass} me-1">
-                              ${task.details && task.details.urgency ? 
-                                task.details.urgency.charAt(0).toUpperCase() + task.details.urgency.slice(1) : 
-                                'Normal'}
-                            </span>
-                            <span class="badge bg-${statusClass}">
-                              ${task.details ? task.details.status : 'Pending'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  }
-                  return `<div class="row-content">${task.name || 'Task'}</div>`;
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            return;
+          }
+          
+          const duration = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+          
+          datasets.push({
+            label: maintenance.name,
+            data: [{
+              x: [startDate, endDate],
+              y: vehicleIndex,
+              duration: duration,
+              details: maintenance.details || {}
+            }],
+            backgroundColor: maintenance.color || 'rgba(108, 117, 125, 0.6)',
+            borderColor: maintenance.color ? maintenance.color.replace('0.8', '1') : 'rgba(108, 117, 125, 1)',
+            borderWidth: 2,
+            borderRadius: 4,
+            barPercentage: 0.6,
+            categoryPercentage: 0.6
+          });
+        });
+      });
+      
+      if (labels.length === 0) {
+        showChartError('No vehicles with maintenance tasks found.');
+        return;
+      }
+      
+      // Create chart
+      const ctx = document.getElementById('timelineChart');
+      if (!ctx) {
+        showChartError('Chart canvas not found');
+        return;
+      }
+      
+      // Calculate date range
+      const allDates = datasets.flatMap(d => d.data.flatMap(d => d.x));
+      const minDate = new Date(Math.min(...allDates));
+      const maxDate = new Date(Math.max(...allDates));
+      
+      // Add padding
+      minDate.setDate(minDate.getDate() - 7);
+      maxDate.setDate(maxDate.getDate() + 7);
+      
+      // Create the chart - SIMPLIFIED VERSION
+      const chart = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: datasets
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: function(tooltipItems) {
+                  return tooltipItems[0].dataset.label;
+                },
+                label: function(context) {
+                  const data = context.raw;
+                  const start = formatDate(data.x[0]);
+                  const end = formatDate(data.x[1]);
+                  const duration = data.duration || '?';
+                  const status = data.details?.status || 'Unknown';
+                  const urgency = data.details?.urgency || 'Normal';
+                  const cost = data.details?.cost || 0;
+                  
+                  return [
+                    `Start: ${start}`,
+                    `End: ${end}`,
+                    `Duration: ${duration} days`,
+                    `Status: ${status}`,
+                    `Urgency: ${urgency}`,
+                    cost > 0 ? `Cost: R${parseFloat(cost).toFixed(2)}` : null
+                  ].filter(Boolean);
                 }
-              });
-              
-              // Add custom classes for hierarchical styling
-              setTimeout(() => {
-                document.querySelectorAll('.gantt .grid-row').forEach((row, index) => {
-                  if (tasks[index]) {
-                    const task = tasks[index];
-                    
-                    // Add type class
-                    if (task.type) {
-                      row.classList.add(`${task.type}-row`);
-                    }
-                    
-                    // Add color class based on urgency/status
-                    if (task.type === 'maintenance') {
-                      if (task.details && task.details.status === 'Completed') {
-                        row.classList.add('status-completed');
-                      } else if (task.details && task.details.urgency === 'emergency') {
-                        row.classList.add('folder-emergency');
-                      } else if (task.details && task.details.urgency === 'scheduled') {
-                        row.classList.add('folder-scheduled');
-                      }
-                      
-                      // Add time period class
-                      if (task.start) {
-                        const startDate = new Date(task.start);
-                        const today = new Date();
-                        const diffTime = startDate - today;
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        
-                        if (diffDays <= 7) {
-                          row.classList.add('folder-this_week');
-                        } else if (diffDays <= 14) {
-                          row.classList.add('folder-next_week');
-                        } else if (diffDays <= 30) {
-                          row.classList.add('folder-this_month');
-                        } else {
-                          row.classList.add('folder-future');
-                        }
-                      }
-                    }
-                  }
-                });
-              }, 100);
-              
-              // Zoom controls
-              document.getElementById('zoomIn').addEventListener('click', function() {
-                gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Day' : 
-                                      gantt.view_mode === 'Week' ? 'Day' : 
-                                      gantt.view_mode === 'Month' ? 'Week' : 'Month');
-              });
-              
-              document.getElementById('zoomOut').addEventListener('click', function() {
-                gantt.change_view_mode(gantt.view_mode === 'Day' ? 'Week' : 
-                                      gantt.view_mode === 'Week' ? 'Month' : 
-                                      gantt.view_mode === 'Month' ? 'Quarter' : 'Quarter');
-              });
-              
-              document.getElementById('fitChart').addEventListener('click', function() {
-                gantt.refresh(tasks);
-              });
-              
-              // View mode selector
-              document.getElementById('viewMode').addEventListener('change', function() {
-                gantt.change_view_mode(this.value);
-              });
-              
-              // Export chart
-              document.getElementById('exportChart').addEventListener('click', function() {
-                try {
-                  const svg = document.querySelector('#ganttChart svg');
-                  if (!svg) {
-                    alert('No chart to export. Please wait for the chart to load.');
-                    return;
-                  }
-                  const serializer = new XMLSerializer();
-                  const source = serializer.serializeToString(svg);
-                  const preface = '<?xml version="1.0" standalone="no"?>\r\n';
-                  const svgBlob = new Blob([preface, source], {type: 'image/svg+xml;charset=utf-8'});
-                  const url = URL.createObjectURL(svgBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = 'maintenance-gantt-' + new Date().toISOString().split('T')[0] + '.svg';
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                } catch (error) {
-                  console.error('Export failed:', error);
-                  alert('Export failed. Please try again.');
-                }
-              });
-              
-              console.log('Gantt chart initialized successfully');
-            } catch (error) {
-              console.error('Error initializing Gantt:', error);
-              alert('Error initializing Gantt chart: ' + error.message);
+              }
             }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: 'day',
+                displayFormats: {
+                  day: 'dd/MM'
+                }
+              },
+              min: minDate,
+              max: maxDate,
+              title: {
+                display: true,
+                text: 'Timeline'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value, index) {
+                  return labels[index] || '';
+                }
+              },
+              title: {
+                display: true,
+                text: 'Vehicles'
+              }
+            }
+          }
+        }
+      });
+      
+      // Setup controls
+      setupChartControls(chart);
+      
+    } catch (error) {
+      // Try alternative approach without date adapter
+      createSimpleChartWithoutDateAdapter();
+    }
+  }
+  
+  // Alternative: Create chart without date adapter
+  function createSimpleChartWithoutDateAdapter() {
+    try {
+      const tasks = JSON.parse('<%= raw escape_javascript(@gantt_json) %>');
+      
+      // Group data
+      const vehicles = {};
+      tasks.forEach(task => {
+        if (task.type === 'vehicle') {
+          vehicles[task.id] = {
+            ...task,
+            maintenances: []
           };
-        } else {
-          console.error('Tasks is not an array or is empty:', tasks);
-          document.getElementById('ganttChart').innerHTML = 
-            '<div class="alert alert-warning m-3">No valid tasks data found. Tasks is not an array or is empty.</div>';
+        }
+      });
+      
+      tasks.forEach(task => {
+        if (task.type === 'maintenance' && vehicles[task.parent]) {
+          vehicles[task.parent].maintenances.push(task);
+        }
+      });
+      
+      // Create HTML table as fallback
+      const container = document.querySelector('.chart-container');
+      if (!container) return;
+      
+      let html = '<div class="simple-timeline p-3">';
+      html += '<h5 class="mb-4">Maintenance Timeline</h5>';
+      
+      Object.values(vehicles).forEach(vehicle => {
+        if (!vehicle.maintenances || vehicle.maintenances.length === 0) return;
+        
+        html += `<div class="vehicle-timeline mb-4">`;
+        html += `<h6 class="border-bottom pb-2">${vehicle.name}</h6>`;
+        html += '<div class="timeline-items">';
+        
+        vehicle.maintenances.forEach(maintenance => {
+          const start = new Date(parseInt(maintenance.start));
+          const end = new Date(parseInt(maintenance.end));
+          const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+          
+          const startStr = formatDateDDMMYYYY(start);
+          const endStr = formatDateDDMMYYYY(end);
+          
+          // Determine status class
+          let statusClass = 'bg-secondary';
+          if (maintenance.details?.status === 'Completed') statusClass = 'status-completed';
+          else if (maintenance.details?.urgency === 'emergency') statusClass = 'status-overdue';
+          else if (maintenance.details?.urgency === 'scheduled') statusClass = 'status-active';
+          else statusClass = 'status-pending';
+          
+          html += `
+            <div class="timeline-item mb-3 p-3 rounded ${statusClass} maintenance-timeline-bar">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <strong class="d-block mb-1">${maintenance.name}</strong>
+                  <div class="small text-white-80">
+                    <i class="bi bi-calendar me-1"></i>${startStr} → ${endStr}
+                  </div>
+                </div>
+                <span class="badge bg-light text-dark">${duration} days</span>
+              </div>
+              <div class="small text-white-80 mt-2">
+                <span class="me-3"><i class="bi bi-info-circle me-1"></i>Status: ${maintenance.details?.status || 'Unknown'}</span>
+                <span><i class="bi bi-clock me-1"></i>Urgency: ${maintenance.details?.urgency || 'Normal'}</span>
+              </div>
+            </div>`;
+        });
+        
+        html += '</div></div>';
+      });
+      
+      html += '</div>';
+      container.innerHTML = html;
+      
+    } catch (error) {
+      showChartError(`Failed to create chart: ${error.message}`);
+    }
+  }
+  
+  // Helper functions
+  function formatDate(date) {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  
+  function formatDateDDMMYYYY(date) {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  
+  function setupChartControls(chart) {
+    // Zoom controls
+    document.getElementById('zoomIn')?.addEventListener('click', function() {
+      try {
+        const xScale = chart.scales.x;
+        const range = xScale.max - xScale.min;
+        chart.options.scales.x.min = new Date(xScale.min.getTime() + range * 0.1);
+        chart.options.scales.x.max = new Date(xScale.max.getTime() - range * 0.1);
+        chart.update('none');
+      } catch (error) {
+        console.error('Zoom in error:', error);
+      }
+    });
+    
+    document.getElementById('zoomOut')?.addEventListener('click', function() {
+      try {
+        const xScale = chart.scales.x;
+        const range = xScale.max - xScale.min;
+        chart.options.scales.x.min = new Date(xScale.min.getTime() - range * 0.1);
+        chart.options.scales.x.max = new Date(xScale.max.getTime() + range * 0.1);
+        chart.update('none');
+      } catch (error) {
+        console.error('Zoom out error:', error);
+      }
+    });
+    
+    document.getElementById('fitChart')?.addEventListener('click', function() {
+      try {
+        const allDates = chart.data.datasets.flatMap(d => d.data.flatMap(d => d.x));
+        if (allDates.length > 0) {
+          const minDate = new Date(Math.min(...allDates));
+          const maxDate = new Date(Math.max(...allDates));
+          minDate.setDate(minDate.getDate() - 7);
+          maxDate.setDate(maxDate.getDate() + 7);
+          
+          chart.options.scales.x.min = minDate;
+          chart.options.scales.x.max = maxDate;
+          chart.update('none');
         }
       } catch (error) {
-        console.error('Error parsing JSON:', error);
-        document.getElementById('ganttChart').innerHTML = 
-          `<div class="alert alert-danger m-3">Error parsing JSON data: ${error.message}</div>`;
+        console.error('Fit chart error:', error);
       }
-    <% else %>
-      console.log('No gantt tasks available');
-    <% end %>
-  });
-</script>
+    });
+    
+    document.getElementById('exportChart')?.addEventListener('click', function() {
+      try {
+        const link = document.createElement('a');
+        link.download = 'maintenance-timeline.png';
+        link.href = chart.toBase64Image();
+        link.click();
+      } catch (error) {
+        console.error('Export error:', error);
+        alert('Error exporting chart: ' + error.message);
+      }
+    });
+  }
+  
+  function showChartError(message) {
+    console.error('Chart error:', message);
+    const container = document.querySelector('.chart-container');
+    if (container) {
+      container.innerHTML = `
+        <div class="alert alert-danger m-3">
+          <h5><i class="bi bi-exclamation-triangle me-2"></i>Error Loading Timeline</h5>
+          <p>${message}</p>
+          <p class="small">Check the browser console for debugging information.</p>
+          <button class="btn btn-sm btn-outline-primary mt-2" onclick="location.reload()">
+            <i class="bi bi-arrow-clockwise"></i> Reload Page
+          </button>
+        </div>`;
+    }
+  }
+});
+</script

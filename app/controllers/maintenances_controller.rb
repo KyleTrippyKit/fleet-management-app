@@ -1,123 +1,32 @@
 class MaintenancesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_vehicle
+  before_action :set_vehicle, except: [:gantt]
   before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete]
 
   # GET /gantt
-  # app/controllers/maintenances_controller.rb
-def gantt
-    @vehicles = Vehicle.includes(:maintenances, :driver).order(:service_owner, :make)
-    
-    # Initialize @maintenances for statistics
-    @maintenances = Maintenance.includes(:vehicle).where.not(start_date: nil)
-    
-    @gantt_tasks = []
-    today = Date.today
-    
-    @vehicles.each do |vehicle|
-      # Skip vehicles with no maintenance
-      next if vehicle.maintenances.empty?
-      
-      # TIER 1: Vehicle parent task
-      @gantt_tasks << {
-        id: "vehicle_#{vehicle.id}",
-        name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
-        start: today.strftime("%Y-%m-%d"),
-        end: (today + 90.days).strftime("%Y-%m-%d"), # 90-day view
-        parent: 0,
-        type: 'vehicle',
-        color: '#0d6efd',
-        details: {
-          service_owner: vehicle.service_owner,
-          license_plate: vehicle.license_plate || '',
-          current_driver: vehicle.driver&.name || 'Unassigned'
-        }
-      }
-      
-      # Group maintenances by time periods
-      maintenances = vehicle.maintenances.where.not(start_date: nil).order(:start_date)
-      
-      # Define time periods
-      time_periods = {
-        this_week: { name: "📅 This Week", start: today, end: today + 6.days },
-        next_week: { name: "📅 Next Week", start: today + 7.days, end: today + 13.days },
-        this_month: { name: "📅 This Month", start: today + 14.days, end: today.end_of_month },
-        future: { name: "📅 Future", start: today.end_of_month + 1.day, end: today + 90.days }
-      }
-      
-      # TIER 2: Time-based folders
-      time_periods.each do |period_key, period|
-        # Find maintenances in this time period
-        period_maintenances = maintenances.select do |m|
-          m.start_date && m.start_date.between?(period[:start], period[:end])
-        end
-        
-        next if period_maintenances.empty?
-        
-        folder_id = "folder_#{vehicle.id}_#{period_key}"
-        
-        # Calculate folder dates based on contained maintenances
-        folder_start = period_maintenances.map(&:start_date).min
-        folder_end = period_maintenances.map { |m| m.gantt_end_date }.max
-        
-        @gantt_tasks << {
-          id: folder_id,
-          name: period[:name],
-          start: folder_start.strftime("%Y-%m-%d"),
-          end: folder_end.strftime("%Y-%m-%d"),
-          parent: "vehicle_#{vehicle.id}",
-          type: 'folder',
-          color: time_period_color(period_key),
-          details: {
-            count: period_maintenances.count,
-            period: period[:name]
-          }
-        }
-        
-        # TIER 3: Individual maintenance tasks
-        period_maintenances.each do |maintenance|
-          @gantt_tasks << {
-            id: "maintenance_#{maintenance.id}",
-            name: maintenance.service_type.to_s,
-            start: maintenance.gantt_start_date.strftime("%Y-%m-%d"),
-            end: maintenance.gantt_end_date.strftime("%Y-%m-%d"),
-            parent: folder_id,
-            type: 'maintenance',
-            color: maintenance.gantt_bar_color,
-            details: {
-              status: maintenance.status,
-              technician: maintenance.technician_name,
-              cost: maintenance.cost || 0,
-              urgency: maintenance.urgency || 'routine'
-            }
-          }
-        end
+  def gantt
+    Rails.logger.info "=== GANTT CHART DEBUG ==="
+    @maintenances = Maintenance.includes(:vehicle)
+                               .where.not(start_date: nil)
+                               .where.not(end_date: nil)
+                               .order(:start_date)
+    Rails.logger.info "Total maintenances with dates: #{@maintenances.count}"
+    @maintenances = apply_filters(@maintenances)
+    Rails.logger.info "After filtering: #{@maintenances.count} maintenances"
+    prepare_gantt_data(@maintenances)
+    Rails.logger.info "Gantt tasks prepared: #{@gantt_tasks&.count || 0}"
+    Rails.logger.info "Gantt JSON length: #{@gantt_json&.length || 0}"
+    @service_owners = Vehicle.distinct.pluck(:service_owner).compact
+    @vehicles_for_filter = Vehicle.all.order(:make, :model)
+    @processed_maintenances = @maintenances
+
+    if @maintenances.any?
+      Rails.logger.info "Sample maintenance data:"
+      @maintenances.first(3).each do |m|
+        Rails.logger.info "  - #{m.vehicle&.make} #{m.vehicle&.model}: #{m.service_type} (#{m.start_date} to #{m.end_date})"
       end
     end
-    
-    # Convert to JSON for JavaScript - IMPORTANT: Use .to_json directly
-    @gantt_json = @gantt_tasks.to_json
-    
-    # Get filter data
-    @vehicles_for_filter = Vehicle.all.order(:make, :model)
-    @service_owners = Vehicle.distinct.pluck(:service_owner).compact
-    
-    # For statistics section - filter based on params
-    if params[:vehicle_id].present?
-      @maintenances = @maintenances.where(vehicle_id: params[:vehicle_id])
-    end
-    
-    if params[:status].present? && params[:status] != "All Statuses"
-      @maintenances = @maintenances.where(status: params[:status])
-    end
-    
-    if params[:owner].present? && params[:owner] != "All Owners"
-      @maintenances = @maintenances.joins(:vehicle).where(vehicles: { service_owner: params[:owner] })
-    end
-    
-    # Also set @processed_maintenances for the table if needed
-    @processed_maintenances = @maintenances.order('vehicles.make, vehicles.model, start_date')
-    
+
     render :gantt
   end
 
@@ -148,18 +57,13 @@ def gantt
                     end
   end
 
-  # GET /vehicles/:vehicle_id/maintenances/:id/confirm_delete
-  def confirm_delete
-    # Renders a confirmation page before deletion
-  end
+  def confirm_delete; end
 
-  # DELETE /vehicles/:vehicle_id/maintenances/:id
   def destroy
     @maintenance.destroy
     redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully deleted."
   end
 
-  # PATCH /vehicles/:vehicle_id/maintenances/:id/mark_completed
   def mark_completed
     if @maintenance.update(status: "Completed")
       redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance marked as completed."
@@ -168,21 +72,29 @@ def gantt
     end
   end
 
-  # GET /vehicles/:vehicle_id/maintenances/:id
   def show; end
 
-  # GET /vehicles/:vehicle_id/maintenances/new
   def new
     @maintenance = @vehicle.maintenances.new
     @maintenance.mileage ||= @vehicle.mileage
     @service_providers = ServiceProvider.all
+    @maintenance.start_date ||= Date.today
+    @maintenance.end_date ||= Date.today + 7.days
   end
 
-  # POST /vehicles/:vehicle_id/maintenances
   def create
     @maintenance = @vehicle.maintenances.new(maintenance_params)
     @service_providers = ServiceProvider.all
-    if @maintenance.save
+
+    if maintenance_params[:start_date].present? && maintenance_params[:end_date].present?
+      start_date = Date.parse(maintenance_params[:start_date])
+      end_date = Date.parse(maintenance_params[:end_date])
+      if end_date < start_date
+        @maintenance.errors.add(:end_date, "must be after start date")
+      end
+    end
+
+    if @maintenance.errors.empty? && @maintenance.save
       MaintenanceMailer.notify_store(@maintenance).deliver_later unless @maintenance.part_in_stock
       redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully created."
     else
@@ -191,15 +103,22 @@ def gantt
     end
   end
 
-  # GET /vehicles/:vehicle_id/maintenances/:id/edit
   def edit
     @service_providers = ServiceProvider.all
   end
 
-  # PATCH/PUT /vehicles/:vehicle_id/maintenances/:id
   def update
     @service_providers = ServiceProvider.all
-    if @maintenance.update(maintenance_params)
+
+    if maintenance_params[:start_date].present? && maintenance_params[:end_date].present?
+      start_date = Date.parse(maintenance_params[:start_date])
+      end_date = Date.parse(maintenance_params[:end_date])
+      if end_date < start_date
+        @maintenance.errors.add(:end_date, "must be after start date")
+      end
+    end
+
+    if @maintenance.errors.empty? && @maintenance.update(maintenance_params)
       redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully updated."
     else
       flash.now[:alert] = "Please correct the errors below."
@@ -226,83 +145,138 @@ def gantt
     )
   end
 
-  def time_period_color(period)
-    case period
-    when :this_week
-      '#dc3545' # Red - urgent
-    when :next_week
-      '#fd7e14' # Orange - soon
-    when :this_month
-      '#20c997' # Teal - scheduled
-    when :future
-      '#6c757d' # Grey - future
+  def apply_filters(maintenances)
+    if params[:status].present? && params[:status] != "All Statuses"
+      if params[:status] == "Overdue"
+        maintenances = maintenances.select { |m| m.overdue? }
+      else
+        maintenances = maintenances.where(status: params[:status])
+      end
+    end
+
+    if params[:vehicle_id].present?
+      maintenances = maintenances.where(vehicle_id: params[:vehicle_id])
+    end
+
+    if params[:owner].present? && params[:owner] != "All Owners"
+      maintenances = maintenances.joins(:vehicle)
+                                 .where(vehicles: { service_owner: params[:owner] })
+    end
+
+    filter_by_date_range(maintenances)
+  end
+
+  def filter_by_date_range(maintenances)
+    if params[:date_range].present?
+      if params[:date_range] == "custom" && params[:start_date].present? && params[:end_date].present?
+        start_date = Date.parse(params[:start_date])
+        end_date = Date.parse(params[:end_date])
+        maintenances = maintenances.where('start_date <= ? AND end_date >= ?', end_date, start_date)
+      elsif params[:date_range] != "custom"
+        days = params[:date_range].to_i
+        end_date = Date.today + days.days
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
+      end
     else
-      '#6c757d'
+      end_date = Date.today + 90.days
+      maintenances = maintenances.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
+    end
+
+    maintenances
+  end
+
+  def prepare_gantt_data(maintenances)
+    @gantt_tasks = []
+    return if maintenances.empty?
+
+    Rails.logger.info "Preparing Gantt data for #{maintenances.count} maintenances"
+    vehicles = maintenances.group_by(&:vehicle)
+    Rails.logger.info "Grouped into #{vehicles.count} vehicles"
+
+    vehicles.each do |vehicle, vehicle_maintenances|
+      next unless vehicle
+      next if vehicle_maintenances.empty?
+
+      # Get min start date and max end date for this vehicle
+      vehicle_start = vehicle_maintenances.map(&:start_date).compact.min
+      vehicle_end = vehicle_maintenances.map(&:end_date).compact.max
+
+      # Skip if no valid dates found
+      next unless vehicle_start && vehicle_end
+
+      # Convert to timestamps (milliseconds since 1970)
+      vehicle_task = {
+        id: "vehicle_#{vehicle.id}",
+        name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
+        start: vehicle_start.to_time.to_i * 1000,  # Timestamp in milliseconds
+        end: vehicle_end.to_time.to_i * 1000,      # Timestamp in milliseconds
+        parent: "0",
+        type: 'vehicle',
+        color: '#6c757d',
+        details: {
+          service_owner: vehicle.service_owner,
+          registration_number: vehicle.registration_number,
+          current_driver: vehicle.driver&.name || 'Unassigned'
+        }
+      }
+      @gantt_tasks << vehicle_task
+
+      vehicle_maintenances.each do |maintenance|
+        # Safely get dates with fallbacks
+        start_date = maintenance.start_date || Date.today
+        end_date = maintenance.end_date || (Date.today + 7.days)
+        
+        # Calculate duration
+        begin
+          duration = (end_date - start_date).to_i + 1
+        rescue
+          duration = 7
+        end
+
+        task = {
+          id: "maintenance_#{maintenance.id}",
+          name: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
+          start: start_date.to_time.to_i * 1000,  # Timestamp in milliseconds
+          end: end_date.to_time.to_i * 1000,      # Timestamp in milliseconds
+          parent: "vehicle_#{vehicle.id}",
+          type: 'maintenance',
+          color: maintenance.gantt_bar_color || 'rgba(108, 117, 125, 0.8)',
+          details: {
+            status: maintenance.status || 'Pending',
+            urgency: maintenance.urgency || 'Normal',
+            cost: maintenance.cost.to_f || 0,
+            notes: maintenance.notes.to_s,
+            vehicle_id: vehicle.id,
+            maintenance_id: maintenance.id,
+            duration: duration
+          }
+        }
+        @gantt_tasks << task
+      end
+    end
+
+    @gantt_json = @gantt_tasks.to_json
+    Rails.logger.info "Generated JSON with #{@gantt_tasks.count} tasks"
+    if @gantt_tasks.any?
+      Rails.logger.info "First task sample: #{@gantt_tasks.first}"
     end
   end
-  
-  def maintenance_bar_color(maintenance)
-    if maintenance.overdue?
-      '#dc3545' # Red for overdue
-    elsif maintenance.status == "Completed"
-      '#28a745' # Green for completed
-    elsif maintenance.urgency == "emergency"
-      '#fd7e14' # Orange for emergency
-    elsif maintenance.urgency == "scheduled"
-      '#0dcaf0' # Teal for scheduled
-    else
-      '#0d6efd' # Blue for routine/default
-    end
+
+  helper_method :has_gantt_data?, :gantt_statistics
+
+  def has_gantt_data?
+    @gantt_tasks&.any?
   end
-  
-  # Helper method to check if maintenance is overdue
-  def overdue?(maintenance)
-    maintenance.status == "Pending" && 
-    maintenance.next_due_date.present? && 
-    maintenance.next_due_date < Date.today
-  end
-  helper_method :overdue?
-  
-  # Helper methods for views
-  def get_time_based_folder(start_date)
-    diff_days = (start_date - Date.today).to_i
-    
-    if diff_days <= 7
-      "this_week"
-    elsif diff_days <= 14
-      "next_week"
-    elsif diff_days <= 30
-      "this_month"
-    else
-      "future"
-    end
-  end
-  helper_method :get_time_based_folder
-  
-  def urgency_badge_class(urgency)
-    case urgency&.downcase
-    when 'emergency'
-      'bg-danger'
-    when 'high'
-      'bg-warning'
-    when 'scheduled'
-      'bg-info'
-    else
-      'bg-secondary'
-    end
-  end
-  helper_method :urgency_badge_class
-  
-  def owner_color(owner)
-    # Simple hash-based color assignment
-    colors = {
-      'Fleet Management' => 'primary',
-      'Operations' => 'success',
-      'Maintenance' => 'warning',
-      'Administration' => 'info',
-      'Other' => 'secondary'
+
+  def gantt_statistics
+    return {} unless @maintenances.any?
+
+    {
+      total_tasks: @maintenances.count,
+      pending: @maintenances.where(status: "Pending").count,
+      completed: @maintenances.where(status: "Completed").count,
+      overdue: @maintenances.select { |m| m.overdue? }.count,
+      vehicles: @maintenances.map(&:vehicle).uniq.count
     }
-    colors[owner] || 'dark'
   end
-  helper_method :owner_color
 end
