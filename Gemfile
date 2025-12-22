@@ -48,5 +48,4 @@ gem 'bullet', group: :development
 # gem 'prawn-table'
 
 # Or for HTML to PDF
-gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
