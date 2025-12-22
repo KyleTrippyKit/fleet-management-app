@@ -49,4 +49,4 @@ gem 'bullet', group: :development
 
 # Or for HTML to PDF
 gem 'wicked_pdf'
-gem 'wkhtmltopdf-binary'
+gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
