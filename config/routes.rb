@@ -34,7 +34,7 @@ Rails.application.routes.draw do
     # Collection routes
     collection do
       get :analytics
-      get :gantt
+      # REMOVE THIS: get :gantt  # ← This doesn't exist in VehiclesController
       get :maintenance_dashboard
       get :export_csv
       get :themes
@@ -65,7 +65,7 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # Other
+  # Gantt Chart Route - KEEP THIS ONE
   # ========================
   get "gantt",
       to: "maintenances#gantt",
