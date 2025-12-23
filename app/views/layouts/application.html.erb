@@ -13,8 +13,13 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <!-- DHTMLX Gantt CSS - Only load on Gantt pages -->
+    <% if content_for?(:gantt_page) %>
+      <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css">
+    <% end %>
+    
     <!-- ===============================
-         Stylesheets FIRST
+         Stylesheets
     ================================ -->
     <%= stylesheet_link_tag "application",
           media: "all",
@@ -25,15 +30,6 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     >
-
-    <!-- ===============================
-         JavaScript Libraries
-    ================================ -->
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    
-    <!-- Chart.js Date Adapter -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.min.js"></script>
 
     <!-- ===============================
          Import Maps (Turbo + Stimulus)
@@ -103,6 +99,22 @@
         background: #3B82F6 !important;
       }
       
+      /* Theme adjustments for DHTMLX Gantt */
+      body.theme-2 .gantt_grid_head_cell {
+        background-color: #2D3748;
+        color: #E2E8F0;
+        border-color: #4A5568;
+      }
+      
+      body.theme-2 .gantt_grid_data {
+        background-color: #1E2435;
+        color: #E2E8F0;
+      }
+      
+      body.theme-2 .gantt_task_line {
+        border-color: #4A5568;
+      }
+      
       /* Theme 3: Trinidad Gradient */
       body.theme-3 {
         background: 
@@ -155,40 +167,78 @@
         background: #1E3A5F !important;
       }
       
-      /* Common theme adjustments */
-      .theme-applied .status-ribbon {
-        animation: none;
+      /* Gantt Chart Custom Styling */
+      .gantt_task_line {
+        border-radius: 4px;
+        opacity: 0.9;
       }
       
-      /* Theme Preview Alert */
-      .theme-preview-alert {
-        animation: slideDown 0.3s ease-out;
+      .gantt_task_line:hover {
+        opacity: 1;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        z-index: 100;
       }
       
-      @keyframes slideDown {
-        from {
-          transform: translateY(-20px);
-          opacity: 0;
-        }
-        to {
-          transform: translateY(0);
-          opacity: 1;
-        }
+      .gantt_task_content {
+        font-size: 12px;
+        font-weight: 500;
+        color: white;
+        text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+      }
+      
+      .gantt_row.odd {
+        background-color: #f8f9fa;
+      }
+      
+      .gantt_row.highlighted {
+        background-color: #e7f1ff !important;
+      }
+      
+      .legend-box {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        display: inline-block;
+      }
+      
+      /* Status specific colors for Gantt bars */
+      .gantt_completed {
+        background-color: #28a745 !important;
+        border-color: #218838 !important;
+      }
+      
+      .gantt_overdue {
+        background-color: #dc3545 !important;
+        border-color: #c82333 !important;
+      }
+      
+      .gantt_pending {
+        background-color: #ffc107 !important;
+        border-color: #e0a800 !important;
+      }
+      
+      .gantt_emergency {
+        background-color: #fd7e14 !important;
+        border-color: #e46c10 !important;
+      }
+      
+      .gantt_routine {
+        background-color: #0d6efd !important;
+        border-color: #0b5ed7 !important;
+      }
+      
+      .gantt_vehicle {
+        background-color: #6c757d !important;
+        border-color: #5c636a !important;
       }
     </style>
   </head>
 
   <body class="bg-light" data-controller="theme">
-    <!-- ===============================
-         Theme Preview Alert (will be shown via JavaScript)
-    ================================ -->
-    <div id="themePreviewAlert" class="theme-preview-alert" style="display: none;">
-      <!-- Content will be injected by JavaScript -->
-    </div>
+    <!-- Theme Preview Alert -->
+    <div id="themePreviewAlert" class="theme-preview-alert" style="display: none;"></div>
 
-    <!-- ===============================
-         Navbar
-    ================================ -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
       <div class="container-fluid">
         <a class="navbar-brand" href="/">
@@ -202,33 +252,27 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav ms-auto">
             <li class="nav-item">
-              <%= link_to "Vehicle List",
-                    vehicles_path,
+              <%= link_to "Vehicle List", vehicles_path,
                     class: "nav-link #{'active' if current_page?(vehicles_path)}" %>
             </li>
             <li class="nav-item">
-              <%= link_to "Usage Analytics",
-                    vehicle_usages_path,
+              <%= link_to "Usage Analytics", vehicle_usages_path,
                     class: "nav-link #{'active' if current_page?(vehicle_usages_path)}" %>
             </li>
             <li class="nav-item">
-              <%= link_to "Maintenance Timeline",
-                    gantt_path,
+              <%= link_to "Maintenance Timeline", gantt_path,
                     class: "nav-link #{'active' if current_page?(gantt_path)}" %>
             </li>
             <li class="nav-item">
-              <%= link_to "Maintenance Dashboard",
-                    maintenance_dashboard_vehicles_path,
+              <%= link_to "Maintenance Dashboard", maintenance_dashboard_vehicles_path,
                     class: "nav-link #{'active' if current_page?(maintenance_dashboard_vehicles_path)}" %>
             </li>
             <li class="nav-item">
-              <%= link_to "Drivers",
-                    drivers_path,
+              <%= link_to "Drivers", drivers_path,
                     class: "nav-link #{'active' if current_page?(drivers_path)}" %>
             </li>
             <li class="nav-item">
-              <%= link_to "🎨 Pick Theme",
-                    themes_vehicles_path,
+              <%= link_to "🎨 Pick Theme", themes_vehicles_path,
                     class: "nav-link #{'active' if current_page?(themes_vehicles_path)}" %>
             </li>
           </ul>
@@ -236,9 +280,7 @@
       </div>
     </nav>
 
-    <!-- ===============================
-         Flash messages + content
-    ================================ -->
+    <!-- Flash messages + content -->
     <main class="container-fluid px-4">
       <% if notice %>
         <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
@@ -257,20 +299,16 @@
       <%= yield %>
     </main>
 
-    <!-- ===============================
-         Bootstrap JS
-    ================================ -->
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
-      integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
-      crossorigin="anonymous">
-    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- ===============================
-         Theme Controller Script
-    ================================ -->
+    <!-- DHTMLX Gantt JS - Only load on Gantt pages -->
+    <% if content_for?(:gantt_page) %>
+      <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+    <% end %>
+
+    <!-- Theme Controller Script - FIXED VERSION -->
     <script>
-      // Theme Controller
       class ThemeController {
         constructor() {
           this.themes = {
@@ -280,12 +318,9 @@
             4: 'Clean Admin',
             5: 'Map-Centric'
           };
-          
-          this.initialize();
         }
         
         initialize() {
-          // Check for stored theme
           const storedTheme = localStorage.getItem('selectedTheme');
           const themeTestMode = localStorage.getItem('themeTestMode');
           
@@ -294,67 +329,25 @@
             this.showThemePreviewAlert(storedTheme);
           }
           
-          // Listen for theme changes
           this.setupEventListeners();
         }
         
         applyTheme(themeNumber) {
-          // Remove all theme classes
           document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5');
-          
-          // Add selected theme class
           document.body.classList.add(`theme-${themeNumber}`);
-          
-          // Apply CSS variables
           this.applyThemeVariables(themeNumber);
         }
         
         applyThemeVariables(themeNumber) {
           const themes = {
-            1: {
-              '--bg-primary': '#FFFFFF',
-              '--bg-secondary': '#F8F9FA',
-              '--bg-card': '#FFFFFF',
-              '--border-color': '#E9ECEF',
-              '--text-primary': '#212529',
-              '--primary-color': '#0055A4'
-            },
-            2: {
-              '--bg-primary': '#121826',
-              '--bg-secondary': '#1A1F2E',
-              '--bg-card': '#1E2435',
-              '--border-color': '#2D3748',
-              '--text-primary': '#E2E8F0',
-              '--primary-color': '#3B82F6'
-            },
-            3: {
-              '--bg-primary': 'linear-gradient(135deg, #FFFFFF 0%, #E8F4FD 100%)',
-              '--bg-secondary': '#FFFFFF',
-              '--bg-card': 'rgba(255, 255, 255, 0.95)',
-              '--border-color': 'rgba(191, 10, 48, 0.1)',
-              '--text-primary': '#212529',
-              '--primary-color': '#0055A4'
-            },
-            4: {
-              '--bg-primary': '#F5F7FA',
-              '--bg-secondary': '#FFFFFF',
-              '--bg-card': '#FFFFFF',
-              '--border-color': '#E1E8ED',
-              '--text-primary': '#2C3E50',
-              '--primary-color': '#0055A4'
-            },
-            5: {
-              '--bg-primary': '#F0F2F5',
-              '--bg-secondary': '#FFFFFF',
-              '--bg-card': 'rgba(255, 255, 255, 0.95)',
-              '--border-color': 'rgba(0, 85, 164, 0.1)',
-              '--text-primary': '#1A202C',
-              '--primary-color': '#0055A4'
-            }
+            1: {'--bg-primary': '#FFFFFF', '--bg-secondary': '#F8F9FA', '--text-primary': '#212529'},
+            2: {'--bg-primary': '#121826', '--bg-secondary': '#1A1F2E', '--text-primary': '#E2E8F0'},
+            3: {'--bg-primary': 'linear-gradient(135deg, #FFFFFF 0%, #E8F4FD 100%)', '--bg-secondary': '#FFFFFF', '--text-primary': '#212529'},
+            4: {'--bg-primary': '#F5F7FA', '--bg-secondary': '#FFFFFF', '--text-primary': '#2C3E50'},
+            5: {'--bg-primary': '#F0F2F5', '--bg-secondary': '#FFFFFF', '--text-primary': '#1A202C'}
           };
           
           const theme = themes[themeNumber] || themes[1];
-          
           Object.entries(theme).forEach(([key, value]) => {
             document.documentElement.style.setProperty(key, value);
           });
@@ -384,40 +377,17 @@
           `;
           
           alertDiv.style.display = 'block';
-          
-          // Auto-hide after 10 seconds
-          setTimeout(() => {
-            if (alertDiv.style.display !== 'none') {
-              alertDiv.style.opacity = '0';
-              alertDiv.style.transition = 'opacity 0.5s ease';
-              setTimeout(() => {
-                alertDiv.style.display = 'none';
-              }, 500);
-            }
-          }, 10000);
         }
         
         clearTheme() {
           localStorage.removeItem('selectedTheme');
           localStorage.removeItem('themeTestMode');
-          
-          // Remove theme classes
           document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5');
-          
-          // Hide alert
           document.getElementById('themePreviewAlert').style.display = 'none';
-          
-          // Show confirmation
-          alert('Theme preview cleared. Page will reload.');
-          
-          // Reload to reset to default
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+          this.showToast('Theme preview cleared.', 'success');
         }
         
         setupEventListeners() {
-          // Listen for theme parameter in URL
           const urlParams = new URLSearchParams(window.location.search);
           const themeParam = urlParams.get('theme');
           
@@ -428,43 +398,80 @@
             this.showThemePreviewAlert(themeParam);
           }
         }
+        
+        showToast(message, type = 'info') {
+          const toastId = 'toast-' + Date.now();
+          const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0" role="alert">
+              <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+              </div>
+            </div>
+          `;
+          
+          let container = document.getElementById('toastContainer');
+          if (!container) {
+            container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+          }
+          
+          container.innerHTML += toastHtml;
+          const toastElement = document.getElementById(toastId);
+          const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+          toast.show();
+          
+          toastElement.addEventListener('hidden.bs.toast', function () {
+            this.remove();
+          });
+        }
       }
       
-      // Initialize theme controller when DOM is loaded
+      // Initialize theme controller
       document.addEventListener('DOMContentLoaded', () => {
         window.themeController = new ThemeController();
+        window.themeController.initialize(); // Initialize after creating instance
       });
       
-      // Also initialize on Turbo loads
+      // Handle Turbo page changes
       document.addEventListener('turbo:load', () => {
         if (!window.themeController) {
           window.themeController = new ThemeController();
         }
+        window.themeController.initialize();
       });
     </script>
 
-    <!-- ===============================
-         DEBUG Script (Optional)
-    ================================ -->
+    <!-- Load Chart.js only on pages that need it -->
     <script>
-      document.addEventListener("turbo:load", () => {
-        console.log("🚦 Turbo page loaded - Trinidad Fleet Management");
-
-        // Check Chart.js
-        if (window.Chart) {
-          console.log("✅ Chart.js loaded");
-          console.log("Chart.js version:", Chart.version);
-        }
-
-        // Check Chart.js Date Adapter
-        if (typeof Chart !== 'undefined' && Chart._adapters && Chart._adapters._date) {
-          console.log("✅ Chart.js date adapter loaded");
-        }
+      document.addEventListener('DOMContentLoaded', function() {
+        // Check if we're on a page that needs Chart.js
+        const needsChart = 
+          window.location.pathname.includes('analytics') ||
+          window.location.pathname.includes('dashboard') ||
+          document.querySelector('[data-chart]') ||
+          document.querySelector('.chart-container') ||
+          document.querySelector('#chart');
         
-        // Check theme status
-        const storedTheme = localStorage.getItem('selectedTheme');
-        if (storedTheme) {
-          console.log(`🎨 Active Theme: ${storedTheme} - ${window.themeController?.themes[storedTheme] || 'Unknown'}`);
+        if (needsChart) {
+          // Wait a bit to see if importmap loaded it
+          setTimeout(function() {
+            if (!window.Chart) {
+              console.log("📊 Loading Chart.js for analytics/dashboard...");
+              const script = document.createElement('script');
+              script.src = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js";
+              script.onload = function() {
+                console.log("✅ Chart.js loaded for this page");
+                document.dispatchEvent(new CustomEvent('chartjs-loaded'));
+              };
+              document.head.appendChild(script);
+            } else {
+              console.log("✅ Chart.js already available");
+            }
+          }, 500);
         }
       });
     </script>
