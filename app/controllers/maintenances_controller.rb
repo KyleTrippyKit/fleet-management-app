@@ -1,7 +1,7 @@
 class MaintenancesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_vehicle, except: [:gantt]
-  before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete]
+  before_action :set_vehicle, except: [:gantt, :update_gantt]
+  before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete, :update_gantt]
 
   # GET /gantt
   def gantt
@@ -21,24 +21,33 @@ class MaintenancesController < ApplicationController
     
     # Prepare Gantt data
     prepare_gantt_data(@maintenances)
-    Rails.logger.info "Gantt tasks prepared: #{@gantt_tasks&.count || 0}"
-    Rails.logger.info "Vehicle tasks: #{@gantt_tasks&.count { |t| t[:type] == 'vehicle' } || 0}"
-    Rails.logger.info "Maintenance tasks: #{@gantt_tasks&.count { |t| t[:type] == 'maintenance' } || 0}"
     
     # Set up filter options
     @service_owners = Vehicle.distinct.pluck(:service_owner).compact
     @vehicles_for_filter = Vehicle.all.order(:make, :model)
     @processed_maintenances = @maintenances
 
-    # Debug logging
-    if @maintenances.any?
-      Rails.logger.info "Sample maintenance data:"
-      @maintenances.first(3).each do |m|
-        Rails.logger.info "  - #{m.vehicle&.make} #{m.vehicle&.model}: #{m.service_type} (#{m.start_date} to #{m.end_date})"
-      end
-    end
-
     render :gantt
+  end
+
+  # PATCH /maintenances/:id/update_gantt
+  def update_gantt
+    if params[:maintenance].present?
+      if @maintenance.update(maintenance_params)
+        render json: { 
+          success: true, 
+          message: "Maintenance updated successfully",
+          maintenance: @maintenance.gantt_task_data
+        }
+      else
+        render json: { 
+          success: false, 
+          errors: @maintenance.errors.full_messages 
+        }, status: :unprocessable_entity
+      end
+    else
+      render json: { success: false, errors: ["No data provided"] }, status: :bad_request
+    end
   end
 
   # GET /vehicles/:vehicle_id/maintenances
@@ -130,10 +139,19 @@ class MaintenancesController < ApplicationController
     end
 
     if @maintenance.errors.empty? && @maintenance.update(maintenance_params)
-      redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully updated."
+      if request.xhr?
+        render json: { success: true, message: "Maintenance updated successfully" }
+      else
+        redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully updated."
+      end
     else
-      flash.now[:alert] = "Please correct the errors below."
-      render :edit, status: :unprocessable_entity
+      if request.xhr?
+        render json: { success: false, errors: @maintenance.errors.full_messages }, 
+               status: :unprocessable_entity
+      else
+        flash.now[:alert] = "Please correct the errors below."
+        render :edit, status: :unprocessable_entity
+      end
     end
   end
 
@@ -144,7 +162,11 @@ class MaintenancesController < ApplicationController
   end
 
   def set_maintenance
-    @maintenance = @vehicle.maintenances.find(params[:id])
+    @maintenance = if params[:vehicle_id].present?
+                     @vehicle.maintenances.find(params[:id])
+                   else
+                     Maintenance.find(params[:id])
+                   end
   end
 
   def maintenance_params
@@ -169,6 +191,17 @@ class MaintenancesController < ApplicationController
       maintenances = maintenances.where(vehicle_id: params[:vehicle_id])
     end
 
+    if params[:vehicle_search].present?
+      search_term = params[:vehicle_search].downcase
+      maintenances = maintenances.joins(:vehicle).where(
+        "LOWER(vehicles.registration_number) LIKE :search OR 
+         LOWER(vehicles.make) LIKE :search OR 
+         LOWER(vehicles.model) LIKE :search OR 
+         LOWER(vehicles.service_owner) LIKE :search",
+        search: "%#{search_term}%"
+      )
+    end
+
     if params[:owner].present? && params[:owner] != "All Owners"
       maintenances = maintenances.joins(:vehicle)
                                  .where(vehicles: { service_owner: params[:owner] })
@@ -177,41 +210,98 @@ class MaintenancesController < ApplicationController
     filter_by_date_range(maintenances)
   end
 
+  # ENHANCED DATE FILTERING: Includes past, future, and all-time options
   def filter_by_date_range(maintenances)
     if params[:date_range].present?
-      if params[:date_range] == "custom" && params[:start_date].present? && params[:end_date].present?
-        start_date = Date.parse(params[:start_date])
-        end_date = Date.parse(params[:end_date])
-        maintenances = maintenances.where('start_date <= ? AND end_date >= ?', end_date, start_date)
-      elsif params[:date_range] != "custom"
+      case params[:date_range]
+      when "all_time"
+        # Show ALL data - no date filtering
+        return maintenances
+        
+      when "last_7_days"
+        start_date = Date.today - 7.days
+        end_date = Date.today
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "last_30_days"
+        start_date = Date.today - 30.days
+        end_date = Date.today
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "last_3_months"
+        start_date = Date.today - 3.months
+        end_date = Date.today
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "last_6_months"
+        start_date = Date.today - 6.months
+        end_date = Date.today
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "last_year"
+        start_date = Date.today - 1.year
+        end_date = Date.today
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "next_7_days"
+        start_date = Date.today
+        end_date = Date.today + 7.days
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "next_30_days"
+        start_date = Date.today
+        end_date = Date.today + 30.days
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "next_3_months"
+        start_date = Date.today
+        end_date = Date.today + 3.months
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "next_6_months"
+        start_date = Date.today
+        end_date = Date.today + 6.months
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "next_year"
+        start_date = Date.today
+        end_date = Date.today + 1.year
+        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+        
+      when "custom"
+        if params[:start_date].present? && params[:end_date].present?
+          start_date = Date.parse(params[:start_date])
+          end_date = Date.parse(params[:end_date])
+          maintenances = maintenances.where('start_date <= ? AND end_date >= ?', end_date, start_date)
+        end
+        
+      # Legacy numeric ranges for backward compatibility
+      when "7", "30", "90"
         days = params[:date_range].to_i
         end_date = Date.today + days.days
         maintenances = maintenances.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
       end
     else
-      end_date = Date.today + 90.days
-      maintenances = maintenances.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
+      # DEFAULT: Show ALL data (no date filter)
+      return maintenances
     end
 
     maintenances
   end
 
+  # FIXED: Properly format dates for Gantt
   def prepare_gantt_data(maintenances)
     @gantt_tasks = []
+    @gantt_links = []
     return if maintenances.empty?
 
     Rails.logger.info "=== PREPARING GANTT DATA ==="
-    Rails.logger.info "Processing #{maintenances.count} maintenances"
     
     # Group maintenances by vehicle
     vehicles_grouped = maintenances.group_by(&:vehicle)
-    Rails.logger.info "Grouped into #{vehicles_grouped.keys.compact.count} vehicles"
     
     vehicles_grouped.each do |vehicle, vehicle_maintenances|
       next unless vehicle && vehicle_maintenances.any?
-      
-      Rails.logger.info "Processing vehicle: #{vehicle.id} - #{vehicle.make} #{vehicle.model}"
-      Rails.logger.info "  Has #{vehicle_maintenances.count} maintenances"
       
       # Find min start date and max end date for this vehicle
       start_dates = vehicle_maintenances.map(&:start_date).compact
@@ -222,40 +312,50 @@ class MaintenancesController < ApplicationController
       vehicle_start = start_dates.min
       vehicle_end = end_dates.max
       
-      Rails.logger.info "  Vehicle date range: #{vehicle_start} to #{vehicle_end}"
-      
-      # Vehicle task
+      # Vehicle task - FIX: Use string dates
       @gantt_tasks << {
         id: "vehicle_#{vehicle.id}",
+        text: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
         name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
-        start: vehicle_start.to_time.to_i * 1000,
-        end: vehicle_end.to_time.to_i * 1000,
+        start_date: vehicle_start.strftime("%Y-%m-%d %H:%M"),
+        end_date: vehicle_end.strftime("%Y-%m-%d %H:%M"),
         parent: "0",
         type: 'vehicle',
+        progress: 0,
+        open: true,
         color: '#6c757d',
+        status: 'Active',
+        urgency: 'Normal',
+        owner: vehicle.service_owner,
         details: {
           service_owner: vehicle.service_owner,
           registration_number: vehicle.registration_number,
-          current_driver: vehicle.driver&.name || 'Unassigned'
+          current_driver: vehicle.driver&.name || 'Unassigned',
+          vehicle_type: vehicle.vehicle_type
         }
       }
       
-      # Maintenance tasks for this vehicle
+      # Maintenance tasks for this vehicle - FIX: Use string dates
       vehicle_maintenances.each_with_index do |maintenance, index|
         next unless maintenance.start_date && maintenance.end_date
         
-        Rails.logger.info "  Adding maintenance #{index + 1}: #{maintenance.service_type}"
-        Rails.logger.info "    Dates: #{maintenance.start_date} to #{maintenance.end_date}"
-        Rails.logger.info "    Status: #{maintenance.status}, Urgency: #{maintenance.urgency}"
+        progress = maintenance.completed? ? 1 : 0.5
         
         @gantt_tasks << {
           id: "maintenance_#{maintenance.id}",
+          text: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
           name: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
-          start: maintenance.start_date.to_time.to_i * 1000,
-          end: maintenance.end_date.to_time.to_i * 1000,
+          start_date: maintenance.start_date.strftime("%Y-%m-%d %H:%M"),
+          end_date: maintenance.end_date.strftime("%Y-%m-%d %H:%M"),
           parent: "vehicle_#{vehicle.id}",
           type: 'maintenance',
+          progress: progress,
+          open: true,
           color: maintenance.gantt_bar_color || 'rgba(108, 117, 125, 0.8)',
+          status: maintenance.status || 'Pending',
+          urgency: maintenance.urgency || 'Normal',
+          overdue: maintenance.overdue?,
+          owner: vehicle.service_owner,
           details: {
             status: maintenance.status || 'Pending',
             urgency: maintenance.urgency || 'Normal',
@@ -263,26 +363,28 @@ class MaintenancesController < ApplicationController
             notes: maintenance.notes.to_s,
             vehicle_id: vehicle.id,
             maintenance_id: maintenance.id,
-            duration: maintenance.duration_days
+            duration: maintenance.duration_days,
+            service_owner: vehicle.service_owner,
+            service_type: maintenance.service_type,
+            category: maintenance.category
           }
         }
+        
+        # Create dependency links between consecutive maintenances
+        if index > 0
+          prev_maintenance = vehicle_maintenances[index - 1]
+          @gantt_links << {
+            id: "link_#{prev_maintenance.id}_#{maintenance.id}",
+            source: "maintenance_#{prev_maintenance.id}",
+            target: "maintenance_#{maintenance.id}",
+            type: "0"
+          }
+        end
       end
     end
 
-    @gantt_json = @gantt_tasks.to_json
-    Rails.logger.info "=== GANTT DATA PREPARED ==="
-    Rails.logger.info "Total tasks generated: #{@gantt_tasks.count}"
-    Rails.logger.info "Vehicle tasks: #{@gantt_tasks.count { |t| t[:type] == 'vehicle' }}"
-    Rails.logger.info "Maintenance tasks: #{@gantt_tasks.count { |t| t[:type] == 'maintenance' }}"
-    
-    if @gantt_tasks.any?
-      Rails.logger.info "Sample data:"
-      @gantt_tasks.first(3).each do |task|
-        Rails.logger.info "  #{task[:type]}: #{task[:name]}"
-        Rails.logger.info "    Start: #{task[:start]} (#{Time.at(task[:start]/1000)})"
-        Rails.logger.info "    End: #{task[:end]} (#{Time.at(task[:end]/1000)})"
-      end
-    end
+    @gantt_json = { data: @gantt_tasks, links: @gantt_links }.to_json
+    Rails.logger.info "Gantt tasks prepared: #{@gantt_tasks.count}"
   end
 
   helper_method :has_gantt_data?, :gantt_statistics

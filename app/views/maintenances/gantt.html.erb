@@ -1,11 +1,13 @@
+<% content_for :gantt_page, true %>
+
 <div class="container-fluid py-4">
   <!-- Debug Info -->
   <% if Rails.env.development? %>
     <div class="alert alert-info mb-4">
-      <h5 class="alert-heading">Gantt Chart Debug</h5>
-      <p><strong>Tasks loaded:</strong> <span id="taskCount">0</span></p>
-      <p><strong>Data structure:</strong> <span id="dataStructure">Checking...</span></p>
-      <button class="btn btn-sm btn-outline-info mt-2" onclick="debugGantt()">Show Data Structure</button>
+      <h5 class="alert-heading">Gantt Chart Status</h5>
+      <p><strong>Maintenances found:</strong> <%= @maintenances.count %></p>
+      <p><strong>Gantt tasks:</strong> <%= @gantt_tasks&.count || 0 %></p>
+      <p><strong>Data available:</strong> <%= @gantt_json.present? %></p>
     </div>
   <% end %>
 
@@ -29,7 +31,7 @@
       <%= form_with url: gantt_path, method: :get, local: true, class: "row g-2 align-items-center", id: "ganttFilters" do %>
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">View Mode</label>
-          <select name="view_mode" id="viewMode" class="form-select form-select-sm">
+          <select name="view_mode" id="viewMode" class="form-select form-select-sm auto-submit">
             <option value="day" <%= 'selected' if params[:view_mode] == 'day' %>>Day View</option>
             <option value="week" <%= 'selected' if params[:view_mode] == 'week' %>>Week View</option>
             <option value="month" <%= params[:view_mode].blank? || params[:view_mode] == 'month' ? 'selected' : '' %>>Month View</option>
@@ -39,11 +41,25 @@
         
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">Date Range</label>
-          <select name="date_range" id="dateRange" class="form-select form-select-sm">
-            <option value="30" <%= 'selected' if params[:date_range] == '30' %>>Next 30 Days</option>
-            <option value="90" <%= params[:date_range].blank? || params[:date_range] == '90' ? 'selected' : '' %>>Next 90 Days</option>
-            <option value="180" <%= 'selected' if params[:date_range] == '180' %>>Next 6 Months</option>
-            <option value="365" <%= 'selected' if params[:date_range] == '365' %>>Next Year</option>
+          <select name="date_range" id="dateRange" class="form-select form-select-sm auto-submit">
+            <option value="all_time" <%= 'selected' if params[:date_range] == 'all_time' %>>All Time</option>
+            
+            <optgroup label="Past">
+              <option value="last_7_days" <%= 'selected' if params[:date_range] == 'last_7_days' %>>Last 7 Days</option>
+              <option value="last_30_days" <%= 'selected' if params[:date_range] == 'last_30_days' %>>Last 30 Days</option>
+              <option value="last_3_months" <%= 'selected' if params[:date_range] == 'last_3_months' %>>Last 3 Months</option>
+              <option value="last_6_months" <%= 'selected' if params[:date_range] == 'last_6_months' %>>Last 6 Months</option>
+              <option value="last_year" <%= 'selected' if params[:date_range] == 'last_year' %>>Last Year</option>
+            </optgroup>
+            
+            <optgroup label="Future">
+              <option value="next_7_days" <%= 'selected' if params[:date_range] == 'next_7_days' %>>Next 7 Days</option>
+              <option value="next_30_days" <%= 'selected' if params[:date_range] == 'next_30_days' || params[:date_range] == '30' %>>Next 30 Days</option>
+              <option value="next_3_months" <%= 'selected' if params[:date_range] == 'next_3_months' || params[:date_range] == '90' %>>Next 3 Months</option>
+              <option value="next_6_months" <%= 'selected' if params[:date_range] == 'next_6_months' || params[:date_range] == '180' %>>Next 6 Months</option>
+              <option value="next_year" <%= 'selected' if params[:date_range] == 'next_year' || params[:date_range] == '365' %>>Next Year</option>
+            </optgroup>
+            
             <option value="custom" <%= 'selected' if params[:date_range] == 'custom' %>>Custom Range</option>
           </select>
         </div>
@@ -52,12 +68,12 @@
           <div class="row g-1">
             <div class="col-6">
               <label class="form-label small fw-bold mb-1">Start Date</label>
-              <input type="date" name="start_date" class="form-control form-control-sm" 
+              <input type="date" name="start_date" class="form-control form-control-sm auto-submit-date" 
                      value="<%= params[:start_date] || Date.today.strftime('%Y-%m-%d') %>">
             </div>
             <div class="col-6">
               <label class="form-label small fw-bold mb-1">End Date</label>
-              <input type="date" name="end_date" class="form-control form-control-sm" 
+              <input type="date" name="end_date" class="form-control form-control-sm auto-submit-date" 
                      value="<%= params[:end_date] || (Date.today + 90.days).strftime('%Y-%m-%d') %>">
             </div>
           </div>
@@ -67,30 +83,47 @@
           <label class="form-label small fw-bold mb-1">Service Owner</label>
           <%= select_tag :owner,
                 options_for_select(["All Owners"] + @service_owners, params[:owner] || "All"),
-                class: "form-select form-select-sm" %>
+                class: "form-select form-select-sm auto-submit" %>
         </div>
         
         <div class="col-md-2">
           <label class="form-label small fw-bold mb-1">Status</label>
           <%= select_tag :status,
                 options_for_select(["All Statuses", "Pending", "Completed"], params[:status] || "All"),
-                class: "form-select form-select-sm" %>
+                class: "form-select form-select-sm auto-submit" %>
         </div>
         
         <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Vehicle</label>
+          <label class="form-label small fw-bold mb-1">Vehicle Search</label>
+          <div class="input-group input-group-sm">
+            <%= text_field_tag :vehicle_search, params[:vehicle_search], 
+                  class: "form-control auto-submit-vehicle",
+                  placeholder: "Search by reg, make, model...",
+                  id: "vehicleSearch" %>
+            <button class="btn btn-outline-secondary" type="button" id="clearVehicleSearch" title="Clear search">
+              <i class="bi bi-x"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="col-md-2">
+          <label class="form-label small fw-bold mb-1">Specific Vehicle</label>
           <%= select_tag :vehicle_id,
                 options_for_select([["All Vehicles", ""]] + @vehicles_for_filter.map { |v| ["#{v.make} #{v.model} (#{v.registration_number})", v.id] }, 
                                   params[:vehicle_id] || ""),
-                class: "form-select form-select-sm" %>
+                class: "form-select form-select-sm auto-submit",
+                id: "vehicleSelect" %>
         </div>
         
         <div class="col-md-2 d-flex align-items-end">
           <div class="d-flex gap-2 w-100">
-            <%= submit_tag "Apply Filters", class: "btn btn-primary btn-sm flex-grow-1" %>
+            <%= submit_tag "Apply Filters", class: "btn btn-primary btn-sm flex-grow-1", id: "applyFilters" %>
             <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm">Reset</button>
           </div>
         </div>
+        
+        <!-- Hidden fields to preserve vehicle_id when using search -->
+        <%= hidden_field_tag :vehicle_id, params[:vehicle_id] if params[:vehicle_id].present? %>
       <% end %>
     </div>
   </div>
@@ -164,63 +197,16 @@
 
   <% if @gantt_tasks&.any? %>
     <!-- Store data for JavaScript -->
-    <div id="ganttData" data-gantt-tasks="<%= @gantt_json %>"></div>
+    <div id="ganttData" style="display: none;" data-gantt-tasks='<%= @gantt_json %>'></div>
 
-    <!-- Gantt Chart Toolbar -->
-    <div class="card shadow-sm border-0 mb-3 card-hover">
-      <div class="card-body p-2">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="btn-group btn-group-sm me-3" role="group">
-            <button type="button" class="btn btn-outline-primary" onclick="ganttConfig.changeViewMode('day')">
-              <i class="bi bi-calendar-day"></i> Day
-            </button>
-            <button type="button" class="btn btn-outline-primary" onclick="ganttConfig.changeViewMode('week')">
-              <i class="bi bi-calendar-week"></i> Week
-            </button>
-            <button type="button" class="btn btn-outline-primary active" onclick="ganttConfig.changeViewMode('month')">
-              <i class="bi bi-calendar-month"></i> Month
-            </button>
-            <button type="button" class="btn btn-outline-primary" onclick="ganttConfig.changeViewMode('year')">
-              <i class="bi bi-calendar-range"></i> Year
-            </button>
-          </div>
-          
-          <div class="btn-group btn-group-sm me-3" role="group">
-            <button type="button" class="btn btn-outline-secondary" onclick="gantt.zoomOut()">
-              <i class="bi bi-zoom-out"></i> Zoom Out
-            </button>
-            <button type="button" class="btn btn-outline-secondary" onclick="gantt.zoomIn()">
-              <i class="bi bi-zoom-in"></i> Zoom In
-            </button>
-            <button type="button" class="btn btn-outline-secondary" onclick="gantt.fitContent()">
-              <i class="bi bi-arrows-angle-contract"></i> Fit All
-            </button>
-          </div>
-          
-          <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-success" onclick="showTaskDetails()">
-              <i class="bi bi-info-circle"></i> Task Details
-            </button>
-            <button type="button" class="btn btn-outline-primary" onclick="exportGanttPDF()">
-              <i class="bi bi-download"></i> Export PDF
-            </button>
-            <button type="button" class="btn btn-outline-danger" onclick="showCriticalPath()">
-              <i class="bi bi-exclamation-triangle"></i> Critical Path
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Gantt Chart Container -->
-    <div class="card shadow-sm border-0 card-hover">
-      <div class="card-header bg-white border-0 py-3">
-        <div class="d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Maintenance Gantt Chart</h5>
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" id="showDependencies" checked>
-            <label class="form-check-label small" for="showDependencies">Show Dependencies</label>
-          </div>
+    <!-- Gantt Container -->
+    <div class="card shadow-sm border-0">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Gantt Chart</h5>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary me-2" onclick="if (window.gantt) gantt.fitContent();">
+            <i class="bi bi-zoom-in"></i> Fit Content
+          </button>
         </div>
       </div>
       <div class="card-body p-0">
@@ -228,91 +214,244 @@
       </div>
     </div>
 
-    <!-- Task Details Modal -->
-    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Task Details</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div id="taskDetailsContent">
-              Loading task details...
+    <!-- SIMPLIFIED Gantt JavaScript - No Chart.js dependencies -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 Starting Gantt initialization...');
+        
+        // Function to check if Gantt is loaded
+        function checkGanttLoaded() {
+          if (typeof gantt !== 'undefined') {
+            console.log('✅ DHTMLX Gantt is loaded');
+            initializeGantt();
+            return true;
+          }
+          return false;
+        }
+        
+        // Try immediately
+        if (!checkGanttLoaded()) {
+          console.log('⏳ Gantt not loaded yet, waiting...');
+          // Try every 500ms for 5 seconds
+          let attempts = 0;
+          const maxAttempts = 10;
+          const interval = setInterval(function() {
+            attempts++;
+            if (checkGanttLoaded()) {
+              clearInterval(interval);
+            } else if (attempts >= maxAttempts) {
+              clearInterval(interval);
+              console.error('❌ Failed to load Gantt after', maxAttempts * 500, 'ms');
+              showError('Failed to load Gantt chart library. Please refresh the page.');
+            }
+          }, 500);
+        }
+        
+        // Initialize auto-submit functionality
+        initializeAutoSubmit();
+      });
+      
+      function initializeGantt() {
+        // Get data
+        const dataElement = document.getElementById('ganttData');
+        if (!dataElement) {
+          console.error('❌ No Gantt data element found');
+          showError('No data available');
+          return;
+        }
+        
+        const rawData = dataElement.dataset.ganttTasks;
+        if (!rawData) {
+          console.error('❌ No Gantt data found');
+          showError('No data available');
+          return;
+        }
+        
+        try {
+          const parsedData = JSON.parse(rawData);
+          console.log('✅ Data parsed successfully, tasks:', parsedData.data?.length || 0);
+          
+          // Basic Gantt configuration
+          gantt.config.date_format = "%Y-%m-%d %H:%i";
+          gantt.config.scale_height = 50;
+          gantt.config.row_height = 35;
+          gantt.config.bar_height = 20;
+          gantt.config.grid_width = 300;
+          
+          // Simple columns
+          gantt.config.columns = [
+            { name: "text", label: "Task", width: 250, tree: true },
+            { name: "start_date", label: "Start", align: "center", width: 100 },
+            { name: "end_date", label: "End", align: "center", width: 100 },
+            { 
+              name: "status", 
+              label: "Status", 
+              align: "center", 
+              width: 100, 
+              template: function(task) {
+                const status = task.details?.status || task.status || 'Pending';
+                let badgeClass = "badge bg-secondary";
+                if (status === "Completed") badgeClass = "badge bg-success";
+                if (status === "Pending") badgeClass = "badge bg-warning";
+                return `<span class="${badgeClass}">${status}</span>`;
+              }
+            }
+          ];
+          
+          // Time scale
+          gantt.config.scales = [
+            { unit: "month", step: 1, format: "%F %Y" },
+            { unit: "week", step: 1, format: "Week #%W" }
+          ];
+          
+          // Simple tooltip
+          gantt.templates.tooltip_text = function(start, end, task) {
+            return `<b>${task.text}</b><br/>
+                    <b>Dates:</b> ${gantt.templates.tooltip_date_format(start)} - ${gantt.templates.tooltip_date_format(end)}`;
+          };
+          
+          // Initialize and parse
+          gantt.init("ganttContainer");
+          gantt.parse(parsedData);
+          
+          console.log('✅ Gantt chart loaded successfully!');
+          
+        } catch (error) {
+          console.error('❌ Error loading Gantt chart:', error);
+          showError('Error loading chart: ' + error.message);
+        }
+      }
+      
+      function showError(message) {
+        const container = document.getElementById('ganttContainer');
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-danger m-4">
+              <h4>Error Loading Gantt Chart</h4>
+              <p>${message}</p>
+              <p>Please refresh the page or check the console for details.</p>
             </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            <button type="button" class="btn btn-primary" onclick="saveTaskChanges()">Save Changes</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Legend -->
-    <div class="row mt-4">
-      <div class="col-md-8">
-        <div class="card shadow-sm border-0 card-hover">
-          <div class="card-body py-2">
-            <div class="d-flex align-items-center">
-              <span class="me-3 small fw-bold">Color Legend:</span>
-              <div class="d-flex flex-wrap gap-3">
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-success me-2"></div>
-                  <span class="small">Completed</span>
-                </div>
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-danger me-2"></div>
-                  <span class="small">Overdue</span>
-                </div>
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-warning me-2"></div>
-                  <span class="small">Pending</span>
-                </div>
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-primary me-2"></div>
-                  <span class="small">Routine</span>
-                </div>
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-info me-2"></div>
-                  <span class="small">Emergency</span>
-                </div>
-                <div class="d-flex align-items-center">
-                  <div class="legend-box bg-secondary me-2"></div>
-                  <span class="small">Vehicle Group</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card shadow-sm border-0 card-hover">
-          <div class="card-body py-2">
-            <div class="d-flex justify-content-between align-items-center">
-              <span class="small fw-bold">Filter by Service Owner:</span>
-              <select id="ownerFilter" class="form-select form-select-sm w-auto" onchange="filterByOwner(this.value)">
-                <option value="all">All Owners</option>
-                <% @service_owners.each do |owner| %>
-                  <option value="<%= owner %>"><%= owner %></option>
-                <% end %>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
+          `;
+        }
+      }
+      
+      function initializeAutoSubmit() {
+        const form = document.getElementById('ganttFilters');
+        if (!form) return;
+        
+        // Debounce function to prevent too many submissions
+        let debounceTimer;
+        function debounceSubmit(delay = 300) {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            // Clear vehicle_id if vehicle_search is used
+            const vehicleSearch = document.getElementById('vehicleSearch');
+            const vehicleSelect = document.getElementById('vehicleSelect');
+            if (vehicleSearch && vehicleSearch.value.trim() !== '') {
+              vehicleSelect.value = '';
+            }
+            form.submit();
+          }, delay);
+        }
+        
+        // Auto-submit for dropdowns
+        const autoSubmitElements = document.querySelectorAll('.auto-submit');
+        autoSubmitElements.forEach(element => {
+          element.addEventListener('change', function() {
+            debounceSubmit(100); // Shorter delay for dropdowns
+          });
+        });
+        
+        // Auto-submit for date inputs
+        const autoSubmitDateElements = document.querySelectorAll('.auto-submit-date');
+        autoSubmitDateElements.forEach(element => {
+          element.addEventListener('change', function() {
+            debounceSubmit(300); // Standard delay for dates
+          });
+        });
+        
+        // Auto-submit for vehicle search with Enter key
+        const vehicleSearch = document.getElementById('vehicleSearch');
+        if (vehicleSearch) {
+          vehicleSearch.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+              // Clear vehicle select when using search
+              const vehicleSelect = document.getElementById('vehicleSelect');
+              if (vehicleSelect) vehicleSelect.value = '';
+              debounceSubmit(100);
+            } else if (this.value.trim() === '') {
+              // Submit when cleared
+              debounceSubmit(500);
+            }
+          });
+          
+          // Also submit on blur if value changed
+          vehicleSearch.addEventListener('blur', function() {
+            if (this.dataset.originalValue !== this.value) {
+              const vehicleSelect = document.getElementById('vehicleSelect');
+              if (vehicleSelect) vehicleSelect.value = '';
+              debounceSubmit(300);
+            }
+          });
+          
+          // Store original value
+          vehicleSearch.dataset.originalValue = vehicleSearch.value;
+        }
+        
+        // Clear vehicle search button
+        const clearVehicleSearch = document.getElementById('clearVehicleSearch');
+        if (clearVehicleSearch) {
+          clearVehicleSearch.addEventListener('click', function() {
+            const vehicleSearch = document.getElementById('vehicleSearch');
+            if (vehicleSearch) {
+              vehicleSearch.value = '';
+              // Clear vehicle select when clearing search
+              const vehicleSelect = document.getElementById('vehicleSelect');
+              if (vehicleSelect) vehicleSelect.value = '';
+              form.submit();
+            }
+          });
+        }
+        
+        // Filter form toggle
+        const dateRange = document.getElementById('dateRange');
+        if (dateRange) {
+          dateRange.addEventListener('change', function() {
+            const customRange = document.getElementById('customDateRange');
+            if (this.value === 'custom') {
+              customRange.style.display = 'block';
+            } else {
+              customRange.style.display = 'none';
+              // Submit when changing from custom to another option
+              debounceSubmit(100);
+            }
+          });
+        }
+        
+        // Reset filters
+        const resetFilters = document.getElementById('resetFilters');
+        if (resetFilters) {
+          resetFilters.addEventListener('click', function() {
+            window.location.href = '<%= gantt_path %>';
+          });
+        }
+        
+        // Hide Apply Filters button (optional, you can keep it for manual submission)
+        // document.getElementById('applyFilters').style.display = 'none';
+      }
+    </script>
+    
   <% else %>
     <!-- No data message -->
-    <div class="card shadow-sm border-0 card-hover">
+    <div class="card shadow-sm border-0">
       <div class="card-body text-center py-5">
         <div class="mb-4">
           <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
         </div>
         <h4 class="mb-3">No maintenance scheduled</h4>
-        <p class="text-muted mb-4">No maintenance records found for the selected filters and date range.</p>
-        <div class="d-flex justify-content-center gap-3">
+        <p class="text-muted mb-4">No maintenance records found with valid dates.</p>
+        
+        <div class="d-flex justify-content-center gap-3 mt-4">
           <%= link_to "View All Vehicles", vehicles_path, class: "btn btn-primary" %>
           <%= link_to "Add Maintenance", new_vehicle_maintenance_path(Vehicle.first), 
                 class: "btn btn-success" if Vehicle.any? %>
@@ -321,652 +460,3 @@
     </div>
   <% end %>
 </div>
-
-<style>
-  /* Gantt Chart Custom Styling */
-  .gantt_task_line {
-    border-radius: 4px;
-    opacity: 0.9;
-  }
-  
-  .gantt_task_line:hover {
-    opacity: 1;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    z-index: 100;
-  }
-  
-  .gantt_task_content {
-    font-size: 12px;
-    font-weight: 500;
-    color: white;
-    text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
-  }
-  
-  .gantt_row.odd {
-    background-color: #f8f9fa;
-  }
-  
-  .gantt_row.highlighted {
-    background-color: #e7f1ff !important;
-  }
-  
-  .legend-box {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    display: inline-block;
-  }
-  
-  /* Status specific colors for Gantt bars */
-  .gantt_completed {
-    background-color: #28a745 !important;
-    border-color: #218838 !important;
-  }
-  
-  .gantt_overdue {
-    background-color: #dc3545 !important;
-    border-color: #c82333 !important;
-  }
-  
-  .gantt_pending {
-    background-color: #ffc107 !important;
-    border-color: #e0a800 !important;
-  }
-  
-  .gantt_emergency {
-    background-color: #fd7e14 !important;
-    border-color: #e46c10 !important;
-  }
-  
-  .gantt_routine {
-    background-color: #0d6efd !important;
-    border-color: #0b5ed7 !important;
-  }
-  
-  .gantt_vehicle {
-    background-color: #6c757d !important;
-    border-color: #5c636a !important;
-  }
-</style>
-
-<script>
-// Global Gantt configuration
-const ganttConfig = {
-  data: null,
-  currentView: 'month',
-  currentOwner: 'all',
-  
-  init: function() {
-    this.loadData();
-    this.initGantt();
-    this.setupEventHandlers();
-  },
-  
-  loadData: function() {
-    const dataElement = document.getElementById('ganttData');
-    if (!dataElement) {
-      console.error('No Gantt data found');
-      return;
-    }
-    
-    try {
-      this.data = JSON.parse(dataElement.dataset.ganttTasks);
-      console.log('Gantt data loaded:', this.data);
-      
-      if (Rails.env.development) {
-        document.getElementById('taskCount').textContent = this.data.length;
-        document.getElementById('dataStructure').textContent = 'JSON parsed successfully';
-      }
-    } catch (error) {
-      console.error('Error parsing Gantt data:', error);
-      if (Rails.env.development) {
-        document.getElementById('dataStructure').textContent = 'Parse error: ' + error.message;
-      }
-    }
-  },
-  
-  initGantt: function() {
-    if (!this.data || this.data.length === 0) {
-      console.warn('No data to initialize Gantt chart');
-      return;
-    }
-    
-    // Initialize Gantt
-    gantt.config.date_format = "%Y-%m-%d %H:%i";
-    gantt.config.scale_height = 50;
-    gantt.config.row_height = 40;
-    gantt.config.bar_height = 30;
-    gantt.config.grid_width = 400;
-    gantt.config.fit_tasks = true;
-    gantt.config.autofit = true;
-    gantt.config.show_progress = true;
-    gantt.config.show_chart = true;
-    
-    // Enable drag and drop
-    gantt.config.drag_move = true;
-    gantt.config.drag_progress = true;
-    gantt.config.drag_resize = true;
-    gantt.config.drag_links = true;
-    
-    // Enable task links (dependencies)
-    gantt.config.drag_links = true;
-    gantt.config.link_attribute = "links";
-    
-    // Define columns
-    gantt.config.columns = [
-      { name: "text", label: "Task Name", width: 200, tree: true },
-      { name: "start_date", label: "Start", align: "center", width: 80 },
-      { name: "end_date", label: "End", align: "center", width: 80 },
-      { name: "duration", label: "Duration", align: "center", width: 70 },
-      { name: "status", label: "Status", align: "center", width: 80 },
-      { name: "urgency", label: "Urgency", align: "center", width: 80 },
-      { name: "owner", label: "Service Owner", align: "center", width: 100 }
-    ];
-    
-    // Define scales
-    gantt.config.scales = [
-      { unit: "month", step: 1, format: "%F, %Y" },
-      { unit: "week", step: 1, format: "Week #%W" },
-      { unit: "day", step: 1, format: "%j %M" }
-    ];
-    
-    // Customize task styling
-    gantt.templates.task_class = function(start, end, task) {
-      if (task.type === 'vehicle') return 'gantt_vehicle';
-      if (task.status === 'Completed') return 'gantt_completed';
-      if (task.overdue) return 'gantt_overdue';
-      if (task.urgency === 'emergency') return 'gantt_emergency';
-      if (task.urgency === 'routine') return 'gantt_routine';
-      return 'gantt_pending';
-    };
-    
-    // Format task text
-    gantt.templates.task_text = function(start, end, task) {
-      return task.text;
-    };
-    
-    // Format tooltip
-    gantt.templates.tooltip_text = function(start, end, task) {
-      const startStr = gantt.templates.tooltip_date_format(start);
-      const endStr = gantt.templates.tooltip_date_format(end);
-      const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-      
-      let html = `<b>${task.text}</b><br/>`;
-      html += `<b>Dates:</b> ${startStr} - ${endStr}<br/>`;
-      html += `<b>Duration:</b> ${duration} days<br/>`;
-      
-      if (task.status) html += `<b>Status:</b> ${task.status}<br/>`;
-      if (task.urgency) html += `<b>Urgency:</b> ${task.urgency}<br/>`;
-      if (task.details?.notes) html += `<b>Notes:</b> ${task.details.notes.substring(0, 50)}...<br/>`;
-      if (task.details?.cost > 0) html += `<b>Cost:</b> R${parseFloat(task.details.cost).toFixed(2)}<br/>`;
-      
-      return html;
-    };
-    
-    // Format grid dates
-    gantt.templates.grid_date_format = function(date) {
-      return gantt.date.date_to_str("%d %M")(date);
-    };
-    
-    // Initialize the chart
-    gantt.init("ganttContainer");
-    
-    // Parse and load data
-    const parsedData = this.parseDataForGantt(this.data);
-    gantt.parse(parsedData);
-    
-    // Fit content to view
-    gantt.fitContent();
-    
-    console.log('Gantt chart initialized with', parsedData.tasks.length, 'tasks');
-  },
-  
-  parseDataForGantt: function(data) {
-    const tasks = [];
-    const links = [];
-    
-    data.forEach(item => {
-      const task = {
-        id: item.id,
-        text: item.name,
-        start_date: new Date(item.start),
-        end_date: new Date(item.end),
-        parent: item.parent || 0,
-        type: item.type,
-        progress: item.details?.status === 'Completed' ? 1 : 0.5,
-        open: true,
-        status: item.details?.status || 'Pending',
-        urgency: item.details?.urgency || 'Normal',
-        owner: item.details?.service_owner || item.details?.owner || 'Unknown',
-        details: item.details || {},
-        color: item.color
-      };
-      
-      // Mark as overdue if end date is in past and status is pending
-      if (task.status === 'Pending' && new Date(item.end) < new Date()) {
-        task.overdue = true;
-      }
-      
-      tasks.push(task);
-    });
-    
-    return { data: tasks, links: links };
-  },
-  
-  changeViewMode: function(mode) {
-    this.currentView = mode;
-    
-    switch(mode) {
-      case 'day':
-        gantt.config.scales = [
-          { unit: "day", step: 1, format: "%d %M" },
-          { unit: "hour", step: 3, format: "%H:%i" }
-        ];
-        break;
-      case 'week':
-        gantt.config.scales = [
-          { unit: "week", step: 1, format: "Week #%W" },
-          { unit: "day", step: 1, format: "%d %M" }
-        ];
-        break;
-      case 'month':
-        gantt.config.scales = [
-          { unit: "month", step: 1, format: "%F, %Y" },
-          { unit: "week", step: 1, format: "Week #%W" }
-        ];
-        break;
-      case 'year':
-        gantt.config.scales = [
-          { unit: "year", step: 1, format: "%Y" },
-          { unit: "month", step: 1, format: "%M" }
-        ];
-        break;
-    }
-    
-    // Update button states
-    document.querySelectorAll('.btn-group .btn').forEach(btn => {
-      btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    gantt.render();
-  },
-  
-  setupEventHandlers: function() {
-    // Task click handler
-    gantt.attachEvent("onTaskClick", function(id, e) {
-      showTaskDetailsModal(id);
-      return true;
-    });
-    
-    // Task drag handler - for updating dates
-    gantt.attachEvent("onTaskDrag", function(id, mode, task) {
-      console.log('Task dragged:', id, mode, task);
-      return true;
-    });
-    
-    // After task update
-    gantt.attachEvent("onAfterTaskUpdate", function(id, task) {
-      console.log('Task updated:', id, task);
-      updateTaskInDatabase(id, task);
-      return true;
-    });
-    
-    // Lightbox handler
-    gantt.attachEvent("onLightbox", function(id) {
-      console.log('Lightbox opened for task:', id);
-      return true;
-    });
-  }
-};
-
-// Filter by service owner
-function filterByOwner(owner) {
-  ganttConfig.currentOwner = owner;
-  
-  if (owner === 'all') {
-    gantt.showTask(null);
-  } else {
-    const tasks = gantt.getTaskByTime();
-    tasks.forEach(task => {
-      const shouldShow = task.owner === owner || 
-                       (task.type === 'vehicle' && gantt.getChildren(task.id).some(childId => {
-                         const child = gantt.getTask(childId);
-                         return child.owner === owner;
-                       }));
-      gantt.showTask(task.id, shouldShow);
-    });
-  }
-  
-  gantt.render();
-}
-
-// Show task details modal
-function showTaskDetailsModal(taskId) {
-  const task = gantt.getTask(taskId);
-  if (!task) return;
-  
-  const modalContent = document.getElementById('taskDetailsContent');
-  let html = `
-    <div class="row">
-      <div class="col-md-8">
-        <h4>${task.text}</h4>
-        <div class="mb-3">
-          <span class="badge ${getStatusBadgeClass(task.status)} me-2">${task.status}</span>
-          <span class="badge ${getUrgencyBadgeClass(task.urgency)}">${task.urgency}</span>
-        </div>
-        
-        <table class="table table-sm">
-          <tr>
-            <th width="30%">Start Date:</th>
-            <td>${formatDate(task.start_date)}</td>
-          </tr>
-          <tr>
-            <th>End Date:</th>
-            <td>${formatDate(task.end_date)}</td>
-          </tr>
-          <tr>
-            <th>Duration:</th>
-            <td>${calculateDuration(task.start_date, task.end_date)} days</td>
-          </tr>
-          ${task.details?.cost > 0 ? `
-          <tr>
-            <th>Cost:</th>
-            <td>R${parseFloat(task.details.cost).toFixed(2)}</td>
-          </tr>` : ''}
-          ${task.details?.vehicle_id ? `
-          <tr>
-            <th>Vehicle:</th>
-            <td><a href="/vehicles/${task.details.vehicle_id}" target="_blank">View Vehicle</a></td>
-          </tr>` : ''}
-        </table>
-        
-        ${task.details?.notes ? `
-        <div class="card mt-3">
-          <div class="card-header">Notes</div>
-          <div class="card-body">
-            <p class="card-text">${task.details.notes}</p>
-          </div>
-        </div>` : ''}
-      </div>
-      
-      <div class="col-md-4">
-        <div class="card">
-          <div class="card-header">Quick Actions</div>
-          <div class="card-body">
-            <div class="d-grid gap-2">
-              <button class="btn btn-success btn-sm" onclick="markTaskCompleted('${taskId}')">
-                <i class="bi bi-check-circle"></i> Mark as Completed
-              </button>
-              <button class="btn btn-warning btn-sm" onclick="rescheduleTask('${taskId}')">
-                <i class="bi bi-calendar-event"></i> Reschedule
-              </button>
-              ${task.details?.maintenance_id ? `
-              <a href="/vehicles/${task.details.vehicle_id}/maintenances/${task.details.maintenance_id}/edit" 
-                 class="btn btn-primary btn-sm" target="_blank">
-                <i class="bi bi-pencil"></i> Edit Maintenance
-              </a>` : ''}
-            </div>
-          </div>
-        </div>
-        
-        <div class="card mt-3">
-          <div class="card-header">Progress</div>
-          <div class="card-body">
-            <div class="progress" style="height: 20px;">
-              <div class="progress-bar" role="progressbar" 
-                   style="width: ${task.progress * 100}%">
-                ${Math.round(task.progress * 100)}%
-              </div>
-            </div>
-            <input type="range" class="form-range mt-2" min="0" max="100" 
-                   value="${task.progress * 100}" 
-                   onchange="updateTaskProgress('${taskId}', this.value)">
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  modalContent.innerHTML = html;
-  
-  const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
-  modal.show();
-}
-
-// Update task progress
-function updateTaskProgress(taskId, progress) {
-  const task = gantt.getTask(taskId);
-  task.progress = progress / 100;
-  gantt.updateTask(taskId);
-  updateTaskInDatabase(taskId, task);
-}
-
-// Mark task as completed
-function markTaskCompleted(taskId) {
-  const task = gantt.getTask(taskId);
-  task.status = 'Completed';
-  task.progress = 1;
-  gantt.updateTask(taskId);
-  updateTaskInDatabase(taskId, task);
-  
-  // Show success message
-  showToast('Task marked as completed!', 'success');
-  
-  // Close modal after delay
-  setTimeout(() => {
-    bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal')).hide();
-  }, 1000);
-}
-
-// Update task in database (simulated - you'll need to implement the backend)
-function updateTaskInDatabase(taskId, taskData) {
-  // Extract maintenance ID from task ID
-  const maintenanceId = taskId.replace('maintenance_', '');
-  
-  if (!maintenanceId || isNaN(maintenanceId)) {
-    console.log('Cannot update - not a maintenance task:', taskId);
-    return;
-  }
-  
-  // Prepare update data
-  const updateData = {
-    maintenance: {
-      start_date: formatDateForBackend(taskData.start_date),
-      end_date: formatDateForBackend(taskData.end_date),
-      status: taskData.status,
-      progress: taskData.progress
-    }
-  };
-  
-  // Send update to server
-  fetch(`/maintenances/${maintenanceId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
-    },
-    body: JSON.stringify(updateData)
-  })
-  .then(response => {
-    if (response.ok) {
-      console.log('Task updated successfully');
-      showToast('Changes saved!', 'success');
-    } else {
-      throw new Error('Update failed');
-    }
-  })
-  .catch(error => {
-    console.error('Error updating task:', error);
-    showToast('Error saving changes', 'danger');
-  });
-}
-
-// Helper functions
-function formatDate(date) {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-}
-
-function formatDateForBackend(date) {
-  return new Date(date).toISOString().split('T')[0];
-}
-
-function calculateDuration(start, end) {
-  const diff = new Date(end) - new Date(start);
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function getStatusBadgeClass(status) {
-  switch(status) {
-    case 'Completed': return 'bg-success';
-    case 'Overdue': return 'bg-danger';
-    case 'Pending': return 'bg-warning';
-    default: return 'bg-secondary';
-  }
-}
-
-function getUrgencyBadgeClass(urgency) {
-  switch(urgency) {
-    case 'emergency': return 'bg-danger';
-    case 'scheduled': return 'bg-warning text-dark';
-    case 'routine': return 'bg-primary';
-    default: return 'bg-secondary';
-  }
-}
-
-function showToast(message, type = 'info') {
-  // Create toast element
-  const toastId = 'toast-' + Date.now();
-  const toastHtml = `
-    <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0" role="alert">
-      <div class="d-flex">
-        <div class="toast-body">
-          ${message}
-        </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-      </div>
-    </div>
-  `;
-  
-  // Add to container
-  const container = document.getElementById('toastContainer') || createToastContainer();
-  container.innerHTML += toastHtml;
-  
-  // Show toast
-  const toastElement = document.getElementById(toastId);
-  const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
-  toast.show();
-  
-  // Remove after hide
-  toastElement.addEventListener('hidden.bs.toast', function () {
-    this.remove();
-  });
-}
-
-function createToastContainer() {
-  const container = document.createElement('div');
-  container.id = 'toastContainer';
-  container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-  container.style.zIndex = '9999';
-  document.body.appendChild(container);
-  return container;
-}
-
-// Export to PDF
-function exportGanttPDF() {
-  gantt.exportToPDF({
-    format: "A4",
-    header: "Maintenance Schedule - <%= Date.today.strftime('%B %d, %Y') %>"
-  });
-}
-
-// Show critical path
-function showCriticalPath() {
-  const tasks = gantt.getTaskByTime();
-  const criticalTasks = tasks.filter(task => 
-    task.urgency === 'emergency' || 
-    task.overdue || 
-    (task.status === 'Pending' && new Date(task.end_date) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
-  );
-  
-  if (criticalTasks.length === 0) {
-    showToast('No critical tasks found', 'info');
-    return;
-  }
-  
-  let message = `Found ${criticalTasks.length} critical tasks:\n\n`;
-  criticalTasks.forEach(task => {
-    message += `• ${task.text} (${task.status}) - Due: ${formatDate(task.end_date)}\n`;
-  });
-  
-  alert(message);
-}
-
-// Debug function
-function debugGantt() {
-  console.log('Gantt instance:', gantt);
-  console.log('All tasks:', gantt.getTaskByTime());
-  console.log('Data source:', ganttConfig.data);
-  
-  // Count by type
-  const tasks = gantt.getTaskByTime();
-  const counts = {
-    vehicle: tasks.filter(t => t.type === 'vehicle').length,
-    maintenance: tasks.filter(t => t.type === 'maintenance').length,
-    completed: tasks.filter(t => t.status === 'Completed').length,
-    pending: tasks.filter(t => t.status === 'Pending').length,
-    overdue: tasks.filter(t => t.overdue).length
-  };
-  
-  alert(`Task Counts:\n\n` +
-        `Vehicles: ${counts.vehicle}\n` +
-        `Maintenances: ${counts.maintenance}\n` +
-        `Completed: ${counts.completed}\n` +
-        `Pending: ${counts.pending}\n` +
-        `Overdue: ${counts.overdue}`);
-}
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize tooltips
-  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-  
-  // Initialize date range toggle
-  const dateRangeSelect = document.getElementById('dateRange');
-  const customDateRange = document.getElementById('customDateRange');
-  
-  if (dateRangeSelect) {
-    dateRangeSelect.addEventListener('change', function() {
-      if (this.value === 'custom') {
-        customDateRange.style.display = 'block';
-      } else {
-        customDateRange.style.display = 'none';
-      }
-    });
-  }
-  
-  // Reset filters
-  const resetButton = document.getElementById('resetFilters');
-  if (resetButton) {
-    resetButton.addEventListener('click', function() {
-      window.location.href = '<%= gantt_path %>';
-    });
-  }
-  
-  // Initialize Gantt chart if data exists
-  if (<%= @gantt_tasks&.any? || false %>) {
-    ganttConfig.init();
-  }
-});
-</script>
-
-<% if @gantt_tasks&.any? %>
-  <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999"></div>
-<% end %>

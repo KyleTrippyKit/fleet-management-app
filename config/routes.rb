@@ -24,6 +24,7 @@ Rails.application.routes.draw do
     resources :maintenances do
       member do
         patch :mark_completed
+        patch :update_gantt  # Add this for Gantt updates
         get :confirm_delete
       end
     end
@@ -34,7 +35,6 @@ Rails.application.routes.draw do
     # Collection routes
     collection do
       get :analytics
-      # REMOVE THIS: get :gantt  # ← This doesn't exist in VehiclesController
       get :maintenance_dashboard
       get :export_csv
       get :themes
@@ -56,9 +56,12 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # Standalone maintenances
+  # Standalone maintenances (for Gantt updates)
   # ========================
   resources :maintenances, only: [] do
+    member do
+      patch :update_gantt  # Add this route for direct updates
+    end
     collection do
       get :new_with_rfid
     end
