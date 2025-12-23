@@ -6,20 +6,31 @@ class MaintenancesController < ApplicationController
   # GET /gantt
   def gantt
     Rails.logger.info "=== GANTT CHART DEBUG ==="
+    
+    # Get all maintenances with dates
     @maintenances = Maintenance.includes(:vehicle)
                                .where.not(start_date: nil)
                                .where.not(end_date: nil)
                                .order(:start_date)
+    
     Rails.logger.info "Total maintenances with dates: #{@maintenances.count}"
+    
+    # Apply filters
     @maintenances = apply_filters(@maintenances)
     Rails.logger.info "After filtering: #{@maintenances.count} maintenances"
+    
+    # Prepare Gantt data
     prepare_gantt_data(@maintenances)
     Rails.logger.info "Gantt tasks prepared: #{@gantt_tasks&.count || 0}"
-    Rails.logger.info "Gantt JSON length: #{@gantt_json&.length || 0}"
+    Rails.logger.info "Vehicle tasks: #{@gantt_tasks&.count { |t| t[:type] == 'vehicle' } || 0}"
+    Rails.logger.info "Maintenance tasks: #{@gantt_tasks&.count { |t| t[:type] == 'maintenance' } || 0}"
+    
+    # Set up filter options
     @service_owners = Vehicle.distinct.pluck(:service_owner).compact
     @vehicles_for_filter = Vehicle.all.order(:make, :model)
     @processed_maintenances = @maintenances
 
+    # Debug logging
     if @maintenances.any?
       Rails.logger.info "Sample maintenance data:"
       @maintenances.first(3).each do |m|
@@ -189,27 +200,36 @@ class MaintenancesController < ApplicationController
     @gantt_tasks = []
     return if maintenances.empty?
 
-    Rails.logger.info "Preparing Gantt data for #{maintenances.count} maintenances"
-    vehicles = maintenances.group_by(&:vehicle)
-    Rails.logger.info "Grouped into #{vehicles.count} vehicles"
-
-    vehicles.each do |vehicle, vehicle_maintenances|
-      next unless vehicle
-      next if vehicle_maintenances.empty?
-
-      # Get min start date and max end date for this vehicle
-      vehicle_start = vehicle_maintenances.map(&:start_date).compact.min
-      vehicle_end = vehicle_maintenances.map(&:end_date).compact.max
-
-      # Skip if no valid dates found
-      next unless vehicle_start && vehicle_end
-
-      # Convert to timestamps (milliseconds since 1970)
-      vehicle_task = {
+    Rails.logger.info "=== PREPARING GANTT DATA ==="
+    Rails.logger.info "Processing #{maintenances.count} maintenances"
+    
+    # Group maintenances by vehicle
+    vehicles_grouped = maintenances.group_by(&:vehicle)
+    Rails.logger.info "Grouped into #{vehicles_grouped.keys.compact.count} vehicles"
+    
+    vehicles_grouped.each do |vehicle, vehicle_maintenances|
+      next unless vehicle && vehicle_maintenances.any?
+      
+      Rails.logger.info "Processing vehicle: #{vehicle.id} - #{vehicle.make} #{vehicle.model}"
+      Rails.logger.info "  Has #{vehicle_maintenances.count} maintenances"
+      
+      # Find min start date and max end date for this vehicle
+      start_dates = vehicle_maintenances.map(&:start_date).compact
+      end_dates = vehicle_maintenances.map(&:end_date).compact
+      
+      next if start_dates.empty? || end_dates.empty?
+      
+      vehicle_start = start_dates.min
+      vehicle_end = end_dates.max
+      
+      Rails.logger.info "  Vehicle date range: #{vehicle_start} to #{vehicle_end}"
+      
+      # Vehicle task
+      @gantt_tasks << {
         id: "vehicle_#{vehicle.id}",
         name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
-        start: vehicle_start.to_time.to_i * 1000,  # Timestamp in milliseconds
-        end: vehicle_end.to_time.to_i * 1000,      # Timestamp in milliseconds
+        start: vehicle_start.to_time.to_i * 1000,
+        end: vehicle_end.to_time.to_i * 1000,
         parent: "0",
         type: 'vehicle',
         color: '#6c757d',
@@ -219,25 +239,20 @@ class MaintenancesController < ApplicationController
           current_driver: vehicle.driver&.name || 'Unassigned'
         }
       }
-      @gantt_tasks << vehicle_task
-
-      vehicle_maintenances.each do |maintenance|
-        # Safely get dates with fallbacks
-        start_date = maintenance.start_date || Date.today
-        end_date = maintenance.end_date || (Date.today + 7.days)
+      
+      # Maintenance tasks for this vehicle
+      vehicle_maintenances.each_with_index do |maintenance, index|
+        next unless maintenance.start_date && maintenance.end_date
         
-        # Calculate duration
-        begin
-          duration = (end_date - start_date).to_i + 1
-        rescue
-          duration = 7
-        end
-
-        task = {
+        Rails.logger.info "  Adding maintenance #{index + 1}: #{maintenance.service_type}"
+        Rails.logger.info "    Dates: #{maintenance.start_date} to #{maintenance.end_date}"
+        Rails.logger.info "    Status: #{maintenance.status}, Urgency: #{maintenance.urgency}"
+        
+        @gantt_tasks << {
           id: "maintenance_#{maintenance.id}",
           name: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
-          start: start_date.to_time.to_i * 1000,  # Timestamp in milliseconds
-          end: end_date.to_time.to_i * 1000,      # Timestamp in milliseconds
+          start: maintenance.start_date.to_time.to_i * 1000,
+          end: maintenance.end_date.to_time.to_i * 1000,
           parent: "vehicle_#{vehicle.id}",
           type: 'maintenance',
           color: maintenance.gantt_bar_color || 'rgba(108, 117, 125, 0.8)',
@@ -248,17 +263,25 @@ class MaintenancesController < ApplicationController
             notes: maintenance.notes.to_s,
             vehicle_id: vehicle.id,
             maintenance_id: maintenance.id,
-            duration: duration
+            duration: maintenance.duration_days
           }
         }
-        @gantt_tasks << task
       end
     end
 
     @gantt_json = @gantt_tasks.to_json
-    Rails.logger.info "Generated JSON with #{@gantt_tasks.count} tasks"
+    Rails.logger.info "=== GANTT DATA PREPARED ==="
+    Rails.logger.info "Total tasks generated: #{@gantt_tasks.count}"
+    Rails.logger.info "Vehicle tasks: #{@gantt_tasks.count { |t| t[:type] == 'vehicle' }}"
+    Rails.logger.info "Maintenance tasks: #{@gantt_tasks.count { |t| t[:type] == 'maintenance' }}"
+    
     if @gantt_tasks.any?
-      Rails.logger.info "First task sample: #{@gantt_tasks.first}"
+      Rails.logger.info "Sample data:"
+      @gantt_tasks.first(3).each do |task|
+        Rails.logger.info "  #{task[:type]}: #{task[:name]}"
+        Rails.logger.info "    Start: #{task[:start]} (#{Time.at(task[:start]/1000)})"
+        Rails.logger.info "    End: #{task[:end]} (#{Time.at(task[:end]/1000)})"
+      end
     end
   end
 
