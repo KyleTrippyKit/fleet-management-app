@@ -18,7 +18,7 @@ Rails.application.configure do
   config.assets.compile = false  # Don't compile on the fly
   config.assets.digest = true    # Add fingerprint to assets
   config.assets.css_compressor = :sass
-  config.assets.js_compressor = :terser
+  config.assets.js_compressor = :terser  # This requires the terser gem
   config.assets.gzip = true
   
   # Precompile additional assets

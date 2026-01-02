@@ -52,3 +52,5 @@ gem 'bullet', group: :development
 gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
 gem 'faker'
 gem "aws-sdk-s3", require: false
+# JavaScript compressor
+gem 'terser', '~> 1.2'
