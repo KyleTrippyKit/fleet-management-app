@@ -8,7 +8,7 @@ FROM ruby:${RUBY_VERSION}-slim AS base
 
 WORKDIR /rails
 
-# Runtime dependencies
+# Runtime dependencies ONLY
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       curl \
@@ -17,7 +17,6 @@ RUN apt-get update -qq && \
       libvips-tools \
       postgresql-client \
       imagemagick \
-      libmagickwand-dev \
       poppler-utils \
       ca-certificates \
       shared-mime-info && \
@@ -38,7 +37,7 @@ ENV RAILS_ENV=production \
 #################################
 FROM base AS build
 
-# Build dependencies
+# Build dependencies - development libraries for compilation
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -49,8 +48,8 @@ RUN apt-get update -qq && \
       python-is-python3 \
       nodejs \
       npm \
-      libvips-dev \ # CRITICAL: vips development headers
-      libmagickwand-dev \ # CRITICAL: imagemagick development headers
+      libvips-dev \
+      libmagickwand-dev \
       libglib2.0-dev \
       libexpat1-dev && \
     rm -rf /var/lib/apt/lists/*
@@ -67,12 +66,12 @@ RUN bundle install && \
 # Copy app
 COPY . .
 
-# Precompile assets with dummy secret
+# Precompile assets
 RUN SECRET_KEY_BASE=dummy \
     RAILS_ENV=production \
     bundle exec rails assets:precompile
 
-# Copy placeholder images to public folder for Render
+# Copy placeholder images to public folder for direct serving on Render
 RUN mkdir -p public/placeholders && \
     cp -r app/assets/images/placeholders/* public/placeholders/ 2>/dev/null || echo "Placeholders copied" && \
     cp -r public/assets/placeholders/* public/placeholders/ 2>/dev/null || echo "Compiled placeholders copied"
