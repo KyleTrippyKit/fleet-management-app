@@ -38,7 +38,7 @@ ENV RAILS_ENV=production \
 #################################
 FROM base AS build
 
-# Build dependencies - FIXED: Missing development libraries
+# Build dependencies
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -49,8 +49,8 @@ RUN apt-get update -qq && \
       python-is-python3 \
       nodejs \
       npm \
-      libvips-dev \           # CRITICAL: vips development headers
-      libmagickwand-dev \     # CRITICAL: imagemagick development headers
+      libvips-dev \ # CRITICAL: vips development headers
+      libmagickwand-dev \ # CRITICAL: imagemagick development headers
       libglib2.0-dev \
       libexpat1-dev && \
     rm -rf /var/lib/apt/lists/*
@@ -67,12 +67,12 @@ RUN bundle install && \
 # Copy app
 COPY . .
 
-# Precompile assets - WITH PLACEHOLDER COPY
+# Precompile assets with dummy secret
 RUN SECRET_KEY_BASE=dummy \
     RAILS_ENV=production \
     bundle exec rails assets:precompile
 
-# Copy placeholder images to public folder for direct serving on Render
+# Copy placeholder images to public folder for Render
 RUN mkdir -p public/placeholders && \
     cp -r app/assets/images/placeholders/* public/placeholders/ 2>/dev/null || echo "Placeholders copied" && \
     cp -r public/assets/placeholders/* public/placeholders/ 2>/dev/null || echo "Compiled placeholders copied"
