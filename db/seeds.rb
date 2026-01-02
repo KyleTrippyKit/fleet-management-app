@@ -7,31 +7,29 @@ users = [
 
 puts "Seeding vehicles..."
 vehicle_data = [
-  { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "XYZ-789", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police", image_file: "Ford.webp" },
-  { make: "Higer", model: "Bus", vehicle_type: "Bus", license_plate: "HIG-001", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2021, service_owner: "PTSC", image_file: "Higer.jpg" },
-  { make: "Isuzu", model: "D-Max", vehicle_type: "Truck", license_plate: "ISU-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC", image_file: "Isuzu.jpg" },
-  { make: "Nissan", model: "Sentra", vehicle_type: "Sedan", license_plate: "NIS-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2018, service_owner: "Police", image_file: "Nissan.webp" },
-  { make: "Suzuki", model: "Swift", vehicle_type: "Hatchback", license_plate: "SUZ-789", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2022, service_owner: "PTSC", image_file: "Suzuki.jpg" },
-  { make: "Toyota", model: "Corolla", vehicle_type: "Sedan", license_plate: "TOY-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC", image_file: "toyota.jpg" },
-  { make: "Toyota", model: "Hilux", vehicle_type: "Truck", license_plate: "TOY-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2021, service_owner: "Fire Service", image_file: "Toyota.jpeg" }
+  { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "XYZ-789", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police" },
+  { make: "Higer", model: "Bus", vehicle_type: "Bus", license_plate: "HIG-001", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2021, service_owner: "PTSC" },
+  { make: "Isuzu", model: "D-Max", vehicle_type: "Truck", license_plate: "ISU-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
+  { make: "Nissan", model: "Sentra", vehicle_type: "Sedan", license_plate: "NIS-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2018, service_owner: "Police" },
+  { make: "Suzuki", model: "Swift", vehicle_type: "Hatchback", license_plate: "SUZ-789", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2022, service_owner: "PTSC" },
+  { make: "Toyota", model: "Corolla", vehicle_type: "Sedan", license_plate: "TOY-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
+  { make: "Toyota", model: "Hilux", vehicle_type: "Truck", license_plate: "TOY-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2021, service_owner: "Fire Service" }
 ]
 
 vehicles = vehicle_data.map do |attrs|
-  image_file = attrs.delete(:image_file)
-  vehicle = Vehicle.create!(attrs)
+  Vehicle.create!(attrs)
+end
 
-  image_path = Rails.root.join("app/assets/images/placeholders/#{image_file}")
-  if File.exist?(image_path)
-    vehicle.image.attach(
-      io: File.open(image_path),
-      filename: image_file
-    )
-    puts "Attached image #{image_file} to #{vehicle.make} #{vehicle.model}"
-  else
-    puts "Image #{image_file} not found for #{vehicle.make} #{vehicle.model}"
-  end
-
-  vehicle
+# Optional: Add some example photo uploads in development
+if Rails.env.development?
+  puts "Adding example photo to first vehicle..."
+  # You can add code here to attach test images if you have them
+  # Example:
+  # vehicles.first.primary_photo.attach(
+  #   io: File.open(Rails.root.join('app/assets/images/placeholders/Ford.webp')),
+  #   filename: 'ford_example.jpg',
+  #   content_type: 'image/jpeg'
+  # )
 end
 
 puts "Seeding drivers..."
@@ -52,5 +50,5 @@ trips_data = [
 trips_data.each { |trip_attrs| Trip.create!(trip_attrs) }
 
 puts "Seeding complete!"
-puts "You can log in with these users:"
-users.each { |u| puts "Email: #{u.email} | Password: password123" }
+puts "✓ Vehicle images will load from ActiveStorage uploads or fall back to placeholders"
+puts "✓ Placeholder images are in app/assets/images/placeholders/"

@@ -1,65 +1,128 @@
 module VehiclesHelper
+  # Primary method to get vehicle image - uses ActiveStorage with fallback to asset pipeline
   def vehicle_image(vehicle, variant: :medium)
-    # Try image attachment first (Active Storage)
-    if vehicle.image.attached?
-      variant_options = case variant
+    # Priority 1: Use ActiveStorage primary_photo if uploaded
+    if vehicle.primary_photo.attached?
+      case variant
       when :thumb
-        { resize_to_limit: [400, 300] }  # For index/cards
+        vehicle.primary_photo.variant(resize_to_limit: [150, 100])
       when :medium
-        { resize_to_limit: [800, 600] }  # For show pages
+        vehicle.primary_photo.variant(resize_to_limit: [400, 300])
       when :large
-        { resize_to_limit: [1200, 900] } # For full details
+        vehicle.primary_photo.variant(resize_to_limit: [800, 600])
       else
-        { resize_to_limit: [800, 600] }
+        vehicle.primary_photo
       end
-      
-      # Return variant URL
-      begin
-        vehicle.image.variant(variant_options).processed.url
-      rescue => e
-        Rails.logger.error "Failed to process image variant: #{e.message}"
-        vehicle.image
-      end
-    elsif vehicle.picture.attached?
-      # Fallback to picture attribute (string/path)
-      vehicle.picture
+    # Priority 2: Use asset pipeline placeholder images
     else
-      # Placeholder logic
-      make_name = vehicle.make.to_s.downcase
-      extensions = %w[png jpg jpeg webp]
-      
-      placeholder = extensions.map { |ext| "placeholders/#{make_name}.#{ext}" }.find do |path|
-        Rails.root.join("app/assets/images/#{path}").exist?
-      end
-      
-      asset_path(placeholder || "placeholders/default.png")
+      vehicle_placeholder_image(vehicle, variant: variant)
     end
   end
   
-  # Helper to determine which variant to use based on context
-  def image_variant_for_context(context = :index)
-    case context
-    when :index, :card
-      :thumb
-    when :show
-      :medium
-    when :full
-      :large
+  # Asset pipeline placeholder images (fallback)
+  def vehicle_placeholder_image(vehicle, variant: :medium)
+    # Map vehicles to your placeholder images
+    image_mapping = {
+      'Ford' => 'placeholders/Ford.webp',
+      'Higer' => 'placeholders/Higer.jpg', 
+      'Isuzu' => 'placeholders/Isuzu.jpg',
+      'Nissan' => 'placeholders/Nissan.webp',
+      'Suzuki' => 'placeholders/Suzuki.jpg',
+      'Toyota' => vehicle.model == 'Hilux' ? 'placeholders/Toyota.jpeg' : 'placeholders/toyota.jpg'
+    }
+    
+    # Find image by make, fallback to default
+    image_path = image_mapping[vehicle.make] || 'placeholders/default.png'
+    
+    # Return the asset path
+    asset_path(image_path)
+  end
+  
+  # Check if vehicle has uploaded photo
+  def has_uploaded_photo?(vehicle)
+    vehicle.primary_photo.attached?
+  end
+  
+  # Gallery photo helpers
+  def gallery_photos(vehicle)
+    vehicle.gallery_photos.attached? ? vehicle.gallery_photos : []
+  end
+  
+  def has_gallery_photos?(vehicle)
+    vehicle.gallery_photos.attached?
+  end
+  
+  # Simple mapping for service owner badges
+  def service_owner_badge_class(owner)
+    case owner
+    when 'Police'
+      'owner-police'
+    when 'Fire Service'
+      'owner-fire_service'
+    when 'PTSC'
+      'owner-ptsc'
     else
-      :medium
+      'bg-secondary'
     end
   end
-end
+  
+  # Helper for utilization color classes
+  def utilization_class(vehicle)
+    percent = vehicle.utilization_percent.to_i rescue 0
 
-def utilization_class(vehicle)
-  percent = vehicle.utilization_percent.to_i
-
-  case percent
-  when 0..29
-    "utilization-low"
-  when 30..69
-    "utilization-medium"
-  else
-    "utilization-high"
+    case percent
+    when 0..29
+      "utilization-low"
+    when 30..69
+      "utilization-medium"
+    else
+      "utilization-high"
+    end
+  end
+  
+  # Display utilization percentage with color
+  def utilization_display(utilization)
+    content_tag(:span, class: "badge bg-#{utilization_color(utilization)}") do
+      "#{utilization.round(1)}%" if utilization.present?
+    end
+  end
+  
+  # Utilization color helper (compatible with controller method)
+  def utilization_color(utilization)
+    case utilization.to_f
+    when 0..30 then 'danger'
+    when 31..70 then 'warning'
+    else 'success'
+    end
+  end
+  
+  # Owner color helper (compatible with controller method)
+  def owner_color(owner)
+    case owner
+    when 'PTSC' then 'primary'
+    when 'Police' then 'danger'
+    when 'Fire Service' then 'warning'
+    else 'secondary'
+    end
+  end
+  
+  # Vehicle status badge
+  def vehicle_status_badge(vehicle)
+    content_tag(:span, class: "badge #{vehicle.status_badge_class}") do
+      vehicle.status_display
+    end
+  end
+  
+  # Photo upload info text
+  def photo_upload_info(vehicle)
+    if has_uploaded_photo?(vehicle)
+      content_tag(:small, class: "text-success") do
+        "✓ Custom photo uploaded"
+      end
+    else
+      content_tag(:small, class: "text-muted") do
+        "Using default placeholder based on vehicle make"
+      end
+    end
   end
 end
