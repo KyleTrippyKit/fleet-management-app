@@ -19,108 +19,125 @@
     <% end %>
   </ul>
 
-  <!-- Filters -->
+  <!-- Filters - All in one row -->
   <%= form_with url: vehicles_path, method: :get, local: true,
-        html: { id: "vehicles_filter_form" },
-        class: "row g-3 align-items-end mb-5" do |f| %>
+        html: { id: "vehicles_filter_form", 
+                class: "filter-form mb-5", 
+                data: { turbo_action: "replace", turbo_frame: "vehicles_list" } } do |f| %>
 
-    <div class="col-md-5">
-      <%= f.text_field :query,
-            value: @query,
-            placeholder: "Search by make, model, or plate...",
-            class: "form-control shadow-sm rounded" %>
-    </div>
+    <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-3">
+      <!-- Left side: Search + Filter -->
+      <div class="flex-grow-1">
+        <div class="input-group" style="max-width: 600px;">
+          <%= f.text_field :query,
+                value: @query,
+                placeholder: "Search by make, model, or plate...",
+                class: "form-control shadow-sm",
+                style: "flex: 1 1 auto;",
+                data: { controller: "search", action: "input->search#submit" } %>
+          
+          <span class="input-group-text bg-white border-start-0 border-end-0 px-3">
+            <i class="bi bi-funnel"></i>
+          </span>
+          
+          <%= f.select :owner,
+                options_for_select(["All", "PTSC", "Police", "Fire Service"], @owner_filter || "All"),
+                {},
+                class: "form-select shadow-sm",
+                style: "flex: 1 1 auto; min-width: 150px;",
+                id: "owner_filter",
+                data: { action: "change->search#submit" } %>
+        </div>
+      </div>
 
-    <div class="col-md-3">
-      <%= f.select :owner,
-            options_for_select(["All", "PTSC", "Police", "Fire Service"], @owner_filter || "All"),
-            {},
-            class: "form-select shadow-sm rounded",
-            id: "owner_filter" %>
-    </div>
-
-    <div class="col-md-4 d-flex justify-content-md-end gap-2">
-      <%= f.submit "Search", class: "btn btn-primary fw-bold shadow-sm" %>
-      <%= link_to "Add Vehicle", new_vehicle_path, class: "btn btn-success fw-bold shadow-sm" %>
+      <!-- Right side: Buttons -->
+      <div class="d-flex gap-2 justify-content-end flex-shrink-0">
+        <%= f.submit "Search", class: "btn btn-primary fw-bold shadow-sm px-4" %>
+        <%= link_to new_vehicle_path, class: "btn btn-success fw-bold shadow-sm d-flex align-items-center px-4" do %>
+          <i class="bi bi-plus-circle me-2"></i> Add Vehicle
+        <% end %>
+      </div>
     </div>
   <% end %>
 
   <!-- VEHICLE CARDS -->
   <% if @vehicles.any? %>
-    <div class="row g-4">
-      <% @vehicles.each do |vehicle| %>
+    <%= turbo_frame_tag "vehicles_list" do %>
+      <div class="row g-4">
+        <% @vehicles.each do |vehicle| %>
 
-        <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
-        <% maintenance_due =
-             last_maintenance.nil? ||
-             (last_maintenance.next_due_date && last_maintenance.next_due_date < Date.today) %>
+          <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
+          <% maintenance_due =
+               last_maintenance.nil? ||
+               (last_maintenance.next_due_date && last_maintenance.next_due_date < Date.today) %>
 
-        <% ribbon_color =
-             case vehicle.service_owner
-             when 'PTSC' then maintenance_due ? '#004aad' : '#0d6efd'
-             when 'Police' then maintenance_due ? '#002244' : '#003366'
-             when 'Fire Service' then maintenance_due ? '#b02a37' : '#dc3545'
-             else maintenance_due ? '#6c757d' : '#198754'
-             end %>
+          <% ribbon_color =
+               case vehicle.service_owner
+               when 'PTSC' then maintenance_due ? '#004aad' : '#0d6efd'
+               when 'Police' then maintenance_due ? '#002244' : '#003366'
+               when 'Fire Service' then maintenance_due ? '#b02a37' : '#dc3545'
+               else maintenance_due ? '#6c757d' : '#198754'
+               end %>
 
-        <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
-          <div class="vehicle-card card shadow-sm border-0 rounded overflow-hidden">
+          <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
+            <div class="vehicle-card card shadow-sm border-0 rounded overflow-hidden">
 
-            <!-- Image Container -->
-            <div class="image-container compact-image">
-              <!-- Status Ribbon on top -->
-              <div class="status-ribbon" style="background-color: <%= ribbon_color %>;">
-                <%= maintenance_due ? "Maintenance Due" : "Active" %>
-              </div>
+              <!-- Image Container -->
+              <div class="image-container compact-image">
+                <!-- Status Ribbon on top -->
+                <div class="status-ribbon" style="background-color: <%= ribbon_color %>;">
+                  <%= maintenance_due ? "Maintenance Due" : "Active" %>
+                </div>
 
-              <!-- Vehicle Image -->
-              <%= link_to vehicle_path(vehicle) do %>
-                <%= image_tag vehicle_image(vehicle, variant: :thumb),
-                      class: "vehicle-image",
-                      loading: "lazy",
-                      style: "width: 100%; height: 180px; object-fit: contain;",
-                      onload: "this.style.opacity='1';",
-                      onerror: "this.style.display='none';" %>
-              <% end %>
-            </div>
-
-            <!-- Card Body -->
-            <div class="card-body">
-              <h5 class="fw-bold mb-2">
-                <%= vehicle.make %> <%= vehicle.model %>
-                <% if vehicle.license_plate.present? %>
-                  <span class="badge bg-dark ms-1"><%= vehicle.license_plate %></span>
+                <!-- Vehicle Image -->
+                <%= link_to vehicle_path(vehicle) do %>
+                  <%= image_tag vehicle_image(vehicle, variant: :thumb),
+                        class: "vehicle-image",
+                        loading: "lazy",
+                        style: "width: 100%; height: 180px; object-fit: contain;",
+                        onload: "this.style.opacity='1';",
+                        onerror: "this.style.display='none';" %>
                 <% end %>
-              </h5>
-
-              <p class="mb-2">
-                <span class="badge service-badge
-                  <%= vehicle.service_owner == 'Police' ? 'bg-police' :
-                      vehicle.service_owner == 'Fire Service' ? 'bg-fire' : 'bg-primary' %>">
-                  <%= vehicle.service_owner %>
-                </span>
-              </p>
-
-              <p class="text-muted small mb-3">
-                Last Maintenance:
-                <%= last_maintenance&.date || "None" %>
-              </p>
-
-              <div class="d-flex justify-content-between">
-                <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45 fw-bold" %>
-                <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45 fw-bold" %>
               </div>
+
+              <!-- Card Body -->
+              <div class="card-body">
+                <h5 class="fw-bold mb-2">
+                  <%= vehicle.make %> <%= vehicle.model %>
+                  <% if vehicle.license_plate.present? %>
+                    <span class="badge bg-dark ms-1"><%= vehicle.license_plate %></span>
+                  <% end %>
+                </h5>
+
+                <p class="mb-2">
+                  <span class="badge service-badge
+                    <%= vehicle.service_owner == 'Police' ? 'bg-police' :
+                        vehicle.service_owner == 'Fire Service' ? 'bg-fire' : 'bg-primary' %>">
+                    <%= vehicle.service_owner %>
+                  </span>
+                </p>
+
+                <p class="text-muted small mb-3">
+                  Last Maintenance:
+                  <%= last_maintenance&.date || "None" %>
+                </p>
+
+                <div class="d-flex justify-content-between">
+                  <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45 fw-bold" %>
+                  <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45 fw-bold" %>
+                </div>
+              </div>
+
             </div>
-
           </div>
-        </div>
 
-      <% end %>
-    </div>
+        <% end %>
+      </div>
 
-    <div class="mt-4 d-flex justify-content-center">
-      <%= paginate @vehicles %>
-    </div>
+      <div class="mt-4 d-flex justify-content-center">
+        <%= paginate @vehicles %>
+      </div>
+    <% end %>
 
   <% else %>
     <div class="alert alert-info shadow-sm">
@@ -130,41 +147,165 @@
   <% end %>
 </div>
 
+<!-- Add Bootstrap Icons CDN if not already included -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+<!-- Fallback vanilla JavaScript -->
 <script>
-  document.addEventListener("turbo:load", () => {
-    const ownerSelect = document.getElementById("owner_filter");
-    if (ownerSelect) {
-      ownerSelect.addEventListener("change", () =>
-        document.getElementById("vehicles_filter_form").requestSubmit()
-      );
+document.addEventListener("turbo:load", function() {
+  console.log("Turbo loaded - setting up form auto-submit");
+  
+  const form = document.getElementById("vehicles_filter_form");
+  const turboFrame = document.getElementById("vehicles_list");
+  
+  if (!form) {
+    console.error("Form not found!");
+    return;
+  }
+  
+  console.log("Form found:", form);
+  
+  function showSpinner() {
+    if (!turboFrame) return;
+    
+    let overlay = turboFrame.querySelector('.loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'loading-overlay d-flex justify-content-center align-items-center';
+      overlay.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+      turboFrame.appendChild(overlay);
+    }
+  }
+  
+  function hideSpinner() {
+    if (!turboFrame) return;
+    
+    const overlay = turboFrame.querySelector('.loading-overlay');
+    if (overlay) overlay.remove();
+  }
+  
+  // Method 1: Direct event listener
+  const ownerSelect = document.getElementById("owner_filter");
+  console.log("Owner select found:", ownerSelect);
+  
+  if (ownerSelect) {
+    // Remove any existing listeners first
+    const newOwnerSelect = ownerSelect.cloneNode(true);
+    ownerSelect.parentNode.replaceChild(newOwnerSelect, ownerSelect);
+    
+    // Add the event listener
+    newOwnerSelect.addEventListener("change", function() {
+      console.log("Owner select changed to:", this.value);
+      showSpinner();
+      
+      // Submit the form
+      if (typeof Turbo !== 'undefined') {
+        Turbo.submitForm(form);
+      } else {
+        form.submit();
+      }
+    });
+  }
+  
+  // Method 2: Event delegation (more reliable)
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.matches('#owner_filter, select[name="owner"]')) {
+      console.log("Event delegation caught change on owner select");
+      showSpinner();
+      
+      if (typeof Turbo !== 'undefined') {
+        Turbo.submitForm(form);
+      } else {
+        form.submit();
+      }
     }
   });
+  
+  // Search input handling
+  const searchInput = form.querySelector('input[type="text"], input[name="query"]');
+  if (searchInput) {
+    console.log("Search input found:", searchInput);
+    
+    let debounceTimer;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (e.target.value.length === 0 || e.target.value.length >= 3) {
+          console.log("Search input triggered submit");
+          showSpinner();
+          
+          if (typeof Turbo !== 'undefined') {
+            Turbo.submitForm(form);
+          } else {
+            form.submit();
+          }
+        }
+      }, 500);
+    });
+    
+    searchInput.addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        showSpinner();
+        
+        if (typeof Turbo !== 'undefined') {
+          Turbo.submitForm(form);
+        } else {
+          form.submit();
+        }
+      }
+    });
+  }
+  
+  // Hide spinner when Turbo finishes loading
+  if (turboFrame) {
+    turboFrame.addEventListener("turbo:frame-load", hideSpinner);
+    turboFrame.addEventListener("turbo:frame-render", hideSpinner);
+  }
+  
+  // Also listen on document for Turbo events
+  document.addEventListener("turbo:frame-load", hideSpinner);
+  document.addEventListener("turbo:frame-render", hideSpinner);
+});
+
+// Also run on regular page load (not just Turbo)
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("DOM loaded - setting up form auto-submit");
+  
+  const form = document.getElementById("vehicles_filter_form");
+  const ownerSelect = document.getElementById("owner_filter");
+  
+  if (ownerSelect && form) {
+    console.log("Setting up direct event listener on DOMContentLoaded");
+    
+    ownerSelect.addEventListener("change", function() {
+      console.log("DOMContentLoaded: Owner select changed");
+      
+      // Show loading state
+      const submitBtn = form.querySelector('input[type="submit"], button[type="submit"]');
+      if (submitBtn) {
+        const originalText = submitBtn.value || submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...';
+        
+        // Submit form
+        form.submit();
+        
+        // Restore button after a while
+        setTimeout(() => {
+          submitBtn.disabled = false;
+          submitBtn.value = originalText;
+          submitBtn.textContent = originalText;
+        }, 3000);
+      } else {
+        form.submit();
+      }
+    });
+  }
+});
 </script>
 
 <style>
-/* =========================
-   FULL PAGE BACKGROUND
-========================= */
-body {
-  min-height: 100vh;
-  background-color: #c8e6f4;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255,255,255,0.05) 0,
-    rgba(255,255,255,0.05) 1px,
-    transparent 1px,
-    transparent 20px
-  );
-}
-
-/* =========================
-   CONTAINER BACKGROUND
-========================= */
-.container {
-  background: linear-gradient(135deg, #e3f2fd 0%, #d0ebf7 100%);
-  border-radius: 12px;
-}
-
 /* =========================
    VEHICLE CARD LAYOUT
 ========================= */
@@ -182,7 +323,6 @@ body {
 .image-container {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
 }
 .compact-image { height: 180px; }
 
@@ -248,5 +388,413 @@ body {
 .nav-pills .nav-link.active {
   color: #fff;
   background-color: #0d6efd;
+}
+
+/* =========================
+   FILTER FORM STYLING
+========================= */
+.filter-form .input-group {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  border-radius: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+
+.filter-form .input-group .form-control,
+.filter-form .input-group .form-select,
+.filter-form .input-group .btn {
+  border: 1px solid #dee2e6;
+  box-shadow: none;
+  height: 48px; /* Make both same height */
+}
+
+.filter-form .input-group .form-control {
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  flex: 1 1 250px; /* Flexible but with minimum */
+}
+
+.filter-form .input-group .form-select {
+  border-left: none;
+  border-right: 1px solid #dee2e6;
+  border-radius: 0 8px 8px 0;
+  flex: 1 1 200px; /* Same flexible width as search */
+  min-width: 150px;
+}
+
+.filter-form .input-group-text {
+  background-color: #f8f9fa;
+  border-color: #dee2e6;
+  border-left: none;
+  border-right: none;
+  height: 48px; /* Match height */
+}
+
+.filter-form select:focus,
+.filter-form input:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* =========================
+   LOADING OVERLAY
+========================= */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255,255,255,0.6);
+  z-index: 10;
+}
+
+/* =========================
+   FORM LOADING STATE
+========================= */
+.form-loading .form-control,
+.form-loading .form-select {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* =========================
+   RESPONSIVE FLEX LAYOUT
+========================= */
+@media (max-width: 768px) {
+  .filter-form .d-flex {
+    flex-direction: column;
+  }
+  
+  .filter-form .d-flex > .flex-grow-1 {
+    width: 100%;
+  }
+  
+  .filter-form .d-flex > .d-flex {
+    width: 100%;
+    justify-content: center !important;
+    margin-top: 1rem;
+  }
+  
+  .filter-form .input-group {
+    flex-wrap: wrap;
+  }
+  
+  .filter-form .input-group .form-control {
+    border-right: 1px solid #dee2e6;
+    border-radius: 8px 8px 0 0;
+    flex: 1 1 100%;
+    height: 48px;
+  }
+  
+  .filter-form .input-group-text {
+    display: none;
+  }
+  
+  .filter-form .input-group .form-select {
+    border-left: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    flex: 1 1 100%;
+    height: 48px;
+  }
+}
+
+/* =========================
+   YOUR DEFAULT BLUE THEME
+   This applies when body has NO theme class
+========================= */
+body:not([class*="theme-"]) {
+  min-height: 100vh;
+  background-color: #c8e6f4 !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.05) 0,
+    rgba(255,255,255,0.05) 1px,
+    transparent 1px,
+    transparent 20px
+  ) !important;
+}
+
+body:not([class*="theme-"]) .container {
+  background: linear-gradient(135deg, #e3f2fd 0%, #d0ebf7 100%) !important;
+  border-radius: 12px;
+}
+
+body:not([class*="theme-"]) .image-container {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+}
+
+/* =========================
+   THEME 1: Modern Light (default in theme controller)
+========================= */
+body.theme-1 {
+  min-height: 100vh;
+  background-color: #f8f9fa !important;
+  background-image: none !important;
+}
+
+body.theme-1 .container {
+  background: white !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+body.theme-1 .image-container {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+}
+
+/* =========================
+   THEME 2: Dark Professional 
+   (Note: Your theme controller calls this "Dark Professional" but we'll make it your blue theme)
+========================= */
+body.theme-2 {
+  min-height: 100vh;
+  background-color: #c8e6f4 !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.05) 0,
+    rgba(255,255,255,0.05) 1px,
+    transparent 1px,
+    transparent 20px
+  ) !important;
+}
+
+body.theme-2 .container {
+  background: linear-gradient(135deg, #e3f2fd 0%, #d0ebf7 100%) !important;
+  border-radius: 12px;
+}
+
+body.theme-2 .image-container {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+}
+
+/* =========================
+   THEME 3: Trinidad Gradient
+========================= */
+body.theme-3 {
+  min-height: 100vh;
+  background-color: #ffffff !important;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(0, 85, 164, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(241, 190, 72, 0.05) 0%, transparent 20%) !important;
+}
+
+body.theme-3 .container {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%) !important;
+  border-radius: 12px;
+}
+
+/* =========================
+   THEME 4: Clean Admin
+========================= */
+body.theme-4 {
+  min-height: 100vh;
+  background-color: #f8f9fa !important;
+  background-image: none !important;
+}
+
+body.theme-4 .container {
+  background: white !important;
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+}
+
+/* =========================
+   THEME 5: Map-Centric
+========================= */
+body.theme-5 {
+  min-height: 100vh;
+  background-color: #e8f4fd !important;
+  background-image: 
+    linear-gradient(45deg, #e8f4fd 25%, transparent 25%),
+    linear-gradient(-45deg, #f0f7ff 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e8f4fd 75%),
+    linear-gradient(-45deg, transparent 75%, #f0f7ff 75%) !important;
+  background-size: 20px 20px !important;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px !important;
+}
+
+body.theme-5 .container {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(0, 85, 164, 0.15);
+  border-radius: 12px;
+}
+
+/* =========================
+   THEME 6: Emergency Response
+========================= */
+body.theme-6 {
+  min-height: 100vh;
+  background-color: #fff3cd !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(220, 53, 69, 0.1) 0,
+    rgba(220, 53, 69, 0.1) 1px,
+    transparent 1px,
+    transparent 20px
+  ) !important;
+}
+
+body.theme-6 .container {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+  border: 2px solid #dc3545;
+  border-radius: 12px;
+}
+
+/* =========================
+   THEME 7: Coastal/Tropical
+========================= */
+body.theme-7 {
+  min-height: 100vh;
+  background-color: #e3f2fd !important;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(30, 144, 255, 0.1) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(34, 139, 34, 0.1) 0%, transparent 20%) !important;
+}
+
+body.theme-7 .container {
+  background: linear-gradient(135deg, #e3f2fd 0%, #d1e7ff 100%) !important;
+  border-radius: 12px;
+}
+
+/* =========================
+   DARK THEME OVERRIDES (for any dark themes)
+========================= */
+body.theme-8,
+body.theme-10 {
+  min-height: 100vh;
+  background-color: #121212 !important;
+  background-image: none !important;
+  color: #fff;
+}
+
+body.theme-8 .container,
+body.theme-10 .container {
+  background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%) !important;
+  border-radius: 12px;
+  color: #fff;
+}
+
+body.theme-8 .image-container,
+body.theme-10 .image-container {
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%) !important;
+}
+
+body.theme-8 .nav-pills .nav-link:not(.active),
+body.theme-10 .nav-pills .nav-link:not(.active) {
+  color: #8ab4f8 !important;
+  background-color: rgba(138, 180, 248, 0.1) !important;
+}
+
+body.theme-8 .nav-pills .nav-link.active,
+body.theme-10 .nav-pills .nav-link.active {
+  color: #fff !important;
+  background-color: #8ab4f8 !important;
+}
+
+body.theme-8 .text-muted,
+body.theme-10 .text-muted {
+  color: #aaa !important;
+}
+
+body.theme-8 .vehicle-card,
+body.theme-10 .vehicle-card {
+  background-color: #2d2d2d !important;
+  color: #fff !important;
+}
+
+body.theme-8 .vehicle-card:hover,
+body.theme-10 .vehicle-card:hover {
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.theme-8 .btn-primary,
+body.theme-10 .btn-primary {
+  background-color: #8ab4f8 !important;
+  border-color: #8ab4f8 !important;
+}
+
+body.theme-8 .btn-outline-primary,
+body.theme-10 .btn-outline-primary {
+  color: #8ab4f8 !important;
+  border-color: #8ab4f8 !important;
+}
+
+body.theme-8 .btn-outline-primary:hover,
+body.theme-10 .btn-outline-primary:hover {
+  background-color: #8ab4f8 !important;
+  color: #121212 !important;
+}
+
+body.theme-8 .loading-overlay,
+body.theme-10 .loading-overlay {
+  background-color: rgba(0,0,0,0.6) !important;
+}
+
+body.theme-8 .pagination .page-link,
+body.theme-10 .pagination .page-link {
+  background-color: #2d2d2d !important;
+  border-color: #3c4043 !important;
+  color: #fff !important;
+}
+
+body.theme-8 .pagination .page-link:hover,
+body.theme-10 .pagination .page-link:hover {
+  background-color: #3c4043 !important;
+}
+
+body.theme-8 .pagination .active .page-link,
+body.theme-10 .pagination .active .page-link {
+  background-color: #8ab4f8 !important;
+  border-color: #8ab4f8 !important;
+}
+
+/* =========================
+   THEME 9: Classic/Vintage
+========================= */
+body.theme-9 {
+  min-height: 100vh;
+  background-color: #f5e6ca !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23704214' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E") !important;
+}
+
+body.theme-9 .container {
+  background: #fffdd0 !important;
+  border: 2px solid #8b4513;
+  border-radius: 12px;
+  color: #704214;
+}
+
+/* =========================
+   THEME 11: Corporate/Professional
+========================= */
+body.theme-11 {
+  min-height: 100vh;
+  background-color: #f9fafb !important;
+  background-image: none !important;
+}
+
+body.theme-11 .container {
+  background: white !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+body.theme-11 .nav-pills .nav-link:not(.active) {
+  color: #1e3a8a !important;
+  background-color: rgba(30, 58, 138, 0.1) !important;
+}
+
+body.theme-11 .nav-pills .nav-link.active {
+  color: #fff !important;
+  background-color: #1e3a8a !important;
+}
+
+body.theme-11 .btn-primary {
+  background-color: #1e3a8a !important;
+  border-color: #1e3a8a !important;
 }
 </style>

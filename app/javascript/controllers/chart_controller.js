@@ -1,3 +1,4 @@
+// app/javascript/controllers/chart_controller.js
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -15,7 +16,177 @@ export default class extends Controller {
       return
     }
     
+    // Listen for theme changes
+    this.setupThemeListeners();
+    
+    // Render initial chart
     this.renderChart()
+  }
+
+  setupThemeListeners() {
+    // Listen for theme changes from theme controller
+    document.addEventListener('theme:changed', (event) => {
+      console.log('🎨 Chart: Theme changed to', event.detail.theme);
+      this.updateChartTheme(event.detail.theme);
+    });
+    
+    // Listen for theme cleared event
+    document.addEventListener('theme:cleared', () => {
+      console.log('🎨 Chart: Theme cleared, resetting to default');
+      this.updateChartTheme(null);
+    });
+    
+    // Check for existing theme on load
+    setTimeout(() => {
+      const currentTheme = this.getCurrentTheme();
+      if (currentTheme) {
+        this.updateChartTheme(currentTheme);
+      }
+    }, 100);
+  }
+
+  getCurrentTheme() {
+    // Check body classes for theme
+    const body = document.body;
+    for (let i = 1; i <= 11; i++) {
+      if (body.classList.contains(`theme-${i}`)) {
+        return i;
+      }
+    }
+    
+    // Check data attribute
+    const themeAttr = document.body.getAttribute('data-theme');
+    if (themeAttr) {
+      return parseInt(themeAttr);
+    }
+    
+    return null;
+  }
+
+  getThemeColors(themeNumber) {
+    const themes = {
+      2: { // Dark Professional
+        backgroundColors: [
+          'rgba(59, 130, 246, 0.7)', // Blue
+          'rgba(239, 68, 68, 0.7)',  // Red
+        ],
+        borderColors: [
+          'rgba(59, 130, 246, 1)',
+          'rgba(239, 68, 68, 1)'
+        ],
+        gridColor: 'rgba(255, 255, 255, 0.1)',
+        textColor: '#e5e5e5',
+        backgroundColor: 'transparent'
+      },
+      1: { // Modern Light
+        backgroundColors: [
+          'rgba(54, 162, 235, 0.7)',
+          'rgba(255, 99, 132, 0.7)'
+        ],
+        borderColors: [
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 99, 132, 1)'
+        ],
+        gridColor: 'rgba(0, 0, 0, 0.05)',
+        textColor: '#333333',
+        backgroundColor: 'white'
+      },
+      3: { // Trinidad Gradient
+        backgroundColors: [
+          'rgba(255, 58, 58, 0.7)',   // Red
+          'rgba(255, 215, 0, 0.7)',   // Gold
+        ],
+        borderColors: [
+          'rgba(255, 58, 58, 1)',
+          'rgba(255, 215, 0, 1)'
+        ],
+        gridColor: 'rgba(255, 255, 255, 0.1)',
+        textColor: '#ffffff',
+        backgroundColor: 'rgba(0, 0, 0, 0.2)'
+      },
+      6: { // Emergency Response
+        backgroundColors: [
+          'rgba(255, 87, 34, 0.7)',   // Deep orange
+          'rgba(255, 193, 7, 0.7)',   // Amber
+        ],
+        borderColors: [
+          'rgba(255, 87, 34, 1)',
+          'rgba(255, 193, 7, 1)'
+        ],
+        gridColor: 'rgba(255, 255, 255, 0.15)',
+        textColor: '#ffffff',
+        backgroundColor: 'rgba(0, 0, 0, 0.3)'
+      },
+      8: { // Modern Tech
+        backgroundColors: [
+          'rgba(0, 200, 255, 0.7)',   // Cyan
+          'rgba(255, 20, 147, 0.7)',  // Pink
+        ],
+        borderColors: [
+          'rgba(0, 200, 255, 1)',
+          'rgba(255, 20, 147, 1)'
+        ],
+        gridColor: 'rgba(0, 200, 255, 0.1)',
+        textColor: '#ffffff',
+        backgroundColor: 'rgba(10, 10, 10, 0.7)'
+      },
+      10: { // Luxury/Executive
+        backgroundColors: [
+          'rgba(184, 134, 11, 0.7)',  // Gold
+          'rgba(75, 0, 130, 0.7)',    // Indigo
+        ],
+        borderColors: [
+          'rgba(184, 134, 11, 1)',
+          'rgba(75, 0, 130, 1)'
+        ],
+        gridColor: 'rgba(255, 215, 0, 0.1)',
+        textColor: '#f8f9fa',
+        backgroundColor: 'rgba(28, 28, 28, 0.8)'
+      }
+    };
+    
+    // Default theme (Modern Light)
+    return themes[themeNumber] || themes[1];
+  }
+
+  updateChartTheme(themeNumber) {
+    if (!this.chart) {
+      console.log('🎨 Chart: No chart to update, will apply theme on next render');
+      return;
+    }
+    
+    const themeColors = this.getThemeColors(themeNumber);
+    
+    // Update chart datasets
+    this.chart.data.datasets[0].backgroundColor = themeColors.backgroundColors[0];
+    this.chart.data.datasets[0].borderColor = themeColors.borderColors[0];
+    this.chart.data.datasets[1].backgroundColor = themeColors.backgroundColors[1];
+    this.chart.data.datasets[1].borderColor = themeColors.borderColors[1];
+    
+    // Update chart options
+    this.chart.options.scales.y.grid.color = themeColors.gridColor;
+    this.chart.options.scales.y.ticks.color = themeColors.textColor;
+    this.chart.options.scales.y.title.color = themeColors.textColor;
+    this.chart.options.scales.x.ticks.color = themeColors.textColor;
+    
+    // Update plugin colors
+    this.chart.options.plugins.title.color = themeColors.textColor;
+    this.chart.options.plugins.legend.labels.color = themeColors.textColor;
+    this.chart.options.plugins.tooltip.backgroundColor = themeNumber === 2 ? 
+      'rgba(30, 30, 30, 0.9)' : 'rgba(0, 0, 0, 0.8)';
+    
+    // Update canvas background if needed
+    if (themeColors.backgroundColor !== 'transparent') {
+      const canvas = this.element.querySelector("canvas");
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = themeColors.backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    
+    this.chart.update('none');
+    console.log('🎨 Chart: Theme updated to', themeNumber);
   }
 
   renderChart() {
@@ -52,6 +223,10 @@ export default class extends Controller {
       console.error("❌ No canvas context")
       return
     }
+    
+    // Get current theme for initial colors
+    const currentTheme = this.getCurrentTheme();
+    const themeColors = this.getThemeColors(currentTheme);
     
     // Create clean labels
     const labels = data.map(item => {
@@ -97,8 +272,8 @@ export default class extends Controller {
             {
               label: "Distance (km)",
               data: distances,
-              backgroundColor: "rgba(54, 162, 235, 0.7)",
-              borderColor: "rgba(54, 162, 235, 1)",
+              backgroundColor: themeColors.backgroundColors[0],
+              borderColor: themeColors.borderColors[0],
               borderWidth: 1,
               borderRadius: 4,
               borderSkipped: false
@@ -106,8 +281,8 @@ export default class extends Controller {
             {
               label: "Hours",
               data: hours,
-              backgroundColor: "rgba(255, 99, 132, 0.7)",
-              borderColor: "rgba(255, 99, 132, 1)",
+              backgroundColor: themeColors.backgroundColors[1],
+              borderColor: themeColors.borderColors[1],
               borderWidth: 1,
               borderRadius: 4,
               borderSkipped: false
@@ -133,6 +308,7 @@ export default class extends Controller {
                 size: 18,
                 weight: 'bold'
               },
+              color: themeColors.textColor,
               padding: {
                 top: 10,
                 bottom: 30
@@ -147,13 +323,15 @@ export default class extends Controller {
                 usePointStyle: true,
                 font: {
                   size: 12
-                }
+                },
+                color: themeColors.textColor
               }
             },
             tooltip: {
               mode: 'index',
               intersect: false,
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              backgroundColor: currentTheme === 2 ? 
+                'rgba(30, 30, 30, 0.9)' : 'rgba(0, 0, 0, 0.8)',
               padding: 12,
               titleFont: {
                 size: 14
@@ -189,16 +367,18 @@ export default class extends Controller {
                 font: {
                   size: 14,
                   weight: 'bold'
-                }
+                },
+                color: themeColors.textColor
               },
               grid: {
                 drawBorder: false,
-                color: 'rgba(0, 0, 0, 0.05)'
+                color: themeColors.gridColor
               },
               ticks: {
                 font: {
                   size: 12
                 },
+                color: themeColors.textColor,
                 padding: 8
               }
             },
@@ -211,6 +391,7 @@ export default class extends Controller {
                   size: 11,
                   lineHeight: 1.2
                 },
+                color: themeColors.textColor,
                 maxRotation: 0,
                 minRotation: 0,
                 padding: 10
@@ -260,6 +441,11 @@ export default class extends Controller {
   }
 
   disconnect() {
+    // Remove event listeners
+    document.removeEventListener('theme:changed', this.updateChartTheme);
+    document.removeEventListener('theme:cleared', this.updateChartTheme);
+    
+    // Destroy chart
     if (this.chart) {
       this.chart.destroy()
       this.chart = null

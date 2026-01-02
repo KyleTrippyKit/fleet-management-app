@@ -1,0 +1,231 @@
+<script>
+  // Theme selection functionality
+  const themes = {
+    1: { 
+      name: "Modern Light", 
+      description: "Professional dashboard suitable for daily operations and reporting. Light background reduces eye strain in well-lit environments.",
+      icon: "☀️"
+    },
+    2: { 
+      name: "Dark Professional", 
+      description: "Eye-friendly interface that makes vehicle status colors stand out. Perfect for night shifts or low-light environments.",
+      icon: "🌙"
+    },
+    3: { 
+      name: "Trinidad Gradient", 
+      description: "Patriotic theme using Trinidad & Tobago national colors in the background design. Shows national pride while maintaining professionalism.",
+      icon: "🇹🇹"
+    },
+    4: { 
+      name: "Clean Admin", 
+      description: "Traditional admin panel with clear hierarchy and sidebar navigation. Familiar interface for experienced fleet managers.",
+      icon: "⚙️"
+    },
+    5: { 
+      name: "Map-Centric", 
+      description: "Optimized for real-time tracking with map visualization as the focus. Subtle map patterns in the background enhance the tracking experience.",
+      icon: "🗺️"
+    },
+    6: { 
+      name: "Emergency Response", 
+      description: "High-visibility emergency vehicle theme with reflective stripes and alert colors. Perfect for quick identification and response scenarios.",
+      icon: "🚨"
+    },
+    7: { 
+      name: "Coastal/Tropical", 
+      description: "Beach-inspired theme with ocean blues, sand beige, and palm greens. Brings a Caribbean vibe to fleet management.",
+      icon: "🏖️"
+    },
+    8: { 
+      name: "Modern Tech", 
+      description: "Futuristic tech interface with dark mode, neon accents, and grid backgrounds. Designed for modern operations centers.",
+      icon: "💻"
+    },
+    9: { 
+      name: "Classic/Vintage", 
+      description: "Retro theme with aged paper effects, vintage stamps, and classic colors. Nostalgic yet functional design.",
+      icon: "📜"
+    },
+    10: { 
+      name: "Luxury/Executive", 
+      description: "Premium dark theme with gold accents, burgundy highlights, and elegant styling for executive dashboards.",
+      icon: "💎"
+    },
+    11: { 
+      name: "Corporate/Professional", 
+      description: "Clean corporate design with blue and gray tones. Professional interface suitable for business environments.",
+      icon: "🏢"
+    }
+  };
+  
+  let currentTheme = null;
+  
+  function selectTheme(themeNumber) {
+    // Remove active class from all
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.remove('active');
+    });
+    
+    // Add active to selected
+    const selectedCard = document.querySelector(`.theme-${themeNumber}`);
+    if (selectedCard) {
+      selectedCard.classList.add('active');
+    }
+    
+    // Update selected theme display
+    const themeInfo = themes[themeNumber];
+    document.getElementById('themeName').textContent = themeInfo.name;
+    document.getElementById('themeDescription').textContent = themeInfo.description;
+    document.getElementById('selectedTheme').style.display = 'block';
+    
+    currentTheme = themeNumber;
+    
+    // Save to localStorage immediately
+    localStorage.setItem('selectedTheme', themeNumber);
+    localStorage.setItem('themeTestMode', 'true');
+    
+    // Scroll to selected theme info
+    document.getElementById('selectedTheme').scrollIntoView({ 
+      behavior: 'smooth',
+      block: 'start'
+    });
+  }
+  
+  function copyThemeCode() {
+    if (!currentTheme) {
+      alert("Please select a theme first!");
+      return;
+    }
+    
+    const themeCSS = generateThemeCSS(currentTheme);
+    navigator.clipboard.writeText(themeCSS).then(() => {
+      // Show success message
+      const originalText = event.target.innerHTML;
+      event.target.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      event.target.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+      
+      setTimeout(() => {
+        event.target.innerHTML = originalText;
+        event.target.style.background = 'linear-gradient(135deg, #0055A4 0%, #0066CC 100%)';
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+      alert("Failed to copy to clipboard. Please try again.");
+    });
+  }
+  
+  function showImplementationSteps() {
+    const stepsDiv = document.getElementById('implementationSteps');
+    stepsDiv.style.display = stepsDiv.style.display === 'none' ? 'block' : 'none';
+  }
+  
+  function testThemeInApp() {
+    if (!currentTheme) {
+      alert("Please select a theme first!");
+      return;
+    }
+    
+    // Store selected theme in localStorage
+    localStorage.setItem('selectedTheme', currentTheme);
+    localStorage.setItem('themeTestMode', 'true');
+    
+    // Show success message
+    const themeInfo = themes[currentTheme];
+    alert(`✅ Theme "${themeInfo.name}" selected!\n\nYou will now be redirected to the dashboard with this theme applied.`);
+    
+    // Redirect to vehicles page with theme parameter
+    window.location.href = `<%= vehicles_path %>?theme=${currentTheme}`;
+  }
+  
+  function generateThemeCSS(themeNumber) {
+    const themeCSS = {
+      1: `/* Theme 1: Modern Light */
+/* app/assets/stylesheets/themes/theme_light.scss */
+
+:root {
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F9FA;
+  --bg-card: #FFFFFF;
+  --border-color: #E9ECEF;
+  --text-primary: #212529;
+  --text-secondary: #6C757D;
+  --primary-color: #0055A4;
+  --secondary-color: #0066CC;
+  --success-color: #28A745;
+  --warning-color: #FFC107;
+  --danger-color: #DC3545;
+  --police-color: #BF0A30;
+  --ptsc-color: #F1BE48;
+}
+
+body.theme-1 {
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, #E9ECEF 100%);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}`,
+
+      9: `/* Theme 9: Classic/Vintage */
+/* app/assets/stylesheets/themes/theme_vintage.scss */
+
+:root {
+  --vintage-brown: #8B4513;
+  --cream: #FFFDD0;
+  --sepia: #704214;
+  --olive: #556B2F;
+  --rust: #B7410E;
+  --parchment: #F5E6CA;
+}
+
+body.theme-9 {
+  background: linear-gradient(135deg, var(--parchment) 0%, #F8F4E6 100%);
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23704214' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: var(--sepia);
+}`,
+
+      11: `/* Theme 11: Corporate/Professional */
+/* app/assets/stylesheets/themes/theme_corporate.scss */
+
+:root {
+  --corporate-blue: #1E3A8A;
+  --corporate-gray: #374151;
+  --corporate-light: #F9FAFB;
+  --corporate-accent: #2563EB;
+  --corporate-success: #059669;
+  --corporate-warning: #D97706;
+  --corporate-border: #E5E7EB;
+}
+
+body.theme-11 {
+  background: var(--corporate-light);
+  color: var(--corporate-gray);
+  font-family: 'Roboto', 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.6;
+}`
+    };
+    
+    return themeCSS[themeNumber] || `/* Theme ${themeNumber}: ${themes[themeNumber].name} */
+/* app/assets/stylesheets/themes/theme_${themeNumber}.scss */
+
+body.theme-${themeNumber} {
+  /* Add your theme-specific body styles here */
+}`;
+  }
+  
+  // Auto-select theme from URL parameter on themes page
+  document.addEventListener('DOMContentLoaded', function() {
+    // Check if we're on themes page
+    if (!window.location.pathname.includes('themes')) return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const themeParam = urlParams.get('theme');
+    
+    if (themeParam && themes[themeParam]) {
+      // Wait a bit for DOM to be fully ready
+      setTimeout(() => {
+        selectTheme(parseInt(themeParam));
+        console.log("🎨 Auto-selected theme from URL:", themeParam);
+      }, 100);
+    }
+  });
+</script>

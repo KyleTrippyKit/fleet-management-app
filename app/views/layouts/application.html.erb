@@ -32,30 +32,157 @@
     <!-- Favicon -->
     <link rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
+
+    <!-- Theme Controller Script -->
+    <script>
+      class ThemeController {
+        constructor() {
+          this.themes = {
+            1: 'Modern Light',
+            2: 'Dark Professional', 
+            3: 'Trinidad Gradient',
+            4: 'Clean Admin',
+            5: 'Map-Centric',
+            6: 'Emergency Response',
+            7: 'Coastal/Tropical',
+            8: 'Modern Tech',
+            9: 'Classic/Vintage',
+            10: 'Luxury/Executive',
+            11: 'Corporate/Professional'
+          };
+        }
+        
+        initialize() {
+          console.log("🎨 ThemeController initializing...");
+          
+          // Check for theme in multiple places (in order of priority)
+          const themeFromURL = this.getThemeFromURL();
+          const themeFromLocalStorage = localStorage.getItem('selectedTheme');
+          const themeTestMode = localStorage.getItem('themeTestMode');
+          
+          let themeToApply = '2'; // Default to your blue theme (Theme 2)
+          
+          if (themeFromURL) {
+            console.log("🎨 Theme from URL:", themeFromURL);
+            themeToApply = themeFromURL;
+            localStorage.setItem('selectedTheme', themeFromURL);
+            localStorage.setItem('themeTestMode', 'true');
+          } else if (themeFromLocalStorage && themeTestMode === 'true') {
+            console.log("🎨 Theme from localStorage:", themeFromLocalStorage);
+            themeToApply = themeFromLocalStorage;
+          }
+          
+          this.applyTheme(themeToApply);
+          
+          // Show preview alert if in test mode
+          if (themeTestMode === 'true') {
+            this.showThemePreviewAlert(themeToApply);
+          }
+        }
+        
+        getThemeFromURL() {
+          const urlParams = new URLSearchParams(window.location.search);
+          return urlParams.get('theme');
+        }
+        
+        applyTheme(themeNumber) {
+          console.log("🎨 Applying theme:", themeNumber);
+          
+          // Remove ALL theme classes
+          const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
+          document.body.classList.remove(...allThemeClasses);
+          
+          // Add the selected theme class
+          document.body.classList.add(`theme-${themeNumber}`);
+          
+          // Dispatch event for other scripts to listen to
+          document.dispatchEvent(new CustomEvent('theme:changed', {
+            detail: { theme: themeNumber }
+          }));
+        }
+        
+        showThemePreviewAlert(themeNumber) {
+          const themeName = this.themes[themeNumber] || 'Unknown Theme';
+          
+          // Create or get alert div
+          let alertDiv = document.getElementById('themePreviewAlert');
+          if (!alertDiv) {
+            alertDiv = document.createElement('div');
+            alertDiv.id = 'themePreviewAlert';
+            alertDiv.className = 'theme-preview-alert';
+            document.body.insertBefore(alertDiv, document.body.firstChild);
+          }
+          
+          alertDiv.innerHTML = `
+            <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0" role="alert">
+              <div class="container-fluid">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <i class="fas fa-palette me-2"></i>
+                    <strong>Theme Preview Active:</strong> ${themeName}
+                    <span class="ms-2 small">Changes are temporary</span>
+                  </div>
+                  <div>
+                    <button onclick="window.themeController.clearTheme()" class="btn btn-sm btn-outline-danger">
+                      <i class="fas fa-times me-1"></i> Clear Theme
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          alertDiv.style.display = 'block';
+        }
+        
+        clearTheme() {
+          console.log("🎨 Clearing theme preview");
+          localStorage.removeItem('selectedTheme');
+          localStorage.removeItem('themeTestMode');
+          
+          // Remove all theme classes
+          const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
+          document.body.classList.remove(...allThemeClasses);
+          
+          // Apply default theme (your blue theme)
+          document.body.classList.add('theme-2');
+          
+          // Hide alert
+          const alertDiv = document.getElementById('themePreviewAlert');
+          if (alertDiv) {
+            alertDiv.style.display = 'none';
+          }
+          
+          // Dispatch theme change event
+          document.dispatchEvent(new CustomEvent('theme:changed', {
+            detail: { theme: '1' }
+          }));
+        }
+      }
+      
+      // Initialize theme controller
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log("🎨 DOM loaded, initializing theme controller");
+        window.themeController = new ThemeController();
+        window.themeController.initialize();
+      });
+      
+      // Handle Turbo page changes
+      document.addEventListener('turbo:load', () => {
+        console.log("🎨 Turbo load event, re-initializing theme controller");
+        if (!window.themeController) {
+          window.themeController = new ThemeController();
+        }
+        window.themeController.initialize();
+      });
+    </script>
   </head>
 
-  <body class="<%= @theme || 'theme-1' %>">
+  <body>
+    <!-- Theme Preview Alert will be inserted here -->
     <%= yield %>
 
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- Optional: Theme switcher script -->
-    <script>
-      // Example: dynamically switch theme
-      function setTheme(themeNumber) {
-        document.body.className = 'theme-' + themeNumber;
-        // Save choice to localStorage
-        localStorage.setItem('fleet_theme', themeNumber);
-      }
-
-      // Load saved theme from localStorage
-      document.addEventListener('DOMContentLoaded', () => {
-        const savedTheme = localStorage.getItem('fleet_theme');
-        if (savedTheme) {
-          document.body.className = 'theme-' + savedTheme;
-        }
-      });
-    </script>
   </body>
 </html>
