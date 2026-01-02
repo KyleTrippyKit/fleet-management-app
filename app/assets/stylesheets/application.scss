@@ -1,4 +1,286 @@
+// ===============================
+// IMPORTS
+// ===============================
 @import "bootstrap";
-/*
- *= require vehicles
- */
+
+// ===============================
+// COMMON STYLES
+// ===============================
+body {
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+  padding: 0;
+  transition: background 0.5s, color 0.5s;
+}
+
+.btn-primary {
+  font-weight: 600;
+  padding: 10px 24px;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s;
+  }
+
+  &:hover::before {
+    left: 100%;
+  }
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.table-hover tbody tr {
+  transition: all 0.2s ease;
+}
+
+.alert {
+  border-radius: 12px;
+  padding: 16px 20px;
+  border-left-width: 5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+// ===============================
+// VEHICLE STATUS COMMON
+// ===============================
+.vehicle-status {
+  padding: 12px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+
+  &.active { &::before { content: '✅'; margin-right: 12px; font-size: 1.2em; } }
+  &.maintenance { &::before { content: '🔧'; margin-right: 12px; font-size: 1.2em; } }
+  &.out { &::before { content: '⚠️'; margin-right: 12px; font-size: 1.2em; } }
+}
+
+// ===============================
+// ANIMATIONS
+// ===============================
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes slide {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+// ===============================
+// GENERAL THEME RESET
+// ===============================
+body.theme-1 { background: #f8f9fa; color: #212529; }
+body.theme-2 { background: #121826; color: #E2E8F0; }
+body.theme-3 { background: linear-gradient(90deg, #BF0A30, #F1BE48, #0055A4); color: #212529; }
+body.theme-4 { background: #ffffff; color: #333333; }
+body.theme-5 { background: #e8f0fe; color: #1a73e8; }
+body.theme-6 { background: #ffebee; color: #b71c1c; }
+body.theme-7 { background: linear-gradient(180deg, #a8edea, #fed6e3); color: #05595b; }
+body.theme-8 { background: #0f172a; color: #0ff; }
+body.theme-9 { background: #fdf6e3; color: #657b83; }
+body.theme-10 { background: #1c1c1c; color: #ffd700; }
+body.theme-11 { background: #f4f6f8; color: #37474f; }
+
+/* Theme card active highlight */
+.theme-card.active {
+  border: 2px solid #28a745;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+// ===============================
+// THEME 1 – MODERN LIGHT
+// ===============================
+body.theme-1 {
+  background: linear-gradient(135deg, #F8F9FA 0%, #E9ECEF 100%);
+  color: #212529;
+
+  .navbar {
+    background: linear-gradient(135deg, #2C3E50 0%, #34495E 100%) !important;
+    border-bottom: 3px solid #0055A4;
+  }
+
+  .card {
+    background: white;
+    border: 2px solid #E9ECEF;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    &:hover { transform: translateY(-6px); border-color: #0055A4; }
+  }
+
+  .vehicle-status.active { background: #D5F4E6; color: #186A3B; border-left: 4px solid #28A745; }
+  .vehicle-status.maintenance { background: #FDEBD0; color: #B9770E; border-left: 4px solid #FFC107; }
+  .vehicle-status.out { background: #FADBD8; color: #A93226; border-left: 4px solid #DC3545; }
+}
+
+// ===============================
+// THEME 2 – DARK PROFESSIONAL
+// ===============================
+body.theme-2 {
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+  color: #E2E8F0;
+
+  .navbar { background: linear-gradient(135deg, #0F172A, #1E293B) !important; border-bottom: 2px solid #3B82F6; }
+  .card { background: #1E293B; border: 1px solid #3B82F6; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+
+  .vehicle-status.active { background: #064E3B; color: #A7F3D0; border-left: 4px solid #10B981; }
+  .vehicle-status.maintenance { background: #78350F; color: #FFD8A8; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #7F1D1D; color: #FECACA; border-left: 4px solid #DC2626; }
+}
+
+// ===============================
+// THEME 3 – OCEAN BLUE
+// ===============================
+body.theme-3 {
+  background: linear-gradient(135deg, #CAF0F8, #90E0EF);
+  color: #03045E;
+
+  .navbar { background: #0077B6 !important; border-bottom: 2px solid #00B4D8; }
+  .card { background: #ADE8F4; border: 1px solid #00B4D8; }
+
+  .vehicle-status.active { background: #90E0EF; color: #0077B6; border-left: 4px solid #00B4D8; }
+  .vehicle-status.maintenance { background: #FFB703; color: #023047; border-left: 4px solid #FB8500; }
+  .vehicle-status.out { background: #E63946; color: #FFFFFF; border-left: 4px solid #D90429; }
+}
+
+// ===============================
+// THEME 4 – SUNSET ORANGE
+// ===============================
+body.theme-4 {
+  background: linear-gradient(135deg, #FFEDD5, #FDBA74);
+  color: #7C2D12;
+
+  .navbar { background: #F97316 !important; border-bottom: 2px solid #EA580C; }
+  .card { background: #FDBA74; border: 1px solid #F97316; }
+
+  .vehicle-status.active { background: #FEF3C7; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.maintenance { background: #FEE2E2; color: #B91C1C; border-left: 4px solid #EF4444; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 5 – FOREST GREEN
+// ===============================
+body.theme-5 {
+  background: linear-gradient(135deg, #DCFCE7, #BBF7D0);
+  color: #064E3B;
+
+  .navbar { background: #16A34A !important; border-bottom: 2px solid #15803D; }
+  .card { background: #BBF7D0; border: 1px solid #16A34A; }
+
+  .vehicle-status.active { background: #BBF7D0; color: #065F46; border-left: 4px solid #10B981; }
+  .vehicle-status.maintenance { background: #FEF3C7; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 6 – PURPLE DREAM
+// ===============================
+body.theme-6 {
+  background: linear-gradient(135deg, #F3E8FF, #E9D5FF);
+  color: #4C1D95;
+
+  .navbar { background: #7C3AED !important; border-bottom: 2px solid #6D28D9; }
+  .card { background: #E9D5FF; border: 1px solid #7C3AED; }
+
+  .vehicle-status.active { background: #DDD6FE; color: #4C1D95; border-left: 4px solid #8B5CF6; }
+  .vehicle-status.maintenance { background: #FDE68A; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 7 – PINK BLOOM
+// ===============================
+body.theme-7 {
+  background: linear-gradient(135deg, #FFE4E6, #FFCAD4);
+  color: #831843;
+
+  .navbar { background: #DB2777 !important; border-bottom: 2px solid #BE185D; }
+  .card { background: #FFCAD4; border: 1px solid #DB2777; }
+
+  .vehicle-status.active { background: #FBCFE8; color: #831843; border-left: 4px solid #DB2777; }
+  .vehicle-status.maintenance { background: #FEF3C7; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 8 – GREY MINIMAL
+// ===============================
+body.theme-8 {
+  background: linear-gradient(135deg, #F5F5F5, #E5E5E5);
+  color: #111827;
+
+  .navbar { background: #6B7280 !important; border-bottom: 2px solid #4B5563; }
+  .card { background: #FFFFFF; border: 1px solid #D1D5DB; }
+
+  .vehicle-status.active { background: #D1FAE5; color: #065F46; border-left: 4px solid #10B981; }
+  .vehicle-status.maintenance { background: #FEF3C7; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 9 – TEAL VIBES
+// ===============================
+body.theme-9 {
+  background: linear-gradient(135deg, #CCFBF1, #99F6E4);
+  color: #0F766E;
+
+  .navbar { background: #14B8A6 !important; border-bottom: 2px solid #0D9488; }
+  .card { background: #99F6E4; border: 1px solid #14B8A6; }
+
+  .vehicle-status.active { background: #5EEAD4; color: #0F766E; border-left: 4px solid #14B8A6; }
+  .vehicle-status.maintenance { background: #FEF3C7; color: #92400E; border-left: 4px solid #F59E0B; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 10 – GOLD LUXURY
+// ===============================
+body.theme-10 {
+  background: linear-gradient(135deg, #FEF9C3, #FDE68A);
+  color: #92400E;
+
+  .navbar { background: #B45309 !important; border-bottom: 2px solid #78350F; }
+  .card { background: #FDE68A; border: 1px solid #B45309; }
+
+  .vehicle-status.active { background: #FEF3C7; color: #92400E; border-left: 4px solid #B45309; }
+  .vehicle-status.maintenance { background: #FEE2E2; color: #B91C1C; border-left: 4px solid #EF4444; }
+  .vehicle-status.out { background: #FECACA; color: #991B1B; border-left: 4px solid #B91C1C; }
+}
+
+// ===============================
+// THEME 11 – MIDNIGHT BLUE
+// ===============================
+body.theme-11 {
+  background: linear-gradient(135deg, #0F172A, #1E3A8A);
+  color: #E0E7FF;
+
+  .navbar { background: #1E40AF !important; border-bottom: 2px solid #2563EB; }
+  .card { background: #1E3A8A; border: 1px solid #2563EB; }
+
+  .vehicle-status.active { background: #3B82F6; color: #FFFFFF; border-left: 4px solid #60A5FA; }
+  .vehicle-status.maintenance { background: #FACC15; color: #1C1917; border-left: 4px solid #EAB308; }
+  .vehicle-status.out { background: #DC2626; color: #FFFFFF; border-left: 4px solid #B91C1C; }
+}

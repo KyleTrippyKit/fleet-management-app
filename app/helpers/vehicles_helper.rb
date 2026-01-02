@@ -50,3 +50,16 @@ module VehiclesHelper
     end
   end
 end
+
+def utilization_class(vehicle)
+  percent = vehicle.utilization_percent.to_i
+
+  case percent
+  when 0..29
+    "utilization-low"
+  when 30..69
+    "utilization-medium"
+  else
+    "utilization-high"
+  end
+end
