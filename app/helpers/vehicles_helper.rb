@@ -1,41 +1,92 @@
 module VehiclesHelper
-  # Primary method to get vehicle image - uses ActiveStorage with fallback to asset pipeline
-  def vehicle_image(vehicle, variant: :medium)
-    # Priority 1: Use ActiveStorage primary_photo if uploaded
+  # Main method - simplified and fixed
+  def vehicle_image(vehicle, variant: :medium, **html_options)
     if vehicle.primary_photo.attached?
-      case variant
-      when :thumb
-        vehicle.primary_photo.variant(resize_to_limit: [150, 100])
-      when :medium
-        vehicle.primary_photo.variant(resize_to_limit: [400, 300])
-      when :large
-        vehicle.primary_photo.variant(resize_to_limit: [800, 600])
-      else
-        vehicle.primary_photo
+      variant_size = case variant
+        when :thumb then [150, 100]
+        when :medium then [400, 300]
+        when :large then [800, 600]
+        else [400, 300]
       end
-    # Priority 2: Use asset pipeline placeholder images
+      
+      begin
+        image_tag(vehicle.primary_photo.variant(resize_to_limit: variant_size), **html_options)
+      rescue => e
+        Rails.logger.error "Active Storage error: #{e.message}"
+        vehicle_placeholder_image(vehicle, html_options)
+      end
     else
-      vehicle_placeholder_image(vehicle, variant: variant)
+      vehicle_placeholder_image(vehicle, html_options)
     end
   end
   
-  # Asset pipeline placeholder images (fallback)
-  def vehicle_placeholder_image(vehicle, variant: :medium)
-    # Map vehicles to your placeholder images
-    image_mapping = {
-      'Ford' => 'placeholders/Ford.webp',
-      'Higer' => 'placeholders/Higer.jpg', 
-      'Isuzu' => 'placeholders/Isuzu.jpg',
-      'Nissan' => 'placeholders/Nissan.webp',
-      'Suzuki' => 'placeholders/Suzuki.jpg',
-      'Toyota' => vehicle.model == 'Hilux' ? 'placeholders/Toyota.jpeg' : 'placeholders/toyota.jpg'
-    }
+  # Fixed: Accepts html_options as a regular parameter, not keyword args
+  def vehicle_placeholder_image(vehicle, html_options = {})
+    # Determine image name
+    image_name = case vehicle.make.to_s.downcase
+                 when 'ford' then 'Ford.webp'
+                 when 'higer' then 'Higer.jpg'
+                 when 'isuzu' then 'Isuzu.jpg'
+                 when 'nissan' then 'Nissan.webp'
+                 when 'suzuki' then 'Suzuki.jpg'
+                 when 'toyota'
+                   vehicle.model.to_s.downcase == 'hilux' ? 'Toyota.jpeg' : 'toyota.jpg'
+                 else
+                   'default.png'
+                 end
     
-    # Find image by make, fallback to default
-    image_path = image_mapping[vehicle.make] || 'placeholders/default.png'
+    # Try multiple paths for Render compatibility
+    begin
+      # Try asset pipeline first (development)
+      image_tag("placeholders/#{image_name}", html_options)
+    rescue Sprockets::Rails::Helper::AssetNotFound
+      # Try direct path (production/Render)
+      image_tag("/placeholders/#{image_name}", html_options.merge(
+        onerror: "this.onerror=null; this.style.display='none';"
+      ))
+    end
+  end
+  
+  # URL version for places where you need just the URL
+  def vehicle_image_url(vehicle, variant: :medium)
+    if vehicle.primary_photo.attached?
+      begin
+        variant_size = case variant
+          when :thumb then [150, 100]
+          when :medium then [400, 300]
+          when :large then [800, 600]
+          else [400, 300]
+        end
+        vehicle.primary_photo.variant(resize_to_limit: variant_size)
+      rescue => e
+        Rails.logger.error "Active Storage error: #{e.message}"
+        vehicle_placeholder_url(vehicle)
+      end
+    else
+      vehicle_placeholder_url(vehicle)
+    end
+  end
+  
+  # Placeholder URL
+  def vehicle_placeholder_url(vehicle)
+    image_name = case vehicle.make.to_s.downcase
+                 when 'ford' then 'Ford.webp'
+                 when 'higer' then 'Higer.jpg'
+                 when 'isuzu' then 'Isuzu.jpg'
+                 when 'nissan' then 'Nissan.webp'
+                 when 'suzuki' then 'Suzuki.jpg'
+                 when 'toyota'
+                   vehicle.model.to_s.downcase == 'hilux' ? 'Toyota.jpeg' : 'toyota.jpg'
+                 else
+                   'default.png'
+                 end
     
-    # Return the asset path
-    asset_path(image_path)
+    # Try asset path first, fall back to direct path
+    begin
+      asset_path("placeholders/#{image_name}")
+    rescue Sprockets::Rails::Helper::AssetNotFound
+      "/placeholders/#{image_name}"
+    end
   end
   
   # Check if vehicle has uploaded photo

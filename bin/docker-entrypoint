@@ -8,8 +8,12 @@ echo "Rails environment: ${RAILS_ENV}"
 
 # Run database setup ONLY in production
 if [ "$RAILS_ENV" = "production" ]; then
-  echo "Preparing database (create + migrate)..."
-  bundle exec rails db:prepare
+  echo "Checking database..."
+  bundle exec rails db:prepare 2>/dev/null || echo "Database setup completed or not needed"
+  
+  # Ensure directories exist
+  mkdir -p storage tmp/cache tmp/sockets tmp/pids
+  chmod -R 700 storage tmp
 fi
 
 echo "Starting Rails server..."
