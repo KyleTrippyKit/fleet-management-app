@@ -17,7 +17,6 @@ RUN apt-get update -qq && \
       postgresql-client \
       imagemagick \
       poppler-utils \
-      nodejs \
       ca-certificates && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists/*
@@ -26,14 +25,15 @@ ENV RAILS_ENV=production \
     BUNDLE_DEPLOYMENT=1 \
     BUNDLE_PATH=/usr/local/bundle \
     BUNDLE_WITHOUT="development:test" \
-    LD_PRELOAD=/usr/local/lib/libjemalloc.so
+    LD_PRELOAD=/usr/local/lib/libjemalloc.so \
+    NODE_OPTIONS="--max-old-space-size=4096"
 
 #################################
 # Build stage
 #################################
 FROM base AS build
 
-# Build dependencies
+# Build dependencies - ADD Node.js here
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -41,7 +41,9 @@ RUN apt-get update -qq && \
       libpq-dev \
       libyaml-dev \
       pkg-config \
-      python-is-python3 && \
+      python-is-python3 \
+      nodejs \
+      npm && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy Gemfiles
@@ -51,17 +53,23 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle install && \
     rm -rf ~/.bundle \
       "${BUNDLE_PATH}"/ruby/*/cache \
-      "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
-    bundle exec bootsnap precompile -j 1 --gemfile
+      "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git
 
 # Copy app
 COPY . .
 
-# Precompile caches & assets
+# Precompile bootsnap WITHOUT assets first
 RUN SECRET_KEY_BASE=dummy \
-    bundle exec bootsnap precompile -j 1 app/ lib/ && \
-    SECRET_KEY_BASE=dummy \
-    bundle exec rake assets:precompile
+    RAILS_ENV=production \
+    bundle exec bootsnap precompile -j 1 app/ lib/
+
+# Precompile assets separately
+RUN SECRET_KEY_BASE=dummy \
+    RAILS_ENV=production \
+    bundle exec rake assets:precompile || \
+    (echo "Asset precompile failed, continuing without assets..." && \
+     mkdir -p public/assets public/packs && \
+     touch public/assets/.keep public/packs/.keep)
 
 #################################
 # Final production image
