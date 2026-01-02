@@ -104,6 +104,7 @@
                   <th>Distance (km)</th>
                   <th>Hours</th>
                   <th>Trips</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,7 +112,11 @@
                   <tr>
                     <td><%= vehicle[:make] %> <%= vehicle[:model] %></td>
                     <td><code><%= vehicle[:registration_number] %></code></td>
-                    <td><span class="badge bg-<%= owner_color(vehicle[:service_owner]) %>"><%= vehicle[:service_owner] %></span></td>
+                    <td>
+                      <span class="badge owner-badge owner-<%= vehicle[:service_owner].parameterize(separator: '_') %>">
+                        <%= vehicle[:service_owner] %>
+                      </span>
+                    </td>
                     <td>
                       <div class="d-flex align-items-center">
                         <div class="progress flex-grow-1" style="height: 6px;">
@@ -124,6 +129,21 @@
                     <td><%= number_with_precision(vehicle[:distance_km], precision: 0) %></td>
                     <td><%= number_with_precision(vehicle[:hours_plied], precision: 0) %></td>
                     <td><%= vehicle[:trip_count] %></td>
+                    <td>
+                      <% if vehicle[:id] && vehicle[:id] > 0 %>
+                        <%= link_to "Details", 
+                              full_details_vehicle_path(
+                                vehicle[:id], 
+                                return_to: 'analytics',
+                                from: params[:from],
+                                to: params[:to],
+                                owner: params[:owner],
+                                view: @view,
+                                page: @page
+                              ), 
+                              class: "btn btn-sm btn-outline-secondary" %>
+                      <% end %>
+                    </td>
                   </tr>
                 <% end %>
               </tbody>
@@ -170,7 +190,7 @@
                 
                 <!-- Owner Badge -->
                 <div class="mb-3">
-                  <span class="badge bg-<%= owner_color(vehicle[:service_owner]) %>">
+                  <span class="badge owner-badge owner-<%= vehicle[:service_owner].parameterize(separator: '_') %>">
                     <%= vehicle[:service_owner] %>
                   </span>
                 </div>
@@ -206,7 +226,17 @@
                 <div class="mt-3 pt-2 border-top">
                   <div class="btn-group btn-group-sm w-100">
                     <% if vehicle[:id] && vehicle[:id] > 0 %>
-                      <%= link_to "Details", full_details_vehicle_path(vehicle[:id]), class: "btn btn-outline-secondary btn-sm flex-fill" %>
+                      <%= link_to "Details", 
+                            full_details_vehicle_path(
+                              vehicle[:id], 
+                              return_to: 'analytics',
+                              from: params[:from],
+                              to: params[:to],
+                              owner: params[:owner],
+                              view: @view,
+                              page: @page
+                            ), 
+                            class: "btn btn-outline-secondary btn-sm flex-fill" %>
                       <%= link_to "Trips", trips_vehicle_path(vehicle[:id]), class: "btn btn-outline-primary btn-sm flex-fill" %>
                     <% else %>
                       <button class="btn btn-outline-secondary btn-sm flex-fill" disabled>Details</button>
@@ -397,6 +427,41 @@
     margin-top: 2px;
   }
   
+  /* Service Owner Badges */
+  .owner-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .owner-ptsc {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+    color: white;
+    border: 1px solid #059669;
+  }
+  
+  .owner-police {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+    color: white;
+    border: 1px solid #1d4ed8;
+  }
+  
+  .owner-fire_service {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    color: white;
+    border: 1px solid #dc2626;
+  }
+  
+  /* For other/unknown owners */
+  .owner-badge:not(.owner-ptsc):not(.owner-police):not(.owner-fire_service) {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white;
+    border: 1px solid #4b5563;
+  }
+  
   /* Responsive adjustments */
   @media (max-width: 1400px) {
     .circular-progress {
@@ -436,6 +501,11 @@
     
     .stat-value {
       font-size: 16px;
+    }
+    
+    .owner-badge {
+      font-size: 0.7rem;
+      padding: 0.25em 0.5em;
     }
   }
 </style>
