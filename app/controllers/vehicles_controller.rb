@@ -511,4 +511,7 @@ class VehiclesController < ApplicationController
   def themes
     # This will render app/views/vehicles/themes.html.erb
   end
+  def theme_test
+    @theme = params[:theme] || 1
+  end
 end
