@@ -3,6 +3,7 @@
   <head>
     <title>Trinidad Fleet Management</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="page-type" content="<%= content_for?(:gantt_page) ? 'gantt' : 'normal' %>">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -32,6 +33,11 @@
     <!-- Favicon -->
     <link rel="icon"
       href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
+
+    <!-- Gantt JS - Only load on Gantt pages -->
+    <% if content_for?(:gantt_page) %>
+      <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+    <% end %>
 
     <!-- Theme Controller Script -->
     <script>
@@ -175,10 +181,40 @@
         }
         window.themeController.initialize();
       });
+      
+      // Gantt initialization helper
+      function initializeGanttWhenReady() {
+        if (typeof gantt !== 'undefined' && gantt) {
+          console.log("✅ Gantt library is loaded, initializing...");
+          // Trigger your Gantt initialization here
+          if (typeof window.initGanttChart === 'function') {
+            window.initGanttChart();
+          }
+        } else {
+          console.log("⏳ Gantt not loaded yet, waiting...");
+          setTimeout(initializeGanttWhenReady, 100);
+        }
+      }
+      
+      // Start Gantt initialization check if on Gantt page
+      document.addEventListener('DOMContentLoaded', () => {
+        if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
+          console.log("🚀 Starting Gantt initialization...");
+          initializeGanttWhenReady();
+        }
+      });
+      
+      // Also check on turbo:load for SPA navigation
+      document.addEventListener('turbo:load', () => {
+        if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
+          console.log("🚀 Turbo: Gantt page loaded, starting initialization...");
+          initializeGanttWhenReady();
+        }
+      });
     </script>
   </head>
 
-  <body>
+  <body class="<%= 'gantt-page' if content_for?(:gantt_page) %>" data-controller="theme">
     <!-- Theme Preview Alert will be inserted here -->
     <%= yield %>
 
