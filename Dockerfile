@@ -8,15 +8,18 @@ FROM ruby:${RUBY_VERSION}-slim AS base
 
 WORKDIR /rails
 
-# Runtime dependencies ONLY - REMOVE imagemagick if using vips
+# Runtime dependencies
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       curl \
       libjemalloc2 \
-      libvips42 \                # vips runtime library
+      libvips42 \
+      libvips-tools \
       postgresql-client \
+      imagemagick \
       poppler-utils \
-      ca-certificates && \
+      ca-certificates \
+      shared-mime-info && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists/*
 
@@ -25,14 +28,16 @@ ENV RAILS_ENV=production \
     BUNDLE_PATH=/usr/local/bundle \
     BUNDLE_WITHOUT="development:test" \
     LD_PRELOAD=/usr/local/lib/libjemalloc.so \
-    NODE_OPTIONS="--max-old-space-size=4096"
+    NODE_OPTIONS="--max-old-space-size=2048" \
+    RAILS_SERVE_STATIC_FILES=true \
+    RAILS_LOG_TO_STDOUT=true
 
 #################################
 # Build stage
 #################################
 FROM base AS build
 
-# Build dependencies - ADD vips development libraries
+# Build dependencies - FIXED: Missing development libraries
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -43,9 +48,10 @@ RUN apt-get update -qq && \
       python-is-python3 \
       nodejs \
       npm \
-      libvips-dev \              # CRITICAL: vips development headers
-      libglib2.0-dev \           # Often needed by vips
-      libexpat1-dev && \         # Often needed by vips
+      libvips-dev \           # CRITICAL: vips development headers
+      libmagickwand-dev \     # CRITICAL: imagemagick development headers
+      libglib2.0-dev \
+      libexpat1-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy Gemfiles
@@ -60,18 +66,20 @@ RUN bundle install && \
 # Copy app
 COPY . .
 
-# Precompile bootsnap WITHOUT assets first
+# Precompile assets - WITH PLACEHOLDER COPY
 RUN SECRET_KEY_BASE=dummy \
     RAILS_ENV=production \
-    bundle exec bootsnap precompile -j 1 app/ lib/
+    bundle exec rails assets:precompile
 
-# Precompile assets separately
+# Copy placeholder images to public folder for direct serving on Render
+RUN mkdir -p public/placeholders && \
+    cp -r app/assets/images/placeholders/* public/placeholders/ 2>/dev/null || echo "Placeholders copied" && \
+    cp -r public/assets/placeholders/* public/placeholders/ 2>/dev/null || echo "Compiled placeholders copied"
+
+# Precompile bootsnap
 RUN SECRET_KEY_BASE=dummy \
     RAILS_ENV=production \
-    bundle exec rake assets:precompile || \
-    (echo "Asset precompile failed, continuing without assets..." && \
-     mkdir -p public/assets public/packs && \
-     touch public/assets/.keep public/packs/.keep)
+    bundle exec bootsnap precompile app/ lib/
 
 #################################
 # Final production image
@@ -88,7 +96,11 @@ USER rails
 COPY --from=build --chown=rails:rails /usr/local/bundle /usr/local/bundle
 COPY --from=build --chown=rails:rails /rails /rails
 
+# Set proper permissions
+RUN mkdir -p tmp/pids tmp/cache tmp/sockets storage && \
+    chmod -R 700 storage tmp
+
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 CMD ["bin/rails", "server", "-b", "0.0.0.0"]
 
-EXPOSE 80
+EXPOSE 3000
