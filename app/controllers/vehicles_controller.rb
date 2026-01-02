@@ -3,18 +3,14 @@ class VehiclesController < ApplicationController
   before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed]
 
   # ====================================================
-  # List all vehicles (OPTIMIZED with image variants)
+  # List all vehicles (OPTIMIZED)
   # ====================================================
   def index
     @query = params[:query]
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
 
-    # OPTIMIZED: Eager load with variant_records to avoid N+1 queries
-    @vehicles = Vehicle.all.includes(
-      :driver, 
-      image_attachment: { blob: :variant_records },  # Load variant records
-      gallery_images_attachments: { blob: :variant_records }
-    )
+    # OPTIMIZED: Eager load with variant_records
+    @vehicles = Vehicle.all.includes(:driver, primary_photo_attachment: { blob: :variant_records })
     
     @vehicles = @vehicles.search(@query) if @query.present?
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
@@ -22,9 +18,6 @@ class VehiclesController < ApplicationController
     
     # Pagination for better performance
     @vehicles = @vehicles.page(params[:page]).per(20)
-    
-    # Pre-process image variants to ensure they exist
-    preprocess_image_variants(@vehicles) if @vehicles.any?
   end
 
   # ====================================================
@@ -39,7 +32,7 @@ class VehiclesController < ApplicationController
     sort_order = params[:sort_order] || 'desc'
 
     # OPTIMIZED: Include variant records
-    @vehicles = Vehicle.all.includes(:trips, :driver, image_attachment: { blob: :variant_records })
+    @vehicles = Vehicle.all.includes(:trips, :driver, primary_photo_attachment: { blob: :variant_records })
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
 
     # Build chart_data directly from vehicles
@@ -152,9 +145,6 @@ class VehiclesController < ApplicationController
       page: @page,
       per_page: @per_page
     }
-    
-    # Pre-process image variants for analytics view
-    preprocess_image_variants(@vehicles) if @vehicles.any?
   end
 
   # ====================================================
@@ -165,18 +155,10 @@ class VehiclesController < ApplicationController
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
 
     # OPTIMIZED: Include variant records
-    @vehicles = Vehicle.all.includes(
-      :maintenances, 
-      :driver, 
-      :trips,
-      image_attachment: { blob: :variant_records }
-    )
+    @vehicles = Vehicle.all.includes(:maintenances, :driver, :trips, primary_photo_attachment: { blob: :variant_records })
     
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.search(@query) if @query.present?
-
-    # Pre-process image variants
-    preprocess_image_variants(@vehicles) if @vehicles.any?
 
     # Add dynamic methods to each vehicle
     @vehicles.each do |vehicle|
@@ -207,9 +189,6 @@ class VehiclesController < ApplicationController
   # Show a single vehicle (OPTIMIZED)
   # ====================================================
   def show
-    # Pre-process image variants for this vehicle
-    preprocess_image_variants([@vehicle]) if @vehicle.image.attached?
-    
     @maintenances = @vehicle.maintenances.order(date: :desc).compact
     @current_maintenance = @maintenances.find { |m| m.status == 'Pending' }
     @last_maintenance = @maintenances.first
@@ -228,9 +207,6 @@ class VehiclesController < ApplicationController
   # Full vehicle details (OPTIMIZED)
   # ====================================================
   def full_details
-    # Pre-process image variants for this vehicle
-    preprocess_image_variants([@vehicle]) if @vehicle.image.attached?
-    
     @maintenances = @vehicle.maintenances.order(date: :desc).compact
     
     # Only eager load documents if the association exists
@@ -287,11 +263,7 @@ class VehiclesController < ApplicationController
   def create
     @vehicle = Vehicle.new(vehicle_params)
     
-    # Optimize image before saving if present
-    optimize_uploaded_image(params[:vehicle][:image]) if params[:vehicle][:image]
-    
     if @vehicle.save
-      attach_gallery_images
       redirect_to vehicles_path, notice: "Vehicle added successfully."
     else
       render :new, status: :unprocessable_entity
@@ -301,12 +273,18 @@ class VehiclesController < ApplicationController
   def edit; end
 
   def update
-    # Optimize image before saving if present
-    optimize_uploaded_image(params[:vehicle][:image]) if params[:vehicle][:image]
+    # Handle photo removal
+    if params[:vehicle][:remove_primary_photo] == "1"
+      @vehicle.primary_photo.purge
+    end
+    
+    if params[:remove_gallery_photo_ids].present?
+      params[:remove_gallery_photo_ids].each do |photo_id|
+        @vehicle.gallery_photos.find_by(id: photo_id)&.purge
+      end
+    end
     
     if @vehicle.update(vehicle_params)
-      attach_gallery_images
-      remove_marked_gallery_images
       redirect_to vehicles_path, notice: "Vehicle updated successfully."
     else
       render :edit, status: :unprocessable_entity
@@ -373,84 +351,30 @@ class VehiclesController < ApplicationController
   private
 
   def set_vehicle
-    # OPTIMIZED: Include variant records
+    # OPTIMIZED: Include variant records for photos
     @vehicle = Vehicle.includes(
       :driver, 
       :maintenances, 
       :trips,
-      image_attachment: { blob: :variant_records },
-      gallery_images_attachments: { blob: :variant_records }
+      primary_photo_attachment: { blob: :variant_records },
+      gallery_photos_attachments: { blob: :variant_records }
     ).find(params[:id])
   end
 
   def vehicle_params
+    # ✅ ADDED photo parameters
     params.require(:vehicle).permit(
       :make, :model, :vehicle_type, :registration_number, :service_owner,
       :chassis_number, :year_of_manufacture, :serial_number, :color,
-      :license_plate, :mileage, :image, :picture,
+      :license_plate, :mileage,
       :engine_number, :fuel_type, :transmission, :body_style, :modifications,
       :driver_id,
-      gallery_images: []
+      :primary_photo,
+      :remove_primary_photo,
+      gallery_photos: []
     )
   end
-
-  def attach_gallery_images
-    return unless params[:vehicle][:gallery_images].present?
-    params[:vehicle][:gallery_images].each { |img| @vehicle.gallery_images.attach(img) }
-  end
-
-  def remove_marked_gallery_images
-    return unless params[:remove_gallery_image_ids].present?
-    params[:remove_gallery_image_ids].each { |id| @vehicle.gallery_images.find_by(id: id)&.purge }
-  end
   
-  # ====================================================
-  # IMAGE OPTIMIZATION METHODS
-  # ====================================================
-  
-  # Pre-process image variants to ensure they exist
-  def preprocess_image_variants(vehicles)
-    vehicles.each do |vehicle|
-      next unless vehicle.image.attached?
-      
-      # Process variants asynchronously to avoid blocking
-      Thread.new do
-        begin
-          # Process thumb variant for index/cards (400x300)
-          vehicle.image.variant(resize_to_limit: [400, 300]).processed
-          
-          # Process medium variant for show pages (800x600)
-          vehicle.image.variant(resize_to_limit: [800, 600]).processed
-          
-          Rails.logger.debug "Processed variants for vehicle #{vehicle.id}"
-        rescue => e
-          Rails.logger.error "Failed to process variants for vehicle #{vehicle.id}: #{e.message}"
-        end
-      end
-    end
-  end
-  
-  # Optimize uploaded images before saving
-  def optimize_uploaded_image(uploaded_file)
-    return unless uploaded_file && uploaded_file.respond_to?(:tempfile)
-    
-    begin
-      # You can add image optimization logic here
-      # For example, using ImageProcessing gem:
-      # pipeline = ImageProcessing::Vips.source(uploaded_file.tempfile)
-      # pipeline = pipeline.resize_to_limit(1200, 900)
-      # pipeline = pipeline.saver(quality: 80)
-      # optimized_file = pipeline.call
-      # 
-      # Replace the uploaded file with optimized version
-      # uploaded_file.tempfile = optimized_file
-      
-      Rails.logger.debug "Image optimization placeholder for #{uploaded_file.original_filename}"
-    rescue => e
-      Rails.logger.error "Failed to optimize image: #{e.message}"
-    end
-  end
-
   # ====================================================
   # HELPER METHODS FOR VIEWS
   # ====================================================
@@ -507,10 +431,11 @@ class VehiclesController < ApplicationController
     
     default_params.merge(overrides).reject { |k, v| v.blank? }
   end
-  # In app/controllers/vehicles_controller.rb
+  
   def themes
     # This will render app/views/vehicles/themes.html.erb
   end
+  
   def theme_test
     @theme = params[:theme] || 1
   end

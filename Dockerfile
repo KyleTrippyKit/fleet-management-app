@@ -8,14 +8,13 @@ FROM ruby:${RUBY_VERSION}-slim AS base
 
 WORKDIR /rails
 
-# Runtime dependencies ONLY
+# Runtime dependencies ONLY - REMOVE imagemagick if using vips
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       curl \
       libjemalloc2 \
-      libvips \
+      libvips42 \                # vips runtime library
       postgresql-client \
-      imagemagick \
       poppler-utils \
       ca-certificates && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
@@ -33,7 +32,7 @@ ENV RAILS_ENV=production \
 #################################
 FROM base AS build
 
-# Build dependencies - ADD Node.js here
+# Build dependencies - ADD vips development libraries
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
       build-essential \
@@ -43,7 +42,10 @@ RUN apt-get update -qq && \
       pkg-config \
       python-is-python3 \
       nodejs \
-      npm && \
+      npm \
+      libvips-dev \              # CRITICAL: vips development headers
+      libglib2.0-dev \           # Often needed by vips
+      libexpat1-dev && \         # Often needed by vips
     rm -rf /var/lib/apt/lists/*
 
 # Copy Gemfiles

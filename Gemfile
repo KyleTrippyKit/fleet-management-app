@@ -51,3 +51,4 @@ gem 'bullet', group: :development
 # Or for HTML to PDF
 gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
 gem 'faker'
+gem "aws-sdk-s3", require: false

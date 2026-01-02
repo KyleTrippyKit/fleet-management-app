@@ -1,20 +1,41 @@
 <div class="container py-4">
 
-  <!-- Vehicle Header Card -->
+  <!-- Vehicle Header Card with Photo -->
   <div class="card mb-4 shadow-sm" style="max-width: 540px;">
     <div class="row g-0">
       <div class="col-md-4">
-        <%= image_tag vehicle_image(@vehicle), class: "img-fluid rounded-start" %>
+        <%= image_tag vehicle_image(@vehicle, variant: :medium), 
+              class: "img-fluid rounded-start h-100", 
+              style: "object-fit: contain; background-color: #f8f9fa;",
+              alt: "#{@vehicle.make} #{@vehicle.model}" %>
+        
+        <!-- Photo status indicator -->
+        <div class="position-absolute bottom-0 start-0 m-2">
+          <% if has_uploaded_photo?(@vehicle) %>
+            <span class="badge bg-success">
+              <i class="bi bi-check-circle"></i> Custom Photo
+            </span>
+          <% else %>
+            <span class="badge bg-secondary">
+              <i class="bi bi-image"></i> Placeholder
+            </span>
+          <% end %>
+        </div>
       </div>
       <div class="col-md-8">
         <div class="card-body">
           <h5 class="card-title">
             <%= @vehicle.make %> <%= @vehicle.model %>
             <% if @vehicle.license_plate.present? %>
-              <span class="badge bg-secondary"><%= @vehicle.license_plate %></span>
+              <span class="badge bg-dark ms-2"><%= @vehicle.license_plate %></span>
             <% end %>
           </h5>
-          <p class="card-text"><strong>Service Owner:</strong> <%= @vehicle.service_owner %></p>
+          <p class="card-text">
+            <strong>Service Owner:</strong> 
+            <span class="badge <%= service_owner_badge_class(@vehicle.service_owner) %>">
+              <%= @vehicle.service_owner %>
+            </span>
+          </p>
           <p class="card-text">
             <small class="text-body-secondary">
               Last Maintenance: 
@@ -22,6 +43,14 @@
               <%= last_maintenance&.date || "No maintenance yet" %>
             </small>
           </p>
+          
+          <!-- Vehicle Status -->
+          <div class="mt-2">
+            <strong>Status:</strong> 
+            <span class="badge <%= @vehicle.status_badge_class %>">
+              <%= @vehicle.status_display %>
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -30,28 +59,55 @@
   <!-- Vehicle Info Card -->
   <div class="card mb-4 shadow-sm">
     <div class="card-body">
-      <p><strong>Type:</strong> <%= @vehicle.vehicle_type %></p>
-      <p><strong>Color:</strong> <%= @vehicle.color %></p>
-      <p><strong>Mileage:</strong> <%= @vehicle.mileage || "Unknown" %> km</p>
-
-      <% if @next_service_mileage && @mileage_left %>
-        <p><strong>Next Service Mileage:</strong> <%= @next_service_mileage %> km</p>
-        <p><strong>Mileage until next service:</strong>
-          <% if @mileage_left > 2000 %>
-            <span class="badge bg-success"><%= @mileage_left %> km</span>
-          <% elsif @mileage_left > 0 %>
-            <span class="badge bg-warning"><%= @mileage_left %> km</span>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Type:</strong> <%= @vehicle.vehicle_type %></p>
+          <p><strong>Color:</strong> <%= @vehicle.color %></p>
+          <p><strong>Mileage:</strong> <%= @vehicle.mileage || "Unknown" %> km</p>
+          <p><strong>Driver:</strong> <%= @vehicle.current_driver_name %></p>
+        </div>
+        <div class="col-md-6">
+          <% if @next_service_mileage && @mileage_left %>
+            <p><strong>Next Service Mileage:</strong> <%= @next_service_mileage %> km</p>
+            <p><strong>Mileage until next service:</strong>
+              <% if @mileage_left > 2000 %>
+                <span class="badge bg-success"><%= @mileage_left %> km</span>
+              <% elsif @mileage_left > 0 %>
+                <span class="badge bg-warning"><%= @mileage_left %> km</span>
+              <% else %>
+                <span class="badge bg-danger">Overdue!</span>
+              <% end %>
+            </p>
           <% else %>
-            <span class="badge bg-danger">Overdue!</span>
+            <p><strong>Next Service Mileage:</strong> Unknown</p>
           <% end %>
-        </p>
-      <% else %>
-        <p><strong>Next Service Mileage:</strong> Unknown</p>
-      <% end %>
+        </div>
+      </div>
 
       <%= link_to "View Full Vehicle Details", full_details_vehicle_path(@vehicle), class: "btn btn-primary mt-3" %>
     </div>
   </div>
+
+  <!-- Gallery Photos Section -->
+  <% if has_gallery_photos?(@vehicle) %>
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0">Additional Photos</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <% gallery_photos(@vehicle).each do |photo| %>
+            <div class="col-md-3 col-sm-4 col-6 mb-3">
+              <%= image_tag photo.variant(resize_to_limit: [200, 150]), 
+                    class: "img-thumbnail w-100", 
+                    style: "height: 150px; object-fit: cover;",
+                    alt: "Gallery photo" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
 
   <hr>
 
@@ -61,10 +117,20 @@
   <!-- Maintenance Section -->
   <%= render "maintenances_section", vehicle: @vehicle %>
 
+  <!-- Photo Gallery Section -->
+  <%= render "photo_gallery" %>
+
   <hr>
 
   <!-- Bottom Navigation -->
-  <%= link_to "Back to Vehicles", vehicles_path, class: "btn btn-outline-secondary" %>
-  <%= link_to "Edit Vehicle", edit_vehicle_path(@vehicle), class: "btn btn-warning ms-2" %>
+  <div class="d-flex justify-content-between">
+    <div>
+      <%= link_to "Back to Vehicles", vehicles_path, class: "btn btn-outline-secondary" %>
+    </div>
+    <div>
+      <%= link_to "Edit Vehicle", edit_vehicle_path(@vehicle), class: "btn btn-warning ms-2" %>
+      <%= link_to "Upload Photos", edit_vehicle_path(@vehicle, anchor: 'photo-upload-section'), class: "btn btn-info ms-2" %>
+    </div>
+  </div>
 
 </div>

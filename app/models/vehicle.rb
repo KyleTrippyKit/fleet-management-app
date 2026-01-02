@@ -8,10 +8,9 @@ class Vehicle < ApplicationRecord
   has_many :trips, dependent: :destroy
   has_many :vehicle_documents, dependent: :destroy
 
-  # ActiveStorage attachments
-  has_one_attached :image
-  has_one_attached :picture
-  has_many_attached :gallery_images
+  # ✅ UNCOMMENT ActiveStorage attachments for real photo uploads
+  has_one_attached :primary_photo  # Main vehicle photo
+  has_many_attached :gallery_photos  # Additional photos
 
   # ------------------------------------------------------------
   # Trinidad & Tobago license plate rules
@@ -40,6 +39,75 @@ class Vehicle < ApplicationRecord
   scope :by_service_owner, ->(owner) { where(service_owner: owner) if owner.present? }
   scope :by_type, ->(type) { where(vehicle_type: type) if type.present? }
   scope :with_active_maintenance, -> { joins(:maintenances).where(maintenances: { status: 'Pending' }).distinct }
+
+  # ------------------------------------------------------------
+  # Image helpers (Asset Pipeline + ActiveStorage)
+  # ------------------------------------------------------------
+  def asset_image_path
+    # Map makes to your placeholder images
+    case make
+    when 'Ford'
+      'placeholders/Ford.webp'
+    when 'Higer'
+      'placeholders/Higer.jpg'
+    when 'Isuzu'
+      'placeholders/Isuzu.jpg'
+    when 'Nissan'
+      'placeholders/Nissan.webp'
+    when 'Suzuki'
+      'placeholders/Suzuki.jpg'
+    when 'Toyota'
+      model == 'Hilux' ? 'placeholders/Toyota.jpeg' : 'placeholders/toyota.jpg'
+    else
+      'placeholders/default.png'
+    end
+  end
+
+  def primary_image_url
+    # Use asset_path for asset pipeline images
+    ActionController::Base.helpers.asset_path(asset_image_path)
+  end
+
+  def display_image
+    # Priority 1: User uploaded primary photo
+    if primary_photo.attached?
+      primary_photo
+    # Priority 2: Asset pipeline placeholder
+    else
+      primary_image_url
+    end
+  end
+
+  # ------------------------------------------------------------
+  # Status methods
+  # ------------------------------------------------------------
+  def status
+    if has_overdue_maintenance?
+      'overdue'
+    elsif has_active_maintenance?
+      'maintenance'
+    else
+      'active'
+    end
+  end
+  
+  def status_badge_class
+    case status
+    when 'active' then 'bg-success'
+    when 'maintenance' then 'bg-warning'
+    when 'overdue' then 'bg-danger'
+    else 'bg-secondary'
+    end
+  end
+  
+  def status_display
+    case status
+    when 'active' then 'Active'
+    when 'maintenance' then 'In Maintenance'
+    when 'overdue' then 'Overdue Maintenance'
+    else 'Unknown'
+    end
+  end
 
   # ------------------------------------------------------------
   # Maintenance helpers
@@ -225,25 +293,6 @@ class Vehicle < ApplicationRecord
       utilization_percent: utilization,
       maintenance_status: maintenance_status_summary
     }
-  end
-
-  # ------------------------------------------------------------
-  # Image helpers
-  # ------------------------------------------------------------
-  include ImageOptimizable
-
-  def primary_image_url
-    if image.attached?
-      Rails.application.routes.url_helpers.url_for(image)
-    elsif picture.attached?
-      Rails.application.routes.url_helpers.url_for(picture)
-    else
-      nil
-    end
-  end
-
-  def gallery_image_urls
-    gallery_images.attached? ? gallery_images.map { |img| Rails.application.routes.url_helpers.url_for(img) } : []
   end
 
   # ------------------------------------------------------------

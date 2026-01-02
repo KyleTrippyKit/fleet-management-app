@@ -1,0 +1,34 @@
+<% if has_uploaded_photo?(@vehicle) %>  <%# Changed from has_any_photos? %>
+  <div class="photo-gallery">
+    <!-- Main photo -->
+    <div class="main-photo mb-4">
+      <h5>Main Vehicle Photo</h5>
+      <div class="text-center">
+        <%= image_tag vehicle_image(@vehicle, variant: :large), 
+              class: "img-fluid rounded shadow", 
+              alt: "#{@vehicle.make} #{@vehicle.model}" %>
+      </div>
+    </div>
+    
+    <!-- Gallery photos -->
+    <% if has_gallery_photos?(@vehicle) %>
+      <div class="gallery-photos">
+        <h5>Additional Photos (<%= @vehicle.gallery_photos.count %>)</h5>
+        <div class="row">
+          <% gallery_photos(@vehicle).each do |photo| %>
+            <div class="col-md-3 col-sm-4 col-6 mb-3">
+              <%= image_tag photo.variant(resize_to_limit: [200, 150]), 
+                    class: "img-thumbnail w-100", 
+                    style: "height: 150px; object-fit: cover;" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> No photos uploaded yet. 
+    <%= link_to "Upload photos", edit_vehicle_path(@vehicle) %> to add custom images.
+  </div>
+<% end %>

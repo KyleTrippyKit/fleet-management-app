@@ -1,12 +1,11 @@
 <div class="container py-5">
-
   <h1 class="mb-4 text-primary fw-bold display-5">Fleet Vehicles</h1>
 
   <!-- Navigation Pills -->
   <ul class="nav nav-pills mb-4 shadow-sm">
     <% {
       "Vehicle List" => vehicles_path,
-      "Usage Analytics" => vehicle_usages_path,
+      "Usage Analytics" => analytics_vehicles_path,
       "Maintenance Gantt Chart" => gantt_path,
       "Maintenance" => maintenance_dashboard_vehicles_path,
       "Drivers" => drivers_path,
@@ -19,7 +18,7 @@
     <% end %>
   </ul>
 
-  <!-- Filters - All in one row -->
+  <!-- Filters -->
   <%= form_with url: vehicles_path, method: :get, local: true,
         html: { id: "vehicles_filter_form", 
                 class: "filter-form mb-5", 
@@ -65,7 +64,6 @@
     <%= turbo_frame_tag "vehicles_list" do %>
       <div class="row g-4">
         <% @vehicles.each do |vehicle| %>
-
           <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
           <% maintenance_due =
                last_maintenance.nil? ||
@@ -94,10 +92,23 @@
                   <%= image_tag vehicle_image(vehicle, variant: :thumb),
                         class: "vehicle-image",
                         loading: "lazy",
-                        style: "width: 100%; height: 180px; object-fit: contain;",
+                        style: "width: 100%; height: 180px; object-fit: contain; background-color: #f8f9fa;",
                         onload: "this.style.opacity='1';",
                         onerror: "this.style.display='none';" %>
                 <% end %>
+                
+                <!-- Photo indicator badge -->
+                <div class="position-absolute bottom-0 start-0 m-2">
+                  <% if has_uploaded_photo?(vehicle) %>
+                    <span class="badge bg-success" style="font-size: 0.6rem;">
+                      <i class="bi bi-camera-fill"></i>
+                    </span>
+                  <% else %>
+                    <span class="badge bg-secondary" style="font-size: 0.6rem;">
+                      <i class="bi bi-image"></i>
+                    </span>
+                  <% end %>
+                </div>
               </div>
 
               <!-- Card Body -->
@@ -110,9 +121,7 @@
                 </h5>
 
                 <p class="mb-2">
-                  <span class="badge service-badge
-                    <%= vehicle.service_owner == 'Police' ? 'bg-police' :
-                        vehicle.service_owner == 'Fire Service' ? 'bg-fire' : 'bg-primary' %>">
+                  <span class="badge service-badge <%= service_owner_badge_class(vehicle.service_owner) %>">
                     <%= vehicle.service_owner %>
                   </span>
                 </p>
@@ -130,7 +139,6 @@
 
             </div>
           </div>
-
         <% end %>
       </div>
 
@@ -331,6 +339,7 @@ document.addEventListener("DOMContentLoaded", function() {
   height: 100%;
   object-fit: contain;
   transition: opacity 0.3s ease;
+  background-color: #f8f9fa;
 }
 
 /* =========================
