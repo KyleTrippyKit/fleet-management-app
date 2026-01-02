@@ -89,11 +89,12 @@
 
                 <!-- Vehicle Image - USE THE HELPER DIRECTLY -->
                 <%= link_to vehicle_path(vehicle) do %>
-                  <%= vehicle_image(vehicle, 
-                        variant: :thumb,
-                        class: "vehicle-image",
-                        loading: "lazy",
-                        style: "width: 100%; height: 180px; object-fit: contain; background-color: #f8f9fa;") %>
+                 <!-- In vehicles/index.html.erb line ~140 -->
+                <%= vehicle_image(vehicle, 
+                      variant: :thumb,
+                      class: "vehicle-image",
+                      loading: "lazy",
+                      style: "width: 100%; height: 180px; object-fit: cover; background-color: #f8f9fa;") %>
                 <% end %>
                 
                 <!-- Photo indicator badge -->
@@ -335,9 +336,18 @@ document.addEventListener("DOMContentLoaded", function() {
 .vehicle-image {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  transition: opacity 0.3s ease;
+  object-fit: cover;    <!-- FIXED: Use 'cover' instead of 'contain' -->
+  object-position: center;
+  transition: transform 0.3s ease;
   background-color: #f8f9fa;
+  image-rendering: crisp-edges;  <!-- Improves image quality -->
+}
+
+/* Add CSS for better image quality */
+img {
+  image-rendering: -webkit-optimize-contrast;  /* Chrome */
+  image-rendering: crisp-edges;                /* Firefox */
+  -ms-interpolation-mode: bicubic;             /* IE */
 }
 
 /* =========================

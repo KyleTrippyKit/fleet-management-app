@@ -17,6 +17,7 @@ RUN apt-get update -qq && \
       libvips-tools \
       postgresql-client \
       imagemagick \
+      libmagickwand-dev \
       poppler-utils \
       ca-certificates \
       shared-mime-info && \

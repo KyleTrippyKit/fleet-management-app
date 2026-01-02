@@ -3,10 +3,11 @@ module VehiclesHelper
   def vehicle_image(vehicle, variant: :medium, **html_options)
     if vehicle.primary_photo.attached?
       variant_size = case variant
-        when :thumb then [150, 100]
-        when :medium then [400, 300]
-        when :large then [800, 600]
-        else [400, 300]
+        when :thumb then [300, 200]
+        when :medium then [600, 400]
+        when :large then [1200, 800]
+        when :original then nil         # Keep original size
+        else [600, 400]
       end
       
       begin
