@@ -1,0 +1,197 @@
+<!-- app/views/vehicles/_maintenance_vehicle_card.html.erb -->
+<%# This is a partial for displaying vehicle maintenance cards %>
+<div class="card maintenance-card mb-4 border-<%= priority == 'overdue' ? 'danger' : 
+                                                    priority == 'pending' ? 'warning' : 
+                                                    priority == 'upcoming' ? 'info' : 
+                                                    'success' %>">
+  <div class="card-header bg-<%= priority == 'overdue' ? 'danger' : 
+                                     priority == 'pending' ? 'warning' : 
+                                     priority == 'upcoming' ? 'info' : 
+                                     'success' %> bg-opacity-10 
+                             d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-3">
+      <div>
+        <h5 class="fw-bold mb-0">
+          <%= vehicle.make %> <%= vehicle.model %>
+          <span class="badge bg-dark ms-2"><%= vehicle.license_plate %></span>
+        </h5>
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span class="badge <%= service_owner_badge_class(vehicle.service_owner) %>">
+            <i class="bi bi-building me-1"></i><%= vehicle.service_owner %>
+          </span>
+          <% if vehicle.driver %>
+            <span class="badge bg-info">
+              <i class="bi bi-person me-1"></i><%= vehicle.driver.name %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="d-flex gap-2">
+      <%= link_to new_vehicle_maintenance_path(vehicle), 
+            class: "btn btn-sm btn-outline-primary d-flex align-items-center gap-1" do %>
+        <i class="bi bi-plus-circle"></i> Add
+      <% end %>
+      <%= link_to vehicle_path(vehicle), 
+            class: "btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" do %>
+        <i class="bi bi-eye"></i> View
+      <% end %>
+    </div>
+  </div>
+  
+  <div class="card-body">
+    <!-- Vehicle Health Status -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="text-center p-3 bg-light rounded">
+          <div class="text-muted small">Total Services</div>
+          <div class="fw-bold fs-4"><%= vehicle.maintenances.count %></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center p-3 bg-light rounded">
+          <div class="text-muted small">Health Score</div>
+          <div class="fw-bold fs-4 <%= vehicle.health_score > 70 ? 'text-success' : 
+                                      vehicle.health_score > 40 ? 'text-warning' : 'text-danger' %>">
+            <%= vehicle.health_score %>/100
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center p-3 bg-light rounded">
+          <div class="text-muted small">Last Service</div>
+          <div class="fw-bold">
+            <% if vehicle.maintenances.any? %>
+              <%= vehicle.maintenances.order(date: :desc).first.date.strftime("%b %d, %Y") %>
+            <% else %>
+              <span class="text-muted">Never</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center p-3 bg-light rounded">
+          <div class="text-muted small">Next Due</div>
+          <div class="fw-bold <%= vehicle.days_until_next_service && vehicle.days_until_next_service < 7 ? 'text-danger' : '' %>">
+            <% if vehicle.days_until_next_service %>
+              <%= vehicle.days_until_next_service %> days
+            <% else %>
+              <span class="text-muted">Not scheduled</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Maintenance Timeline -->
+    <% if maintenances.any? %>
+      <h6 class="fw-bold mb-3">
+        <i class="bi bi-clock-history me-2"></i>
+        <%= priority.capitalize %> Maintenance Tasks
+      </h6>
+      
+      <div class="timeline">
+        <% maintenances.each do |maintenance| %>
+          <% days_diff = maintenance.end_date ? (maintenance.end_date - Date.today).to_i : nil %>
+          
+          <div class="timeline-item timeline-<%= priority %> mb-3">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <div class="card border">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <h6 class="fw-bold mb-1"><%= maintenance.service_type %></h6>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="badge status-badge-<%= maintenance.status.downcase %>">
+                          <%= maintenance.status %>
+                        </span>
+                        <span class="badge urgency-badge-<%= maintenance.urgency || 'medium' %>">
+                          <%= maintenance.urgency&.capitalize || 'Medium' %>
+                        </span>
+                        <% if days_diff && days_diff < 0 %>
+                          <span class="badge bg-danger">OVERDUE</span>
+                        <% end %>
+                      </div>
+                    </div>
+                    <div class="text-end">
+                      <% if maintenance.cost.present? %>
+                        <div class="fw-bold text-primary">
+                          <%= number_to_currency(maintenance.cost, unit: "TTD ") %>
+                        </div>
+                      <% end %>
+                      <div class="text-muted small">
+                        <i class="bi bi-calendar me-1"></i>
+                        <%= maintenance.start_date&.strftime("%b %d") || 'TBD' %>
+                        -
+                        <%= maintenance.end_date&.strftime("%b %d, %Y") || 'TBD' %>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <% if maintenance.notes.present? %>
+                    <p class="mb-2"><%= maintenance.notes.truncate(100) %></p>
+                  <% end %>
+                  
+                  <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="small text-muted">
+                      <% if maintenance.service_provider %>
+                        <i class="bi bi-building me-1"></i>
+                        <%= maintenance.service_provider.name %>
+                      <% end %>
+                    </div>
+                    
+                    <div class="d-flex gap-1">
+                      <%= link_to edit_vehicle_maintenance_path(vehicle, maintenance),
+                            class: "btn btn-sm btn-outline-warning",
+                            title: "Edit" do %>
+                        <i class="bi bi-pencil"></i>
+                      <% end %>
+                      
+                      <% if maintenance.pending? %>
+                        <%= link_to mark_completed_vehicle_maintenance_path(vehicle, maintenance),
+                              method: :patch,
+                              data: { confirm: "Mark as completed?" },
+                              class: "btn btn-sm btn-outline-success",
+                              title: "Mark Completed" do %>
+                          <i class="bi bi-check-circle"></i>
+                        <% end %>
+                      <% end %>
+                      
+                      <%= link_to vehicle_maintenance_path(vehicle, maintenance),
+                            method: :delete,
+                            data: { confirm: "Delete this maintenance record?" },
+                            class: "btn btn-sm btn-outline-danger",
+                            title: "Delete" do %>
+                        <i class="bi bi-trash"></i>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="text-center py-4">
+        <i class="bi bi-tools text-muted" style="font-size: 3rem;"></i>
+        <p class="text-muted mt-2">No <%= priority %> maintenance tasks</p>
+        <%= link_to "Add Maintenance", new_vehicle_maintenance_path(vehicle), 
+              class: "btn btn-sm btn-outline-primary" %>
+      </div>
+    <% end %>
+  </div>
+  
+  <div class="card-footer bg-light">
+    <div class="d-flex justify-content-between align-items-center">
+      <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        <%= vehicle.maintenances.count %> total maintenance records
+      </small>
+      <%= link_to "View All Maintenance", vehicle_maintenances_path(vehicle),
+            class: "btn btn-sm btn-outline-primary" %>
+    </div>
+  </div>
+</div>

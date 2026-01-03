@@ -98,4 +98,44 @@ module ApplicationHelper
     else "alert alert-#{level}"
     end
   end
+
+  # Helper methods for analytics page
+  
+  # Returns the color class for owner badges
+  def owner_badge_color(owner)
+    case owner.to_s
+    when 'Police' then 'danger'
+    when 'Fire Service' then 'warning'
+    when 'PTSC' then 'primary'
+    else 'secondary'
+    end
+  end
+  
+  # Returns the full badge class for owners
+  def owner_badge_class(owner)
+    "bg-#{owner_badge_color(owner)}"
+  end
+  
+  # Returns the color class for utilization badges
+  def utilization_badge_color(utilization)
+    case utilization.to_f
+    when 0..30 then 'danger'
+    when 31..70 then 'warning'
+    else 'success'
+    end
+  end
+  
+  # Returns the full badge class for utilization
+  def utilization_badge_class(utilization)
+    "bg-#{utilization_badge_color(utilization)}"
+  end
+  
+  # Display utilization percentage with color
+  def utilization_display(utilization)
+    return content_tag(:span, "N/A", class: "badge bg-secondary") if utilization.blank?
+    
+    content_tag(:span, class: "badge #{utilization_badge_class(utilization)}") do
+      "#{utilization.round(1)}%"
+    end
+  end
 end

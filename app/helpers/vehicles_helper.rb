@@ -104,9 +104,9 @@ module VehiclesHelper
     vehicle.gallery_photos.attached?
   end
   
-  # Simple mapping for service owner badges
+  # Simple mapping for service owner badges - KEEP THIS METHOD FOR INDEX.HTML.ERB
   def service_owner_badge_class(owner)
-    case owner
+    case owner.to_s
     when 'Police'
       'owner-police'
     when 'Fire Service'
@@ -115,46 +115,6 @@ module VehiclesHelper
       'owner-ptsc'
     else
       'bg-secondary'
-    end
-  end
-  
-  # Helper for utilization color classes
-  def utilization_class(vehicle)
-    percent = vehicle.utilization_percent.to_i rescue 0
-
-    case percent
-    when 0..29
-      "utilization-low"
-    when 30..69
-      "utilization-medium"
-    else
-      "utilization-high"
-    end
-  end
-  
-  # Display utilization percentage with color
-  def utilization_display(utilization)
-    content_tag(:span, class: "badge bg-#{utilization_color(utilization)}") do
-      "#{utilization.round(1)}%" if utilization.present?
-    end
-  end
-  
-  # Utilization color helper (compatible with controller method)
-  def utilization_color(utilization)
-    case utilization.to_f
-    when 0..30 then 'danger'
-    when 31..70 then 'warning'
-    else 'success'
-    end
-  end
-  
-  # Owner color helper (compatible with controller method)
-  def owner_color(owner)
-    case owner
-    when 'PTSC' then 'primary'
-    when 'Police' then 'danger'
-    when 'Fire Service' then 'warning'
-    else 'secondary'
     end
   end
   
@@ -177,4 +137,7 @@ module VehiclesHelper
       end
     end
   end
+  
+  # REMOVED: utilization_class, utilization_display, utilization_color, owner_color
+  # These are now handled by ApplicationHelper's methods
 end

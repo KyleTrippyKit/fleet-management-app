@@ -1,6 +1,6 @@
 class MaintenancesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_vehicle, except: [:gantt, :update_gantt]
+  before_action :set_vehicle, except: [:gantt, :update_gantt, :new, :create, :index]
   before_action :set_maintenance, only: [:show, :edit, :update, :destroy, :mark_completed, :confirm_delete, :update_gantt]
 
   # GET /gantt
@@ -22,11 +22,16 @@ class MaintenancesController < ApplicationController
     # Prepare Gantt data
     prepare_gantt_data(@maintenances)
     
-    # Set up filter options
-    @service_owners = Vehicle.distinct.pluck(:service_owner).compact
+    # Set up filter options - FIXED: Use vehicle's service_owner
+    @service_owners = Vehicle.distinct.pluck(:service_owner).compact.sort
     @vehicles_for_filter = Vehicle.all.order(:make, :model)
     @processed_maintenances = @maintenances
 
+    # Calculate statistics
+    @overdue_count = @maintenances.select(&:overdue?).count
+    @total_cost = @maintenances.sum(:cost).to_f
+    @vehicles_count = Vehicle.count
+    
     render :gantt
   end
 
@@ -81,7 +86,11 @@ class MaintenancesController < ApplicationController
 
   def destroy
     @maintenance.destroy
-    redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully deleted."
+    if @vehicle.present?
+      redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully deleted."
+    else
+      redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance record was successfully deleted."
+    end
   end
 
   def mark_completed
@@ -92,18 +101,23 @@ class MaintenancesController < ApplicationController
     end
   end
 
-  def show; end
+  def show
+    @maintenance = Maintenance.find(params[:id])
+    @vehicle = @maintenance.vehicle  # Ensure @vehicle is set
+  end
 
- def new
+  def new
     # Handle different scenarios for creating maintenance
     
     if params[:vehicle_id].present?
       # Coming from "Report Issue" button or vehicle context
       @vehicle = Vehicle.find(params[:vehicle_id])
       @maintenance = @vehicle.maintenances.new
-    elsif @vehicle.present?
-      # From vehicle-specific maintenance path
-      @maintenance = @vehicle.maintenances.new
+    elsif params[:id].present?
+      # Editing existing maintenance (shouldn't normally hit new with id)
+      existing = Maintenance.find(params[:id])
+      @vehicle = existing.vehicle
+      @maintenance = existing.dup
     else
       # Standalone maintenance creation
       @maintenance = Maintenance.new
@@ -134,7 +148,22 @@ class MaintenancesController < ApplicationController
   end
 
   def create
-    @maintenance = @vehicle.maintenances.new(maintenance_params)
+    # Find vehicle if vehicle_id is provided in params
+    if params[:vehicle_id].present? && !@vehicle
+      @vehicle = Vehicle.find(params[:vehicle_id])
+    end
+    
+    # If no vehicle found, try to get from maintenance params
+    if !@vehicle && maintenance_params[:vehicle_id].present?
+      @vehicle = Vehicle.find(maintenance_params[:vehicle_id])
+    end
+    
+    if @vehicle
+      @maintenance = @vehicle.maintenances.new(maintenance_params)
+    else
+      @maintenance = Maintenance.new(maintenance_params)
+    end
+    
     @service_providers = ServiceProvider.all
 
     if maintenance_params[:start_date].present? && maintenance_params[:end_date].present?
@@ -147,7 +176,11 @@ class MaintenancesController < ApplicationController
 
     if @maintenance.errors.empty? && @maintenance.save
       MaintenanceMailer.notify_store(@maintenance).deliver_later unless @maintenance.part_in_stock
-      redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully created."
+      if @vehicle
+        redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully created."
+      else
+        redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance record was successfully created."
+      end
     else
       flash.now[:alert] = "Please correct the errors below."
       render :new, status: :unprocessable_entity
@@ -173,7 +206,11 @@ class MaintenancesController < ApplicationController
       if request.xhr?
         render json: { success: true, message: "Maintenance updated successfully" }
       else
-        redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully updated."
+        if @vehicle
+          redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully updated."
+        else
+          redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance record was successfully updated."
+        end
       end
     else
       if request.xhr?
@@ -189,15 +226,20 @@ class MaintenancesController < ApplicationController
   private
 
   def set_vehicle
-    @vehicle = Vehicle.find_by(id: params[:vehicle_id])
+    # Try to find vehicle from multiple sources
+    if params[:vehicle_id].present?
+      @vehicle = Vehicle.find_by(id: params[:vehicle_id])
+    elsif params[:id].present? && action_name == 'new' # For new action with existing id
+      # Already handled in new action
+    elsif @maintenance&.vehicle
+      @vehicle = @maintenance.vehicle
+    end
   end
 
   def set_maintenance
-    @maintenance = if params[:vehicle_id].present?
-                     @vehicle.maintenances.find(params[:id])
-                   else
-                     Maintenance.find(params[:id])
-                   end
+    @maintenance = Maintenance.find(params[:id])
+    # Ensure @vehicle is set from maintenance if not already set
+    @vehicle ||= @maintenance.vehicle
   end
 
   def maintenance_params
@@ -205,119 +247,121 @@ class MaintenancesController < ApplicationController
       :date, :next_due_date, :reminder_sent_at, :service_type, :cost,
       :notes, :mileage, :status, :assignment_type, :part_in_stock,
       :service_provider_id, :estimated_delivery_date, :source, :start_date,
-      :end_date, :category, :urgency
+      :end_date, :category, :urgency, :vehicle_id
+      # REMOVED: :owner - no longer needed
     )
   end
 
   def apply_filters(maintenances)
-    if params[:status].present? && params[:status] != "All Statuses"
+    # Start with all maintenances
+    filtered = maintenances
+    
+    if params[:status].present? && params[:status] != "All Statuses" && params[:status] != ""
       if params[:status] == "Overdue"
-        maintenances = maintenances.select { |m| m.overdue? }
+        filtered = filtered.select { |m| m.overdue? }
       else
-        maintenances = maintenances.where(status: params[:status])
+        filtered = filtered.where(status: params[:status])
       end
     end
 
-    if params[:vehicle_id].present?
-      maintenances = maintenances.where(vehicle_id: params[:vehicle_id])
+    if params[:vehicle_id].present? && params[:vehicle_id] != ""
+      filtered = filtered.where(vehicle_id: params[:vehicle_id])
     end
 
     if params[:vehicle_search].present?
       search_term = params[:vehicle_search].downcase
-      maintenances = maintenances.joins(:vehicle).where(
+      filtered = filtered.joins(:vehicle).where(
         "LOWER(vehicles.registration_number) LIKE :search OR 
          LOWER(vehicles.make) LIKE :search OR 
-         LOWER(vehicles.model) LIKE :search OR 
-         LOWER(vehicles.service_owner) LIKE :search",
+         LOWER(vehicles.model) LIKE :search",
         search: "%#{search_term}%"
       )
     end
 
-    if params[:owner].present? && params[:owner] != "All Owners"
-      maintenances = maintenances.joins(:vehicle)
-                                 .where(vehicles: { service_owner: params[:owner] })
+    # FIXED: Filter by vehicle's service_owner instead of maintenance owner
+    if params[:owner].present? && params[:owner] != "All Owners" && params[:owner] != ""
+      filtered = filtered.joins(:vehicle).where(vehicles: { service_owner: params[:owner] })
     end
 
-    filter_by_date_range(maintenances)
+    filter_by_date_range(filtered)
   end
 
   # ENHANCED DATE FILTERING: Includes past, future, and all-time options
   def filter_by_date_range(maintenances)
-    if params[:date_range].present?
-      case params[:date_range]
-      when "all_time"
-        # Show ALL data - no date filtering
-        return maintenances
-        
-      when "last_7_days"
-        start_date = Date.today - 7.days
-        end_date = Date.today
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "last_30_days"
-        start_date = Date.today - 30.days
-        end_date = Date.today
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "last_3_months"
-        start_date = Date.today - 3.months
-        end_date = Date.today
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "last_6_months"
-        start_date = Date.today - 6.months
-        end_date = Date.today
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "last_year"
-        start_date = Date.today - 1.year
-        end_date = Date.today
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "next_7_days"
-        start_date = Date.today
-        end_date = Date.today + 7.days
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "next_30_days"
-        start_date = Date.today
-        end_date = Date.today + 30.days
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "next_3_months"
-        start_date = Date.today
-        end_date = Date.today + 3.months
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "next_6_months"
-        start_date = Date.today
-        end_date = Date.today + 6.months
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "next_year"
-        start_date = Date.today
-        end_date = Date.today + 1.year
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', start_date, end_date)
-        
-      when "custom"
-        if params[:start_date].present? && params[:end_date].present?
-          start_date = Date.parse(params[:start_date])
-          end_date = Date.parse(params[:end_date])
-          maintenances = maintenances.where('start_date <= ? AND end_date >= ?', end_date, start_date)
-        end
-        
-      # Legacy numeric ranges for backward compatibility
-      when "7", "30", "90"
-        days = params[:date_range].to_i
-        end_date = Date.today + days.days
-        maintenances = maintenances.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
+    return maintenances if maintenances.is_a?(Array) || !params[:date_range].present?
+    
+    filtered = maintenances
+    
+    case params[:date_range]
+    when "all_time"
+      # Show ALL data - no date filtering
+      return filtered
+      
+    when "last_7_days"
+      start_date = Date.today - 7.days
+      end_date = Date.today
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "last_30_days"
+      start_date = Date.today - 30.days
+      end_date = Date.today
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "last_3_months"
+      start_date = Date.today - 3.months
+      end_date = Date.today
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "last_6_months"
+      start_date = Date.today - 6.months
+      end_date = Date.today
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "last_year"
+      start_date = Date.today - 1.year
+      end_date = Date.today
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "next_7_days"
+      start_date = Date.today
+      end_date = Date.today + 7.days
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "next_30_days"
+      start_date = Date.today
+      end_date = Date.today + 30.days
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "next_3_months"
+      start_date = Date.today
+      end_date = Date.today + 3.months
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "next_6_months"
+      start_date = Date.today
+      end_date = Date.today + 6.months
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "next_year"
+      start_date = Date.today
+      end_date = Date.today + 1.year
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', start_date, end_date)
+      
+    when "custom"
+      if params[:start_date].present? && params[:end_date].present?
+        start_date = Date.parse(params[:start_date])
+        end_date = Date.parse(params[:end_date])
+        filtered = filtered.where('start_date <= ? AND end_date >= ?', end_date, start_date)
       end
-    else
-      # DEFAULT: Show ALL data (no date filter)
-      return maintenances
+      
+    # Legacy numeric ranges for backward compatibility
+    when "7", "30", "90"
+      days = params[:date_range].to_i
+      end_date = Date.today + days.days
+      filtered = filtered.where('end_date >= ? AND start_date <= ?', Date.today, end_date)
     end
 
-    maintenances
+    filtered
   end
 
   # FIXED: Properly format dates for Gantt
@@ -343,13 +387,13 @@ class MaintenancesController < ApplicationController
       vehicle_start = start_dates.min
       vehicle_end = end_dates.max
       
-      # Vehicle task - FIX: Use string dates
+      # Vehicle task
       @gantt_tasks << {
         id: "vehicle_#{vehicle.id}",
         text: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
         name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})",
-        start_date: vehicle_start.strftime("%Y-%m-%d %H:%M"),
-        end_date: vehicle_end.strftime("%Y-%m-%d %H:%M"),
+        start_date: vehicle_start.strftime("%Y-%m-%d"),
+        end_date: vehicle_end.strftime("%Y-%m-%d"),
         parent: "0",
         type: 'vehicle',
         progress: 0,
@@ -357,7 +401,6 @@ class MaintenancesController < ApplicationController
         color: '#6c757d',
         status: 'Active',
         urgency: 'Normal',
-        owner: vehicle.service_owner,
         details: {
           service_owner: vehicle.service_owner,
           registration_number: vehicle.registration_number,
@@ -366,27 +409,34 @@ class MaintenancesController < ApplicationController
         }
       }
       
-      # Maintenance tasks for this vehicle - FIX: Use string dates
+      # Maintenance tasks for this vehicle
       vehicle_maintenances.each_with_index do |maintenance, index|
         next unless maintenance.start_date && maintenance.end_date
         
-        progress = maintenance.completed? ? 1 : 0.5
+        progress = maintenance.status == 'Completed' ? 1 : 0.5
+        
+        # Determine color based on status
+        color = '#ffc107'  # default yellow for pending
+        if maintenance.status == 'Completed'
+          color = '#198754'  # green
+        elsif maintenance.overdue?
+          color = '#dc3545'  # red
+        end
         
         @gantt_tasks << {
           id: "maintenance_#{maintenance.id}",
           text: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
           name: maintenance.service_type.to_s.presence || "Maintenance ##{maintenance.id}",
-          start_date: maintenance.start_date.strftime("%Y-%m-%d %H:%M"),
-          end_date: maintenance.end_date.strftime("%Y-%m-%d %H:%M"),
+          start_date: maintenance.start_date.strftime("%Y-%m-%d"),
+          end_date: maintenance.end_date.strftime("%Y-%m-%d"),
           parent: "vehicle_#{vehicle.id}",
           type: 'maintenance',
           progress: progress,
           open: true,
-          color: maintenance.gantt_bar_color || 'rgba(108, 117, 125, 0.8)',
+          color: color,
           status: maintenance.status || 'Pending',
           urgency: maintenance.urgency || 'Normal',
           overdue: maintenance.overdue?,
-          owner: vehicle.service_owner,
           details: {
             status: maintenance.status || 'Pending',
             urgency: maintenance.urgency || 'Normal',
@@ -400,17 +450,6 @@ class MaintenancesController < ApplicationController
             category: maintenance.category
           }
         }
-        
-        # Create dependency links between consecutive maintenances
-        if index > 0
-          prev_maintenance = vehicle_maintenances[index - 1]
-          @gantt_links << {
-            id: "link_#{prev_maintenance.id}_#{maintenance.id}",
-            source: "maintenance_#{prev_maintenance.id}",
-            target: "maintenance_#{maintenance.id}",
-            type: "0"
-          }
-        end
       end
     end
 
@@ -432,7 +471,7 @@ class MaintenancesController < ApplicationController
       pending: @maintenances.where(status: "Pending").count,
       completed: @maintenances.where(status: "Completed").count,
       overdue: @maintenances.select { |m| m.overdue? }.count,
-      vehicles: @maintenances.map(&:vehicle).uniq.count
+      vehicles: @maintenances.map(&:vehicle).compact.uniq.count
     }
   end
 end

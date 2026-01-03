@@ -29,6 +29,16 @@ class Trip < ApplicationRecord
 
   scope :ongoing, -> { where(end_time: nil) }
   scope :completed, -> { where.not(end_time: nil) }
+  
+  # NEW: Today scope
+  scope :today, -> { where("DATE(start_time) = ?", Date.today) }
+  
+  # Additional useful scopes
+  scope :this_week, -> { where(start_time: Date.today.beginning_of_week..Date.today.end_of_week) }
+  scope :this_month, -> { where(start_time: Date.today.beginning_of_month..Date.today.end_of_month) }
+  scope :recent, -> { where("start_time >= ?", 7.days.ago) }
+  scope :upcoming, -> { where("start_time > ?", Time.current) }
+  scope :in_progress, -> { ongoing.where("start_time <= ?", Time.current) }
 
   # For vehicles controller analytics
   scope :in_date_range, ->(from, to) {

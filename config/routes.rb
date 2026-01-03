@@ -45,15 +45,22 @@ Rails.application.routes.draw do
     resources :trips, only: [:index, :show]
   end
 
-  # Standalone maintenances (for Gantt updates)
-  resources :maintenances, only: [] do
+  # ✅ FIXED: Standalone trips routes - using singular resource name
+  resources :trips
+
+  # Standalone maintenances
+  resources :maintenances do
     member do
+      patch :mark_completed
       patch :update_gantt
     end
     collection do
       get :new_with_rfid
     end
   end
+
+  # ✅ FIXED: Service providers routes (plural)
+  resources :service_providers
 
   # Gantt Chart Route
   get "gantt", to: "maintenances#gantt", as: :gantt
@@ -63,4 +70,7 @@ Rails.application.routes.draw do
 
   # Theme update route
   patch 'theme/:theme', to: 'themes#update', as: :update_theme
+  
+  # Quick reports
+  resources :quick_reports, only: [:create]
 end

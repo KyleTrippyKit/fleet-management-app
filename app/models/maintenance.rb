@@ -11,8 +11,8 @@ class Maintenance < ApplicationRecord
   # Constants
   # =====================================================
   ASSIGNMENT_TYPES = %w[stores purchasing].freeze
-  STATUSES = %w[Pending Completed].freeze
-  URGENCIES = %w[routine scheduled emergency].freeze
+  STATUSES = %w[Pending Completed In\ Progress].freeze
+  URGENCIES = %w[routine scheduled emergency high medium low].freeze
   CATEGORIES = %w[OilChange TireRotation BrakeService EngineCheck Transmission 
                   Electrical BodyWork AirConditioning Suspension General].freeze
 
@@ -39,12 +39,30 @@ class Maintenance < ApplicationRecord
   # Scopes
   # =====================================================
   scope :pending, -> { where(status: "Pending") }
+  scope :in_progress, -> { where(status: "In Progress") }
   scope :completed, -> { where(status: "Completed") }
-  scope :overdue, -> { pending.where("end_date IS NOT NULL AND end_date < ?", Date.today) }
-  scope :upcoming, -> { pending.where("start_date IS NOT NULL AND start_date > ?", Date.today) }
-  scope :active, -> { pending.where("start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= ? AND end_date >= ?", Date.today, Date.today) }
+  scope :overdue, -> { 
+    where(status: "Pending")
+    .where("end_date < ?", Date.today) 
+  }
+  scope :upcoming, ->(days = 7) { 
+    where(status: "Pending")
+    .where("end_date BETWEEN ? AND ?", Date.today, Date.today + days)
+  }
+  scope :active, -> { 
+    pending.where("start_date <= ? AND end_date >= ?", Date.today, Date.today) 
+  }
+  
   scope :with_date_range, ->(start_date, end_date) {
-    where("start_date IS NOT NULL AND end_date IS NOT NULL AND start_date <= ? AND end_date >= ?", end_date, start_date)
+    where("start_date <= ? AND end_date >= ?", end_date, start_date)
+  }
+  
+  scope :by_urgency, ->(urgency_level) { 
+    where(urgency: urgency_level) if urgency_level.present? 
+  }
+  
+  scope :by_service_owner, ->(owner) {
+    joins(:vehicle).where(vehicles: { service_owner: owner }) if owner.present?
   }
 
   # =====================================================
@@ -57,9 +75,15 @@ class Maintenance < ApplicationRecord
   def pending?
     status == "Pending"
   end
+  
+  def in_progress?
+    status == "In Progress"
+  end
 
+  # FIXED: Simplified overdue? method to match what controller expects
   def overdue?
-    return false unless pending? && end_date.present?
+    return false if status == 'Completed'
+    return false unless end_date
     end_date < Date.today
   end
 
@@ -77,32 +101,32 @@ class Maintenance < ApplicationRecord
   # Timeline Methods - UPDATED FOR GANTT CHART
   # =====================================================
   def gantt_bar_color
-    # Return RGBA format for Chart.js compatibility
+    # FIXED: Return hex colors for DHTMLX Gantt compatibility
     if overdue?
-      "rgba(220, 53, 69, 0.8)" # Red for overdue
+      "#dc3545" # Red for overdue
     elsif completed?
-      "rgba(40, 167, 69, 0.8)" # Green for completed
-    elsif urgency == "emergency"
-      "rgba(253, 126, 20, 0.8)" # Orange for emergency
-    elsif urgency == "scheduled"
-      "rgba(13, 202, 240, 0.8)" # Teal for scheduled
+      "#198754" # Green for completed
+    elsif urgency == "emergency" || urgency == "high"
+      "#fd7e14" # Orange for emergency/high
+    elsif urgency == "scheduled" || urgency == "medium"
+      "#0dcaf0" # Teal for scheduled/medium
     else
-      "rgba(13, 110, 253, 0.8)" # Blue for routine/default
+      "#0d6efd" # Blue for routine/low
     end
   end
 
-  # Alternative method that returns hex colors if needed
-  def hex_color
+  # Alternative method that returns RGBA format for Chart.js
+  def rgba_color
     if overdue?
-      "#dc3545" # Red
+      "rgba(220, 53, 69, 0.8)" # Red
     elsif completed?
-      "#28a745" # Green
-    elsif urgency == "emergency"
-      "#fd7e14" # Orange
-    elsif urgency == "scheduled"
-      "#0dcaf0" # Teal
+      "rgba(40, 167, 69, 0.8)" # Green
+    elsif urgency == "emergency" || urgency == "high"
+      "rgba(253, 126, 20, 0.8)" # Orange
+    elsif urgency == "scheduled" || urgency == "medium"
+      "rgba(13, 202, 240, 0.8)" # Teal
     else
-      "#0d6efd" # Blue
+      "rgba(13, 110, 253, 0.8)" # Blue
     end
   end
 
@@ -126,8 +150,10 @@ class Maintenance < ApplicationRecord
       "bg-success"
     elsif overdue?
       "bg-danger"
-    elsif active?
+    elsif in_progress?
       "bg-info"
+    elsif active?
+      "bg-primary"
     elsif upcoming?
       "bg-warning"
     else
@@ -137,11 +163,11 @@ class Maintenance < ApplicationRecord
 
   def urgency_badge_class
     case urgency
-    when "emergency"
+    when "emergency", "high"
       "bg-danger"
-    when "scheduled"
+    when "scheduled", "medium"
       "bg-warning text-dark"
-    when "routine"
+    when "routine", "low"
       "bg-primary"
     else
       "bg-secondary"
@@ -206,7 +232,7 @@ class Maintenance < ApplicationRecord
   # Action Methods
   # =====================================================
   def mark_completed!
-    update!(status: "Completed")
+    update!(status: "Completed", end_date: Date.today)
   end
 
   def schedule_next(miles_interval: 5000, days_interval: 180)
@@ -254,6 +280,34 @@ class Maintenance < ApplicationRecord
     }
   end
 
+  # NEW: Method specifically for DHTMLX Gantt format
+  def dhtmlx_gantt_data
+    {
+      id: "maintenance_#{id}",
+      text: service_type.presence || "Maintenance ##{id}",
+      start_date: start_date&.strftime("%Y-%m-%d") || Date.today.strftime("%Y-%m-%d"),
+      end_date: end_date&.strftime("%Y-%m-%d") || (Date.today + 7.days).strftime("%Y-%m-%d"),
+      parent: "vehicle_#{vehicle_id}",
+      progress: completed? ? 1 : 0.5,
+      open: true,
+      color: gantt_bar_color,
+      status: status || 'Pending',
+      urgency: urgency || 'routine',
+      overdue: overdue?,
+      details: {
+        status: status || 'Pending',
+        urgency: urgency || 'routine',
+        cost: cost.to_f || 0,
+        notes: notes.to_s,
+        vehicle_id: vehicle_id,
+        maintenance_id: id,
+        duration: duration_days,
+        service_type: service_type,
+        category: category
+      }
+    }
+  end
+
   # =====================================================
   # Display Methods
   # =====================================================
@@ -263,6 +317,26 @@ class Maintenance < ApplicationRecord
 
   def to_s
     "#{service_type} (#{date&.strftime('%Y-%m-%d')})"
+  end
+
+  # =====================================================
+  # Urgency Helper for Views
+  # =====================================================
+  def urgency_display
+    urgency&.titleize || "Normal"
+  end
+
+  # =====================================================
+  # Owner field (for filtering)
+  # =====================================================
+  # This is a virtual attribute or delegate method
+  def owner
+    # You can either store this directly on Maintenance or get it from Vehicle
+    self[:owner] || vehicle&.service_owner
+  end
+
+  def owner=(value)
+    self[:owner] = value
   end
 
   private
@@ -277,6 +351,7 @@ class Maintenance < ApplicationRecord
     self.date ||= Date.today if date.nil?
     self.start_date ||= Date.today if start_date.nil?
     self.end_date ||= (Date.today + 7.days) if end_date.nil?
+    self.owner ||= vehicle&.service_owner if owner.nil?
   end
 
   # =====================================================
