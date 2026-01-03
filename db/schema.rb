@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_03_111418) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_03_204909) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -108,6 +108,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_03_111418) do
     t.bigint "mileage"
     t.date "next_due_date"
     t.text "notes"
+    t.string "owner"
     t.boolean "part_in_stock"
     t.timestamptz "reminder_sent_at"
     t.bigint "service_provider_id"
@@ -205,6 +206,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_03_111418) do
     t.timestamptz "created_at"
     t.bigint "driver_id"
     t.text "engine_number"
+    t.integer "fuel_level"
     t.text "fuel_type"
     t.text "license_plate"
     t.text "make"
@@ -217,6 +219,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_03_111418) do
     t.text "rfid_tag"
     t.text "serial_number"
     t.text "service_owner"
+    t.string "status", default: "active"
     t.text "transmission"
     t.timestamptz "updated_at"
     t.text "vehicle_type"

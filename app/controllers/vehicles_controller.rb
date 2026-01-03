@@ -1,6 +1,6 @@
 class VehiclesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue]
+  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue, :trips]
 
   # ====================================================
   # List all vehicles (OPTIMIZED)
@@ -159,28 +159,12 @@ class VehiclesController < ApplicationController
     
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.search(@query) if @query.present?
-
-    # Add dynamic methods to each vehicle
-    @vehicles.each do |vehicle|
-      vehicle.define_singleton_method(:pending_maintenances) do
-        maintenances.select { |m| m.present? && m.status == "Pending" }.sort_by(&:date)
-      end
-
-      vehicle.define_singleton_method(:completed_maintenances) do
-        maintenances.select { |m| m.present? && m.status == "Completed" }.sort_by(&:date).reverse
-      end
-
-      vehicle.define_singleton_method(:overdue_maintenances) do
-        maintenances.select { |m| m.present? && m.overdue? }
-      end
-
-      vehicle.define_singleton_method(:upcoming_trips) do
-        trips.select { |t| t.present? && t.start_time >= Time.current }.sort_by(&:start_time)
-      end
-    end
-
+    
     # Sort vehicles with pending maintenance first
-    @vehicles = @vehicles.sort_by { |v| v.pending_maintenances.any? ? 0 : 1 }
+    @vehicles = @vehicles.sort_by do |vehicle|
+      has_pending = vehicle.maintenances.any? { |m| m.present? && m.status == "Pending" }
+      has_pending ? 0 : 1
+    end
     
     @maintenances = @vehicles.flat_map(&:maintenances).compact
   end
@@ -223,7 +207,7 @@ class VehiclesController < ApplicationController
   # Vehicle Trips - Shows all trips for a specific vehicle
   # ====================================================
   def trips
-    @vehicle = Vehicle.find(params[:id])
+    # @vehicle is already set by before_action
     
     # Date filtering
     @from_date = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
@@ -371,6 +355,10 @@ class VehiclesController < ApplicationController
     send_data csv_data, filename: "vehicle-analytics-#{Date.today}.csv", type: "text/csv"
   end
 
+  def themes
+    # This will render app/views/vehicles/themes.html.erb
+  end
+
   private
 
   def set_vehicle
@@ -400,42 +388,11 @@ class VehiclesController < ApplicationController
   # ====================================================
   # HELPER METHODS FOR VIEWS
   # ====================================================
-  helper_method :utilization_color, :owner_color, :next_sort_order, :sort_icon, 
-                :utilization_color_class, :owner_badge_class, :analytics_params
+  helper_method :analytics_params
   
-  def utilization_color(utilization)
-    case utilization
-    when 0..30 then 'danger'
-    when 31..70 then 'warning'
-    else 'success'
-    end
-  end
-
-  def owner_color(owner)
-    case owner
-    when 'PTSC' then 'primary'
-    when 'Police' then 'danger'
-    when 'Fire Service' then 'warning'
-    else 'secondary'
-    end
-  end
-
-  def next_sort_order(current_order)
-    current_order == 'asc' ? 'desc' : 'asc'
-  end
-
-  def sort_icon(sort_by, current_sort_by, current_sort_order)
-    return '' unless sort_by == current_sort_by
-    current_sort_order == 'asc' ? '↑' : '↓'
-  end
-
-  def utilization_color_class(utilization)
-    utilization_color(utilization)
-  end
-
-  def owner_badge_class(owner)
-    owner_color(owner)
-  end
+  # REMOVED: utilization_color, owner_color, next_sort_order, sort_icon, 
+  #          utilization_color_class, owner_badge_class
+  # These are now handled by ApplicationHelper
   
   # Helper to build analytics params for links
   def analytics_params(overrides = {})
@@ -451,13 +408,5 @@ class VehiclesController < ApplicationController
     }
     
     default_params.merge(overrides).reject { |k, v| v.blank? }
-  end
-  
-  def themes
-    # This will render app/views/vehicles/themes.html.erb
-  end
-  
-  def theme_test
-    @theme = params[:theme] || 1
   end
 end

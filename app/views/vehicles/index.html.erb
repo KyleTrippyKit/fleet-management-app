@@ -1,3 +1,4 @@
+<!-- app/views/vehicles/index.html.erb -->
 <div class="container py-5">
   <h1 class="mb-4 text-primary fw-bold display-5">Fleet Vehicles</h1>
 
@@ -17,6 +18,55 @@
       </li>
     <% end %>
   </ul>
+
+  <!-- ====== ADD STATS CARDS HERE (THEME-COMPATIBLE) ====== -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card stats-card border-start border-primary border-4">
+        <div class="card-body">
+          <h6 class="text-muted mb-1">Total Vehicles</h6>
+          <h3 class="mb-0"><%= Vehicle.count %></h3>
+          <small class="text-success">
+            <i class="bi bi-arrow-up"></i> <%= Vehicle.active.count %> Active
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stats-card border-start border-warning border-4">
+        <div class="card-body">
+          <h6 class="text-muted mb-1">Due for Maintenance</h6>
+          <h3 class="mb-0"><%= Maintenance.overdue.count %></h3>
+          <small class="text-danger">
+            <i class="bi bi-exclamation-triangle"></i> Immediate attention
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stats-card border-start border-danger border-4">
+        <div class="card-body">
+          <h6 class="text-muted mb-1">In Repair</h6>
+          <h3 class="mb-0"><%= Vehicle.joins(:maintenances).where(maintenances: { status: ['Pending', 'In Progress'] }).distinct.count %></h3>
+          <small class="text-warning">
+            <i class="bi bi-tools"></i> Under service
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stats-card border-start border-success border-4">
+        <div class="card-body">
+          <h6 class="text-muted mb-1">Available</h6>
+          <h3 class="mb-0"><%= Vehicle.where.not(id: Vehicle.joins(:maintenances).where(maintenances: { status: ['Pending', 'In Progress'] })).count %></h3>
+          <small class="text-success">
+            <i class="bi bi-check-circle"></i> Ready to deploy
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ====== END STATS CARDS ====== -->
 
   <!-- Filters -->
   <%= form_with url: vehicles_path, method: :get, local: true,
@@ -89,12 +139,11 @@
 
                 <!-- Vehicle Image - USE THE HELPER DIRECTLY -->
                 <%= link_to vehicle_path(vehicle) do %>
-                 <!-- In vehicles/index.html.erb line ~140 -->
-                <%= vehicle_image(vehicle, 
-                      variant: :thumb,
-                      class: "vehicle-image",
-                      loading: "lazy",
-                      style: "width: 100%; height: 180px; object-fit: cover; background-color: #f8f9fa;") %>
+                  <%= vehicle_image(vehicle, 
+                        variant: :thumb,
+                        class: "vehicle-image",
+                        loading: "lazy",
+                        style: "width: 100%; height: 180px; object-fit: cover; background-color: #f8f9fa;") %>
                 <% end %>
                 
                 <!-- Photo indicator badge -->
@@ -121,7 +170,7 @@
                 </h5>
 
                 <p class="mb-2">
-                  <span class="badge service-badge <%= service_owner_badge_class(vehicle.service_owner) %>">
+                 <span class="badge service-badge <%= owner_badge_class(vehicle.service_owner) %>">
                     <%= vehicle.service_owner %>
                   </span>
                 </p>
@@ -515,6 +564,42 @@ img {
     flex: 1 1 100%;
     height: 48px;
   }
+}
+
+/* =========================
+   STATS CARDS STYLES (ADDED)
+========================= */
+.stats-card {
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.stats-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+}
+
+.stats-card .card-body {
+  padding: 1.25rem;
+}
+
+.stats-card h6 {
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.stats-card h3 {
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+.stats-card small {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
 }
 
 /* =========================
