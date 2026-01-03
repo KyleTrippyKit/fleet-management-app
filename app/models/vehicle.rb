@@ -1,5 +1,10 @@
 class Vehicle < ApplicationRecord
   # ------------------------------------------------------------
+  # Virtual attributes for form handling
+  # ------------------------------------------------------------
+  attr_accessor :remove_primary_photo
+  
+  # ------------------------------------------------------------
   # Associations
   # ------------------------------------------------------------
   belongs_to :driver, optional: true   # One driver per vehicle
@@ -8,7 +13,7 @@ class Vehicle < ApplicationRecord
   has_many :trips, dependent: :destroy
   has_many :vehicle_documents, dependent: :destroy
 
-  # ✅ UNCOMMENT ActiveStorage attachments for real photo uploads
+  # ✅ ActiveStorage attachments for real photo uploads
   has_one_attached :primary_photo  # Main vehicle photo
   has_many_attached :gallery_photos  # Additional photos
 
@@ -39,6 +44,26 @@ class Vehicle < ApplicationRecord
   scope :by_service_owner, ->(owner) { where(service_owner: owner) if owner.present? }
   scope :by_type, ->(type) { where(vehicle_type: type) if type.present? }
   scope :with_active_maintenance, -> { joins(:maintenances).where(maintenances: { status: 'Pending' }).distinct }
+  
+  # NEW: Active vehicles available for assignment
+  # Vehicles that are not in active maintenance and not assigned to other drivers
+  scope :active, -> {
+    # Vehicles that don't have active/pending maintenance and are either unassigned or assigned to current driver
+    left_joins(:maintenances)
+      .where("maintenances.status IS NULL OR maintenances.status NOT IN (?)", ['Pending', 'In Progress'])
+      .distinct
+  }
+  
+  # Available for assignment (not assigned to any driver OR assigned to specific driver for editing)
+  scope :available_for_assignment, ->(current_driver_id = nil) {
+    if current_driver_id
+      # Include vehicles assigned to this driver (for editing) plus unassigned vehicles
+      where("driver_id IS NULL OR driver_id = ?", current_driver_id)
+    else
+      # Only unassigned vehicles for new assignments
+      where(driver_id: nil)
+    end
+  }
 
   # ------------------------------------------------------------
   # Image helpers (Asset Pipeline + ActiveStorage)
@@ -311,5 +336,15 @@ class Vehicle < ApplicationRecord
     else
       { status: 'warning', message: issues.first }
     end
+  end
+  
+  # ------------------------------------------------------------
+  # Check if vehicle is available for assignment
+  # ------------------------------------------------------------
+  def available_for_assignment?(current_driver_id = nil)
+    # Vehicle is available if:
+    # 1. It doesn't have active/pending maintenance
+    # 2. It's either unassigned OR assigned to the current driver (for editing)
+    !has_active_maintenance? && (driver_id.nil? || driver_id == current_driver_id)
   end
 end

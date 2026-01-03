@@ -31,6 +31,11 @@ class Maintenance < ApplicationRecord
   validate :next_due_date_not_before_date
 
   # =====================================================
+  # Callbacks - Set defaults before validation
+  # =====================================================
+  before_validation :set_defaults
+
+  # =====================================================
   # Scopes
   # =====================================================
   scope :pending, -> { where(status: "Pending") }
@@ -261,6 +266,18 @@ class Maintenance < ApplicationRecord
   end
 
   private
+
+  # =====================================================
+  # Set default values
+  # =====================================================
+  def set_defaults
+    self.assignment_type ||= 'stores' if assignment_type.nil?
+    self.urgency ||= 'routine' if urgency.nil?
+    self.status ||= 'Pending' if status.nil?
+    self.date ||= Date.today if date.nil?
+    self.start_date ||= Date.today if start_date.nil?
+    self.end_date ||= (Date.today + 7.days) if end_date.nil?
+  end
 
   # =====================================================
   # Custom Validations

@@ -1,115 +1,168 @@
 <div class="container py-4">
-  <!-- Header and Add Driver Button -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Drivers</h1>
-    <%= link_to "Add Driver",
-          new_driver_path,
-          class: "btn btn-primary",
-          data: { turbo_frame: "_top" } %>
+  <!-- Header Section -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Drivers</h1>
+    <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary" %>
   </div>
 
-  <!-- Search & Filters -->
-  <div class="mb-3">
-    <%= form_with url: drivers_path,
-                  method: :get,
-                  data: { turbo_frame: "drivers_table" },
-                  local: true do |f| %>
-      <div class="input-group">
-        <%= f.text_field :query,
-              value: params[:query],
-              placeholder: "Search drivers...",
-              class: "form-control",
-              aria: { label: "Search drivers" } %>
-        <button class="btn btn-outline-secondary" type="submit">
-          Search
-        </button>
+  <!-- Search & Stats -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <%= form_with url: drivers_path, method: :get, data: { turbo_frame: "drivers_table" }, local: true, class: "row g-2" do |f| %>
+            <div class="col-md-8">
+              <div class="input-group">
+                <%= f.text_field :query, 
+                      value: params[:query],
+                      placeholder: "Search drivers by name, license, or employee ID...",
+                      class: "form-control" %>
+                <%= f.button type: "submit", class: "btn btn-outline-primary" do %>
+                  <i class="bi bi-search"></i> Search
+                <% end %>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <%= link_to "Clear Search", drivers_path, class: "btn btn-outline-secondary w-100" %>
+            </div>
+          <% end %>
+        </div>
+        <div class="col-md-4 text-end">
+          <small class="text-muted">
+            <%= @drivers.total_count %> drivers total • 
+            <%= Driver.active.count %> active • 
+            <%= Driver.inactive.count %> inactive
+          </small>
+        </div>
       </div>
-    <% end %>
+    </div>
   </div>
 
-  <!-- Drivers Table (Turbo Frame) -->
+  <!-- Drivers Table -->
   <%= turbo_frame_tag "drivers_table" do %>
     <% if @drivers.any? %>
-      <table class="table table-hover align-middle">
-        <thead>
-          <tr>
-            <th><%= sortable("name", "Name") %></th>
-            <th><%= sortable("license_number", "License") %></th>
-            <th><%= sortable("status", "Status") %></th>
-            <th>Assigned Vehicles</th>
-            <th>Trips</th>
-            <th class="text-end">Actions</th>
-          </tr>
-        </thead>
+      <div class="card shadow-sm">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th><%= sortable("name", "Driver") %></th>
+                <th><%= sortable("license_number", "License #") %></th>
+                <th><%= sortable("status", "Status") %></th>
+                <th>Assigned Vehicles</th>
+                <th>Contact</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @drivers.each do |driver| %>
+                <tr class="<%= driver.active? ? '' : 'table-secondary' %>">
+                  <!-- Driver Name -->
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="me-2">
+                        <i class="bi bi-person-circle text-muted"></i>
+                      </div>
+                      <div>
+                        <%= link_to driver.name, driver_path(driver), class: "text-decoration-none fw-medium" %>
+                        <% if driver.employee_id.present? %>
+                          <br><small class="text-muted"><%= driver.employee_id %></small>
+                        <% end %>
+                      </div>
+                    </div>
+                  </td>
 
-        <tbody>
-          <% @drivers.each do |driver| %>
-            <tr>
-              <td>
-                <%= link_to driver.name,
-                      driver_path(driver),
-                      class: "text-decoration-none",
-                      data: { turbo_frame: "_top" } %>
-              </td>
+                  <!-- License Number -->
+                  <td>
+                    <%= driver.license_number.presence || content_tag(:span, "—", class: "text-muted") %>
+                  </td>
 
-              <td><%= driver.license_number.presence || "—" %></td>
+                  <!-- Status -->
+                  <td>
+                    <span class="badge <%= driver.active? ? 'bg-success' : 'bg-secondary' %>">
+                      <%= driver.status.titleize %>
+                    </span>
+                  </td>
 
-              <td>
-                <span class="badge
-                  <%= case driver.status
-                        when "active" then "bg-success"
-                        when "suspended" then "bg-warning"
-                        else "bg-secondary"
-                      end %>">
-                  <%= driver.status.capitalize %>
-                </span>
-              </td>
+                  <!-- Assigned Vehicles -->
+                  <td>
+                    <% if driver.vehicles.any? %>
+                      <div class="d-flex flex-wrap gap-1">
+                        <% driver.vehicles.limit(2).each do |vehicle| %>
+                          <span class="badge bg-info text-dark">
+                            <%= link_to vehicle.registration_number, vehicle_path(vehicle), class: "text-decoration-none text-dark" %>
+                          </span>
+                        <% end %>
+                        <% if driver.vehicles.count > 2 %>
+                          <span class="badge bg-light text-muted">
+                            +<%= driver.vehicles.count - 2 %> more
+                          </span>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <span class="text-muted">None</span>
+                    <% end %>
+                  </td>
 
-              <td>
-                <% if driver.vehicles.any? %>
-                  <%= driver.vehicles.map(&:display_name).join(", ") %>
-                <% else %>
-                  <span class="text-muted">None</span>
-                <% end %>
-              </td>
+                  <!-- Contact -->
+                  <td>
+                    <% if driver.contact_number.present? %>
+                      <small><%= driver.contact_number %></small>
+                    <% elsif driver.phone.present? %>
+                      <small><%= driver.phone %></small>
+                    <% else %>
+                      <span class="text-muted">—</span>
+                    <% end %>
+                  </td>
 
-              <td><%= driver.trips.count %></td>
-
-              <td class="text-end">
-                <%= link_to "Edit",
-                      edit_driver_path(driver),
-                      class: "btn btn-sm btn-outline-secondary me-1",
-                      data: { turbo_frame: "_top" } %>
-
-                <% if driver.trips.exists? || driver.vehicles.exists? %>
-                  <button class="btn btn-sm btn-outline-danger" disabled
-                    title="<%= driver.trips.exists? ?
-                      'Cannot delete driver with trips' :
-                      'Cannot delete driver with assigned vehicles' %>">
-                    Delete
-                  </button>
-                <% else %>
-                  <%= link_to "Delete",
-                        driver_path(driver),
-                        method: :delete,
-                        data: {
-                          turbo_confirm: "Are you sure you want to delete this driver?",
-                          turbo_frame: "_top"
-                        },
-                        class: "btn btn-sm btn-outline-danger" %>
-                <% end %>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-
-      <!-- Pagination -->
-      <div class="d-flex justify-content-center mt-3">
-        <%= paginate @drivers %>
+                  <!-- Actions -->
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm" role="group">
+                      <%= link_to "View", driver_path(driver), class: "btn btn-outline-primary" %>
+                      <%= link_to "Edit", edit_driver_path(driver), class: "btn btn-outline-secondary" %>
+                      
+                      <% if driver.trips.none? && driver.vehicles.none? %>
+                        <%= link_to "Delete", 
+                              driver_path(driver), 
+                              method: :delete,
+                              data: { turbo_confirm: "Delete #{driver.name}?" },
+                              class: "btn btn-outline-danger" %>
+                      <% else %>
+                        <button class="btn btn-outline-danger" disabled title="Cannot delete driver with trips or assigned vehicles">
+                          Delete
+                        </button>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <% if @drivers.total_pages > 1 %>
+          <div class="card-footer">
+            <div class="d-flex justify-content-center">
+              <%= paginate @drivers %>
+            </div>
+          </div>
+        <% end %>
       </div>
     <% else %>
-      <p class="text-muted">No drivers found.</p>
+      <div class="card shadow-sm">
+        <div class="card-body text-center py-5">
+          <i class="bi bi-person-x display-1 text-muted mb-3"></i>
+          <h4 class="text-muted">No drivers found</h4>
+          <% if params[:query].present? %>
+            <p class="text-muted">No drivers match your search for "<%= params[:query] %>"</p>
+            <%= link_to "Clear search", drivers_path, class: "btn btn-outline-primary mt-2" %>
+          <% else %>
+            <p class="text-muted">Get started by adding your first driver</p>
+            <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary mt-2" %>
+          <% end %>
+        </div>
+      </div>
     <% end %>
   <% end %>
 </div>

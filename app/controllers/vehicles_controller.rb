@@ -1,6 +1,6 @@
 class VehiclesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed]
+  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue]
 
   # ====================================================
   # List all vehicles (OPTIMIZED)
@@ -274,17 +274,21 @@ class VehiclesController < ApplicationController
 
   def update
     # Handle photo removal
-    if params[:vehicle][:remove_primary_photo] == "1"
-      @vehicle.primary_photo.purge
-    end
-    
-    if params[:remove_gallery_photo_ids].present?
-      params[:remove_gallery_photo_ids].each do |photo_id|
-        @vehicle.gallery_photos.find_by(id: photo_id)&.purge
-      end
-    end
+    remove_photo = params[:vehicle][:remove_primary_photo] == "1"
     
     if @vehicle.update(vehicle_params)
+      # Remove the primary photo if checkbox was checked
+      if remove_photo && @vehicle.primary_photo.attached?
+        @vehicle.primary_photo.purge
+      end
+      
+      # Remove selected gallery photos
+      if params[:remove_gallery_photo_ids].present?
+        params[:remove_gallery_photo_ids].each do |photo_id|
+          @vehicle.gallery_photos.find_by(id: photo_id)&.purge
+        end
+      end
+      
       redirect_to vehicles_path, notice: "Vehicle updated successfully."
     else
       render :edit, status: :unprocessable_entity
@@ -294,6 +298,25 @@ class VehiclesController < ApplicationController
   def destroy
     @vehicle.destroy
     redirect_to vehicles_path, notice: "Vehicle deleted successfully."
+  end
+
+  # ====================================================
+  # Report Issue for a vehicle - FIXED
+  # ====================================================
+  def report_issue
+    # Create a new maintenance record with default values for driver reports
+    @maintenance = @vehicle.maintenances.new(
+      source: 'Driver Report',
+      assignment_type: 'stores',        # Must be 'stores' or 'purchasing'
+      urgency: 'emergency',             # Must be 'routine', 'scheduled', or 'emergency'
+      status: 'Pending',
+      start_date: Date.today,
+      end_date: Date.today + 3.days,
+      date: Date.today,
+      service_type: 'Driver Reported Issue',  # Required field
+      description: 'Issue reported by driver' # Optional but helpful
+    )
+    render :report_issue
   end
 
   # ====================================================
@@ -362,7 +385,6 @@ class VehiclesController < ApplicationController
   end
 
   def vehicle_params
-    # ✅ ADDED photo parameters
     params.require(:vehicle).permit(
       :make, :model, :vehicle_type, :registration_number, :service_owner,
       :chassis_number, :year_of_manufacture, :serial_number, :color,
@@ -407,7 +429,6 @@ class VehiclesController < ApplicationController
     current_sort_order == 'asc' ? '↑' : '↓'
   end
 
-  # For view compatibility
   def utilization_color_class(utilization)
     utilization_color(utilization)
   end

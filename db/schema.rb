@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_22_105111) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_03_111418) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -53,7 +53,11 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_22_105111) do
   end
 
   create_table "drivers", force: :cascade do |t|
+    t.string "contact_number"
     t.timestamptz "created_at"
+    t.string "emergency_contact_name"
+    t.string "emergency_contact_phone"
+    t.string "employee_id"
     t.text "license_number"
     t.text "name"
     t.text "notes"
@@ -96,6 +100,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_22_105111) do
     t.decimal "cost"
     t.timestamptz "created_at"
     t.date "date"
+    t.text "description"
     t.text "details"
     t.date "end_date", null: false
     t.bigint "estimated_delivery"

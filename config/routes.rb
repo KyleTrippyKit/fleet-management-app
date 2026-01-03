@@ -16,6 +16,7 @@ Rails.application.routes.draw do
     member do
       get :full_details
       get :trips
+      get :report_issue 
     end
 
     resources :maintenances do

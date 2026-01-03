@@ -1,0 +1,60 @@
+<div class="container py-4">
+  <div class="card shadow-sm">
+    <div class="card-header bg-warning text-dark">
+      <h4 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Report Maintenance Issue</h4>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        Reporting an issue for: <strong><%= @vehicle.display_name %></strong>
+      </div>
+      
+      <%= form_with model: [@vehicle, @maintenance], local: true, class: "needs-validation" do |f| %>
+        <%= f.hidden_field :source, value: 'Driver Report' %>
+        <%= f.hidden_field :urgency, value: 'high' %>
+        <%= f.hidden_field :status, value: 'Pending' %>
+        
+        <div class="mb-3">
+          <%= f.label :service_type, "Type of Issue", class: "form-label required" %>
+          <%= f.select :service_type, 
+                ["Brake Repair", "Engine Issue", "Transmission", "Electrical", "Tires", "Body Damage", "Other"], 
+                { prompt: "Select issue type" }, 
+                class: "form-select", required: true %>
+        </div>
+        
+        <div class="mb-3">
+          <%= f.label :notes, "Description of Issue", class: "form-label required" %>
+          <%= f.text_area :notes, class: "form-control", rows: 4, 
+                placeholder: "Describe the issue in detail... What happened? When did you notice it? Any unusual sounds or smells?", 
+                required: true %>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <%= f.label :mileage, "Current Mileage (km)", class: "form-label" %>
+              <%= f.number_field :mileage, value: @vehicle.mileage, class: "form-control", min: 0 %>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <%= f.label :date, "Date Issue Noticed", class: "form-label" %>
+              <%= f.date_field :date, value: Date.today, class: "form-control", max: Date.today %>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-3">
+          <%= f.label :estimated_delivery_date, "When do you need this fixed by?", class: "form-label" %>
+          <%= f.date_field :estimated_delivery_date, value: Date.today + 3.days, class: "form-control", min: Date.today %>
+          <div class="form-text">Please indicate when you need the vehicle back in service</div>
+        </div>
+        
+        <div class="d-flex justify-content-between mt-4">
+          <%= link_to "Cancel", vehicle_path(@vehicle), class: "btn btn-outline-secondary" %>
+          <%= f.submit "Submit Issue Report", class: "btn btn-danger px-4" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

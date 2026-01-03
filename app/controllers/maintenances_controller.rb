@@ -94,12 +94,43 @@ class MaintenancesController < ApplicationController
 
   def show; end
 
-  def new
-    @maintenance = @vehicle.maintenances.new
-    @maintenance.mileage ||= @vehicle.mileage
+ def new
+    # Handle different scenarios for creating maintenance
+    
+    if params[:vehicle_id].present?
+      # Coming from "Report Issue" button or vehicle context
+      @vehicle = Vehicle.find(params[:vehicle_id])
+      @maintenance = @vehicle.maintenances.new
+    elsif @vehicle.present?
+      # From vehicle-specific maintenance path
+      @maintenance = @vehicle.maintenances.new
+    else
+      # Standalone maintenance creation
+      @maintenance = Maintenance.new
+    end
+    
+    # Set default values based on source
+    @maintenance.mileage ||= @vehicle&.mileage
     @service_providers = ServiceProvider.all
+    
+    # Set default dates
     @maintenance.start_date ||= Date.today
     @maintenance.end_date ||= Date.today + 7.days
+    
+    # Special handling for driver-reported issues
+    if params[:source] == 'driver_report'
+      @maintenance.source = 'Driver Report'
+      @maintenance.urgency = 'high'
+      @maintenance.service_type ||= 'Repair'
+      @maintenance.notes ||= "Issue reported by driver"
+      @maintenance.status = 'Pending'
+      
+      # You might want to add a flash message for the driver
+      flash.now[:info] = "Please describe the issue in detail below. Your report will be reviewed by maintenance staff."
+    end
+    
+    # Set context for the view
+    @from_report_issue = (params[:source] == 'driver_report')
   end
 
   def create

@@ -17,8 +17,8 @@ class DriversController < ApplicationController
     if @query.present?
       q = "%#{@query}%"
       @drivers = @drivers.where(
-        "drivers.name ILIKE ? OR drivers.license_number ILIKE ?",
-        q, q
+        "drivers.name ILIKE ? OR drivers.license_number ILIKE ? OR drivers.employee_id ILIKE ?",
+        q, q, q
       )
     end
 
@@ -31,18 +31,27 @@ class DriversController < ApplicationController
   end
 
   # ============================================================
-  # Show driver details
+  # Show driver details - MAINTENANCE FOCUSED
   # ============================================================
   def show
-    @vehicles = @driver.vehicles
-
-    @trip_sort_column = params[:trip_sort].presence_in(%w[start_time end_time vehicle_id]) || "start_time"
-    @trip_sort_direction = params[:trip_direction].presence_in(%w[asc desc]) || "desc"
-
     @trips = @driver.trips
                     .includes(:vehicle)
-                    .order("#{@trip_sort_column} #{@trip_sort_direction}")
+                    .order(start_time: :desc)
                     .page(params[:trip_page]).per(10)
+    
+    # Simple assignment tracking
+    @assigned_vehicles = @driver.vehicles || []
+    
+    # Performance metrics for maintenance team
+    @maintenance_stats = @driver.maintenance_stats
+    @performance_metrics = @driver.maintenance_performance
+    
+    # Initialize empty arrays for non-existent associations
+    @maintenance_requests = []
+    @damage_reports = @driver.damage_reports
+                             .includes(:vehicle)
+                             .order(created_at: :desc)
+                             .page(params[:damage_page]).per(5) if @driver.respond_to?(:damage_reports)
   end
 
   # ============================================================
@@ -99,6 +108,10 @@ class DriversController < ApplicationController
     params.require(:driver).permit(
       :name,
       :license_number,
+      :employee_id,
+      :contact_number,
+      :emergency_contact_name,
+      :emergency_contact_phone,
       :phone,
       :status,
       :notes,
