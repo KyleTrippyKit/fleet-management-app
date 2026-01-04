@@ -32,4 +32,19 @@ module AnalyticsHelper
     else '#4CAF50'             # Green for high
     end
   end
+  
+  # For compatibility - delegates to VehiclesHelper
+  def owner_badge_color(owner)
+    helper.owner_badge_color(owner)
+  end
+  
+  def utilization_badge_color(utilization)
+    helper.utilization_badge_color(utilization)
+  end
+  
+  private
+  
+  def helper
+    @helper ||= ActionController::Base.helpers
+  end
 end

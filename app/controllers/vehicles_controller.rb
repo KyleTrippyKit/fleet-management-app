@@ -1,3 +1,4 @@
+# app/controllers/vehicles_controller.rb
 class VehiclesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue, :trips]
@@ -21,130 +22,131 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Vehicle Analytics Dashboard (OPTIMIZED)
+  # Vehicle Analytics Dashboard (FIXED)
   # ====================================================
   def analytics
-    @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
-    from = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
-    to   = params[:to].present?   ? Date.parse(params[:to])   : Date.today
+    # Store all params for view
+    @current_params = params.permit(:from, :to, :owner, :view, :sort_by, :sort_order, :page)
+    
+    @owner_filter = params[:owner].presence && params[:owner] != "All Owners" ? params[:owner] : nil
+    @from = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
+    @to = params[:to].present? ? Date.parse(params[:to]) : Date.today
     @view = params[:view] || 'grid'
     sort_by = params[:sort_by] || 'utilization'
     sort_order = params[:sort_order] || 'desc'
 
-    # OPTIMIZED: Include variant records
-    @vehicles = Vehicle.all.includes(:trips, :driver, primary_photo_attachment: { blob: :variant_records })
+    # Get filtered vehicles
+    @vehicles = Vehicle.all
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
 
-    # Build chart_data directly from vehicles
-    @chart_data = @vehicles.map do |vehicle|
-      # Get trips for this date range
-      trips = vehicle.trips.where(start_time: from.beginning_of_day..to.end_of_day)
-      
-      # Calculate stats
-      distance_sum = trips.sum(:distance_km).to_f
-      hours_sum = trips.sum(:duration_hours).to_f
-      trip_count = trips.count
-      total_days = (to - from + 1).to_i
-      utilization = total_days > 0 ? ((hours_sum / (total_days * 24.0)) * 100).round(1) : 0
-      
+    # Build vehicle data with stats
+    @vehicle_data = @vehicles.map do |vehicle|
+      usage = vehicle.usage_stats(from: @from, to: @to)
       {
         id: vehicle.id,
+        name: vehicle.display_name,
         registration_number: vehicle.registration_number,
-        make: vehicle.make,
-        model: vehicle.model,
         service_owner: vehicle.service_owner,
-        trip_count: trip_count,
-        distance_km: distance_sum,
-        hours_plied: hours_sum,
-        utilization: utilization,
-        total_days: total_days,
-        name: "#{vehicle.make} #{vehicle.model}",
-        full_name: "#{vehicle.make} #{vehicle.model} (#{vehicle.registration_number})"
+        distance_km: usage[:distance_km].to_f,
+        hours_plied: usage[:hours_plied].to_f,
+        trip_count: usage[:trip_count],
+        utilization: usage[:utilization_percent].to_f
       }
     end
 
-    # ---------------------------
+    # Remove vehicles with no data for the period
+    @vehicle_data = @vehicle_data.reject { |v| v[:distance_km] == 0 && v[:hours_plied] == 0 }
+
     # SORTING
-    # ---------------------------
     case sort_by
     when 'name'
-      @chart_data.sort_by! { |v| v[:name].downcase }
+      @vehicle_data.sort_by! { |v| v[:name].downcase }
     when 'owner'
-      @chart_data.sort_by! { |v| v[:service_owner] || '' }
+      @vehicle_data.sort_by! { |v| v[:service_owner] || '' }
     when 'distance'
-      @chart_data.sort_by! { |v| v[:distance_km] }
+      @vehicle_data.sort_by! { |v| v[:distance_km] }
     when 'hours'
-      @chart_data.sort_by! { |v| v[:hours_plied] }
+      @vehicle_data.sort_by! { |v| v[:hours_plied] }
     when 'trips'
-      @chart_data.sort_by! { |v| v[:trip_count] }
+      @vehicle_data.sort_by! { |v| v[:trip_count] }
     else # 'utilization' (default)
-      @chart_data.sort_by! { |v| v[:utilization] }
+      @vehicle_data.sort_by! { |v| v[:utilization] }
     end
     
-    @chart_data.reverse! if sort_order == 'desc'
+    @vehicle_data.reverse! if sort_order == 'desc'
 
-    # ---------------------------
     # PAGINATION
-    # ---------------------------
+    @total_vehicles = @vehicle_data.length
+    @per_page = 24
     @page = params[:page]&.to_i || 1
-    @per_page = params[:per_page]&.to_i || 24
-    @total_vehicles = @chart_data.length || 0
     @total_pages = @total_vehicles > 0 ? (@total_vehicles.to_f / @per_page).ceil : 1
-    
     @page = 1 if @page < 1
     @page = @total_pages if @page > @total_pages && @total_pages > 0
     
     start_index = (@page - 1) * @per_page
-    @paginated_vehicles = @chart_data[start_index, @per_page] || []
+    @paginated_vehicles = @vehicle_data[start_index, @per_page] || []
 
-    # ---------------------------
     # STATISTICS
-    # ---------------------------
-    if @chart_data.any?
-      @stats = {
-        total_distance: @chart_data.sum { |v| v[:distance_km] }.round(1),
-        total_hours: @chart_data.sum { |v| v[:hours_plied] }.round(1),
-        total_trips: @chart_data.sum { |v| v[:trip_count] },
-        avg_utilization: @total_vehicles > 0 ? (@chart_data.sum { |v| v[:utilization] } / @total_vehicles).round(1) : 0,
-        low_utilization: @chart_data.count { |v| v[:utilization] < 30 },
-        medium_utilization: @chart_data.count { |v| v[:utilization] >= 30 && v[:utilization] <= 70 },
-        high_utilization: @chart_data.count { |v| v[:utilization] > 70 }
+    # In vehicles_controller.rb analytics method, update the stats calculation:
+if @vehicle_data.any?
+    total_vehicles = @vehicle_data.length
+    utilizations = @vehicle_data.map { |v| v[:utilization] }.reject(&:nan?)
+    
+    # Calculate stats with better NaN handling
+    @stats = {
+      total_distance: @vehicle_data.sum { |v| v[:distance_km].to_f.nan? ? 0 : v[:distance_km] }.round(1),
+      total_hours: @vehicle_data.sum { |v| v[:hours_plied].to_f.nan? ? 0 : v[:hours_plied] }.round(1),
+      total_trips: @vehicle_data.sum { |v| v[:trip_count] },
+      avg_utilization: utilizations.any? ? (utilizations.sum / utilizations.size).round(1) : 0,
+      high_utilization: @vehicle_data.count { |v| (v[:utilization].to_f.nan? ? 0 : v[:utilization]) >= 70 },
+      medium_utilization: @vehicle_data.count { |v| 
+        util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
+        util >= 30 && util < 70 
+      },
+      low_utilization: @vehicle_data.count { |v| 
+        util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
+        util < 30 
       }
-    else
-      @stats = {
-        total_distance: 0,
-        total_hours: 0,
-        total_trips: 0,
-        avg_utilization: 0,
-        low_utilization: 0,
-        medium_utilization: 0,
-        high_utilization: 0
-      }
-    end
+    }
+  else
+    @stats = {
+      total_distance: 0,
+      total_hours: 0,
+      total_trips: 0,
+      avg_utilization: 0,
+      high_utilization: 0,
+      medium_utilization: 0,
+      low_utilization: 0
+    }
+  end
 
-    # ---------------------------
     # OWNER DISTRIBUTION
-    # ---------------------------
-    @owner_distribution = @chart_data.group_by { |v| v[:service_owner] }
+    @owner_distribution = @vehicle_data.group_by { |v| v[:service_owner] }
                                      .transform_values(&:count)
                                      .sort_by { |owner, count| -count }
 
-    # Keep legacy variables for compatibility
-    @chart_data_distance = []
-    @chart_data_hours = []
-    @chart_data_util = []
-    
-    # Store current parameters for view links
-    @current_params = {
-      from: from,
-      to: to,
-      owner: @owner_filter,
-      view: @view,
-      sort_by: sort_by,
-      sort_order: sort_order,
-      page: @page,
-      per_page: @per_page
-    }
+    respond_to do |format|
+      format.html
+      format.csv do
+        require 'csv'
+        csv_data = CSV.generate(headers: true) do |csv|
+          csv << ["Vehicle", "License Plate", "Service Owner", "Distance (km)", "Hours", "Trips", "Utilization %", "Period Days"]
+          @vehicle_data.each do |vehicle|
+            csv << [
+              vehicle[:name],
+              vehicle[:registration_number],
+              vehicle[:service_owner],
+              vehicle[:distance_km].round(1),
+              vehicle[:hours_plied].round(1),
+              vehicle[:trip_count],
+              vehicle[:utilization].round(1),
+              (@to - @from + 1).to_i
+            ]
+          end
+        end
+        send_data csv_data, filename: "vehicle-analytics-#{Date.today}.csv", type: "text/csv"
+      end
+    end
   end
 
   # ====================================================
@@ -385,26 +387,17 @@ class VehiclesController < ApplicationController
     )
   end
   
-  # ====================================================
-  # HELPER METHODS FOR VIEWS
-  # ====================================================
-  helper_method :analytics_params
-  
-  # REMOVED: utilization_color, owner_color, next_sort_order, sort_icon, 
-  #          utilization_color_class, owner_badge_class
-  # These are now handled by ApplicationHelper
-  
   # Helper to build analytics params for links
   def analytics_params(overrides = {})
     default_params = {
       from: params[:from] || 30.days.ago.to_date,
       to: params[:to] || Date.today,
-      owner: params[:owner] || "All",
+      owner: params[:owner] || "All Owners",
       view: params[:view] || 'grid',
       sort_by: params[:sort_by] || 'utilization',
       sort_order: params[:sort_order] || 'desc',
       page: params[:page] || 1,
-      per_page: params[:per_page] || 24
+      per_page: 24
     }
     
     default_params.merge(overrides).reject { |k, v| v.blank? }
