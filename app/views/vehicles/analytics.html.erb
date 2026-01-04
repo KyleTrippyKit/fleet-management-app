@@ -1,5 +1,52 @@
 <!-- app/views/vehicles/analytics.html.erb -->
 <div class="container-fluid py-4 px-4">
+  <!-- Debug Info Section -->
+  <% if Rails.env.development? %>
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <h5>📊 Analytics Data Status:</h5>
+    <ul>
+      <li>✅ <strong>Total Vehicles:</strong> <%= @total_vehicles %></li>
+      <li>✅ <strong>Data Period:</strong> 
+        <% if @current_params[:from].present? && @current_params[:to].present? %>
+          <%= @current_params[:from] %> to <%= @current_params[:to] %> 
+          (<%= ((@current_params[:to].to_date - @current_params[:from].to_date) + 1).to_i %> days)
+        <% else %>
+          Not specified
+        <% end %>
+      </li>
+      <li>✅ <strong>Trips Found:</strong> <%= @stats[:total_trips] %> trips across all vehicles</li>
+      <li>✅ <strong>Utilization Distribution:</strong> High: <%= @stats[:high_utilization] %>, Medium: <%= @stats[:medium_utilization] %>, Low: <%= @stats[:low_utilization] %></li>
+      <li>✅ <strong>Sample Vehicle:</strong> <%= @paginated_vehicles.first[:name] if @paginated_vehicles.any? %> - <%= @paginated_vehicles.first[:trip_count] if @paginated_vehicles.any? %> trips, <%= @paginated_vehicles.first[:utilization] if @paginated_vehicles.any? %>% utilization</li>
+    </ul>
+    <div class="mt-2">
+      <small class="text-muted">
+        <i class="bi bi-lightbulb"></i> 
+        <strong>Note:</strong> Low utilization (1.8%) means vehicles are underutilized. Consider adding more trips or adjusting expectations.
+      </small>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  <% end %>
+
+  <!-- Data Quality Alert -->
+  <% if @stats[:total_trips] > 0 && @stats[:avg_utilization] < 10 %>
+  <div class="alert alert-warning mb-4">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+      <div>
+        <h6 class="mb-1">Low Fleet Utilization Detected</h6>
+        <p class="mb-0">
+          Your fleet is operating at <strong><%= @stats[:avg_utilization] %>%</strong> utilization. 
+          Healthy fleet utilization typically ranges from 30-70%. 
+          <% if @stats[:total_trips] > 0 %>
+            You have <%= @stats[:total_trips] %> trips recorded, but vehicles are idle most of the time.
+          <% end %>
+        </p>
+      </div>
+    </div>
+  </div>
+  <% end %>
+
   <!-- Analytics Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -76,83 +123,114 @@
     </div>
   </div>
 
-  <!-- Summary Stats -->
+  <!-- Summary Stats - IMPROVED WITH BETTER VISIBILITY -->
   <div class="row mb-4 g-3">
     <div class="col-xl-3 col-lg-6">
-      <div class="card border-0 bg-gradient-primary text-white shadow">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">TOTAL DISTANCE</h6>
-              <h2 class="mb-0"><%= number_with_delimiter(@stats[:total_distance].round) %> km</h2>
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-primary bg-opacity-10 p-3 rounded">
+              <i class="bi bi-signpost fs-2 text-primary"></i>
             </div>
-            <i class="bi bi-signpost fs-1 opacity-50"></i>
-          </div>
-          <div class="mt-2 small">
-            <i class="bi bi-arrow-up"></i> Average: <%= (@stats[:total_distance] / [@total_vehicles, 1].max).round(1) %> km/vehicle
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-1">TOTAL DISTANCE</h6>
+              <h3 class="mb-1 text-dark"><%= number_with_delimiter(@stats[:total_distance].round) %> km</h3>
+              <p class="text-muted mb-0 small">
+                <i class="bi bi-arrow-up text-success"></i> 
+                Avg: <%= (@total_vehicles > 0 ? (@stats[:total_distance] / @total_vehicles).round(1) : 0) %> km/vehicle
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
     <div class="col-xl-3 col-lg-6">
-      <div class="card border-0 bg-gradient-success text-white shadow">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">TOTAL HOURS</h6>
-              <h2 class="mb-0"><%= @stats[:total_hours].round %></h2>
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-success bg-opacity-10 p-3 rounded">
+              <i class="bi bi-clock fs-2 text-success"></i>
             </div>
-            <i class="bi bi-clock fs-1 opacity-50"></i>
-          </div>
-          <div class="mt-2 small">
-            <i class="bi bi-calendar"></i> 
-            <% if @current_params[:from] && @current_params[:to] %>
-              <%= ((@current_params[:to].to_date - @current_params[:from].to_date) + 1).to_i %> days period
-            <% else %>
-              Select date range
-            <% end %>
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-1">TOTAL HOURS</h6>
+              <h3 class="mb-1 text-dark"><%= @stats[:total_hours].round %> hrs</h3>
+              <p class="text-muted mb-0 small">
+                <i class="bi bi-calendar"></i>
+                <% if @current_params[:from].present? && @current_params[:to].present? %>
+                  <%= ((@current_params[:to].to_date - @current_params[:from].to_date) + 1).to_i %> days
+                <% else %>
+                  Select range
+                <% end %>
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
     <div class="col-xl-3 col-lg-6">
-      <div class="card border-0 bg-gradient-warning text-white shadow">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">TRIPS COUNT</h6>
-              <h2 class="mb-0"><%= @stats[:total_trips] %></h2>
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-warning bg-opacity-10 p-3 rounded">
+              <i class="bi bi-arrow-repeat fs-2 text-warning"></i>
             </div>
-            <i class="bi bi-arrow-repeat fs-1 opacity-50"></i>
-          </div>
-          <div class="mt-2 small">
-            <i class="bi bi-graph-up"></i> <%= (@stats[:total_trips].to_f / [@total_vehicles, 1].max).round(1) %> trips/vehicle
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-1">TOTAL TRIPS</h6>
+              <h3 class="mb-1 text-dark"><%= @stats[:total_trips] %></h3>
+              <p class="text-muted mb-0 small">
+                <i class="bi bi-graph-up text-info"></i> 
+                Avg: <%= (@total_vehicles > 0 ? (@stats[:total_trips].to_f / @total_vehicles).round(1) : 0) %> trips/vehicle
+              </p>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
     <div class="col-xl-3 col-lg-6">
-      <div class="card border-0 bg-gradient-info text-white shadow">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-white-50 mb-1">AVG UTILIZATION</h6>
-              <h2 class="mb-0"><%= @stats[:avg_utilization] %>%</h2>
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center">
+            <div class="me-3 bg-info bg-opacity-10 p-3 rounded">
+              <i class="bi bi-speedometer2 fs-2 text-info"></i>
             </div>
-            <i class="bi bi-speedometer2 fs-1 opacity-50"></i>
-          </div>
-          <div class="mt-2">
-            <span class="badge bg-success"><%= @stats[:high_utilization] %> High</span>
-            <span class="badge bg-warning ms-1"><%= @stats[:medium_utilization] %> Medium</span>
-            <span class="badge bg-danger ms-1"><%= @stats[:low_utilization] %> Low</span>
+            <div class="flex-grow-1">
+              <h6 class="text-muted mb-1">AVG UTILIZATION</h6>
+              <h3 class="mb-1 text-dark"><%= @stats[:avg_utilization].to_f.nan? ? 0 : @stats[:avg_utilization] %>%</h3>
+              <div class="d-flex gap-1 mt-1">
+                <span class="badge bg-success"><%= @stats[:high_utilization] %> High</span>
+                <span class="badge bg-warning"><%= @stats[:medium_utilization] %> Medium</span>
+                <span class="badge bg-danger"><%= @stats[:low_utilization] %> Low</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Fleet Utilization Notice -->
+  <% if @stats[:low_utilization] == @total_vehicles && @total_vehicles > 0 %>
+  <div class="alert alert-warning mb-4">
+    <h6><i class="bi bi-info-circle me-2"></i> Fleet Underutilization Notice</h6>
+    <p class="mb-0">
+      All vehicles in your fleet have low utilization (< 30%). 
+      <% if @stats[:avg_utilization] < 5 %>
+        The average utilization is only <strong><%= @stats[:avg_utilization] %>%</strong>, indicating significant underutilization.
+      <% else %>
+        The average utilization is <strong><%= @stats[:avg_utilization] %>%</strong>.
+      <% end %>
+      Consider:
+      <ul class="mb-0 mt-2">
+        <li>Reviewing trip scheduling</li>
+        <li>Optimizing vehicle assignments</li>
+        <li>Adjusting fleet size if consistently underutilized</li>
+      </ul>
+    </p>
+  </div>
+  <% end %>
 
   <!-- Utilization Distribution -->
   <div class="row mb-4">
@@ -172,27 +250,32 @@
                         a 15.9155 15.9155 0 0 1 0 31.831
                         a 15.9155 15.9155 0 0 1 0 -31.831"
                     />
+                    <%# FIXED: Add guard clauses for division by zero and NaN %>
+                    <% low_percent = @total_vehicles > 0 ? (@stats[:low_utilization].to_f / @total_vehicles * 100).round : 0 %>
+                    <% med_percent = @total_vehicles > 0 ? (@stats[:medium_utilization].to_f / @total_vehicles * 100).round : 0 %>
+                    <% high_percent = @total_vehicles > 0 ? (@stats[:high_utilization].to_f / @total_vehicles * 100).round : 0 %>
+                    
                     <path class="circle danger"
-                      stroke-dasharray="<%= (@stats[:low_utilization].to_f / @total_vehicles * 100).round %>, 100"
+                      stroke-dasharray="<%= low_percent %>, 100"
                       d="M18 2.0845
                         a 15.9155 15.9155 0 0 1 0 31.831
                         a 15.9155 15.9155 0 0 1 0 -31.831"
                     />
                     <path class="circle warning"
-                      stroke-dasharray="<%= (@stats[:medium_utilization].to_f / @total_vehicles * 100).round %>, 100"
+                      stroke-dasharray="<%= med_percent %>, 100"
                       d="M18 2.0845
                         a 15.9155 15.9155 0 0 1 0 31.831
                         a 15.9155 15.9155 0 0 1 0 -31.831"
-                      style="transform: rotate(<%= (@stats[:low_utilization].to_f / @total_vehicles * 360).round %>deg); transform-origin: 18px 18px;"
+                      style="transform: rotate(<%= low_percent * 3.6 %>deg); transform-origin: 18px 18px;"
                     />
                     <path class="circle success"
-                      stroke-dasharray="<%= (@stats[:high_utilization].to_f / @total_vehicles * 100).round %>, 100"
+                      stroke-dasharray="<%= high_percent %>, 100"
                       d="M18 2.0845
                         a 15.9155 15.9155 0 0 1 0 31.831
                         a 15.9155 15.9155 0 0 1 0 -31.831"
-                      style="transform: rotate(<%= ((@stats[:low_utilization] + @stats[:medium_utilization]).to_f / @total_vehicles * 360).round %>deg); transform-origin: 18px 18px;"
+                      style="transform: rotate(<%= (low_percent + med_percent) * 3.6 %>deg); transform-origin: 18px 18px;"
                     />
-                    <text x="18" y="20.5" class="percentage"><%= @stats[:avg_utilization] %>%</text>
+                    <text x="18" y="20.5" class="percentage"><%= @stats[:avg_utilization].to_f.nan? ? 0 : @stats[:avg_utilization] %>%</text>
                     <text x="18" y="24.5" class="label">Avg</text>
                   </svg>
                 </div>
@@ -209,8 +292,10 @@
                       <span class="fw-bold"><%= count %> vehicles</span>
                     </div>
                     <div class="progress" style="height: 10px;">
+                      <%# FIXED: Add guard clause for division by zero %>
+                      <% width_percent = @total_vehicles > 0 ? (count.to_f / @total_vehicles * 100).round : 0 %>
                       <div class="progress-bar bg-<%= color %>" 
-                           style="width: <%= (count.to_f / @total_vehicles * 100).round %>%"></div>
+                           style="width: <%= width_percent %>%"></div>
                     </div>
                   </div>
                 <% end %>
@@ -228,19 +313,28 @@
         </div>
         <div class="card-body">
           <div class="owner-distribution">
-            <% @owner_distribution.each do |owner, count| %>
-              <div class="owner-item mb-3">
-                <div class="d-flex justify-content-between mb-1">
-                  <span class="fw-medium"><%= owner %></span>
-                  <span class="text-muted"><%= count %> vehicles</span>
+            <% if @owner_distribution.any? %>
+              <% @owner_distribution.each do |owner, count| %>
+                <div class="owner-item mb-3">
+                  <div class="d-flex justify-content-between mb-1">
+                    <span class="fw-medium"><%= owner %></span>
+                    <span class="text-muted"><%= count %> vehicles</span>
+                  </div>
+                  <div class="progress" style="height: 8px;">
+                    <%# FIXED: Add guard clause for division by zero %>
+                    <% owner_width = @total_vehicles > 0 ? (count.to_f / @total_vehicles * 100).round : 0 %>
+                    <div class="progress-bar bg-<%= owner_badge_color(owner) %>" 
+                         style="width: <%= owner_width %>%"></div>
+                  </div>
+                  <div class="text-end small text-muted mt-1">
+                    <%= @total_vehicles > 0 ? (count.to_f / @total_vehicles * 100).round(1) : 0 %>%
+                  </div>
                 </div>
-                <div class="progress" style="height: 8px;">
-                  <div class="progress-bar bg-<%= owner_badge_color(owner) %>" 
-                       style="width: <%= (count.to_f / @total_vehicles * 100).round %>%"></div>
-                </div>
-                <div class="text-end small text-muted mt-1">
-                  <%= (count.to_f / @total_vehicles * 100).round(1) %>%
-                </div>
+              <% end %>
+            <% else %>
+              <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                No service owner distribution data available
               </div>
             <% end %>
           </div>
@@ -281,205 +375,473 @@
     <div class="card-body">
       <% if @view == 'grid' %>
         <!-- Grid View -->
-        <div class="row g-3">
-          <% @paginated_vehicles.each do |vehicle_data| %>
-            <div class="col-md-6 col-xl-4">
-              <div class="card h-100 border">
-                <div class="card-body">
-                  <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                      <h6 class="fw-bold mb-1"><%= vehicle_data[:name] %></h6>
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-<%= owner_badge_color(vehicle_data[:service_owner]) %>">
-                          <%= vehicle_data[:service_owner] %>
-                        </span>
-                        <span class="text-muted small">
-                          <%= vehicle_data[:trip_count] %> trips
-                        </span>
+        <% if @paginated_vehicles.any? %>
+          <div class="row g-3">
+            <% @paginated_vehicles.each do |vehicle_data| %>
+              <div class="col-md-6 col-xl-4">
+                <div class="card h-100 border">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                      <div>
+                        <h6 class="fw-bold mb-1"><%= vehicle_data[:name] %></h6>
+                        <div class="d-flex align-items-center gap-2">
+                          <% if vehicle_data[:registration_number].present? %>
+                            <span class="badge bg-dark text-white border">
+                              <i class="bi bi-car-front me-1"></i> <%= vehicle_data[:registration_number] %>
+                            </span>
+                          <% end %>
+                          <span class="badge bg-<%= owner_badge_color(vehicle_data[:service_owner]) %>">
+                            <%= vehicle_data[:service_owner] %>
+                          </span>
+                          <span class="text-muted small">
+                            <%= vehicle_data[:trip_count] %> trips
+                          </span>
+                        </div>
+                      </div>
+                      <span class="badge bg-<%= utilization_badge_color(vehicle_data[:utilization]) %> 
+                            px-3 py-2 fs-6">
+                        <%= vehicle_data[:utilization].to_f.nan? ? 0 : vehicle_data[:utilization] %>%
+                      </span>
+                    </div>
+                    
+                    <div class="row g-2 mb-3">
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                          <div class="text-muted small">Distance</div>
+                          <div class="fw-bold"><%= vehicle_data[:distance_km].round(1) %> km</div>
+                        </div>
+                      </div>
+                      <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                          <div class="text-muted small">Hours</div>
+                          <div class="fw-bold"><%= vehicle_data[:hours_plied].round(1) %></div>
+                        </div>
                       </div>
                     </div>
-                    <span class="badge bg-<%= utilization_badge_color(vehicle_data[:utilization]) %> 
-                          px-3 py-2 fs-6">
-                      <%= vehicle_data[:utilization] %>%
-                    </span>
-                  </div>
-                  
-                  <div class="row g-2 mb-3">
-                    <div class="col-6">
-                      <div class="text-center p-2 bg-light rounded">
-                        <div class="text-muted small">Distance</div>
-                        <div class="fw-bold"><%= vehicle_data[:distance_km].round(1) %> km</div>
+                    
+                    <div class="mb-3">
+                      <div class="d-flex justify-content-between mb-1 small">
+                        <span>Utilization</span>
+                        <span><%= vehicle_data[:utilization].to_f.nan? ? 0 : vehicle_data[:utilization] %>%</span>
+                      </div>
+                      <div class="progress" style="height: 6px;">
+                        <% util_width = vehicle_data[:utilization].to_f.nan? ? 0 : [vehicle_data[:utilization].to_f, 100].min %>
+                        <div class="progress-bar bg-<%= utilization_badge_color(vehicle_data[:utilization]) %>" 
+                             style="width: <%= util_width %>%"></div>
                       </div>
                     </div>
-                    <div class="col-6">
-                      <div class="text-center p-2 bg-light rounded">
-                        <div class="text-muted small">Hours</div>
-                        <div class="fw-bold"><%= vehicle_data[:hours_plied].round(1) %></div>
-                      </div>
+                    
+                    <div class="text-center">
+                      <%= link_to "View Details", vehicle_path(vehicle_data[:id]), 
+                            class: "btn btn-sm btn-outline-primary w-100" %>
                     </div>
-                  </div>
-                  
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between mb-1 small">
-                      <span>Utilization</span>
-                      <span><%= vehicle_data[:utilization] %>%</span>
-                    </div>
-                    <div class="progress" style="height: 6px;">
-                      <div class="progress-bar bg-<%= utilization_badge_color(vehicle_data[:utilization]) %>" 
-                           style="width: <%= vehicle_data[:utilization] %>%"></div>
-                    </div>
-                  </div>
-                  
-                  <div class="text-center">
-                    <%= link_to "View Details", vehicle_path(vehicle_data[:id]), 
-                          class: "btn btn-sm btn-outline-primary w-100" %>
                   </div>
                 </div>
               </div>
-            </div>
-          <% end %>
-        </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No vehicle data available for the selected filters
+          </div>
+        <% end %>
         
       <% elsif @view == 'table' %>
         <!-- Table View -->
-        <div class="table-responsive">
-          <table class="table table-hover">
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Owner</th>
-                <th>Distance (km)</th>
-                <th>Hours</th>
-                <th>Trips</th>
-                <th>Utilization</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @paginated_vehicles.each do |vehicle_data| %>
+        <% if @paginated_vehicles.any? %>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
                 <tr>
-                  <td>
-                    <div class="fw-bold"><%= vehicle_data[:name] %></div>
-                    <div class="small text-muted"><%= vehicle_data[:registration_number] %></div>
-                  </td>
-                  <td>
-                    <span class="badge bg-<%= owner_badge_color(vehicle_data[:service_owner]) %>">
-                      <%= vehicle_data[:service_owner] %>
-                    </span>
-                  </td>
-                  <td class="fw-medium"><%= vehicle_data[:distance_km].round(1) %></td>
-                  <td class="fw-medium"><%= vehicle_data[:hours_plied].round(1) %></td>
-                  <td><%= vehicle_data[:trip_count] %></td>
-                  <td>
-                    <div class="d-flex align-items-center gap-2">
-                      <span class="fw-medium"><%= vehicle_data[:utilization] %>%</span>
-                      <div class="progress flex-grow-1" style="height: 6px; width: 60px;">
-                        <div class="progress-bar bg-<%= utilization_badge_color(vehicle_data[:utilization]) %>" 
-                             style="width: <%= vehicle_data[:utilization] %>%"></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <%= link_to "View", vehicle_path(vehicle_data[:id]), 
-                          class: "btn btn-sm btn-outline-primary" %>
-                  </td>
+                  <th>Vehicle</th>
+                  <th>Owner</th>
+                  <th>Distance (km)</th>
+                  <th>Hours</th>
+                  <th>Trips</th>
+                  <th>Utilization</th>
+                  <th>Actions</th>
                 </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                <% @paginated_vehicles.each do |vehicle_data| %>
+                  <tr>
+                    <td>
+                      <div class="fw-bold"><%= vehicle_data[:name] %></div>
+                      <div class="small">
+                        <% if vehicle_data[:registration_number].present? %>
+                          <span class="text-dark fw-medium d-flex align-items-center">
+                            <i class="bi bi-card-text me-1 text-muted"></i>
+                            <span class="plate-text"><%= vehicle_data[:registration_number] %></span>
+                          </span>
+                        <% end %>
+                        <% if vehicle_data[:service_owner].present? %>
+                          <span class="text-muted mt-1 d-block small"><%= vehicle_data[:service_owner] %></span>
+                        <% end %>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge bg-<%= owner_badge_color(vehicle_data[:service_owner]) %>">
+                        <%= vehicle_data[:service_owner] %>
+                      </span>
+                    </td>
+                    <td class="fw-medium"><%= vehicle_data[:distance_km].round(1) %></td>
+                    <td class="fw-medium"><%= vehicle_data[:hours_plied].round(1) %></td>
+                    <td><%= vehicle_data[:trip_count] %></td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <span class="fw-medium"><%= vehicle_data[:utilization].to_f.nan? ? 0 : vehicle_data[:utilization] %>%</span>
+                        <div class="progress flex-grow-1" style="height: 6px; width: 60px;">
+                          <% util_width = vehicle_data[:utilization].to_f.nan? ? 0 : [vehicle_data[:utilization].to_f, 100].min %>
+                          <div class="progress-bar bg-<%= utilization_badge_color(vehicle_data[:utilization]) %>" 
+                               style="width: <%= util_width %>%"></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <%= link_to "View", vehicle_path(vehicle_data[:id]), 
+                            class: "btn btn-sm btn-outline-primary" %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% else %>
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No vehicle data available for the selected filters
+          </div>
+        <% end %>
         
       <% else %>
-        <!-- Chart View -->
+        <!-- Chart View - OPTIMIZED FOR MANY VEHICLES WITH LICENSE PLATE INTEGRATION -->
         <div id="analytics-charts">
-          <canvas id="distanceChart" class="mb-4" height="100"></canvas>
-          <canvas id="utilizationChart" height="100"></canvas>
-        </div>
-        
-        <script>
-          document.addEventListener("DOMContentLoaded", function() {
-            const vehicles = <%= raw @paginated_vehicles.to_json %>;
+          <% if @paginated_vehicles.any? %>
+            <!-- Chart Controls for Large Datasets -->
+            <% if @total_vehicles > 10 %>
+            <div class="alert alert-info mb-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <i class="bi bi-info-circle me-2"></i>
+                  Showing top 10 vehicles by distance. Use filters to see specific vehicles.
+                </div>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-outline-primary active" data-chart-limit="10">Top 10</button>
+                  <button class="btn btn-outline-primary" data-chart-limit="20">Top 20</button>
+                  <button class="btn btn-outline-primary" data-chart-limit="all">All</button>
+                </div>
+              </div>
+            </div>
+            <% end %>
             
-            // Distance Chart
-            const distanceCtx = document.getElementById('distanceChart').getContext('2d');
-            if (distanceCtx) {
-              new Chart(distanceCtx, {
-                type: 'bar',
-                data: {
-                  labels: vehicles.map(v => v.name),
-                  datasets: [{
-                    label: 'Distance (km)',
-                    data: vehicles.map(v => v.distance_km),
-                    backgroundColor: 'rgba(54, 162, 235, 0.7)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  plugins: {
-                    legend: { display: false },
-                    title: { 
-                      display: true, 
-                      text: 'Distance Traveled by Vehicle (km)',
-                      font: { size: 16 }
-                    }
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      title: {
-                        display: true,
-                        text: 'Kilometers'
-                      }
-                    }
+            <div class="chart-container" style="position: relative; height:400px; width:100%">
+              <canvas id="distanceChart"></canvas>
+            </div>
+            <div class="chart-container mt-5" style="position: relative; height:400px; width:100%">
+              <canvas id="utilizationChart"></canvas>
+            </div>
+            
+            <script>
+              // Wait for DOM and Chart.js to be fully loaded
+              document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM loaded, initializing optimized charts...');
+                
+                // Check if Chart is available
+                if (typeof Chart === 'undefined') {
+                  console.error('Chart.js is not loaded!');
+                  document.getElementById('analytics-charts').innerHTML = 
+                    '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Chart.js failed to load. Please check your JavaScript imports.</div>';
+                  return;
+                }
+                
+                // Get all vehicle data
+                const allVehicles = <%= raw @paginated_vehicles.to_json %>;
+                console.log('Total vehicles for charts:', allVehicles.length);
+                
+                // Function to get limited data based on selection
+                function getChartData(limit = 10) {
+                  let vehicles = [...allVehicles];
+                  
+                  // Sort by distance for distance chart
+                  vehicles.sort((a, b) => b.distance_km - a.distance_km);
+                  
+                  // Apply limit
+                  if (limit !== 'all' && limit < vehicles.length) {
+                    vehicles = vehicles.slice(0, limit);
                   }
+                  
+                  // Clean vehicle data and format display name with license plate
+                  return vehicles.map(v => ({
+                    ...v,
+                    distance_km: isNaN(v.distance_km) ? 0 : v.distance_km,
+                    utilization: isNaN(v.utilization) ? 0 : v.utilization,
+                    hours_plied: isNaN(v.hours_plied) ? 0 : v.hours_plied,
+                    name: v.name || 'Unnamed Vehicle',
+                    registration_number: v.registration_number || 'N/A',
+                    // NEW: Create display name with both name and license plate
+                    displayName: formatDisplayName(v.name, v.registration_number, v.service_owner),
+                    // Short version for chart labels
+                    shortName: formatShortName(v.name, v.registration_number)
+                  }));
+                }
+                
+                // NEW: Format display name with license plate
+                function formatDisplayName(name, plate, owner) {
+                  let display = name || 'Unnamed Vehicle';
+                  if (plate && plate !== 'N/A') {
+                    display += ` (${plate})`;
+                  }
+                  if (owner && owner !== 'Unknown') {
+                    display += ` - ${owner}`;
+                  }
+                  return display;
+                }
+                
+                // NEW: Format short name for chart labels
+                function formatShortName(name, plate) {
+                  const namePart = name || 'Vehicle';
+                  const platePart = plate && plate !== 'N/A' ? `(${plate})` : '';
+                  
+                  // Combine both, but limit length
+                  const combined = `${namePart} ${platePart}`.trim();
+                  
+                  if (combined.length > 20) {
+                    return combined.substring(0, 17) + '...';
+                  }
+                  return combined;
+                }
+                
+                // Function to create or update charts
+                function createCharts(limit = 10) {
+                  try {
+                    const vehicles = getChartData(limit);
+                    console.log(`Creating charts with ${vehicles.length} vehicles`);
+                    
+                    // Destroy existing charts if they exist
+                    const distanceCanvas = document.getElementById('distanceChart');
+                    const utilizationCanvas = document.getElementById('utilizationChart');
+                    
+                    if (window.distanceChart instanceof Chart) {
+                      window.distanceChart.destroy();
+                    }
+                    if (window.utilizationChart instanceof Chart) {
+                      window.utilizationChart.destroy();
+                    }
+                    
+                    // Distance Chart
+                    if (distanceCanvas) {
+                      const distanceCtx = distanceCanvas.getContext('2d');
+                      
+                      window.distanceChart = new Chart(distanceCtx, {
+                        type: 'bar',
+                        data: {
+                          labels: vehicles.map(v => v.shortName),
+                          datasets: [{
+                            label: 'Distance (km)',
+                            data: vehicles.map(v => v.distance_km),
+                            backgroundColor: vehicles.map((v, i) => 
+                              `hsl(${(i * 360 / Math.max(vehicles.length, 1)) % 360}, 70%, 60%)`
+                            ),
+                            borderColor: vehicles.map((v, i) => 
+                              `hsl(${(i * 360 / Math.max(vehicles.length, 1)) % 360}, 70%, 40%)`
+                            ),
+                            borderWidth: 1
+                          }]
+                        },
+                        options: {
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { 
+                              display: false
+                            },
+                            title: { 
+                              display: true, 
+                              text: vehicles.length === allVehicles.length ? 
+                                'Distance Traveled by All Vehicles (km)' :
+                                `Top ${vehicles.length} Vehicles by Distance (km)`,
+                              font: { size: 16 }
+                            },
+                            tooltip: {
+                              callbacks: {
+                                // UPDATED: Enhanced tooltip with license plate
+                                title: function(context) {
+                                  const vehicle = vehicles[context[0].dataIndex];
+                                  return vehicle.displayName;
+                                },
+                                label: function(context) {
+                                  const vehicle = vehicles[context.dataIndex];
+                                  return [
+                                    `Distance: ${vehicle.distance_km.toFixed(1)} km`,
+                                    `Trips: ${vehicle.trip_count}`,
+                                    `Utilization: ${vehicle.utilization.toFixed(1)}%`,
+                                    `Owner: ${vehicle.service_owner}`
+                                  ];
+                                },
+                                afterLabel: function(context) {
+                                  const vehicle = vehicles[context.dataIndex];
+                                  // Add license plate as separate line if not in title
+                                  return `License Plate: ${vehicle.registration_number}`;
+                                }
+                              }
+                            }
+                          },
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              title: {
+                                display: true,
+                                text: 'Kilometers'
+                              }
+                            },
+                            x: {
+                              ticks: {
+                                maxRotation: vehicles.length > 15 ? 90 : 45,
+                                minRotation: vehicles.length > 15 ? 90 : 45,
+                                font: {
+                                  size: vehicles.length > 20 ? 10 : 12
+                                }
+                              }
+                            }
+                          }
+                        }
+                      });
+                    }
+                    
+                    // Utilization Chart
+                    if (utilizationCanvas) {
+                      const utilCtx = utilizationCanvas.getContext('2d');
+                      
+                      // Sort by utilization for this chart
+                      const sortedByUtilization = [...vehicles].sort((a, b) => b.utilization - a.utilization);
+                      
+                      window.utilizationChart = new Chart(utilCtx, {
+                        type: vehicles.length > 30 ? 'bar' : 'line',
+                        data: {
+                          labels: sortedByUtilization.map(v => v.shortName),
+                          datasets: [{
+                            label: 'Utilization %',
+                            data: sortedByUtilization.map(v => v.utilization),
+                            backgroundColor: vehicles.length > 30 ? 
+                              sortedByUtilization.map((v, i) => 
+                                `hsl(${(i * 360 / Math.max(sortedByUtilization.length, 1)) % 360}, 70%, 60%)`
+                              ) :
+                              'rgba(255, 99, 132, 0.2)',
+                            borderColor: vehicles.length > 30 ?
+                              sortedByUtilization.map((v, i) => 
+                                `hsl(${(i * 360 / Math.max(sortedByUtilization.length, 1)) % 360}, 70%, 40%)`
+                              ) :
+                              'rgba(255, 99, 132, 1)',
+                            borderWidth: 2,
+                            fill: vehicles.length <= 30,
+                            tension: vehicles.length <= 30 ? 0.4 : 0
+                          }]
+                        },
+                        options: {
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: { 
+                              display: false
+                            },
+                            title: { 
+                              display: true, 
+                              text: vehicles.length === allVehicles.length ? 
+                                'Utilization Rate for All Vehicles (%)' :
+                                `Top ${vehicles.length} Vehicles by Utilization (%)`,
+                              font: { size: 16 }
+                            },
+                            tooltip: {
+                              callbacks: {
+                                // UPDATED: Enhanced tooltip with license plate
+                                title: function(context) {
+                                  const vehicle = sortedByUtilization[context[0].dataIndex];
+                                  return vehicle.displayName;
+                                },
+                                label: function(context) {
+                                  const vehicle = sortedByUtilization[context.dataIndex];
+                                  return [
+                                    `Utilization: ${vehicle.utilization.toFixed(1)}%`,
+                                    `Distance: ${vehicle.distance_km.toFixed(1)} km`,
+                                    `Trips: ${vehicle.trip_count}`
+                                  ];
+                                },
+                                afterLabel: function(context) {
+                                  const vehicle = sortedByUtilization[context.dataIndex];
+                                  return `License Plate: ${vehicle.registration_number}`;
+                                }
+                              }
+                            }
+                          },
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              max: 100,
+                              title: {
+                                display: true,
+                                text: 'Utilization %'
+                              }
+                            },
+                            x: {
+                              ticks: {
+                                maxRotation: vehicles.length > 15 ? 90 : 45,
+                                minRotation: vehicles.length > 15 ? 90 : 45,
+                                font: {
+                                  size: vehicles.length > 20 ? 10 : 12
+                                }
+                              }
+                            }
+                          }
+                        }
+                      });
+                    }
+                    
+                    console.log('Charts created successfully');
+                    
+                  } catch (error) {
+                    console.error('Error creating charts:', error);
+                    document.getElementById('analytics-charts').innerHTML = 
+                      '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Error creating charts: ' + error.message + '</div>';
+                  }
+                }
+                
+                // Initial chart creation
+                createCharts(10);
+                
+                // Add event listeners for chart limit buttons
+                document.querySelectorAll('[data-chart-limit]').forEach(button => {
+                  button.addEventListener('click', function() {
+                    // Update active button
+                    document.querySelectorAll('[data-chart-limit]').forEach(btn => {
+                      btn.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
+                    // Recreate charts with new limit
+                    const limit = this.dataset.chartLimit === 'all' ? 'all' : parseInt(this.dataset.chartLimit);
+                    createCharts(limit);
+                  });
+                });
+                
+              });
+              
+              // Also trigger on turbo:load for Turbo Drive compatibility
+              document.addEventListener('turbo:load', function() {
+                if (typeof Chart !== 'undefined' && document.getElementById('distanceChart')) {
+                  console.log('Turbo loaded, reinitializing charts...');
+                  const event = new Event('DOMContentLoaded');
+                  document.dispatchEvent(event);
                 }
               });
-            }
-            
-            // Utilization Chart
-            const utilCtx = document.getElementById('utilizationChart').getContext('2d');
-            if (utilCtx) {
-              new Chart(utilCtx, {
-                type: 'line',
-                data: {
-                  labels: vehicles.map(v => v.name),
-                  datasets: [{
-                    label: 'Utilization %',
-                    data: vehicles.map(v => v.utilization),
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4
-                  }]
-                },
-                options: {
-                  responsive: true,
-                  plugins: {
-                    legend: { display: false },
-                    title: { 
-                      display: true, 
-                      text: 'Vehicle Utilization Rate (%)',
-                      font: { size: 16 }
-                    }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: {
-                      display: true,
-                      text: 'Utilization %'
-                    }
-                  }
-                }
-              }
-            });
-          }
-        });
-        </script>
+            </script>
+          <% else %>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              No chart data available for the selected filters
+            </div>
+          <% end %>
+        </div>
       <% end %>
     </div>
     
@@ -526,22 +888,22 @@
 </div>
 
 <style>
-.bg-gradient-primary {
-  background: linear-gradient(135deg, #0d6efd, #004aad) !important;
+/* Summary Stats Cards */
+.card {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition: transform 0.2s;
 }
 
-.bg-gradient-success {
-  background: linear-gradient(135deg, #198754, #0d633c) !important;
+.card:hover {
+  transform: translateY(-2px);
 }
 
-.bg-gradient-warning {
-  background: linear-gradient(135deg, #ffc107, #e0a800) !important;
+.card-header {
+  border-bottom: 1px solid rgba(0,0,0,.125);
 }
 
-.bg-gradient-info {
-  background: linear-gradient(135deg, #0dcaf0, #0aa2c0) !important;
-}
-
+/* Utilization Chart */
 .circular-chart {
   display: block;
   margin: 10px auto;
@@ -592,6 +954,7 @@
   text-anchor: middle;
 }
 
+/* Progress Bars */
 .utilization-bars .progress-bar {
   border-radius: 4px;
 }
@@ -600,6 +963,7 @@
   border-radius: 4px;
 }
 
+/* Table Styling */
 .table th {
   border-top: none;
   font-weight: 600;
@@ -611,11 +975,13 @@
   background-color: #f8f9fa;
 }
 
+/* Pagination */
 .pagination .page-item.active .page-link {
   background-color: #0d6efd;
   border-color: #0d6efd;
 }
 
+/* Form Elements */
 .btn-group .btn {
   border-radius: 0.375rem !important;
 }
@@ -624,12 +990,42 @@
   border-radius: 0.5rem;
 }
 
-.card {
-  border-radius: 0.75rem;
-  overflow: hidden;
+/* Chart Container */
+.chart-container {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  border: 1px solid #dee2e6;
 }
 
-.card-header {
-  border-bottom: 1px solid rgba(0,0,0,.125);
+/* License Plate Styling - NEUTRAL COLORS */
+.badge.bg-dark {
+  background-color: #343a40 !important;
+  border-color: #495057 !important;
+  color: white !important;
+  font-weight: 500;
 }
+
+.plate-text {
+  color: #212529;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 300px !important;
+  }
+  
+  .summary-stats h3 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Ensure Bootstrap Icons load */
+@import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css");
 </style>
+
+<!-- Load Chart.js from CDN as fallback -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

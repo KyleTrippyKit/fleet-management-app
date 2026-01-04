@@ -1,3 +1,4 @@
+# app/helpers/vehicles_helper.rb
 module VehiclesHelper
   # Main method - simplified and fixed
   def vehicle_image(vehicle, variant: :medium, **html_options)
@@ -138,6 +139,29 @@ module VehiclesHelper
     end
   end
   
-  # REMOVED: utilization_class, utilization_display, utilization_color, owner_color
-  # These are now handled by ApplicationHelper's methods
+  # Owner badge color for analytics page (FIXED - WAS MISSING)
+  def owner_badge_color(owner)
+    case owner.to_s
+    when 'Police'
+      'info'
+    when 'Fire Service'
+      'danger'
+    when 'PTSC'
+      'primary'
+    else
+      'secondary'
+    end
+  end
+  
+  # Utilization badge color for analytics page (FIXED - WAS MISSING)
+  def utilization_badge_color(utilization)
+    case utilization.to_f
+    when 70..100
+      'success'
+    when 30...70
+      'warning'
+    else
+      'danger'
+    end
+  end
 end
