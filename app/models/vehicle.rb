@@ -9,6 +9,7 @@ class Vehicle < ApplicationRecord
   # Associations
   # ------------------------------------------------------------
   belongs_to :driver, optional: true   # One driver per vehicle
+belongs_to :agency, optional: true
 
   has_many :maintenances, dependent: :destroy
   has_many :trips, dependent: :destroy

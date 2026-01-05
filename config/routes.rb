@@ -7,7 +7,11 @@ Rails.application.routes.draw do
   # ========================
   # Authentication
   # ========================
-  devise_for :users
+  devise_for :users,
+             controllers: {
+               sessions: 'users/sessions'
+             },
+             skip: [:registrations]
 
   # ========================
   # Vehicles
@@ -16,7 +20,9 @@ Rails.application.routes.draw do
     member do
       get :full_details
       get :trips
-      get :report_issue 
+      get :track_live
+      get :tracking_history
+      get :report_issue
     end
 
     resources :maintenances do
@@ -37,7 +43,7 @@ Rails.application.routes.draw do
     end
   end
 
-  # Aliases / Legacy paths
+  # Aliases
   get "/vehicle_usages", to: "vehicles#analytics", as: :vehicle_usages
 
   # Drivers
@@ -45,10 +51,8 @@ Rails.application.routes.draw do
     resources :trips, only: [:index, :show]
   end
 
-  # ✅ FIXED: Standalone trips routes - using singular resource name
   resources :trips
 
-  # Standalone maintenances
   resources :maintenances do
     member do
       patch :mark_completed
@@ -59,18 +63,13 @@ Rails.application.routes.draw do
     end
   end
 
-  # ✅ FIXED: Service providers routes (plural)
   resources :service_providers
 
-  # Gantt Chart Route
   get "gantt", to: "maintenances#gantt", as: :gantt
 
-  # Health Check
   get "up", to: "rails/health#show", as: :rails_health_check
 
-  # Theme update route
-  patch 'theme/:theme', to: 'themes#update', as: :update_theme
-  
-  # Quick reports
+  patch "theme/:theme", to: "themes#update", as: :update_theme
+
   resources :quick_reports, only: [:create]
 end

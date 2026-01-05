@@ -3,7 +3,7 @@ class Trip < ApplicationRecord
   # Associations
   # ========================
   belongs_to :vehicle
-  belongs_to :driver, class_name: "User", optional: true
+  belongs_to :driver, class_name: "Driver", optional: true
 
   # ========================
   # Validations
@@ -45,6 +45,7 @@ class Trip < ApplicationRecord
     where(start_time: from.beginning_of_day..to.end_of_day)
   }
 
+  delegate :agency, to: :vehicle
   # ========================
   # Instance Methods
   # ========================

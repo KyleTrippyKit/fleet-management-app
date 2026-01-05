@@ -1,6 +1,7 @@
 class Driver < ApplicationRecord
   STATUSES = %w[active suspended inactive].freeze
 
+  belongs_to :agency, optional: true
   # ============================================================
   # Associations
   # ============================================================

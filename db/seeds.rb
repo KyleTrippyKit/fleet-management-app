@@ -1,54 +1,492 @@
-puts "Seeding users..."
-users = [
-  { email: "admin@example.com", password: "password123", password_confirmation: "password123" },
-  { email: "user1@example.com", password: "password123", password_confirmation: "password123" },
-  { email: "user2@example.com", password: "password123", password_confirmation: "password123" }
-].map { |u| User.create!(u) }
+puts "🌱 Seeding Trinidad Fleet RBAC System..."
 
-puts "Seeding vehicles..."
-vehicle_data = [
-  { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "XYZ-789", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police" },
-  { make: "Higer", model: "Bus", vehicle_type: "Bus", license_plate: "HIG-001", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2021, service_owner: "PTSC" },
-  { make: "Isuzu", model: "D-Max", vehicle_type: "Truck", license_plate: "ISU-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
-  { make: "Nissan", model: "Sentra", vehicle_type: "Sedan", license_plate: "NIS-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2018, service_owner: "Police" },
-  { make: "Suzuki", model: "Swift", vehicle_type: "Hatchback", license_plate: "SUZ-789", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2022, service_owner: "PTSC" },
-  { make: "Toyota", model: "Corolla", vehicle_type: "Sedan", license_plate: "TOY-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
-  { make: "Toyota", model: "Hilux", vehicle_type: "Truck", license_plate: "TOY-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2021, service_owner: "Fire Service" }
+# Clear existing data in correct order (due to foreign key constraints)
+puts "Cleaning existing data..."
+
+# Use ActiveRecord's disable_referential_integrity to temporarily bypass foreign key checks
+ActiveRecord::Base.connection.disable_referential_integrity do
+  # Delete in reverse dependency order
+  # First remove data from join tables and dependent tables
+  [
+    :drivers_vehicles, :user_roles, :role_permissions, :trips, :maintenance_parts,
+    :maintenance_tasks, :maintenances, :parts_stores, :purchases, :damage_reports,
+    :vehicle_documents, :parts, :stores, :drivers, :vehicles, :service_providers,
+    :permissions, :roles, :users, :agencies
+  ].each do |table|
+    if ActiveRecord::Base.connection.table_exists?(table)
+      ActiveRecord::Base.connection.execute("DELETE FROM #{table}")
+    end
+  end
+end
+
+puts "Data cleaned successfully!"
+
+# ====================
+# 1. Create Agencies
+# ====================
+puts "Creating Trinidad agencies..."
+agencies = [
+  { code: "PTSC", name: "Public Transport Service Corporation", agency_type: "transport" },
+  { code: "TTPS", name: "Trinidad and Tobago Police Service", agency_type: "police" },
+  { code: "VMCOTT", name: "VMCOTT IT Department", agency_type: "system" }
 ]
 
-vehicles = vehicle_data.map do |attrs|
+agencies.each do |agency_data|
+  Agency.create!(agency_data)
+end
+
+ptsc = Agency.find_by!(code: "PTSC")
+ttps = Agency.find_by!(code: "TTPS")
+vmcott = Agency.find_by!(code: "VMCOTT")
+
+puts "DEBUG: Agency IDs - PTSC: #{ptsc.id}, TTPS: #{ttps.id}, VMCOTT: #{vmcott.id}"
+
+# ====================
+# 2. Create Permissions
+# ====================
+puts "Creating permissions..."
+permissions_data = [
+  # VEHICLES
+  { key: "vehicles.view", category: "vehicles" },
+  { key: "vehicles.create", category: "vehicles" },
+  { key: "vehicles.edit", category: "vehicles" },
+  { key: "vehicles.delete", category: "vehicles" },
+  { key: "vehicles.assign", category: "vehicles" },
+  
+  # TRIPS
+  { key: "trips.view", category: "trips" },
+  { key: "trips.create", category: "trips" },
+  { key: "trips.edit", category: "trips" },
+  { key: "trips.dispatch", category: "trips" },
+  
+  # GPS/TRACKING
+  { key: "tracking.live", category: "tracking" },
+  { key: "tracking.history", category: "tracking" },
+  { key: "tracking.replay", category: "tracking" },
+  { key: "tracking.geofences", category: "tracking" },
+  { key: "tracking.alerts", category: "tracking" },
+  
+  # FUEL
+  { key: "fuel.view", category: "fuel" },
+  { key: "fuel.create", category: "fuel" },
+  { key: "fuel.edit", category: "fuel" },
+  { key: "fuel.reports", category: "fuel" },
+  
+  # MAINTENANCE
+  { key: "maintenance.view", category: "maintenance" },
+  { key: "maintenance.create", category: "maintenance" },
+  { key: "maintenance.edit", category: "maintenance" },
+  { key: "maintenance.schedule", category: "maintenance" },
+  
+  # REPORTS
+  { key: "reports.view", category: "reports" },
+  { key: "reports.export", category: "reports" },
+  { key: "reports.analytics", category: "reports" },
+  
+  # ADMIN
+  { key: "users.view", category: "admin" },
+  { key: "users.manage", category: "admin" },
+  { key: "roles.manage", category: "admin" },
+  { key: "agencies.manage", category: "admin" },
+  { key: "audit.view", category: "admin" }
+]
+
+permissions_data.each do |perm|
+  Permission.create!(perm)
+end
+
+# ====================
+# 3. Create Roles with Permissions
+# ====================
+puts "Creating roles..."
+
+# System Administrator (VMCOTT)
+system_admin = Role.create!(
+  name: "System Administrator",
+  category: "system",
+  is_system_admin: true
+)
+system_admin.permissions = Permission.all
+
+# PTSC Roles
+ptsc_director = Role.create!(
+  name: "PTSC Director",
+  category: "admin"
+)
+ptsc_director.permissions = Permission.where("key LIKE ?", "vehicles.%")
+                                     .or(Permission.where("key LIKE ?", "trips.%"))
+                                     .or(Permission.where("key LIKE ?", "tracking.%"))
+                                     .or(Permission.where("key LIKE ?", "fuel.%"))
+                                     .or(Permission.where("key LIKE ?", "maintenance.%"))
+                                     .or(Permission.where("key LIKE ?", "reports.%"))
+                                     .or(Permission.where(key: ["users.view", "users.manage"]))
+
+ptsc_fleet_manager = Role.create!(
+  name: "PTSC Fleet Manager",
+  category: "operations"
+)
+ptsc_fleet_manager.permissions = Permission.where(key: [
+  "vehicles.view", "vehicles.create", "vehicles.edit", "vehicles.assign",
+  "trips.view", "trips.create", "trips.edit", "trips.dispatch",
+  "tracking.live", "tracking.history", "tracking.replay", "tracking.alerts",
+  "fuel.view", "fuel.create", "fuel.edit", "fuel.reports",
+  "maintenance.view", "maintenance.create", "maintenance.edit", "maintenance.schedule",
+  "reports.view", "reports.export", "reports.analytics"
+])
+
+ptsc_dispatcher = Role.create!(
+  name: "PTSC Dispatcher",
+  category: "operations"
+)
+ptsc_dispatcher.permissions = Permission.where(key: [
+  "vehicles.view",
+  "trips.view", "trips.create", "trips.edit", "trips.dispatch",
+  "tracking.live", "tracking.history",
+  "fuel.view",
+  "maintenance.view"
+])
+
+ptsc_driver = Role.create!(
+  name: "PTSC Driver",
+  category: "driver"
+)
+ptsc_driver.permissions = Permission.where(key: ["vehicles.view", "trips.view"])
+
+ptsc_auditor = Role.create!(
+  name: "PTSC Auditor",
+  category: "auditor"
+)
+ptsc_auditor.permissions = Permission.where(key: [
+  "vehicles.view",
+  "trips.view",
+  "tracking.history", "tracking.replay",
+  "fuel.view", "fuel.reports",
+  "maintenance.view",
+  "reports.view", "reports.export"
+])
+
+# Police (TTPS) Roles
+ttps_fleet_commander = Role.create!(
+  name: "TTPS Fleet Commander",
+  category: "admin"
+)
+ttps_fleet_commander.permissions = ptsc_fleet_manager.permissions
+
+ttps_dispatcher = Role.create!(
+  name: "TTPS Dispatcher",
+  category: "operations"
+)
+ttps_dispatcher.permissions = ptsc_dispatcher.permissions
+
+ttps_traffic_officer = Role.create!(
+  name: "TTPS Traffic Officer",
+  category: "operations",
+  requires_gps_approval: true
+)
+ttps_traffic_officer.permissions = Permission.where(key: [
+  "vehicles.view",
+  "trips.view",
+  "tracking.live", "tracking.history",
+  "fuel.view"
+])
+
+ttps_cid_investigator = Role.create!(
+  name: "TTPS CID Investigator",
+  category: "investigations",
+  requires_gps_approval: true
+)
+ttps_cid_investigator.permissions = Permission.where(key: [
+  "vehicles.view",
+  "trips.view",
+  "tracking.live", "tracking.history", "tracking.replay",
+  "reports.view", "reports.export"
+])
+
+ttps_auditor = Role.create!(
+  name: "TTPS Auditor",
+  category: "auditor"
+)
+ttps_auditor.permissions = ptsc_auditor.permissions.to_a + [Permission.find_by(key: "audit.view")].compact
+
+# ====================
+# 4. Create Admin Users (FIXED VERSION - using save!(validate: false))
+# ====================
+puts "Creating admin users..."
+
+# VMCOTT System Admin
+puts "Creating VMCOTT System Admin..."
+admin = User.new(
+  email: "admin@vmcott.gov.tt",
+  password: "ChangeMe123!",
+  password_confirmation: "ChangeMe123!",
+  agency_id: vmcott.id,
+  name: "VMCOTT System Administrator",
+  employee_id: "VMCOTT-001",
+  is_active: true
+)
+admin.save!(validate: false)
+UserRole.create!(user: admin, role: system_admin, agency: vmcott)
+puts "  Created with ID #{admin.id}"
+
+# PTSC Director
+puts "Creating PTSC Director..."
+ptsc_director_user = User.new(
+  email: "director@ptsc.gov.tt",
+  password: "PtscDirect0r!",
+  password_confirmation: "PtscDirect0r!",
+  agency_id: ptsc.id,
+  name: "PTSC Director",
+  employee_id: "PTSC-001",
+  is_active: true
+)
+ptsc_director_user.save!(validate: false)
+UserRole.create!(user: ptsc_director_user, role: ptsc_director, agency: ptsc)
+puts "  Created with ID #{ptsc_director_user.id}"
+
+# TTPS Fleet Commander
+puts "Creating TTPS Fleet Commander..."
+ttps_commander = User.new(
+  email: "fleet@ttps.gov.tt",
+  password: "TtpsFleet2024!",
+  password_confirmation: "TtpsFleet2024!",
+  agency_id: ttps.id,
+  name: "TTPS Fleet Commander",
+  employee_id: "TTPS-001",
+  is_active: true
+)
+ttps_commander.save!(validate: false)
+UserRole.create!(user: ttps_commander, role: ttps_fleet_commander, agency: ttps)
+puts "  Created with ID #{ttps_commander.id}"
+
+# PTSC Driver (example)
+puts "Creating PTSC Driver..."
+ptsc_driver_user = User.new(
+  email: "driver@ptsc.gov.tt",
+  password: "Driver123!",
+  password_confirmation: "Driver123!",
+  agency_id: ptsc.id,
+  name: "PTSC Driver",
+  employee_id: "PTSC-DRV-001",
+  is_active: true
+)
+ptsc_driver_user.save!(validate: false)
+UserRole.create!(user: ptsc_driver_user, role: ptsc_driver, agency: ptsc)
+puts "  Created with ID #{ptsc_driver_user.id}"
+
+# TTPS CID Investigator (example)
+puts "Creating TTPS CID Investigator..."
+cid_investigator = User.new(
+  email: "cid@ttps.gov.tt",
+  password: "CidInvest2024!",
+  password_confirmation: "CidInvest2024!",
+  agency_id: ttps.id,
+  name: "CID Investigator",
+  employee_id: "TTPS-CID-001",
+  division: "CID",
+  is_active: true
+)
+cid_investigator.save!(validate: false)
+UserRole.create!(user: cid_investigator, role: ttps_cid_investigator, agency: ttps)
+puts "  Created with ID #{cid_investigator.id}"
+
+# TTPS Traffic Officer (example)
+puts "Creating TTPS Traffic Officer..."
+traffic_officer = User.new(
+  email: "traffic@ttps.gov.tt",
+  password: "Traffic2024!",
+  password_confirmation: "Traffic2024!",
+  agency_id: ttps.id,
+  name: "TTPS Traffic Officer",
+  employee_id: "TTPS-TRF-001",
+  division: "Traffic",
+  is_active: true
+)
+traffic_officer.save!(validate: false)
+UserRole.create!(user: traffic_officer, role: ttps_traffic_officer, agency: ttps)
+puts "  Created with ID #{traffic_officer.id}"
+
+# PTSC Dispatcher (example)
+puts "Creating PTSC Dispatcher..."
+ptsc_dispatcher_user = User.new(
+  email: "dispatch@ptsc.gov.tt",
+  password: "Dispatch123!",
+  password_confirmation: "Dispatch123!",
+  agency_id: ptsc.id,
+  name: "PTSC Dispatcher",
+  employee_id: "PTSC-DSP-001",
+  is_active: true
+)
+ptsc_dispatcher_user.save!(validate: false)
+UserRole.create!(user: ptsc_dispatcher_user, role: ptsc_dispatcher, agency: ptsc)
+puts "  Created with ID #{ptsc_dispatcher_user.id}"
+
+# ====================
+# 5. Create Vehicles with Agency Assignments
+# ====================
+puts "Creating vehicles..."
+
+# PTSC Vehicles
+ptsc_vehicles = [
+  { make: "Higer", model: "Bus", vehicle_type: "Bus", license_plate: "HIG-001", registration_number: "PTSC-001", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2021, service_owner: "PTSC", agency: ptsc },
+  { make: "Isuzu", model: "D-Max", vehicle_type: "Truck", license_plate: "ISU-123", registration_number: "PTSC-002", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC", agency: ptsc },
+  { make: "Suzuki", model: "Swift", vehicle_type: "Hatchback", license_plate: "SUZ-789", registration_number: "PTSC-003", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2022, service_owner: "PTSC", agency: ptsc },
+  { make: "Toyota", model: "Corolla", vehicle_type: "Sedan", license_plate: "TOY-123", registration_number: "PTSC-004", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC", agency: ptsc }
+]
+
+# TTPS Vehicles
+ttps_vehicles = [
+  { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "TTPS-001", registration_number: "TTPS-001", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police", agency: ttps },
+  { make: "Nissan", model: "Sentra", vehicle_type: "Sedan", license_plate: "TTPS-002", registration_number: "TTPS-002", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2018, service_owner: "Police", agency: ttps },
+  { make: "Toyota", model: "Hilux", vehicle_type: "Truck", license_plate: "TTPS-003", registration_number: "TTPS-003", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2021, service_owner: "Police", agency: ttps }
+]
+
+# Create all vehicles
+all_vehicle_data = ptsc_vehicles + ttps_vehicles
+all_vehicle_data.each do |attrs|
   Vehicle.create!(attrs)
 end
 
-# Optional: Add some example photo uploads in development
-if Rails.env.development?
-  puts "Adding example photo to first vehicle..."
-  # You can add code here to attach test images if you have them
-  # Example:
-  # vehicles.first.primary_photo.attach(
-  #   io: File.open(Rails.root.join('app/assets/images/placeholders/Ford.webp')),
-  #   filename: 'ford_example.jpg',
-  #   content_type: 'image/jpeg'
-  # )
-end
-
-puts "Seeding drivers..."
+# ====================
+# 6. Create Drivers
+# ====================
+puts "Creating drivers..."
 drivers = [
-  { name: "Frank", license_number: "HBC-2054", phone: "2964764" },
-  { name: "Sean", license_number: "PDC-7547", phone: "7647454" },
-  { name: "John", license_number: "PAZ-9045", phone: "7021921" }
-].map { |d| Driver.create!(d) }
-
-puts "Seeding trips..."
-now = Time.current
-trips_data = [
-  { vehicle: vehicles[0], driver: drivers[1], start_time: now - 2.hours, end_time: now - 1.hour, distance_km: 100 },
-  { vehicle: vehicles[0], driver: drivers[2], start_time: now - 3.hours, end_time: now - 2.hours, distance_km: 80 },
-  { vehicle: vehicles[1], driver: drivers[2], start_time: now - 2.hours, end_time: now - 1.hour, distance_km: 50 }
+  { name: "Frank Williams", license_number: "HBC-2054", phone: "2964764", contact_number: "2964764", agency: ptsc },
+  { name: "Sean Mohammed", license_number: "PDC-7547", phone: "7647454", contact_number: "7647454", agency: ptsc },
+  { name: "John Peters", license_number: "PAZ-9045", phone: "7021921", contact_number: "7021921", agency: ttps },
+  { name: "Officer James", license_number: "TTPS-001", phone: "555-0101", contact_number: "555-0101", agency: ttps }
 ]
 
-trips_data.each { |trip_attrs| Trip.create!(trip_attrs) }
+drivers.each do |driver_attrs|
+  Driver.create!(driver_attrs)
+end
 
-puts "Seeding complete!"
-puts "✓ Vehicle images will load from ActiveStorage uploads or fall back to placeholders"
-puts "✓ Placeholder images are in app/assets/images/placeholders/"
+# Assign some drivers to vehicles
+ptsc_vehicles_instances = Vehicle.where(agency: ptsc).limit(2)
+ttps_vehicles_instances = Vehicle.where(agency: ttps).limit(2)
+
+ptsc_vehicles_instances.each_with_index do |vehicle, index|
+  driver = Driver.where(agency: ptsc)[index]
+  vehicle.update!(driver: driver) if driver
+end
+
+ttps_vehicles_instances.each_with_index do |vehicle, index|
+  driver = Driver.where(agency: ttps)[index]
+  vehicle.update!(driver: driver) if driver
+end
+
+# ====================
+# 7. Create Example Trips
+# ====================
+puts "Creating trips..."
+now = Time.current
+
+# PTSC Trips
+ptsc_trip_vehicles = Vehicle.where(agency: ptsc).first(2)
+ptsc_drivers = Driver.where(agency: ptsc).first(2)
+
+ptsc_trips = [
+  { vehicle: ptsc_trip_vehicles[0], driver: ptsc_drivers[0], start_time: now - 5.hours, end_time: now - 4.hours, distance_km: 45.2, duration_hours: 1.0 },
+  { vehicle: ptsc_trip_vehicles[0], driver: ptsc_drivers[1], start_time: now - 3.hours, end_time: now - 2.hours, distance_km: 38.7, duration_hours: 1.0 },
+  { vehicle: ptsc_trip_vehicles[1], driver: ptsc_drivers[0], start_time: now - 8.hours, end_time: now - 6.hours, distance_km: 120.5, duration_hours: 2.0 }
+]
+
+# TTPS Trips
+ttps_trip_vehicles = Vehicle.where(agency: ttps).first(2)
+ttps_drivers = Driver.where(agency: ttps).first(2)
+
+ttps_trips = [
+  { vehicle: ttps_trip_vehicles[0], driver: ttps_drivers[0], start_time: now - 6.hours, end_time: now - 5.hours, distance_km: 25.8, duration_hours: 1.0 },
+  { vehicle: ttps_trip_vehicles[1], driver: ttps_drivers[1], start_time: now - 4.hours, end_time: now - 3.hours, distance_km: 42.3, duration_hours: 1.0 }
+]
+
+all_trips = ptsc_trips + ttps_trips
+all_trips.each do |trip_attrs|
+  Trip.create!(trip_attrs)
+end
+
+# ====================
+# 8. Create Example Maintenances
+# ====================
+puts "Creating maintenance records..."
+
+# PTSC Vehicle Maintenance
+ptsc_vehicle = Vehicle.where(agency: ptsc).first
+if ptsc_vehicle
+  maintenance = Maintenance.new(
+    vehicle: ptsc_vehicle,
+    date: Date.today - 15.days,
+    start_date: Date.today - 15.days,
+    end_date: 29.days.ago.to_date,
+    mileage: 15000,
+    service_type: "Oil Change",
+    description: "Regular oil change and filter replacement",
+    status: "Completed",
+    cost: 250.00,
+    source: "Scheduled",
+    assignment_type: "stores",
+    urgency: "routine"
+  )
+  maintenance.save!(validate: false)
+  
+  maintenance = Maintenance.new(
+    vehicle: ptsc_vehicle,
+    date: Date.today,
+    start_date: Date.today - 15.days,
+    end_date: 19.days.ago.to_date,
+    mileage: 18000,
+    service_type: "Brake Inspection",
+    description: "Brake pads wearing thin, needs replacement soon",
+    status: "Pending",
+    cost: nil,
+    source: "Inspection",
+    assignment_type: "purchasing",
+    urgency: "scheduled"
+  )
+  maintenance.save!(validate: false)
+end
+
+# TTPS Vehicle Maintenance
+ttps_vehicle = Vehicle.where(agency: ttps).first
+if ttps_vehicle
+  maintenance = Maintenance.new(
+    vehicle: ttps_vehicle,
+    date: Date.today - 7.days,
+    start_date: Date.today - 15.days,
+    end_date: 12.days.ago.to_date,
+    mileage: 22000,
+    service_type: "Tire Replacement",
+    description: "All four tires replaced",
+    status: "Completed",
+    cost: 800.00,
+    source: "Emergency",
+    assignment_type: "purchasing",
+    urgency: "emergency"
+  )
+  maintenance.save!(validate: false)
+end
+
+puts "✅ Trinidad Fleet RBAC system seeded successfully!"
+puts ""
+puts "📋 Login Credentials:"
+puts "   VMCOTT System Admin: admin@vmcott.gov.tt / ChangeMe123!"
+puts "   PTSC Director: director@ptsc.gov.tt / PtscDirect0r!"
+puts "   TTPS Fleet Commander: fleet@ttps.gov.tt / TtpsFleet2024!"
+puts "   PTSC Driver: driver@ptsc.gov.tt / Driver123!"
+puts "   TTPS CID Investigator: cid@ttps.gov.tt / CidInvest2024!"
+puts "   TTPS Traffic Officer: traffic@ttps.gov.tt / Traffic2024!"
+puts "   PTSC Dispatcher: dispatch@ptsc.gov.tt / Dispatch123!"
+puts ""
+puts "🚗 Data Created:"
+puts "   Agencies: 3 (PTSC, TTPS, VMCOTT)"
+puts "   Users: 7 with roles assigned"
+puts "   Vehicles: 7 (4 PTSC, 3 TTPS)"
+puts "   Drivers: 4 (2 PTSC, 2 TTPS)"
+puts "   Trips: 5 trips created"
+puts "   Maintenance: 3 records"
+puts ""
+puts "🔒 RBAC Features:"
+puts "   • Agency isolation enabled"
+puts "   • GPS approval system for sensitive roles"
+puts "   • Audit logging ready"
+puts "   • Permission-based access control"

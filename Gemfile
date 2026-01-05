@@ -54,3 +54,4 @@ gem 'faker'
 gem "aws-sdk-s3", require: false
 # JavaScript compressor
 gem 'terser', '~> 1.2'
+gem "pundit", "~> 2.5"

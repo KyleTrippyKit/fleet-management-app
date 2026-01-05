@@ -1,17 +1,41 @@
 # app/controllers/vehicles_controller.rb
 class VehiclesController < ApplicationController
+  include Pundit::Authorization  # Ensure Pundit is included here too
+  
   before_action :authenticate_user!
-  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue, :trips]
+  before_action :set_vehicle, only: [:show, :edit, :update, :destroy, :full_details, :mark_maintenance_completed, :report_issue, :trips, :track_live, :tracking_history]
 
   # ====================================================
-  # List all vehicles (OPTIMIZED)
+  # RBAC AUTHORIZATION SETUP
+  # ====================================================
+  after_action :verify_authorized, except: [:index, :analytics, :maintenance_dashboard, :export_csv, :themes]
+  after_action :verify_policy_scoped, only: [:index, :analytics, :maintenance_dashboard]
+
+  # ====================================================
+  # List all vehicles (WITH RBAC and fallback)
   # ====================================================
   def index
+    # Try to use Pundit policy scope with fallback
+    begin
+      @vehicles = policy_scope(Vehicle).includes(:driver, primary_photo_attachment: { blob: :variant_records })
+    rescue NoMethodError => e
+      # Fallback if Pundit isn't working
+      Rails.logger.warn "Pundit policy_scope failed, using manual filtering: #{e.message}"
+      
+      if current_user.system_admin?
+        @vehicles = Vehicle.all
+      elsif current_user.agency
+        @vehicles = Vehicle.where(agency_id: current_user.agency_id)
+      else
+        @vehicles = Vehicle.none
+      end
+      
+      @vehicles = @vehicles.includes(:driver, primary_photo_attachment: { blob: :variant_records })
+    end
+    
+    # Apply filters
     @query = params[:query]
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
-
-    # OPTIMIZED: Eager load with variant_records
-    @vehicles = Vehicle.all.includes(:driver, primary_photo_attachment: { blob: :variant_records })
     
     @vehicles = @vehicles.search(@query) if @query.present?
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
@@ -19,12 +43,34 @@ class VehiclesController < ApplicationController
     
     # Pagination for better performance
     @vehicles = @vehicles.page(params[:page]).per(20)
+    
+    # Log access (safe version)
+    current_user.log_access("vehicles.index", outcome: "granted", details: { 
+      query: @query, 
+      owner_filter: @owner_filter,
+      page: params[:page]
+    })
   end
 
   # ====================================================
-  # Vehicle Analytics Dashboard (FIXED)
+  # Vehicle Analytics Dashboard (WITH RBAC and fallback)
   # ====================================================
   def analytics
+    # Try to use Pundit policy scope with fallback
+    begin
+      base_vehicles = policy_scope(Vehicle)
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit policy_scope failed in analytics, using manual filtering: #{e.message}"
+      
+      if current_user.system_admin?
+        base_vehicles = Vehicle.all
+      elsif current_user.agency
+        base_vehicles = Vehicle.where(agency_id: current_user.agency_id)
+      else
+        base_vehicles = Vehicle.none
+      end
+    end
+    
     # Store all params for view
     @current_params = params.permit(:from, :to, :owner, :view, :sort_by, :sort_order, :page)
     
@@ -36,7 +82,7 @@ class VehiclesController < ApplicationController
     sort_order = params[:sort_order] || 'desc'
 
     # Get filtered vehicles
-    @vehicles = Vehicle.all
+    @vehicles = base_vehicles
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
 
     # Build vehicle data with stats
@@ -87,47 +133,56 @@ class VehiclesController < ApplicationController
     @paginated_vehicles = @vehicle_data[start_index, @per_page] || []
 
     # STATISTICS
-    # In vehicles_controller.rb analytics method, update the stats calculation:
-if @vehicle_data.any?
-    total_vehicles = @vehicle_data.length
-    utilizations = @vehicle_data.map { |v| v[:utilization] }.reject(&:nan?)
-    
-    # Calculate stats with better NaN handling
-    @stats = {
-      total_distance: @vehicle_data.sum { |v| v[:distance_km].to_f.nan? ? 0 : v[:distance_km] }.round(1),
-      total_hours: @vehicle_data.sum { |v| v[:hours_plied].to_f.nan? ? 0 : v[:hours_plied] }.round(1),
-      total_trips: @vehicle_data.sum { |v| v[:trip_count] },
-      avg_utilization: utilizations.any? ? (utilizations.sum / utilizations.size).round(1) : 0,
-      high_utilization: @vehicle_data.count { |v| (v[:utilization].to_f.nan? ? 0 : v[:utilization]) >= 70 },
-      medium_utilization: @vehicle_data.count { |v| 
-        util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
-        util >= 30 && util < 70 
-      },
-      low_utilization: @vehicle_data.count { |v| 
-        util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
-        util < 30 
+    if @vehicle_data.any?
+      total_vehicles = @vehicle_data.length
+      utilizations = @vehicle_data.map { |v| v[:utilization] }.reject(&:nan?)
+      
+      # Calculate stats with better NaN handling
+      @stats = {
+        total_distance: @vehicle_data.sum { |v| v[:distance_km].to_f.nan? ? 0 : v[:distance_km] }.round(1),
+        total_hours: @vehicle_data.sum { |v| v[:hours_plied].to_f.nan? ? 0 : v[:hours_plied] }.round(1),
+        total_trips: @vehicle_data.sum { |v| v[:trip_count] },
+        avg_utilization: utilizations.any? ? (utilizations.sum / utilizations.size).round(1) : 0,
+        high_utilization: @vehicle_data.count { |v| (v[:utilization].to_f.nan? ? 0 : v[:utilization]) >= 70 },
+        medium_utilization: @vehicle_data.count { |v| 
+          util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
+          util >= 30 && util < 70 
+        },
+        low_utilization: @vehicle_data.count { |v| 
+          util = v[:utilization].to_f.nan? ? 0 : v[:utilization]
+          util < 30 
+        }
       }
-    }
-  else
-    @stats = {
-      total_distance: 0,
-      total_hours: 0,
-      total_trips: 0,
-      avg_utilization: 0,
-      high_utilization: 0,
-      medium_utilization: 0,
-      low_utilization: 0
-    }
-  end
+    else
+      @stats = {
+        total_distance: 0,
+        total_hours: 0,
+        total_trips: 0,
+        avg_utilization: 0,
+        high_utilization: 0,
+        medium_utilization: 0,
+        low_utilization: 0
+      }
+    end
 
     # OWNER DISTRIBUTION
     @owner_distribution = @vehicle_data.group_by { |v| v[:service_owner] }
                                      .transform_values(&:count)
                                      .sort_by { |owner, count| -count }
 
+    # Log access
+    current_user.log_access("vehicles.analytics", outcome: "granted", 
+      details: { from: @from, to: @to, owner_filter: @owner_filter, vehicles_count: @vehicle_data.length })
+
     respond_to do |format|
       format.html
       format.csv do
+        # Manual authorization if Pundit fails
+        unless current_user.system_admin? || current_user.fleet_manager?
+          redirect_to root_path, alert: "You are not authorized to export data."
+          return
+        end
+        
         require 'csv'
         csv_data = CSV.generate(headers: true) do |csv|
           csv << ["Vehicle", "License Plate", "Service Owner", "Distance (km)", "Hours", "Trips", "Utilization %", "Period Days"]
@@ -150,14 +205,28 @@ if @vehicle_data.any?
   end
 
   # ====================================================
-  # Maintenance Dashboard (OPTIMIZED)
+  # Maintenance Dashboard (WITH RBAC and fallback)
   # ====================================================
   def maintenance_dashboard
+    # Try to use Pundit policy scope with fallback
+    begin
+      @vehicles = policy_scope(Vehicle).includes(:maintenances, :driver, :trips, primary_photo_attachment: { blob: :variant_records })
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit policy_scope failed in maintenance_dashboard, using manual filtering: #{e.message}"
+      
+      if current_user.system_admin?
+        @vehicles = Vehicle.all
+      elsif current_user.agency
+        @vehicles = Vehicle.where(agency_id: current_user.agency_id)
+      else
+        @vehicles = Vehicle.none
+      end
+      
+      @vehicles = @vehicles.includes(:maintenances, :driver, :trips, primary_photo_attachment: { blob: :variant_records })
+    end
+    
     @query = params[:query]
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
-
-    # OPTIMIZED: Include variant records
-    @vehicles = Vehicle.all.includes(:maintenances, :driver, :trips, primary_photo_attachment: { blob: :variant_records })
     
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.search(@query) if @query.present?
@@ -169,12 +238,29 @@ if @vehicle_data.any?
     end
     
     @maintenances = @vehicles.flat_map(&:maintenances).compact
+    
+    # Log access
+    current_user.log_access("vehicles.maintenance_dashboard", outcome: "granted", 
+      details: { query: @query, owner_filter: @owner_filter, vehicles_count: @vehicles.count })
   end
 
   # ====================================================
-  # Show a single vehicle (OPTIMIZED)
+  # Show a single vehicle (WITH RBAC and fallback)
   # ====================================================
   def show
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || @vehicle.agency_id == current_user.agency_id
+        redirect_to root_path, alert: "You are not authorized to view this vehicle."
+        return
+      end
+    end
+    
     @maintenances = @vehicle.maintenances.order(date: :desc).compact
     @current_maintenance = @maintenances.find { |m| m.status == 'Pending' }
     @last_maintenance = @maintenances.first
@@ -187,12 +273,102 @@ if @vehicle_data.any?
 
     @driver = @vehicle.driver
     @upcoming_trips = @vehicle.trips.where("start_time >= ?", Time.current).order(:start_time)
+    
+    # Log access
+    current_user.log_access("vehicles.show", @vehicle, outcome: "granted")
   end
 
   # ====================================================
-  # Full vehicle details (OPTIMIZED)
+  # GPS Tracking - Live (WITH RBAC & APPROVAL and fallback)
+  # ====================================================
+  def track_live
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle, :track_live?
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || @vehicle.agency_id == current_user.agency_id
+        redirect_to root_path, alert: "You are not authorized to track this vehicle."
+        return
+      end
+      
+      # Check additional permissions for tracking
+      unless current_user.fleet_manager? || current_user.dispatcher?
+        redirect_to root_path, alert: "You need fleet manager or dispatcher permissions for live tracking."
+        return
+      end
+    end
+    
+    # Check GPS approval for sensitive roles
+    if current_user.requires_gps_approval? && !current_user.gps_approved_for?(@vehicle, "live")
+      redirect_to new_gps_access_approval_path(vehicle_id: @vehicle.id, access_type: 'live'),
+                  alert: "GPS live tracking requires approval for your role."
+      return
+    end
+    
+    # Show live tracking interface
+    @access_type = 'live'
+    
+    # Log sensitive access
+    current_user.log_access("tracking.live", @vehicle, outcome: "granted",
+      details: { access_type: 'live', approved: true })
+  end
+
+  # ====================================================
+  # GPS Tracking - History (WITH RBAC and fallback)
+  # ====================================================
+  def tracking_history
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle, :view_history?
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || @vehicle.agency_id == current_user.agency_id
+        redirect_to root_path, alert: "You are not authorized to view tracking history."
+        return
+      end
+    end
+    
+    # Check GPS approval for sensitive roles
+    if current_user.requires_gps_approval? && !current_user.gps_approved_for?(@vehicle, "history")
+      redirect_to new_gps_access_approval_path(vehicle_id: @vehicle.id, access_type: 'history'),
+                  alert: "GPS history access requires approval for your role."
+      return
+    end
+    
+    # Get tracking history
+    @from_date = params[:from].present? ? Date.parse(params[:from]) : 7.days.ago.to_date
+    @to_date = params[:to].present? ? Date.parse(params[:to]) : Date.today
+    
+    # Here you would fetch GPS data for the vehicle
+    # @gps_points = @vehicle.gps_points.where(timestamp: @from_date..@to_date).order(:timestamp)
+    
+    # Log access
+    current_user.log_access("tracking.history", @vehicle, outcome: "granted",
+      details: { from: @from_date, to: @to_date, approved: true })
+  end
+
+  # ====================================================
+  # Full vehicle details (WITH RBAC and fallback)
   # ====================================================
   def full_details
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || @vehicle.agency_id == current_user.agency_id
+        redirect_to root_path, alert: "You are not authorized to view vehicle details."
+        return
+      end
+    end
+    
     @maintenances = @vehicle.maintenances.order(date: :desc).compact
     
     # Only eager load documents if the association exists
@@ -203,13 +379,27 @@ if @vehicle_data.any?
     @documents = @vehicle.vehicle_documents.includes(file_attachment: :blob).order(expires_on: :asc)
     @driver = @vehicle.driver
     @upcoming_trips = @vehicle.trips.where("start_time >= ?", Time.current).order(:start_time)
+    
+    # Log access
+    current_user.log_access("vehicles.full_details", @vehicle, outcome: "granted")
   end
 
   # ====================================================
   # Vehicle Trips - Shows all trips for a specific vehicle
   # ====================================================
   def trips
-    # @vehicle is already set by before_action
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || @vehicle.agency_id == current_user.agency_id
+        redirect_to root_path, alert: "You are not authorized to view vehicle trips."
+        return
+      end
+    end
     
     # Date filtering
     @from_date = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
@@ -237,6 +427,10 @@ if @vehicle_data.any?
     
     # Paginate
     @trips = @trips.page(params[:page]).per(20)
+    
+    # Log access
+    current_user.log_access("vehicles.trips", @vehicle, outcome: "granted",
+      details: { from: @from_date, to: @to_date, trips_count: @trips.count })
   end
 
   # ====================================================
@@ -244,21 +438,75 @@ if @vehicle_data.any?
   # ====================================================
   def new
     @vehicle = Vehicle.new
+    
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || current_user.fleet_manager?
+        redirect_to root_path, alert: "You are not authorized to create vehicles."
+        return
+      end
+    end
   end
 
   def create
     @vehicle = Vehicle.new(vehicle_params)
+    @vehicle.agency = current_user.primary_agency unless current_user.system_admin?
+    
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || current_user.fleet_manager?
+        redirect_to root_path, alert: "You are not authorized to create vehicles."
+        return
+      end
+    end
     
     if @vehicle.save
+      current_user.log_access("vehicles.create", @vehicle, outcome: "granted")
       redirect_to vehicles_path, notice: "Vehicle added successfully."
     else
       render :new, status: :unprocessable_entity
     end
   end
 
-  def edit; end
+  def edit
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || (current_user.fleet_manager? && @vehicle.agency_id == current_user.agency_id)
+        redirect_to root_path, alert: "You are not authorized to edit this vehicle."
+        return
+      end
+    end
+  end
 
   def update
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || (current_user.fleet_manager? && @vehicle.agency_id == current_user.agency_id)
+        redirect_to root_path, alert: "You are not authorized to update this vehicle."
+        return
+      end
+    end
+    
     # Handle photo removal
     remove_photo = params[:vehicle][:remove_primary_photo] == "1"
     
@@ -275,6 +523,7 @@ if @vehicle_data.any?
         end
       end
       
+      current_user.log_access("vehicles.update", @vehicle, outcome: "granted")
       redirect_to vehicles_path, notice: "Vehicle updated successfully."
     else
       render :edit, status: :unprocessable_entity
@@ -282,7 +531,21 @@ if @vehicle_data.any?
   end
 
   def destroy
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin?
+        redirect_to root_path, alert: "You are not authorized to delete vehicles."
+        return
+      end
+    end
+    
     @vehicle.destroy
+    current_user.log_access("vehicles.destroy", @vehicle, outcome: "granted")
     redirect_to vehicles_path, notice: "Vehicle deleted successfully."
   end
 
@@ -290,6 +553,19 @@ if @vehicle_data.any?
   # Report Issue for a vehicle - FIXED
   # ====================================================
   def report_issue
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle, :update?
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || current_user.driver? || (current_user.fleet_manager? && @vehicle.agency_id == current_user.agency_id)
+        redirect_to root_path, alert: "You are not authorized to report issues."
+        return
+      end
+    end
+    
     # Create a new maintenance record with default values for driver reports
     @maintenance = @vehicle.maintenances.new(
       source: 'Driver Report',
@@ -302,6 +578,8 @@ if @vehicle_data.any?
       service_type: 'Driver Reported Issue',  # Required field
       description: 'Issue reported by driver' # Optional but helpful
     )
+    
+    current_user.log_access("vehicles.report_issue", @vehicle, outcome: "granted")
     render :report_issue
   end
 
@@ -309,8 +587,22 @@ if @vehicle_data.any?
   # Mark maintenance as completed
   # ====================================================
   def mark_maintenance_completed
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize @vehicle, :update?
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || current_user.fleet_manager?
+        redirect_to root_path, alert: "You are not authorized to update maintenance."
+        return
+      end
+    end
+    
     maintenance = @vehicle.maintenances.find(params[:maintenance_id])
     if maintenance.update(status: "Completed")
+      current_user.log_access("maintenance.complete", maintenance, outcome: "granted")
       redirect_back fallback_location: maintenance_dashboard_vehicles_path, notice: "Maintenance marked as completed."
     else
       redirect_back fallback_location: maintenance_dashboard_vehicles_path, alert: "Failed to mark maintenance as completed."
@@ -321,13 +613,34 @@ if @vehicle_data.any?
   # Export CSV from Analytics
   # ====================================================
   def export_csv
+    # Try to authorize with Pundit, fallback to manual check
+    begin
+      authorize :vehicle, :export_csv?
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit authorize failed, using manual authorization: #{e.message}"
+      
+      # Manual authorization
+      unless current_user.system_admin? || current_user.fleet_manager? || current_user.auditor?
+        redirect_to root_path, alert: "You are not authorized to export data."
+        return
+      end
+    end
+    
     require 'csv'
     
     from = params[:from].present? ? Date.parse(params[:from]) : 30.days.ago.to_date
     to   = params[:to].present?   ? Date.parse(params[:to])   : Date.today
     owner = params[:owner].present? && params[:owner] != "All" ? params[:owner] : nil
 
-    vehicles = Vehicle.all
+    # Get vehicles based on user permissions
+    if current_user.system_admin?
+      vehicles = Vehicle.all
+    elsif current_user.agency
+      vehicles = Vehicle.where(agency_id: current_user.agency_id)
+    else
+      vehicles = Vehicle.none
+    end
+    
     vehicles = vehicles.where(service_owner: owner) if owner
 
     csv_data = CSV.generate(headers: true) do |csv|
@@ -354,6 +667,9 @@ if @vehicle_data.any?
       end
     end
 
+    current_user.log_access("vehicles.export_csv", outcome: "granted", 
+      details: { from: from, to: to, owner: owner, vehicles_count: vehicles.count })
+    
     send_data csv_data, filename: "vehicle-analytics-#{Date.today}.csv", type: "text/csv"
   end
 
@@ -364,14 +680,35 @@ if @vehicle_data.any?
   private
 
   def set_vehicle
-    # OPTIMIZED: Include variant records for photos
-    @vehicle = Vehicle.includes(
-      :driver, 
-      :maintenances, 
-      :trips,
-      primary_photo_attachment: { blob: :variant_records },
-      gallery_photos_attachments: { blob: :variant_records }
-    ).find(params[:id])
+    # Use manual filtering if Pundit fails
+    begin
+      @vehicle = policy_scope(Vehicle).includes(
+        :driver, 
+        :maintenances, 
+        :trips,
+        primary_photo_attachment: { blob: :variant_records },
+        gallery_photos_attachments: { blob: :variant_records }
+      ).find(params[:id])
+    rescue NoMethodError => e
+      Rails.logger.warn "Pundit policy_scope failed in set_vehicle, using manual filtering: #{e.message}"
+      
+      # Manual filtering
+      if current_user.system_admin?
+        @vehicle = Vehicle.find(params[:id])
+      elsif current_user.agency
+        @vehicle = Vehicle.where(agency_id: current_user.agency_id).find(params[:id])
+      else
+        raise ActiveRecord::RecordNotFound
+      end
+      
+      @vehicle = @vehicle.includes(
+        :driver, 
+        :maintenances, 
+        :trips,
+        primary_photo_attachment: { blob: :variant_records },
+        gallery_photos_attachments: { blob: :variant_records }
+      )
+    end
   end
 
   def vehicle_params
@@ -380,7 +717,7 @@ if @vehicle_data.any?
       :chassis_number, :year_of_manufacture, :serial_number, :color,
       :license_plate, :mileage,
       :engine_number, :fuel_type, :transmission, :body_style, :modifications,
-      :driver_id,
+      :driver_id, :agency_id,
       :primary_photo,
       :remove_primary_photo,
       gallery_photos: []

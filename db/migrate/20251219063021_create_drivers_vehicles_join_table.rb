@@ -1,4 +1,4 @@
-class CreateDriversVehiclesJoinTable < ActiveRecord::Migration[7.0]
+class CreateDriversVehiclesJoinTable < ActiveRecord::Migration[8.1]
   def change
     create_table :drivers_vehicles, id: false do |t|
       t.references :driver, null: false, foreign_key: true

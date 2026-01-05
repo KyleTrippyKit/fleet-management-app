@@ -1,4 +1,4 @@
-class CreateTrips < ActiveRecord::Migration[7.0]
+class CreateTrips < ActiveRecord::Migration[8.1]
   def change
     create_table :trips do |t|
       t.references :vehicle, null: false, foreign_key: true

@@ -1,9 +1,9 @@
-class AddCertifiedCopyFieldsToVehicles < ActiveRecord::Migration[8.1]
+class AddPartTrackingToMaintenances < ActiveRecord::Migration[8.1]
   def change
-    add_column :vehicles, :engine_number, :string
-    add_column :vehicles, :fuel_type, :string
-    add_column :vehicles, :transmission, :string
-    add_column :vehicles, :body_style, :string
-    add_column :vehicles, :modifications, :text
+    # Add columns for part tracking
+    add_column :maintenances, :parts_used, :text
+    add_column :maintenances, :parts_cost, :decimal, precision: 10, scale: 2
+    add_column :maintenances, :labor_hours, :decimal, precision: 5, scale: 2
+    add_column :maintenances, :labor_rate, :decimal, precision: 10, scale: 2
   end
 end
