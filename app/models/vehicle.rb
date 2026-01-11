@@ -1,5 +1,6 @@
 # app/models/vehicle.rb
 class Vehicle < ApplicationRecord
+  has_many :alerts, dependent: :destroy
   # ------------------------------------------------------------
   # Virtual attributes for form handling
   # ------------------------------------------------------------
@@ -8,6 +9,7 @@ class Vehicle < ApplicationRecord
   # ------------------------------------------------------------
   # Associations
   # ------------------------------------------------------------
+  belongs_to :agency
   belongs_to :driver, optional: true   # One driver per vehicle
 
   has_many :maintenances, dependent: :destroy
@@ -32,24 +34,68 @@ class Vehicle < ApplicationRecord
   validates :make, :model, :vehicle_type, :license_plate, :registration_number, presence: true
   validates :chassis_number, :serial_number, :year_of_manufacture, presence: true
   validates :license_plate, :registration_number, uniqueness: true
-  validates :service_owner, presence: true, inclusion: { in: ["PTSC", "Police", "Fire Service"] }
-
+  
+  # Service owner validation - now derived from agency
+  # Keep this for backward compatibility but also validate agency presence
+  validates :agency, presence: true
+  
+  # Optional: If you want to maintain service_owner string for backward compatibility
+  validate :service_owner_matches_agency
+  
   validates :license_plate, format: {
     with: /\A([A-Z]{3}|CD|RR|D|R)-\d{1,4}\z/,
     message: "must follow Trinidad format (ABC-1234)"
   }
 
   # ------------------------------------------------------------
+  # Custom Validation
+  # ------------------------------------------------------------
+  def service_owner_matches_agency
+    if service_owner.present? && agency.present? && service_owner != agency.code
+      errors.add(:service_owner, "must match agency code (#{agency.code})")
+    end
+  end
+
+  # ------------------------------------------------------------
+  # Service Owner Compatibility Methods
+  # ------------------------------------------------------------
+  def service_owner
+    # Return agency code for backward compatibility
+    agency&.code || self[:service_owner]
+  end
+  
+  def service_owner=(value)
+    # Set agency based on service_owner for backward compatibility
+    if value.present?
+      self.agency = Agency.find_by(code: value) if agency.nil? || agency.code != value
+    end
+    # Also store in service_owner column for backward compatibility
+    self[:service_owner] = value
+  end
+  
+  # Get service owner display name
+  def service_owner_display
+    agency&.display_name || service_owner
+  end
+
+  # ------------------------------------------------------------
   # Scopes for filtering
   # ------------------------------------------------------------
-  scope :by_service_owner, ->(owner) { where(service_owner: owner) if owner.present? }
-  scope :by_type, ->(type) { where(vehicle_type: type) if type.present? }
-  scope :with_active_maintenance, -> { joins(:maintenances).where(maintenances: { status: 'Pending' }).distinct }
+  scope :by_service_owner, ->(owner) { 
+    if owner.present?
+      joins(:agency).where(agencies: { code: owner })
+    end
+  }
   
-  # NEW: Active vehicles available for assignment
-  # Vehicles that are not in active maintenance and not assigned to other drivers
+  scope :by_agency, ->(agency_id) { where(agency_id: agency_id) if agency_id.present? }
+  
+  scope :by_type, ->(type) { where(vehicle_type: type) if type.present? }
+  scope :with_active_maintenance, -> { 
+    joins(:maintenances).where(maintenances: { status: 'Pending' }).distinct 
+  }
+  
+  # Active vehicles available for assignment
   scope :active, -> {
-    # Vehicles that don't have active/pending maintenance and are either unassigned or assigned to current driver
     left_joins(:maintenances)
       .where("maintenances.status IS NULL OR maintenances.status NOT IN (?)", ['Pending', 'In Progress'])
       .distinct
@@ -58,13 +104,23 @@ class Vehicle < ApplicationRecord
   # Available for assignment (not assigned to any driver OR assigned to specific driver for editing)
   scope :available_for_assignment, ->(current_driver_id = nil) {
     if current_driver_id
-      # Include vehicles assigned to this driver (for editing) plus unassigned vehicles
       where("driver_id IS NULL OR driver_id = ?", current_driver_id)
     else
-      # Only unassigned vehicles for new assignments
       where(driver_id: nil)
     end
   }
+
+  # Agency-specific scopes
+  scope :for_agency, ->(agency_code) {
+    joins(:agency).where(agencies: { code: agency_code }) if agency_code.present?
+  }
+  
+  scope :ptsc_vehicles, -> { for_agency('PTSC') }
+  scope :ttps_vehicles, -> { for_agency('TTPS') }
+  scope :ttdf_vehicles, -> { for_agency('TTDF') }
+  scope :fire_vehicles, -> { for_agency('FIRE') }
+  scope :health_vehicles, -> { for_agency('HEALTH') }
+  scope :education_vehicles, -> { for_agency('EDUCATION') }
 
   # ------------------------------------------------------------
   # Image helpers (Asset Pipeline + ActiveStorage)
@@ -90,15 +146,12 @@ class Vehicle < ApplicationRecord
   end
 
   def primary_image_url
-    # Use asset_path for asset pipeline images
     ActionController::Base.helpers.asset_path(asset_image_path)
   end
 
   def display_image
-    # Priority 1: User uploaded primary photo
     if primary_photo.attached?
       primary_photo
-    # Priority 2: Asset pipeline placeholder
     else
       primary_image_url
     end
@@ -118,7 +171,6 @@ class Vehicle < ApplicationRecord
   end
 
   def fuel_level
-    # Return a default value or implement your logic
     self[:fuel_level] || 0
   end
   
@@ -210,7 +262,8 @@ class Vehicle < ApplicationRecord
       type: 'vehicle',
       color: '#6c757d',
       details: {
-        service_owner: service_owner,
+        service_owner: service_owner_display,
+        agency: agency&.name,
         registration_number: registration_number,
         current_driver: current_driver_name,
         license_plate: license_plate,
@@ -278,7 +331,11 @@ class Vehicle < ApplicationRecord
   end
 
   def display_with_owner
-    "#{make} #{model} (#{registration_number}) - #{service_owner}"
+    "#{make} #{model} (#{registration_number}) - #{service_owner_display}"
+  end
+
+  def display_with_agency
+    "#{make} #{model} (#{license_plate}) - #{agency&.name}"
   end
 
   # ------------------------------------------------------------
@@ -318,6 +375,7 @@ class Vehicle < ApplicationRecord
 
     {
       name: "#{make} #{model} (#{registration_number || 'N/A'})",
+      agency: agency&.name,
       distance_km: distance_sum,
       hours_plied: hours_sum,
       trip_count: trip_count,
@@ -334,6 +392,7 @@ class Vehicle < ApplicationRecord
     issues << "No maintenances scheduled" if maintenances.empty?
     issues << "No driver assigned" if driver.blank?
     issues << "Overdue maintenance" if has_overdue_maintenance?
+    issues << "No agency assigned" if agency.blank?
 
     if issues.empty?
       { status: 'good', message: 'All good' }
@@ -348,27 +407,16 @@ class Vehicle < ApplicationRecord
   # Check if vehicle is available for assignment
   # ------------------------------------------------------------
   def available_for_assignment?(current_driver_id = nil)
-    # Vehicle is available if:
-    # 1. It doesn't have active/pending maintenance
-    # 2. It's either unassigned OR assigned to the current driver (for editing)
     !has_active_maintenance? && (driver_id.nil? || driver_id == current_driver_id)
   end
 
   # ------------------------------------------------------------
-  # NEW METHODS: Vehicle Health & Analytics
+  # Vehicle Health & Analytics
   # ------------------------------------------------------------
   
   # Generate QR code URL
   def qr_code_url
-    # You'll need to install rqrcode gem and add:
-    # require 'rqrcode'
-    
-    # qr = RQRCode::QRCode.new(Rails.application.routes.url_helpers.vehicle_url(self, host: ENV['BASE_URL']))
-    # svg = qr.as_svg(offset: 0, color: '000', shape_rendering: 'crispEdges', module_size: 6)
-    # "data:image/svg+xml;base64,#{Base64.strict_encode64(svg)}"
-    
-    # For now, return nil or placeholder
-    nil
+    nil # Placeholder for QR code implementation
   end
   
   # Fuel status helper
@@ -383,7 +431,7 @@ class Vehicle < ApplicationRecord
     end
   end
   
-  # Utilization calculation (more efficient version)
+  # Utilization calculation
   def calculate_utilization(from: 30.days.ago.to_date, to: Date.today)
     trips_in_range = trips.where(start_time: from.beginning_of_day..to.end_of_day)
     hours_sum = trips_in_range.sum(:duration_hours).to_f
@@ -423,6 +471,9 @@ class Vehicle < ApplicationRecord
     if trips.where('start_time > ?', 7.days.ago).none?
       score -= 5
     end
+    
+    # Deduct for missing agency
+    score -= 5 if agency.blank?
     
     [score, 0].max
   end
@@ -466,7 +517,8 @@ class Vehicle < ApplicationRecord
       health_score: health_score,
       health_status: health_status,
       fuel_status: fuel_status,
-      utilization: calculate_utilization
+      utilization: calculate_utilization,
+      agency: agency&.name
     }
   end
 
@@ -504,16 +556,103 @@ class Vehicle < ApplicationRecord
     Date.today.year - year_of_manufacture
   end
   
-  # Check if insurance is expired
+  # ============================================================
+  # INSURANCE METHODS - SAFE VERSION
+  # ============================================================
+  
+  # Safe attribute reader/writer for insurance expiry date
+  def insurance_expiry_date
+    # Check if column exists in database
+    if insurance_column_exists?
+      self[:insurance_expiry_date]
+    else
+      # Return a default date for now (1 year from creation)
+      @_temporary_insurance_date ||= (created_at || Time.current).to_date + 1.year
+    end
+  end
+  
+  def insurance_expiry_date=(value)
+    # Only set if column exists
+    if insurance_column_exists?
+      self[:insurance_expiry_date] = value
+    else
+      @_temporary_insurance_date = value
+    end
+  end
+  
+  # Check if insurance column exists in database
+  def insurance_column_exists?
+    self.class.column_names.include?('insurance_expiry_date')
+  end
+  
+  # Check if we have insurance data
+  def has_insurance_data?
+    insurance_expiry_date.present?
+  end
+  
+  # Check if insurance is expired - safe version
   def insurance_expired?
-    return false unless insurance_expiry_date.present?
+    return false unless has_insurance_data?
     insurance_expiry_date < Date.today
+  end
+  
+  # Check if insurance expires soon (within 30 days)
+  def insurance_expiring_soon?
+    return false unless has_insurance_data?
+    insurance_expiry_date >= Date.today && insurance_expiry_date <= Date.today + 30.days
   end
   
   # Days until insurance expires
   def days_until_insurance_expiry
-    return nil unless insurance_expiry_date.present?
+    return nil unless has_insurance_data?
     (insurance_expiry_date - Date.today).to_i
+  end
+  
+  # Get insurance status
+  def insurance_status
+    return :no_data unless has_insurance_data?
+    
+    if insurance_expired?
+      :expired
+    elsif insurance_expiring_soon?
+      :expiring_soon
+    else
+      :active
+    end
+  end
+  
+  # Get insurance status badge class
+  def insurance_status_badge_class
+    case insurance_status
+    when :expired then 'bg-danger'
+    when :expiring_soon then 'bg-warning'
+    when :active then 'bg-success'
+    else 'bg-secondary'
+    end
+  end
+  
+  # Get insurance status display text
+  def insurance_status_display
+    case insurance_status
+    when :expired then 'Expired'
+    when :expiring_soon then 'Expiring Soon'
+    when :active then 'Active'
+    else 'No Insurance Data'
+    end
+  end
+  
+  # Format insurance expiry date for display
+  def insurance_expiry_display
+    return 'No insurance data' unless has_insurance_data?
+    
+    if insurance_expired?
+      "Expired on #{insurance_expiry_date.strftime('%B %d, %Y')}"
+    elsif insurance_expiring_soon?
+      days = days_until_insurance_expiry
+      "Expires in #{days} #{'day'.pluralize(days)} on #{insurance_expiry_date.strftime('%B %d, %Y')}"
+    else
+      "Expires on #{insurance_expiry_date.strftime('%B %d, %Y')}"
+    end
   end
   
   # Calculate downtime days (days in maintenance)
@@ -539,8 +678,85 @@ class Vehicle < ApplicationRecord
                 .order(:next_due_date)
   end
   
-  # Check if vehicle needs immediate attention
+  # ------------------------------------------------------------
+  # Location methods for Alert integration
+  # ------------------------------------------------------------
+  def current_location
+    self[:current_location] || self[:location] || self[:last_known_location] || 
+    self[:garage_location] || self[:depot] || self[:home_depot] ||
+    agency&.name || "#{make} #{model} (#{license_plate})"
+  end
+  
+  def last_known_location
+    current_location
+  end
+  
+  def location
+    current_location
+  end
+  
+  # ------------------------------------------------------------
+  # Alert-related methods for better integration
+  # ------------------------------------------------------------
+  
+  def active_alerts
+    alerts.active_alerts
+  end
+  
+  def critical_alerts
+    alerts.critical_alerts
+  end
+  
+  def urgent_alerts
+    alerts.urgent_alerts
+  end
+  
+  def needs_attention_alerts
+    alerts.needs_attention
+  end
+  
+  def has_active_alerts?
+    active_alerts.any?
+  end
+  
+  def has_critical_alerts?
+    critical_alerts.any?
+  end
+  
+  def has_urgent_alerts?
+    urgent_alerts.any?
+  end
+  
+  def alert_based_health_score
+    base_score = 100
+    base_score -= (needs_attention_alerts.count * 20)
+    base_score -= (active_alerts.count * 5)
+    [base_score, 0].max
+  end
+  
+  # Combined health score that considers both vehicle issues and alerts
+  def comprehensive_health_score
+    vehicle_score = health_score
+    alert_score = alert_based_health_score
+    ((vehicle_score + alert_score) / 2).round
+  end
+  
+  def alert_summary
+    {
+      total_alerts: alerts.count,
+      active_alerts: active_alerts.count,
+      critical_alerts: critical_alerts.count,
+      urgent_alerts: urgent_alerts.count,
+      needs_attention: needs_attention_alerts.count,
+      health_score: alert_based_health_score,
+      needs_immediate_attention: needs_immediate_attention?
+    }
+  end
+  
+  # Check if vehicle needs immediate attention (UPDATED with alerts)
   def needs_immediate_attention?
+    return true if alerts.any?(&:needs_attention?)
+    
     maintenance_overdue? || 
     (fuel_level.present? && fuel_level < 10) ||
     insurance_expired? ||
@@ -573,6 +789,7 @@ class Vehicle < ApplicationRecord
     score -= 2 if has_active_maintenance?
     score -= 1 if fuel_level.present? && fuel_level < 30
     score -= 1 if driver.blank?
+    score -= 1 if agency.blank?
     
     [score, 0].max
   end
@@ -585,7 +802,7 @@ class Vehicle < ApplicationRecord
       license_plate: license_plate,
       status: status_display,
       status_class: status_badge_class,
-      health_score: health_score,
+      health_score: comprehensive_health_score,
       health_status: health_status,
       health_class: health_status_badge_class,
       driver: current_driver_name,
@@ -595,7 +812,361 @@ class Vehicle < ApplicationRecord
       fuel_status: fuel_status,
       needs_attention: needs_immediate_attention?,
       efficiency_rating: efficiency_rating,
-      readiness_score: readiness_score
+      readiness_score: readiness_score,
+      agency: agency&.name,
+      alert_summary: alert_summary
     }
+  end
+  
+  # Create a new alert for this vehicle
+  def create_alert(params)
+    alerts.create!(params.merge(
+      vehicle_id: id,
+      location: current_location,
+      agency_id: agency_id
+    ))
+  end
+  
+  # Create a critical incident for this vehicle
+  def create_critical_incident(title:, description:, **opts)
+    Alert.create_critical_incident(
+      title: title,
+      description: description,
+      vehicle_id: id,
+      location: current_location,
+      agency_id: agency_id,
+      **opts
+    )
+  end
+  
+  # Create a maintenance alert for this vehicle
+  def create_maintenance_alert(description, priority = 'high_priority')
+    Alert.create_maintenance_alert(
+      self,
+      description,
+      priority
+    )
+  end
+  
+  # Resolve all active alerts for this vehicle
+  def resolve_all_alerts(resolution_notes = "All alerts resolved")
+    active_alerts.each do |alert|
+      alert.resolve!(resolution_notes)
+    end
+  end
+  
+  # Get alerts that need immediate attention
+  def urgent_alerts_needing_action
+    needs_attention_alerts
+  end
+  
+  # Check if vehicle has any unresolved alerts
+  def has_unresolved_alerts?
+    alerts.unresolved.any?
+  end
+  
+  # Get alert statistics for dashboard
+  def alert_statistics
+    {
+      total: alerts.count,
+      active: active_alerts.count,
+      critical: critical_alerts.count,
+      urgent: urgent_alerts.count,
+      needs_attention: needs_attention_alerts.count,
+      resolved: alerts.resolved.count,
+      acknowledged: alerts.acknowledged.count,
+      recent_24h: alerts.where('created_at >= ?', 24.hours.ago).count
+    }
+  end
+  
+  # Get recent alert activity (last 7 days)
+  def recent_alert_activity(days: 7)
+    alerts.where('created_at >= ?', days.days.ago)
+          .group_by_day(:created_at)
+          .count
+  end
+  
+  # Get alert severity distribution
+  def alert_severity_distribution
+    alerts.group(:severity).count
+  end
+  
+  # Get alert type distribution
+  def alert_type_distribution
+    alerts.group(:alert_type).count
+  end
+  
+  # ------------------------------------------------------------
+  # NEW METHODS FOR DASHBOARD DISPLAY
+  # ------------------------------------------------------------
+  
+  # Short display for dashboard table
+  def short_display
+    if has_active_alerts?
+      if needs_attention_alerts.any?
+        '🚨'
+      else
+        '⚠️'
+      end
+    else
+      '✅'
+    end
+  end
+  
+  # Quick stats for dashboard (simplified version)
+  def dashboard_stats
+    {
+      display_name: display_name,
+      license_plate: license_plate,
+      status: status_display,
+      status_class: status_badge_class,
+      health_score: comprehensive_health_score,
+      health_status: health_status,
+      health_class: health_status_badge_class,
+      driver: current_driver_name,
+      fuel_level: fuel_level,
+      fuel_status: fuel_status,
+      needs_attention: needs_immediate_attention?,
+      alert_count: active_alerts.count,
+      critical_alert_count: critical_alerts.count,
+      agency: agency&.name
+    }
+  end
+  
+  # Helper method for status check with alerts
+  def status_with_alerts
+    if needs_immediate_attention?
+      'needs_attention'
+    else
+      status
+    end
+  end
+  
+  # Color coding for status with alerts
+  def status_with_alerts_badge_class
+    if needs_immediate_attention?
+      'bg-danger'
+    else
+      status_badge_class
+    end
+  end
+  
+  # Display status with alert indicators
+  def status_with_alerts_display
+    if needs_immediate_attention?
+      "Needs Attention"
+    else
+      status_display
+    end
+  end
+  
+  # Simple alert presence indicator
+  def has_alerts?
+    alerts.any?
+  end
+  
+  # Alert severity level
+  def highest_alert_severity
+    return 'none' unless has_active_alerts?
+    
+    if critical_alerts.any?
+      'critical'
+    elsif urgent_alerts.any?
+      'urgent'
+    elsif active_alerts.any?
+      'warning'
+    else
+      'none'
+    end
+  end
+  
+  # Dashboard card data
+  def dashboard_card_data
+    {
+      id: id,
+      name: display_name,
+      license_plate: license_plate,
+      status: status_with_alerts_display,
+      status_class: status_with_alerts_badge_class,
+      health_score: comprehensive_health_score,
+      health_class: health_status_badge_class,
+      driver: current_driver_name,
+      alerts_count: active_alerts.count,
+      critical_alerts_count: critical_alerts.count,
+      needs_attention: needs_immediate_attention?,
+      short_display: short_display,
+      highest_alert: highest_alert_severity,
+      agency: agency&.name,
+      agency_code: agency&.code
+    }
+  end
+  
+  # Quick health assessment
+  def health_assessment
+    score = comprehensive_health_score
+    
+    case score
+    when 90..100
+      { level: 'excellent', message: 'Vehicle in excellent condition', color: 'success' }
+    when 70..89
+      { level: 'good', message: 'Vehicle in good condition', color: 'info' }
+    when 50..69
+      { level: 'fair', message: 'Vehicle requires attention soon', color: 'warning' }
+    when 30..49
+      { level: 'poor', message: 'Vehicle needs immediate attention', color: 'danger' }
+    else
+      { level: 'critical', message: 'Vehicle requires emergency attention', color: 'dark' }
+    end
+  end
+  
+  # Alert summary for quick view
+  def alert_quick_summary
+    {
+      has_alerts: has_active_alerts?,
+      alert_count: active_alerts.count,
+      critical_count: critical_alerts.count,
+      urgent_count: urgent_alerts.count,
+      needs_attention: needs_immediate_attention?,
+      highest_severity: highest_alert_severity,
+      summary: "#{active_alerts.count} active alert#{active_alerts.count == 1 ? '' : 's'}"
+    }
+  end
+  
+  # ------------------------------------------------------------
+  # INVOICE-RELATED METHODS
+  # ------------------------------------------------------------
+  
+  # Get all invoices for this vehicle
+  def vehicle_invoices
+    Invoice.where(vehicle_id: id)
+  end
+  
+  # Get pending invoices for this vehicle
+  def pending_invoices
+    vehicle_invoices.where(status: ['pending_review', 'pending_payment'])
+  end
+  
+  # Get overdue invoices for this vehicle
+  def overdue_invoices
+    vehicle_invoices.overdue
+  end
+  
+  # Get paid invoices for this vehicle
+  def paid_invoices
+    vehicle_invoices.paid
+  end
+  
+  # Total invoice amount for this vehicle
+  def total_invoice_amount
+    vehicle_invoices.sum(:amount)
+  end
+  
+  # Pending invoice amount for this vehicle
+  def pending_invoice_amount
+    pending_invoices.sum(:amount)
+  end
+  
+  # Check if vehicle has any pending invoices
+  def has_pending_invoices?
+    pending_invoices.any?
+  end
+  
+  # Check if vehicle has any overdue invoices
+  def has_overdue_invoices?
+    overdue_invoices.any?
+  end
+  
+  # Invoice summary for dashboard
+  def invoice_summary
+    {
+      total_invoices: vehicle_invoices.count,
+      pending_invoices: pending_invoices.count,
+      overdue_invoices: overdue_invoices.count,
+      paid_invoices: paid_invoices.count,
+      total_amount: total_invoice_amount,
+      pending_amount: pending_invoice_amount,
+      has_pending: has_pending_invoices?,
+      has_overdue: has_overdue_invoices?
+    }
+  end
+  
+  # ------------------------------------------------------------
+  # AGENCY-SPECIFIC METHODS
+  # ------------------------------------------------------------
+  
+  def is_ptsc_vehicle?
+    agency&.code == 'PTSC'
+  end
+  
+  def is_ttps_vehicle?
+    agency&.code == 'TTPS'
+  end
+  
+  def is_ttdf_vehicle?
+    agency&.code == 'TTDF'
+  end
+  
+  def is_fire_vehicle?
+    agency&.code == 'FIRE'
+  end
+  
+  def is_health_vehicle?
+    agency&.code == 'HEALTH'
+  end
+  
+  def is_education_vehicle?
+    agency&.code == 'EDUCATION'
+  end
+  
+  def is_vmcott_vehicle?
+    agency&.code == 'VMCOTT'
+  end
+  
+  # Check if vehicle belongs to a specific agency
+  def belongs_to_agency?(agency_code)
+    agency&.code == agency_code
+  end
+  
+  # Get agency-specific badge class
+  def agency_badge_class
+    return 'bg-secondary' unless agency
+    
+    case agency.code
+    when 'PTSC' then 'bg-ptsc'
+    when 'TTPS' then 'bg-police'
+    when 'TTDF' then 'bg-military'
+    when 'FIRE' then 'bg-fire'
+    when 'HEALTH' then 'bg-success'
+    when 'EDUCATION' then 'bg-info'
+    when 'VMCOTT' then 'bg-warning'
+    else 'bg-secondary'
+    end
+  end
+  
+  # ------------------------------------------------------------
+  # FINANCIAL METHODS
+  # ------------------------------------------------------------
+  
+  # Calculate total cost of ownership (maintenance + invoices)
+  def total_cost_of_ownership
+    total_maintenance_cost + total_invoice_amount
+  end
+  
+  # Calculate cost per mile/kilometer
+  def cost_per_km
+    total_distance = trips.sum(:distance_km).to_f
+    return 0 if total_distance == 0
+    (total_cost_of_ownership / total_distance).round(2)
+  end
+  
+  # Calculate monthly operating cost
+  def monthly_operating_cost
+    first_trip = trips.order(start_time: :asc).first
+    return 0 unless first_trip
+    
+    months = ((Date.today - first_trip.start_time.to_date).to_i / 30.0).ceil
+    months = 1 if months < 1
+    
+    (total_cost_of_ownership / months).round(2)
   end
 end

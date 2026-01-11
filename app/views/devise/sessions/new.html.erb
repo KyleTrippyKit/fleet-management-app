@@ -1,0 +1,278 @@
+<div class="container-fluid min-vh-100 d-flex align-items-center justify-content-center auth-page">
+  <div class="card shadow border-0 auth-container" style="max-width: 480px; width: 100%;">
+    
+    <!-- Trinidad accent bar -->
+    <div class="auth-accent"></div>
+
+    <div class="card-body p-4 position-relative">
+
+      <!-- Logo / Header -->
+      <div class="text-center mb-3">
+        <div class="mb-2">
+          <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center
+                      fw-bold"
+               style="width: 64px; height: 64px; font-size: 28px;">
+            AP
+          </div>
+        </div>
+
+        <h2 class="fw-bold mb-1">Active Plus</h2>
+
+        <p class="text-muted small mb-0">
+          Incorporated for the Republic of Trinidad and Tobago
+        </p>
+      </div>
+
+      <!-- TEST ENVIRONMENT BANNER -->
+      <% if Rails.env.development? || Rails.env.test? %>
+        <div class="alert alert-warning alert-dismissible fade show mb-3 py-2" role="alert">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-flask me-2"></i>
+            <div class="small">
+              <strong>Test Environment</strong> – This is a demonstration system
+            </div>
+          </div>
+          <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% end %>
+
+      <hr>
+
+      <!-- Quick Login Selector (Development/Test only) -->
+      <% if Rails.env.development? || Rails.env.test? %>
+        <div class="mb-4">
+          <label class="form-label fw-semibold small text-muted">
+            <i class="fas fa-bolt me-1"></i> Quick Test Login
+          </label>
+          <select class="form-select form-select-sm" 
+                  id="test-user-select"
+                  onchange="if(this.value) { 
+                    const [email, password] = this.value.split('|'); 
+                    document.getElementById('user_email').value = email;
+                    document.getElementById('user_password').value = password;
+                    document.getElementById('user_email').focus();
+                  }">
+            <option value="">-- Select a test account --</option>
+            <optgroup label="PTSC Accounts">
+              <option value="fleet.manager@ptsc.gov.tt|password123">🚗 PTSC Fleet Manager</option>
+              <option value="maintenance.supervisor@ptsc.gov.tt|password123">🔧 PTSC Maintenance Supervisor</option>
+              <option value="finance@ptsc.gov.tt|password123">💰 PTSC Finance Officer</option>
+              <option value="driver.john@ptsc.gov.tt|password123">👨‍✈️ PTSC Driver</option>
+              <option value="admin@ptsc.gov.tt|password123">👑 PTSC Administrator</option>
+            </optgroup>
+            <optgroup label="Agency Administrators">
+              <option value="admin@vmcott.gov.tt|password123">🏢 VMCOTT Administrator</option>
+              <option value="admin@ttps.gov.tt|password123">👮 TTPS Administrator</option>
+              <option value="admin@ttdf.gov.tt|password123">🎖️ TTDF Administrator</option>
+            </optgroup>
+            <optgroup label="Test Users">
+              <option value="test@ptsc.gov.tt|test123">🧪 PTSC Test User</option>
+              <option value="test@vmcott.gov.tt|test123">🧪 VMCOTT Test User</option>
+              <option value="test@ttps.gov.tt|test123">🧪 TTPS Test User</option>
+              <option value="test@ttdf.gov.tt|test123">🧪 TTDF Test User</option>
+            </optgroup>
+          </select>
+          <div class="form-text">
+            <small>Select an account to auto-fill credentials</small>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Login Form -->
+      <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
+        <!-- CRITICAL: Add CSRF token manually -->
+        <%= token_tag nil %>
+        
+        <div class="mb-3">
+          <%= f.label :email, "Email Address", class: "form-label fw-semibold" %>
+          <%= f.email_field :email,
+                autofocus: true,
+                class: "form-control",
+                autocomplete: "email",
+                required: true,
+                id: "user_email" %>
+        </div>
+
+        <div class="mb-3">
+          <%= f.label :password, "Password", class: "form-label fw-semibold" %>
+          <%= f.password_field :password,
+                class: "form-control",
+                autocomplete: "current-password",
+                required: true,
+                id: "user_password" %>
+        </div>
+
+        <% if devise_mapping.rememberable? %>
+          <div class="form-check mb-3">
+            <%= f.check_box :remember_me, class: "form-check-input" %>
+            <%= f.label :remember_me, "Remember this device", class: "form-check-label" %>
+          </div>
+        <% end %>
+
+        <div class="d-grid mb-3">
+          <%= f.submit "Sign In", class: "btn btn-primary btn-lg" %>
+        </div>
+
+      <% end %>
+
+      <div class="text-center small mb-4">
+        <%= link_to "Forgot your password?", new_password_path(resource_name) %>
+      </div>
+
+      <!-- TEST CREDENTIALS CARD (Development/Test only) -->
+      <% if Rails.env.development? || Rails.env.test? %>
+        <div class="test-credentials-card mt-4 p-3 border rounded" style="background-color: #f8fafc; border-color: #cbd5e1 !important;">
+          <h6 class="fw-semibold mb-2 text-dark">
+            <i class="fas fa-key me-1"></i> All Test Credentials
+          </h6>
+          
+          <div class="row g-2">
+            <!-- PTSC Column -->
+            <div class="col-md-6">
+              <div class="small fw-semibold text-primary mb-1">PTSC Accounts</div>
+              <div class="credentials-grid">
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Fleet Manager</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">fleet.manager@ptsc.gov.tt</div>
+                </div>
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Maintenance</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">maintenance.supervisor@ptsc.gov.tt</div>
+                </div>
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Finance</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">finance@ptsc.gov.tt</div>
+                </div>
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Driver</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">driver.john@ptsc.gov.tt</div>
+                </div>
+                <div class="credential-item">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">Admin</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">admin@ptsc.gov.tt</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Other Agencies Column -->
+            <div class="col-md-6">
+              <div class="small fw-semibold text-primary mb-1">Agency Admins</div>
+              <div class="credentials-grid">
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">VMCOTT Admin</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">admin@vmcott.gov.tt</div>
+                </div>
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">TTPS Admin</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">admin@ttps.gov.tt</div>
+                </div>
+                <div class="credential-item border-bottom pb-1 mb-1">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">TTDF Admin</span>
+                    <code class="bg-light px-1 rounded small">password123</code>
+                  </div>
+                  <div class="text-truncate small">admin@ttdf.gov.tt</div>
+                </div>
+              </div>
+              
+              <div class="small fw-semibold text-primary mt-3 mb-1">Test Users</div>
+              <div class="credentials-grid">
+                <div class="credential-item">
+                  <div class="d-flex justify-content-between">
+                    <span class="text-muted small">All Test Users</span>
+                    <code class="bg-light px-1 rounded small">test123</code>
+                  </div>
+                  <div class="text-truncate small">test@[agency].gov.tt</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="alert alert-light border mt-2 mb-0 py-1 px-2 small" style="background-color: #fefce8;">
+            <i class="fas fa-info-circle text-warning me-1"></i>
+            <small>These credentials are for demonstration purposes only.</small>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Footer -->
+      <div class="d-flex justify-content-between small text-muted pt-3 mt-3 border-top">
+        <span>
+          Build <%= ENV.fetch("APP_BUILD", "1.0.0") %>
+        </span>
+
+        <span>
+          © 2026 Active Plus™
+        </span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Add FontAwesome for icons if not already included -->
+<script>
+  // Auto-fill on dropdown select
+  document.addEventListener('DOMContentLoaded', function() {
+    const testSelect = document.getElementById('test-user-select');
+    if (testSelect) {
+      testSelect.addEventListener('change', function() {
+        if (this.value) {
+          const [email, password] = this.value.split('|');
+          document.getElementById('user_email').value = email;
+          document.getElementById('user_password').value = password;
+          
+          // Optional: Show a quick confirmation
+          const emailField = document.getElementById('user_email');
+          emailField.classList.add('bg-success-subtle');
+          setTimeout(() => emailField.classList.remove('bg-success-subtle'), 1000);
+        }
+      });
+    }
+  });
+</script>
+
+<style>
+  .test-credentials-card .credential-item {
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+  
+  .test-credentials-card code {
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+  }
+  
+  .auth-accent {
+    height: 4px;
+    background: linear-gradient(90deg, #ce1126 33%, #fff 33%, #fff 66%, #000 66%);
+    border-radius: 2px 2px 0 0;
+  }
+  
+  /* Add a subtle animation for the credential selector */
+  #test-user-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+  }
+</style>

@@ -1,0 +1,135 @@
+# app/views/ptsc_dashboard/_fleet_manager_dashboard.html.erb
+<%# Full Fleet Manager Dashboard %>
+
+<%= render 'dashboard/fleet_manager_cards' %>
+
+<!-- Financial & Efficiency Analytics (Fleet Manager sees both) -->
+<div class="row g-4 mb-5">
+  <div class="col-xl-6 col-lg-6">
+    <div class="card border-0 shadow-sm overflow-hidden">
+      <div class="card-header bg-white border-0 py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="fw-bold mb-0 d-flex align-items-center">
+            <i class="bi bi-fuel-pump text-primary me-2"></i>
+            Fuel Efficiency & Consumption
+          </h6>
+          <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">System Wide</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Chart container -->
+        <div class="chart-container" style="height: 200px; position: relative;">
+          <canvas id="fuelEfficiencyChart"></canvas>
+          <div id="fuelChartFallback" class="chart-placeholder">
+            <div class="text-center py-5">
+              <i class="bi bi-bar-chart text-muted opacity-25 display-6"></i>
+              <p class="text-muted small mt-2">Fuel Consumption Chart</p>
+              <div class="mt-2">
+                <small class="text-muted">Week 1: 4,200L</small> • 
+                <small class="text-muted">Week 2: 3,800L</small> • 
+                <small class="text-muted">Week 3: 4,500L</small> • 
+                <small class="text-muted">Week 4: 4,100L</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row mt-3 g-3">
+          <div class="col-6">
+            <div class="bg-light p-3 rounded">
+              <p class="text-uppercase small fw-bold text-muted mb-1">Avg Efficiency</p>
+              <p class="h5 fw-bold text-primary mb-0">
+                <%= @usage_stats[:total_distance] > 0 ? 
+                    number_with_precision(@usage_stats[:total_distance].to_f / (@usage_stats[:total_fuel_liters] || 16600), precision: 1) : 
+                    "8.2" %> km/L
+              </p>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-light p-3 rounded">
+              <p class="text-uppercase small fw-bold text-muted mb-1">Total Fuel</p>
+              <p class="h5 fw-bold text-primary mb-0">
+                <%= number_with_precision((@usage_stats[:total_fuel_liters] || 16600).to_f / 1000, precision: 1) %>k Liters
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-6 col-lg-6">
+    <div class="card border-0 shadow-sm overflow-hidden">
+      <div class="card-header bg-white border-0 py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h6 class="fw-bold mb-0 d-flex align-items-center">
+            <i class="bi bi-cash-coin text-success me-2"></i>
+            Maintenance Cost Analysis
+          </h6>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Chart container -->
+        <div class="chart-container" style="height: 200px; position: relative;">
+          <canvas id="maintenanceCostChart"></canvas>
+          <div id="costChartFallback" class="chart-placeholder">
+            <div class="text-center py-5">
+              <i class="bi bi-graph-up text-muted opacity-25 display-6"></i>
+              <p class="text-muted small mt-2">Cost Analysis Chart</p>
+              <div class="mt-2">
+                <small class="text-muted">Weekly average: $385</small> • 
+                <small class="text-muted">Monthly total: $2,450</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row mt-3 g-3">
+          <div class="col-6">
+            <div class="bg-success bg-opacity-10 p-3 rounded border border-success border-opacity-25">
+              <p class="text-uppercase small fw-bold text-success mb-1">Monthly Spend</p>
+              <p class="h5 fw-bold text-success mb-0">
+                $<%= number_with_precision(@maintenance_stats[:monthly_cost] || 2450, precision: 0) %>
+              </p>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="bg-success bg-opacity-10 p-3 rounded border border-success border-opacity-25">
+              <p class="text-uppercase small fw-bold text-success mb-1">Cost / km</p>
+              <p class="h5 fw-bold text-success mb-0">
+                $<%= number_with_precision(@usage_stats[:total_distance] > 0 ? 
+                    ((@maintenance_stats[:monthly_cost] || 2450).to_f / @usage_stats[:total_distance]) : 0.18, 
+                    precision: 2) %>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Invoices Table (Fleet Manager sees this) -->
+<% if @recent_invoices.any? %>
+<div class="card border-0 shadow-sm mb-5">
+  <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+    <h6 class="fw-bold mb-0 d-flex align-items-center">
+      <i class="bi bi-file-earmark-text text-primary me-2"></i>
+      Recent Invoices
+    </h6>
+    <% if current_user.admin? || current_user.finance? || current_user.fleet_manager? %>
+    <%= link_to new_invoice_path(service_owner: 'PTSC'), class: "btn btn-primary btn-sm" do %>
+        <i class="bi bi-plus-lg me-1"></i> Create First Invoice
+    <% end %>
+    <% end %>
+
+  </div>
+  <div class="card-body p-0">
+    <!-- Invoice table code here (same as your original) -->
+    <%= render 'dashboard/invoices_table', invoices: @recent_invoices %>
+  </div>
+</div>
+<% end %>
+
+<!-- Rest of your original dashboard content for Fleet Manager -->
+<%= render 'dashboard/fleet_overview_section' %>
+<%= render 'dashboard/sidebar_section' %>
+<%= render 'dashboard/service_forecast_table' %>

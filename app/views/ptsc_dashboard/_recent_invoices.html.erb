@@ -1,0 +1,61 @@
+<div class="card border-0 shadow-sm mb-5">
+  <div class="card-header bg-white border-0 py-3">
+    <h6 class="fw-bold mb-0 d-flex align-items-center">
+      <i class="bi bi-file-earmark-text text-primary me-2"></i>
+      Recent Invoices
+    </h6>
+  </div>
+
+  <div class="card-body p-0">
+    <% recent_invoices ||= [] %>
+    <% if recent_invoices.any? %>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th>Invoice #</th>
+              <th>Vehicle</th>
+              <th>Vendor</th>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% recent_invoices.first(5).each do |invoice| %>
+              <tr>
+                <td><%= invoice.invoice_number %></td>
+                <td><%= invoice.vehicle&.license_plate || '—' %></td>
+                <td><%= invoice.vendor %></td>
+                <td><%= invoice.invoice_date&.strftime("%b %d, %Y") %></td>
+                <td><%= number_to_currency(invoice.amount) %></td>
+                <td>
+                  <span class="badge <%= invoice.status == 'paid' ? 'bg-success' : 'bg-warning text-dark' %>">
+                    <%= invoice.status.titleize %>
+                  </span>
+                </td>
+                <td class="text-end">
+                  <%= link_to invoice_path(invoice), class: "btn btn-ghost btn-sm text-primary p-1" do %>
+                    <i class="bi bi-eye"></i>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-receipt display-3 mb-3"></i>
+        <p>No invoices found</p>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="p-3 text-center border-top">
+    <%= link_to invoices_path(service_owner: 'PTSC'), class: "text-decoration-none small fw-bold" do %>
+      View All PTSC Invoices <i class="bi bi-arrow-right ms-1"></i>
+    <% end %>
+  </div>
+</div>

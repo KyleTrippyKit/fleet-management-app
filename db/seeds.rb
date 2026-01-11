@@ -1,54 +1,67 @@
-puts "Seeding users..."
-users = [
-  { email: "admin@example.com", password: "password123", password_confirmation: "password123" },
-  { email: "user1@example.com", password: "password123", password_confirmation: "password123" },
-  { email: "user2@example.com", password: "password123", password_confirmation: "password123" }
-].map { |u| User.create!(u) }
+puts "=== CLEANING DATABASE ==="
+User.delete_all
+Agency.delete_all
 
-puts "Seeding vehicles..."
-vehicle_data = [
-  { make: "Ford", model: "Focus", vehicle_type: "Hatchback", license_plate: "XYZ-789", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2019, service_owner: "Police" },
-  { make: "Higer", model: "Bus", vehicle_type: "Bus", license_plate: "HIG-001", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2021, service_owner: "PTSC" },
-  { make: "Isuzu", model: "D-Max", vehicle_type: "Truck", license_plate: "ISU-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
-  { make: "Nissan", model: "Sentra", vehicle_type: "Sedan", license_plate: "NIS-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2018, service_owner: "Police" },
-  { make: "Suzuki", model: "Swift", vehicle_type: "Hatchback", license_plate: "SUZ-789", registration_number: "REG789", chassis_number: "CH789", serial_number: "SN789", year_of_manufacture: 2022, service_owner: "PTSC" },
-  { make: "Toyota", model: "Corolla", vehicle_type: "Sedan", license_plate: "TOY-123", registration_number: "REG123", chassis_number: "CH123", serial_number: "SN123", year_of_manufacture: 2020, service_owner: "PTSC" },
-  { make: "Toyota", model: "Hilux", vehicle_type: "Truck", license_plate: "TOY-456", registration_number: "REG456", chassis_number: "CH456", serial_number: "SN456", year_of_manufacture: 2021, service_owner: "Fire Service" }
+puts "=== CREATING AGENCIES ==="
+agencies_data = [
+  { name: "Vehicle Management Company of Trinidad and Tobago", code: "VMCOTT", theme: "theme-1" },
+  { name: "Trinidad and Tobago Police Service", code: "TTPS", theme: "theme-6" },
+  { name: "Trinidad and Tobago Defence Force", code: "TTDF", theme: "theme-2" },
+  { name: "Public Transport Service Corporation", code: "PTSC", theme: "theme-4" }
 ]
 
-vehicles = vehicle_data.map do |attrs|
-  Vehicle.create!(attrs)
+agencies = {}
+agencies_data.each do |data|
+  agency = Agency.create!(data)
+  agencies[data[:code]] = agency
+  puts "✓ Created agency: #{data[:code]}"
 end
 
-# Optional: Add some example photo uploads in development
-if Rails.env.development?
-  puts "Adding example photo to first vehicle..."
-  # You can add code here to attach test images if you have them
-  # Example:
-  # vehicles.first.primary_photo.attach(
-  #   io: File.open(Rails.root.join('app/assets/images/placeholders/Ford.webp')),
-  #   filename: 'ford_example.jpg',
-  #   content_type: 'image/jpeg'
-  # )
-end
-
-puts "Seeding drivers..."
-drivers = [
-  { name: "Frank", license_number: "HBC-2054", phone: "2964764" },
-  { name: "Sean", license_number: "PDC-7547", phone: "7647454" },
-  { name: "John", license_number: "PAZ-9045", phone: "7021921" }
-].map { |d| Driver.create!(d) }
-
-puts "Seeding trips..."
-now = Time.current
-trips_data = [
-  { vehicle: vehicles[0], driver: drivers[1], start_time: now - 2.hours, end_time: now - 1.hour, distance_km: 100 },
-  { vehicle: vehicles[0], driver: drivers[2], start_time: now - 3.hours, end_time: now - 2.hours, distance_km: 80 },
-  { vehicle: vehicles[1], driver: drivers[2], start_time: now - 2.hours, end_time: now - 1.hour, distance_km: 50 }
+puts "\n=== CREATING USERS ==="
+users_data = [
+  # PTSC Users
+  { email: "fleet.manager@ptsc.gov.tt", password: "password123", name: "PTSC Fleet Manager", role: "fleet_manager", agency_code: "PTSC" },
+  { email: "maintenance.supervisor@ptsc.gov.tt", password: "password123", name: "Maintenance Supervisor", role: "maintenance_supervisor", agency_code: "PTSC" },
+  { email: "finance@ptsc.gov.tt", password: "password123", name: "Finance Officer", role: "finance", agency_code: "PTSC" },
+  { email: "driver.john@ptsc.gov.tt", password: "password123", name: "John Driver", role: "driver", agency_code: "PTSC" },
+  { email: "admin@ptsc.gov.tt", password: "password123", name: "PTSC Administrator", role: "admin", agency_code: "PTSC" },
+  
+  # Other agency admins
+  { email: "admin@vmcott.gov.tt", password: "password123", name: "VMCOTT Administrator", role: "admin", agency_code: "VMCOTT" },
+  { email: "admin@ttps.gov.tt", password: "password123", name: "TTPS Administrator", role: "admin", agency_code: "TTPS" },
+  { email: "admin@ttdf.gov.tt", password: "password123", name: "TTDF Administrator", role: "admin", agency_code: "TTDF" },
+  
+  # Test users
+  { email: "test@vmcott.gov.tt", password: "test123", name: "VMCOTT Test User", role: "fleet_manager", agency_code: "VMCOTT" },
+  { email: "test@ttps.gov.tt", password: "test123", name: "TTPS Test User", role: "fleet_manager", agency_code: "TTPS" },
+  { email: "test@ttdf.gov.tt", password: "test123", name: "TTDF Test User", role: "fleet_manager", agency_code: "TTDF" },
+  { email: "test@ptsc.gov.tt", password: "test123", name: "PTSC Test User", role: "fleet_manager", agency_code: "PTSC" }
 ]
 
-trips_data.each { |trip_attrs| Trip.create!(trip_attrs) }
+users_data.each do |data|
+  agency = agencies[data[:agency_code]]
+  user = User.create!(
+    email: data[:email],
+    password: data[:password],
+    password_confirmation: data[:password],
+    name: data[:name],
+    role: data[:role],
+    agency: agency
+  )
+  puts "✓ Created user: #{data[:email]} (#{data[:role]}) for #{data[:agency_code]}"
+end
 
-puts "Seeding complete!"
-puts "✓ Vehicle images will load from ActiveStorage uploads or fall back to placeholders"
-puts "✓ Placeholder images are in app/assets/images/placeholders/"
+puts "\n=== VERIFICATION ==="
+puts "Total Agencies: #{Agency.count}"
+puts "Total Users: #{User.count}"
+
+puts "\n🎉 DATABASE SEEDED SUCCESSFULLY!"
+puts "\n=== LOGIN CREDENTIALS ==="
+puts "PTSC Fleet Manager:       fleet.manager@ptsc.gov.tt / password123"
+puts "PTSC Maintenance:         maintenance.supervisor@ptsc.gov.tt / password123"
+puts "PTSC Finance:             finance@ptsc.gov.tt / password123"
+puts "PTSC Driver:              driver.john@ptsc.gov.tt / password123"
+puts "PTSC Admin:               admin@ptsc.gov.tt / password123"
+puts "VMCOTT Admin:             admin@vmcott.gov.tt / password123"
+puts "TTPS Admin:               admin@ttps.gov.tt / password123"
+puts "TTDF Admin:               admin@ttdf.gov.tt / password123"

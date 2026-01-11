@@ -1,0 +1,41 @@
+<div class="ptsc-header py-4 text-white">
+  <div class="container px-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <h1 class="h3 fw-bold mb-1">PTSC Fleet Operations</h1>
+        <div class="d-flex align-items-center gap-3 small">
+          <span><i class="bi bi-geo-alt me-1"></i><%= @agency&.name || "PTSC Headquarters" %></span>
+          <span class="badge <%= role_badge_class(@current_role) %>">
+            <%= @current_role.to_s.titleize %>
+          </span>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <%= link_to ptsc_dashboard_path, class: "btn btn-outline-light btn-sm" do %>
+          <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        <% end %>
+        <% if can_add_vehicle? %>
+          <%= link_to new_vehicle_path(service_owner: "PTSC"), class: "btn btn-light btn-sm text-dark fw-bold" do %>
+            <i class="bi bi-plus-circle me-1"></i>Add Vehicle
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Helper methods (add to application_helper.rb or controller) %>
+<% def role_badge_class(role) %>
+  <% case role %>
+  <% when :fleet_manager then "bg-primary" %>
+  <% when :maintenance_supervisor then "bg-warning text-dark" %>
+  <% when :finance then "bg-success" %>
+  <% when :driver then "bg-info" %>
+  <% when :admin then "bg-danger" %>
+  <% else "bg-secondary" %>
+  <% end %>
+<% end %>
+
+<% def can_add_vehicle? %>
+  <% current_user.fleet_manager? || current_user.admin? %>
+<% end %>

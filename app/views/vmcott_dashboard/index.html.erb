@@ -1,0 +1,239 @@
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="display-6 fw-bold text-primary">
+        <i class="bi bi-shield-check text-primary me-2"></i>
+        VMCOTT - Agencies Overview Dashboard
+      </h1>
+      <p class="text-muted mb-0">
+        Central oversight of all government vehicle fleets in Trinidad and Tobago
+      </p>
+    </div>
+    <div class="badge bg-primary fs-5 p-3">
+      <i class="bi bi-building me-2"></i>
+      <%= current_user.agency.name %> (Central Authority)
+    </div>
+  </div>
+  
+  <!-- Overall Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-primary mb-3">
+            <i class="bi bi-building fs-1"></i>
+          </div>
+          <h3 class="mb-2"><%= @overall_stats[:total_agencies] %></h3>
+          <p class="text-muted mb-0">Managed Agencies</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-success mb-3">
+            <i class="bi bi-car-front fs-1"></i>
+          </div>
+          <h3 class="mb-2"><%= @overall_stats[:total_vehicles] %></h3>
+          <p class="text-muted mb-0">Total Vehicles</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-warning mb-3">
+            <i class="bi bi-tools fs-1"></i>
+          </div>
+          <h3 class="mb-2"><%= @overall_stats[:pending_requests] %></h3>
+          <p class="text-muted mb-0">Pending Requests</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-info mb-3">
+            <i class="bi bi-graph-up fs-1"></i>
+          </div>
+          <h3 class="mb-2"><%= @overall_stats[:avg_utilization] %>%</h3>
+          <p class="text-muted mb-0">Avg Utilization</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Agency Performance Table -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">
+        <i class="bi bi-bar-chart me-2"></i>
+        Agency Performance Overview
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Agency</th>
+              <th>Total Vehicles</th>
+              <th>Active Vehicles</th>
+              <th>Pending Requests</th>
+              <th>Total Distance (km)</th>
+              <th>Avg Utilization</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @agency_stats.each do |stats| %>
+              <tr>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <% badge_class = case stats[:agency].code
+                                    when "TTPS" then "badge-ttps"
+                                    when "TTDF" then "badge-ttdf"
+                                    when "PTSC" then "badge-ptsc"
+                                    else "badge-secondary"
+                                    end %>
+                    <span class="badge <%= badge_class %> me-2">
+                      <%= stats[:agency].code %>
+                    </span>
+                    <%= stats[:agency].name %>
+                  </div>
+                </td>
+                <td><%= stats[:vehicle_stats][:total_vehicles] %></td>
+                <td>
+                  <span class="badge bg-success">
+                    <%= stats[:vehicle_stats][:active_vehicles] %>
+                  </span>
+                </td>
+                <td>
+                  <span class="badge bg-warning">
+                    <%= stats[:pending_requests] %>
+                  </span>
+                </td>
+                <td><%= stats[:usage_stats][:total_distance] %> km</td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <span class="me-2"><%= stats[:usage_stats][:average_utilization] %>%</span>
+                    <div class="progress" style="width: 60px; height: 6px;">
+                      <% util = stats[:usage_stats][:average_utilization].to_f %>
+                      <div class="progress-bar bg-<%= util >= 70 ? 'success' : util >= 30 ? 'warning' : 'danger' %>" 
+                           style="width: <%= [util, 100].min %>%"></div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <%# Note: You'll need to add agency_dashboard_path route or use existing dashboard paths %>
+                    <%= link_to agency_vehicles_path(stats[:agency]), 
+                          class: "btn btn-outline-success" do %>
+                      <i class="bi bi-car-front"></i> Vehicles
+                    <% end %>
+                    <%= link_to agency_analytics_path(stats[:agency]), 
+                          class: "btn btn-outline-info" do %>
+                      <i class="bi bi-graph-up"></i> Analytics
+                    <% end %>
+                    <%= link_to agency_maintenance_path(stats[:agency]), 
+                          class: "btn btn-outline-warning" do %>
+                      <i class="bi bi-tools"></i> Maintenance
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Recent Maintenance Requests -->
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="bi bi-clock-history me-2"></i>
+            Recent Maintenance Requests from All Agencies
+          </h5>
+        </div>
+        <div class="card-body">
+          <% if @recent_maintenances.any? %>
+            <div class="list-group">
+              <% @recent_maintenances.each do |maintenance| %>
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">
+                        <%= maintenance.vehicle.display_name %>
+                        <span class="badge bg-<%= case maintenance.status
+                                                when 'pending' then 'warning'
+                                                when 'in_progress' then 'info'
+                                                when 'completed' then 'success'
+                                                else 'secondary'
+                                                end %> ms-2">
+                          <%= maintenance.status.titleize %>
+                        </span>
+                      </h6>
+                      <p class="mb-1 small text-muted">
+                        <i class="bi bi-building me-1"></i>
+                        <%= maintenance.vehicle.agency.name %> •
+                        <%= maintenance.service_type || 'Maintenance' %> •
+                        <strong>Urgency:</strong> <%= maintenance.urgency || 'Normal' %>
+                      </p>
+                    </div>
+                    <div class="text-end">
+                      <small class="text-muted">
+                        <%= time_ago_in_words(maintenance.created_at) %> ago
+                      </small>
+                      <div>
+                        <%= link_to "View", maintenance_path(maintenance), 
+                              class: "btn btn-sm btn-outline-primary mt-1" %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              No recent maintenance requests
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="bi bi-lightning me-2"></i>
+            Quick Actions
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <%= link_to vehicles_path, class: "btn btn-primary" do %>
+              <i class="bi bi-car-front me-2"></i>View All Vehicles
+            <% end %>
+            <%= link_to gantt_path, class: "btn btn-outline-primary" do %>
+              <i class="bi bi-calendar-week me-2"></i>Maintenance Schedule
+            <% end %>
+            <%= link_to analytics_vehicles_path, class: "btn btn-outline-success" do %>
+              <i class="bi bi-graph-up me-2"></i>Usage Analytics
+            <% end %>
+            <%= link_to new_vehicle_path, class: "btn btn-outline-secondary" do %>
+              <i class="bi bi-plus-circle me-2"></i>Add New Vehicle
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

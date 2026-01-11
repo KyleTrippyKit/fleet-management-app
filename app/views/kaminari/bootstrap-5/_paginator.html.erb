@@ -1,0 +1,113 @@
+<%# app/views/kaminari/bootstrap-5/_paginator.html.erb - Fixed Alignment %>
+<nav aria-label="Page navigation" class="mt-4">
+  <ul class="pagination justify-content-center mb-0 flex-wrap">
+    <%# First page link %>
+    <% if current_page > 1 %>
+      <li class="page-item">
+        <%= link_to '&laquo;'.html_safe, url_for(page: 1), class: 'page-link', title: 'First Page' %>
+      </li>
+    <% else %>
+      <li class="page-item disabled">
+        <span class="page-link">&laquo;</span>
+      </li>
+    <% end %>
+
+    <%# Previous page link %>
+    <% if current_page > 1 %>
+      <li class="page-item">
+        <%= link_to '&lsaquo;'.html_safe, url_for(page: current_page - 1), class: 'page-link', title: 'Previous' %>
+      </li>
+    <% else %>
+      <li class="page-item disabled">
+        <span class="page-link">&lsaquo;</span>
+      </li>
+    <% end %>
+
+    <%# Calculate which pages to show (max 5 pages) %>
+    <% 
+      start_page = [current_page - 2, 1].max
+      end_page = [current_page + 2, total_pages].min
+      
+      # Adjust if we're near the beginning
+      if start_page == 1 && end_page < 5 && total_pages >= 5
+        end_page = [5, total_pages].min
+      end
+      
+      # Adjust if we're near the end
+      if end_page == total_pages && start_page > total_pages - 4 && total_pages >= 5
+        start_page = [total_pages - 4, 1].max
+      end
+      
+      page_range = (start_page..end_page)
+    %>
+
+    <%# Show "..." if not at beginning %>
+    <% if start_page > 1 %>
+      <li class="page-item">
+        <%= link_to '1', url_for(page: 1), class: 'page-link' %>
+      </li>
+      <% if start_page > 2 %>
+        <li class="page-item disabled">
+          <span class="page-link">...</span>
+        </li>
+      <% end %>
+    <% end %>
+
+    <%# Page numbers %>
+    <% page_range.each do |page| %>
+      <% if page == current_page %>
+        <li class="page-item active" aria-current="page">
+          <span class="page-link"><%= page %></span>
+        </li>
+      <% else %>
+        <li class="page-item">
+          <%= link_to page, url_for(page: page), class: 'page-link' %>
+        </li>
+      <% end %>
+    <% end %>
+
+    <%# Show "..." if not at end %>
+    <% if end_page < total_pages %>
+      <% if end_page < total_pages - 1 %>
+        <li class="page-item disabled">
+          <span class="page-link">...</span>
+        </li>
+      <% end %>
+      <li class="page-item">
+        <%= link_to total_pages, url_for(page: total_pages), class: 'page-link' %>
+      </li>
+    <% end %>
+
+    <%# Next page link %>
+    <% if current_page < total_pages %>
+      <li class="page-item">
+        <%= link_to '&rsaquo;'.html_safe, url_for(page: current_page + 1), class: 'page-link', title: 'Next' %>
+      </li>
+    <% else %>
+      <li class="page-item disabled">
+        <span class="page-link">&rsaquo;</span>
+      </li>
+    <% end %>
+
+    <%# Last page link %>
+    <% if current_page < total_pages %>
+      <li class="page-item">
+        <%= link_to '&raquo;'.html_safe, url_for(page: total_pages), class: 'page-link', title: 'Last Page' %>
+      </li>
+    <% else %>
+      <li class="page-item disabled">
+        <span class="page-link">&raquo;</span>
+      </li>
+    <% end %>
+  </ul>
+  
+  <%# Page info - FIXED: Use @collection instead of total_count %>
+  <% if @collection.respond_to?(:total_count) %>
+    <div class="text-center mt-2">
+      <small class="text-muted">
+        Page <%= current_page %> of <%= total_pages %> • 
+        <%= @collection.total_count %> total <%= 'invoice'.pluralize(@collection.total_count) %>
+      </small>
+    </div>
+  <% end %>
+</nav>

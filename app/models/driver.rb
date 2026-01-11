@@ -1,4 +1,5 @@
 class Driver < ApplicationRecord
+  has_many :alerts, dependent: :destroy
   STATUSES = %w[active suspended inactive].freeze
 
   # ============================================================

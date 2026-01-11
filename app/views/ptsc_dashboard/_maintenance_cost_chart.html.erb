@@ -1,0 +1,66 @@
+<%# app/views/ptsc_dashboard/_maintenance_cost_chart.html.erb %>
+<div class="col-xxl-6">
+  <div class="card border-0 shadow-sm h-100">
+    <div class="card-header bg-white border-0 py-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="mb-0"><i class="bi bi-tools text-success me-2"></i>Maintenance Costs</h6>
+          <p class="text-muted small mb-0">
+            <% time_range_label = case @time_range
+                 when 'week' then 'Daily'
+                 when 'month' then 'Weekly'
+                 when 'three_months' then 'Monthly'
+                 when 'year' then 'Quarterly'
+                 else 'Weekly'
+               end %>
+            <%= time_range_label %> maintenance expenditure
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body p-3">
+      <%# Use time-range specific data if available, otherwise fall back %>
+      <% if @maintenance_cost_data.present? && @maintenance_cost_data[:labels].present? && @maintenance_cost_data[:data].present? %>
+        <% chart_labels = @maintenance_cost_data[:labels] %>
+        <% chart_data = @maintenance_cost_data[:data] %>
+      <% else %>
+        <%# Fallback to default data %>
+        <% chart_labels = @maintenance_stats[:monthly_labels] || ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %>
+        <% chart_data = @maintenance_stats[:monthly_costs] || Array.new(chart_labels.size, 0) %>
+      <% end %>
+      
+      <% total_cost = chart_data.sum %>
+      <% avg_period = total_cost / [chart_labels.size, 1].max %>
+
+      <div class="chart-container position-relative" style="height: 200px;">
+        <canvas id="maintenanceCostChart"
+                data-labels="<%= chart_labels.to_json %>"
+                data-costs="<%= chart_data.to_json %>">
+        </canvas>
+        <div id="costChartFallback" class="chart-placeholder">
+          <div class="text-center">
+            <i class="bi bi-bar-chart fs-1 text-muted mb-2"></i>
+            <p class="text-muted small">Maintenance cost chart</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 d-flex justify-content-between small">
+        <span class="text-muted">
+          Total: <strong>$<%= number_with_precision(total_cost, precision: 0) %></strong>
+        </span>
+        <span class="text-muted">
+          <% period_label = case @time_range
+               when 'week' then 'Avg Daily'
+               when 'month' then 'Avg Weekly'
+               when 'three_months' then 'Avg Monthly'
+               when 'year' then 'Avg Quarterly'
+               else 'Avg'
+             end %>
+          <%= period_label %>: <strong>$<%= number_with_precision(avg_period, precision: 0) %></strong>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,455 @@
+<script>
+// Initialize charts when page loads
+function initCharts() {
+  console.log('Initializing charts...');
+  
+  // Check if Chart.js is loaded
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js not loaded. Showing fallback content.');
+    return;
+  }
+  
+  // Create Fuel Efficiency Chart
+  const fuelCanvas = document.getElementById('fuelEfficiencyChart');
+  if (fuelCanvas) {
+    try {
+      // Hide fallback
+      document.getElementById('fuelChartFallback').style.display = 'none';
+      
+      // Create gradient
+      const ctx = fuelCanvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, 'rgba(26, 115, 232, 0.3)');
+      gradient.addColorStop(1, 'rgba(26, 115, 232, 0.05)');
+      
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+          datasets: [{
+            label: 'Fuel Consumption (L)',
+            data: [4200, 3800, 4500, 4100],
+            backgroundColor: gradient,
+            borderColor: '#1a73e8',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#1a73e8',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              titleColor: '#333',
+              bodyColor: '#666',
+              borderColor: '#ddd',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return (value / 1000).toFixed(0) + 'k L';
+                },
+                font: {
+                  size: 11
+                }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                font: {
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      });
+      console.log('Fuel chart created successfully');
+    } catch (error) {
+      console.error('Error creating fuel chart:', error);
+    }
+  }
+  
+  // Create Maintenance Cost Chart
+  const costCanvas = document.getElementById('maintenanceCostChart');
+  if (costCanvas) {
+    try {
+      // Hide fallback
+      document.getElementById('costChartFallback').style.display = 'none';
+      
+      const ctx = costCanvas.getContext('2d');
+      
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          datasets: [{
+            label: 'Maintenance Cost ($)',
+            data: [420, 380, 510, 340, 460, 210, 180],
+            backgroundColor: 'rgba(25, 135, 84, 0.1)',
+            borderColor: '#198754',
+            borderWidth: 3,
+            fill: true,
+            tension: 0,
+            stepped: true,
+            pointBackgroundColor: '#198754',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              titleColor: '#333',
+              bodyColor: '#666',
+              borderColor: '#ddd',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8,
+              displayColors: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                callback: function(value) {
+                  return '$' + value;
+                },
+                font: {
+                  size: 11
+                }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                font: {
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      });
+      console.log('Cost chart created successfully');
+    } catch (error) {
+      console.error('Error creating cost chart:', error);
+    }
+  }
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM loaded, checking Chart.js...');
+  // Wait a bit for Chart.js to load
+  setTimeout(initCharts, 100);
+});
+
+// Initialize with Turbo
+document.addEventListener('turbo:load', function() {
+  console.log('Turbo loaded, initializing charts...');
+  setTimeout(initCharts, 100);
+});
+
+// Rest of JavaScript functionality
+document.addEventListener("turbo:load", function() {
+  const form = document.getElementById("ptsc_vehicles_filter_form");
+  const turboFrame = document.getElementById("vehicles_list");
+  
+  // View toggle functionality
+  const gridViewBtn = document.querySelector('[data-view="grid"]');
+  const listViewBtn = document.querySelector('[data-view="list"]');
+  const gridView = document.getElementById('grid-view');
+  const listView = document.getElementById('list-view');
+  
+  if (gridViewBtn && listViewBtn) {
+    // Grid view button
+    gridViewBtn.addEventListener('click', function() {
+      gridView.classList.remove('d-none');
+      listView.classList.add('d-none');
+      gridViewBtn.classList.remove('btn-light', 'text-muted');
+      gridViewBtn.classList.add('btn-white', 'shadow-sm', 'active');
+      listViewBtn.classList.remove('btn-white', 'shadow-sm', 'active');
+      listViewBtn.classList.add('btn-light', 'text-muted');
+    });
+    
+    // List view button
+    listViewBtn.addEventListener('click', function() {
+      listView.classList.remove('d-none');
+      gridView.classList.add('d-none');
+      listViewBtn.classList.remove('btn-light', 'text-muted');
+      listViewBtn.classList.add('btn-white', 'shadow-sm', 'active');
+      gridViewBtn.classList.remove('btn-white', 'shadow-sm', 'active');
+      gridViewBtn.classList.add('btn-light', 'text-muted');
+    });
+  }
+  
+  if (!form) return;
+  
+  function showSpinner() {
+    if (!turboFrame) return;
+    
+    let overlay = turboFrame.querySelector('.loading-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'loading-overlay d-flex justify-content-center align-items-center bg-white bg-opacity-75';
+      overlay.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+      turboFrame.appendChild(overlay);
+    }
+  }
+  
+  function hideSpinner() {
+    if (!turboFrame) return;
+    
+    const overlay = turboFrame.querySelector('.loading-overlay');
+    if (overlay) overlay.remove();
+  }
+  
+  // Search with debounce
+  const searchInput = form.querySelector('input[type="text"]');
+  if (searchInput) {
+    let debounceTimer;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (e.target.value.length === 0 || e.target.value.length >= 2) {
+          showSpinner();
+          if (typeof Turbo !== 'undefined') {
+            Turbo.submitForm(form);
+          } else {
+            form.submit();
+          }
+        }
+      }, 500);
+    });
+  }
+  
+  // Status filter change
+  const statusFilter = form.querySelector('select[name="status"]');
+  if (statusFilter) {
+    statusFilter.addEventListener("change", function() {
+      showSpinner();
+      if (typeof Turbo !== 'undefined') {
+        Turbo.submitForm(form);
+      } else {
+        form.submit();
+      }
+    });
+  }
+  
+  // Turbo events
+  if (turboFrame) {
+    turboFrame.addEventListener("turbo:frame-load", hideSpinner);
+    turboFrame.addEventListener("turbo:frame-render", hideSpinner);
+  }
+  
+  // Add hover effect for vehicle location dots
+  document.querySelectorAll('.pulse-animation').forEach(dot => {
+    const tooltip = dot.querySelector('.position-absolute');
+    dot.addEventListener('mouseenter', () => {
+      tooltip.classList.add('show');
+    });
+    dot.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('show');
+    });
+  });
+});
+</script>
+
+<style>
+/* Enhanced Header */
+.ptsc-header { 
+  background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+  position: relative;
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+}
+
+.hover-bg-light:hover {
+  background-color: #f8f9fa !important;
+}
+
+/* Stats cards */
+.stats-card { 
+  min-height: 120px;
+}
+
+.bg-blue-100 { background-color: #dbeafe !important; }
+.bg-green-100 { background-color: #d1fae5 !important; }
+.bg-amber-100 { background-color: #fef3c7 !important; }
+.bg-danger-100 { background-color: #fee2e2 !important; }
+.text-danger { color: #dc3545 !important; }
+
+.bg-blue-100 .text-primary { color: #1e40af !important; }
+.bg-green-100 .text-success { color: #065f46 !important; }
+.bg-amber-100 .text-warning { color: #92400e !important; }
+
+/* Tracking */
+.tracking-wider { 
+  letter-spacing: 0.05em; 
+  font-size: 0.7rem;
+}
+
+/* Vehicle cards */
+.vehicle-card { 
+  transition: all 0.3s ease; 
+  border: 1px solid #e9ecef;
+}
+
+.object-fit-cover { 
+  object-fit: cover; 
+}
+
+/* Pulse animation for live locations */
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Tooltip for location dots */
+.hover-opacity-100 {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.hover-opacity-100.show {
+  opacity: 1;
+}
+
+/* Table styles */
+.table-hover tbody tr:hover {
+  background-color: rgba(0,0,0,0.02);
+}
+
+/* Button group for view toggle */
+.btn-group.p-1 {
+  background-color: #f8f9fa !important;
+}
+
+.btn-white {
+  background-color: white !important;
+  border-color: #dee2e6 !important;
+}
+
+/* Custom badge styles */
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Chart container styling */
+.chart-container {
+  position: relative;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 200px !important;
+  border-radius: 8px;
+}
+
+.chart-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  color: #6c757d;
+  text-align: center;
+}
+
+/* Vehicle image fallback styling */
+.bg-gradient-to-br {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+/* Card enhancements */
+.card {
+  border-radius: 12px !important;
+}
+
+.card-header {
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stats-card .card-body {
+    padding: 1rem !important;
+  }
+  
+  .stats-card h3 {
+    font-size: 1.25rem;
+  }
+  
+  .card-body .row > div {
+    margin-bottom: 0.5rem;
+  }
+  
+  .card-body .row > div:last-child {
+    margin-bottom: 0;
+  }
+}
+</style>

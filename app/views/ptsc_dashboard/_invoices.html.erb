@@ -1,0 +1,241 @@
+<%# app/views/invoices/index.html.erb %>
+<div class="container-fluid mt-4">
+  <%# Page Header %>
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h2 mb-1">PTSC Invoices</h1>
+      <p class="text-muted mb-0">Manage invoices received from VMCOTT for vehicle maintenance</p>
+    </div>
+    
+    <% if can?(:view_reports, Invoice) %>
+      <div>
+        <%= link_to reports_invoices_path, class: "btn btn-outline-primary" do %>
+          <i class="bi bi-graph-up me-2"></i>View Reports
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Stats Dashboard %>
+  <div class="row mb-4">
+    <div class="col-md-3 col-6">
+      <div class="card border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Invoices</h6>
+              <h3 class="mb-0"><%= @stats[:total] %></h3>
+            </div>
+            <div class="avatar-sm bg-primary bg-opacity-10 rounded">
+              <i class="bi bi-receipt fs-4 text-primary"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 col-6">
+      <div class="card border-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Pending</h6>
+              <h3 class="mb-0"><%= @stats[:pending] %></h3>
+            </div>
+            <div class="avatar-sm bg-warning bg-opacity-10 rounded">
+              <i class="bi bi-clock fs-4 text-warning"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 col-6">
+      <div class="card border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Overdue</h6>
+              <h3 class="mb-0"><%= @stats[:overdue] %></h3>
+            </div>
+            <div class="avatar-sm bg-danger bg-opacity-10 rounded">
+              <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 col-6">
+      <div class="card border-success">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Amount Due</h6>
+              <h3 class="mb-0">$<%= number_with_precision(@stats[:pending_amount], precision: 2) %></h3>
+            </div>
+            <div class="avatar-sm bg-success bg-opacity-10 rounded">
+              <i class="bi bi-currency-dollar fs-4 text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Filters card %>
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Filter Invoices</h5>
+      <%= form_with url: invoices_path, method: :get, class: "row g-3" do |f| %>
+        <div class="col-md-3">
+          <label class="form-label">Status</label>
+          <%= select_tag :status, 
+              options_for_select([
+                ['All Statuses', ''],
+                ['Pending', 'pending'],
+                ['Paid', 'paid'],
+                ['Overdue', 'overdue'],
+                ['Disputed', 'disputed']
+              ], params[:status]),
+              class: "form-select" %>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Vendor</label>
+          <%= text_field_tag :vendor, params[:vendor], class: "form-control", placeholder: "VMCOTT or other..." %>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">From Date</label>
+          <%= date_field_tag :date_from, params[:date_from], class: "form-control" %>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">To Date</label>
+          <%= date_field_tag :date_to, params[:date_to], class: "form-control" %>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <div class="w-100">
+            <%= submit_tag "Apply Filters", class: "btn btn-primary w-100 me-2" %>
+            <%= link_to "Clear", invoices_path, class: "btn btn-outline-secondary w-100 mt-2" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Invoices table %>
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Vehicle</th>
+              <th>Vendor</th>
+              <th>Date</th>
+              <th>Due Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if @invoices.any? %>
+              <% @invoices.each do |invoice| %>
+                <tr class="<%= 'table-warning' if invoice.overdue? %>">
+                  <td>
+                    <strong><%= invoice.invoice_number %></strong>
+                    <% if invoice.received_by.nil? %>
+                      <span class="badge bg-info ms-1" title="Not yet reviewed">New</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if invoice.vehicle %>
+                      <%= link_to invoice.vehicle.registration, vehicle_path(invoice.vehicle), class: "text-decoration-none" %>
+                      <br>
+                      <small class="text-muted"><%= invoice.vehicle.make %> <%= invoice.vehicle.model %></small>
+                    <% else %>
+                      <span class="text-muted">N/A</span>
+                    <% end %>
+                  </td>
+                  <td><%= invoice.vendor %></td>
+                  <td><%= invoice.invoice_date&.strftime('%b %d, %Y') || 'N/A' %></td>
+                  <td class="<%= 'text-danger fw-bold' if invoice.overdue? %>">
+                    <%= invoice.due_date&.strftime('%b %d, %Y') || 'N/A' %>
+                    <% if invoice.overdue? %>
+                      <br><small class="badge bg-danger">OVERDUE</small>
+                    <% elsif invoice.days_until_due && invoice.days_until_due >= 0 %>
+                      <br><small class="text-muted"><%= invoice.days_until_due %> days</small>
+                    <% end %>
+                  </td>
+                  <td>
+                    <strong class="<%= 'text-danger' if invoice.overdue? %>">
+                      $<%= number_with_precision(invoice.amount, precision: 2) %>
+                    </strong>
+                    <% if invoice.category.present? %>
+                      <br><small class="text-muted"><%= invoice.category.humanize %></small>
+                    <% end %>
+                  </td>
+                  <td>
+                    <span class="badge <%= invoice.status_badge_class %>">
+                      <%= invoice.status.humanize %>
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <div class="btn-group" role="group">
+                      <%= link_to invoice_path(invoice), class: "btn btn-sm btn-outline-primary", title: "View Details" do %>
+                        <i class="bi bi-eye"></i>
+                      <% end %>
+                      
+                      <%= link_to download_invoice_path(invoice), class: "btn btn-sm btn-outline-secondary", title: "Download" do %>
+                        <i class="bi bi-download"></i>
+                      <% end %>
+                      
+                      <% if invoice.pending? || invoice.overdue? %>
+                        <%= button_to mark_as_paid_invoice_path(invoice), 
+                              method: :post,
+                              class: "btn btn-sm btn-success",
+                              title: "Mark as Paid",
+                              data: { confirm: "Mark invoice #{invoice.invoice_number} as paid?" } do %>
+                          <i class="bi bi-check-circle"></i>
+                        <% end %>
+                        
+                        <%= button_to dispute_invoice_path(invoice),
+                              method: :post,
+                              class: "btn btn-sm btn-warning",
+                              title: "Mark as Disputed",
+                              data: { confirm: "Dispute invoice #{invoice.invoice_number}?" } do %>
+                          <i class="bi bi-question-circle"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="8" class="text-center py-5">
+                  <div class="text-muted">
+                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                    <h4>No invoices found</h4>
+                    <p class="mb-4">No invoices have been received from VMCOTT yet</p>
+                    <% if params.any? %>
+                      <%= link_to "Clear filters", invoices_path, class: "btn btn-primary" %>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <%# Pagination %>
+      <% if @invoices.any? %>
+        <div class="mt-4">
+          <%= paginate @invoices, theme: 'bootstrap-5' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

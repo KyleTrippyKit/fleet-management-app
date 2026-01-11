@@ -1,0 +1,2 @@
+module VmcottDashboardHelper
+end

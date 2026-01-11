@@ -165,3 +165,50 @@ module VehiclesHelper
     end
   end
 end
+
+ # Insurance status badge
+  def insurance_status_badge(vehicle)
+    content_tag(:span, 
+                vehicle.insurance_status_display, 
+                class: "badge #{vehicle.insurance_status_badge_class}")
+  end
+
+  # Insurance expiry info with tooltip
+  def insurance_expiry_info(vehicle)
+    return content_tag(:span, "No insurance data", class: "text-muted") unless vehicle.insurance_expiry_date.present?
+    
+    content_tag(:div, class: "insurance-expiry-info") do
+      concat(content_tag(:span, vehicle.insurance_expiry_display))
+      
+      if vehicle.insurance_expired?
+        concat(content_tag(:small, " OVERDUE", class: "text-danger ml-1"))
+      elsif vehicle.insurance_expiring_soon?
+        concat(content_tag(:small, " URGENT", class: "text-warning ml-1"))
+      end
+    end
+  end
+
+  # Insurance progress bar for dashboard
+  def insurance_status_progress(vehicles)
+    total = vehicles.count
+    return "No vehicles" if total.zero?
+    
+    expired = vehicles.count(&:insurance_expired?)
+    expiring = vehicles.count(&:insurance_expiring_soon?)
+    active = vehicles.count - expired - expiring
+    
+    content_tag(:div, class: "insurance-progress") do
+      concat(content_tag(:div, "", 
+              class: "progress-bar bg-danger", 
+              style: "width: #{((expired.to_f / total) * 100).round(1)}%",
+              title: "#{expired} expired"))
+      concat(content_tag(:div, "", 
+              class: "progress-bar bg-warning", 
+              style: "width: #{((expiring.to_f / total) * 100).round(1)}%",
+              title: "#{expiring} expiring soon"))
+      concat(content_tag(:div, "", 
+              class: "progress-bar bg-success", 
+              style: "width: #{((active.to_f / total) * 100).round(1)}%",
+              title: "#{active} active"))
+    end
+  end

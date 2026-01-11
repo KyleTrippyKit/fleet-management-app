@@ -1,0 +1,209 @@
+<%# app/views/welcome/index.html.erb %>
+<%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
+
+<%# Safety check - show different content if @agency is nil %>
+<% if @agency.present? %>
+  <div class="container welcome-container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-xl-8">
+        <div class="card agency-welcome-card shadow-lg">
+          <div class="card-header header-gradient-<%= @agency.code.downcase %> text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+              <% case @agency.code %>
+              <% when "VMCOTT" %>
+                <i class="bi bi-shield-check agency-icon-<%= @agency.code.downcase %> me-2"></i>
+              <% when "TTPS" %>
+                <i class="bi bi-shield agency-icon-<%= @agency.code.downcase %> me-2"></i>
+              <% when "TTDF" %>
+                <i class="bi bi-shield-fill agency-icon-<%= @agency.code.downcase %> me-2"></i>
+              <% when "PTSC" %>
+                <i class="bi bi-bus-front agency-icon-<%= @agency.code.downcase %> me-2"></i>
+              <% else %>
+                <i class="bi bi-building agency-icon-default me-2"></i>
+              <% end %>
+              <%= @agency.name %> Portal
+            </h4>
+            <span class="badge badge-<%= @agency.code.downcase %> fs-6 p-2">
+              <i class="bi bi-person-badge me-1"></i>
+              <%= current_user.name || current_user.email %>
+            </span>
+          </div>
+          
+          <div class="card-body text-center py-5">
+            <div class="mb-5">
+              <div class="agency-logo mb-4">
+                <% case @agency.code %>
+                <% when "VMCOTT" %>
+                  <div class="rounded-circle bg-primary bg-opacity-10 p-4 d-inline-block">
+                    <i class="bi bi-shield-check fa-4x text-primary"></i>
+                  </div>
+                <% when "TTPS" %>
+                  <div class="rounded-circle bg-danger bg-opacity-10 p-4 d-inline-block">
+                    <i class="bi bi-shield fa-4x text-danger"></i>
+                  </div>
+                <% when "TTDF" %>
+                  <div class="rounded-circle bg-success bg-opacity-10 p-4 d-inline-block">
+                    <i class="bi bi-shield-fill fa-4x text-success"></i>
+                  </div>
+                <% when "PTSC" %>
+                  <div class="rounded-circle bg-warning bg-opacity-10 p-4 d-inline-block">
+                    <i class="bi bi-bus-front fa-4x text-warning"></i>
+                  </div>
+                <% else %>
+                  <div class="rounded-circle bg-secondary bg-opacity-10 p-4 d-inline-block">
+                    <i class="bi bi-building fa-4x text-secondary"></i>
+                  </div>
+                <% end %>
+              </div>
+              
+              <h1 class="display-5 fw-bold mb-3">
+                Welcome to <%= @agency.code %> Fleet Management
+              </h1>
+              
+              <p class="lead text-muted mb-4">
+                <%= @agency.description %>
+              </p>
+              
+              <div class="alert alert-info d-inline-block">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Logged in as:</strong> <%= current_user.email %>
+                <br>
+                <small>
+                  <strong>Role:</strong> <%= current_user.role_name %>
+                  <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(@agency.code) %>
+                    <br>
+                    <em class="text-warning">You will be redirected to your agency dashboard shortly</em>
+                  <% end %>
+                </small>
+              </div>
+            </div>
+            
+            <div class="row g-4 mb-5">
+              <div class="col-md-6">
+                <div class="card h-100 border-primary scanner-card">
+                  <div class="card-body text-center d-flex flex-column">
+                    <div class="mb-3">
+                      <i class="bi bi-upc-scan fa-4x text-primary mb-3"></i>
+                      <h3 class="card-title">Quick Scan</h3>
+                      <p class="card-text">Scan vehicle QR Code or RFID tag for instant vehicle access and inspection.</p>
+                    </div>
+                    <%= link_to scan_path, class: "btn btn-primary btn-lg w-100 mt-auto" do %>
+                      <i class="bi bi-camera me-2"></i>Start Scanning
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="card h-100 border-success">
+                  <div class="card-body text-center d-flex flex-column">
+                    <div class="mb-3">
+                      <i class="bi bi-speedometer2 fa-4x text-success mb-3"></i>
+                      <h3 class="card-title">Dashboard</h3>
+                      <p class="card-text">Access the complete fleet management dashboard with all tools and reports.</p>
+                    </div>
+                    <%= link_to dashboard_path, class: "btn btn-success btn-lg w-100 mt-auto" do %>
+                      <i class="bi bi-bar-chart-line me-2"></i>Go to Dashboard
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <i class="bi bi-car-front fa-2x text-primary mb-2"></i>
+                    <h6>Fleet Overview</h6>
+                    <p class="small text-muted mb-0">View all vehicles</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <i class="bi bi-tools fa-2x text-warning mb-2"></i>
+                    <h6>Maintenance</h6>
+                    <p class="small text-muted mb-0">Schedule & track services</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <div class="card">
+                  <div class="card-body">
+                    <i class="bi bi-clipboard-data fa-2x text-info mb-2"></i>
+                    <h6>Reports</h6>
+                    <p class="small text-muted mb-0">Generate analytics</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card-footer text-center text-muted">
+            <div class="row">
+              <div class="col-md-4">
+                <small>
+                  <i class="bi bi-clock me-1"></i>
+                  Last login: <%= current_user.current_sign_in_at&.strftime("%Y-%m-%d %H:%M") || "First login" %>
+                </small>
+              </div>
+              <div class="col-md-4">
+                <small>
+                  <i class="bi bi-building me-1"></i>
+                  Agency: <%= @agency.code %>
+                </small>
+              </div>
+              <div class="col-md-4">
+                <small>
+                  <i class="bi bi-shield-check me-1"></i>
+                  Session: Active
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <%# Auto-redirect for major agencies after 3 seconds %>
+  <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(@agency.code) %>
+    <script>
+      setTimeout(function() {
+        window.location.href = "<%= dashboard_path %>";
+      }, 3000);
+    </script>
+  <% end %>
+<% else %>
+  <%# Show error message if agency is nil %>
+  <div class="container mt-5">
+    <div class="card border-danger">
+      <div class="card-header bg-danger text-white">
+        <h4 class="mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Agency Not Found
+        </h4>
+      </div>
+      <div class="card-body text-center py-5">
+        <i class="bi bi-building-exclamation text-danger display-1 mb-4"></i>
+        <h3 class="text-danger mb-3">No Agency Assigned</h3>
+        <p class="lead mb-4">
+          Your user account is not associated with any agency.
+          Please contact your system administrator to assign you to an agency.
+        </p>
+        <div class="d-flex justify-content-center gap-3">
+          <%= link_to "Contact Admin", "mailto:admin@vmcott.gov.tt", class: "btn btn-outline-danger" %>
+          <%= button_to "Sign Out", destroy_user_session_path, method: :delete, class: "btn btn-danger" %>
+        </div>
+      </div>
+      <div class="card-footer text-muted small">
+        <i class="bi bi-info-circle me-1"></i>
+        You need to be assigned to an agency (PTSC, TTPS, TTDF, or VMCOTT) to access the dashboard.
+      </div>
+    </div>
+  </div>
+<% end %>

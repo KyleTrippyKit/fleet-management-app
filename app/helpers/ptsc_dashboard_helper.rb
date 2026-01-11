@@ -1,0 +1,2 @@
+module PtscDashboardHelper
+end

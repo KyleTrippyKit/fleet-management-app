@@ -1,0 +1,2 @@
+module MainDashboardHelper
+end

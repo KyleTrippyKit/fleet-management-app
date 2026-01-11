@@ -1,0 +1,314 @@
+<%# app/views/welcome/logout.html.erb %>
+<%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
+
+<div class="logout-confirmation-container min-vh-100 d-flex align-items-center justify-content-center bg-light">
+  <div class="container-fluid py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-xl-6">
+        <div class="card logout-card shadow-lg border-0">
+          <!-- Warning Header -->
+          <div class="card-header bg-warning text-dark text-center py-5">
+            <div class="mb-4">
+              <i class="bi bi-shield-exclamation display-4"></i>
+            </div>
+            <h2 class="fw-bold mb-2">Confirm Logout</h2>
+            <p class="text-dark opacity-75 mb-0">Secure Session Termination</p>
+          </div>
+          
+          <div class="card-body text-center p-5">
+            <!-- Current Session Info -->
+            <div class="session-info mb-6">
+              <div class="agency-badge mb-4">
+                <span class="badge badge-<%= @agency.code.downcase %> fs-5 p-3 px-4 rounded-pill shadow-sm">
+                  <i class="bi bi-building me-2"></i>
+                  <%= @agency.name %>
+                </span>
+              </div>
+              
+              <div class="user-info">
+                <div class="mb-4">
+                  <div class="avatar-wrapper bg-primary bg-opacity-10 rounded-circle p-4 d-inline-block mb-3">
+                    <i class="bi bi-person-circle fa-2x text-primary"></i>
+                  </div>
+                  <h4 class="mb-2 fw-bold"><%= current_user.name || current_user.email %></h4>
+                  <p class="text-muted mb-0">
+                    <i class="bi bi-envelope me-1"></i>
+                    <%= current_user.email %>
+                  </p>
+                </div>
+                
+                <div class="session-details bg-light p-4 rounded-3 shadow-sm mb-4">
+                  <div class="row g-4">
+                    <div class="col-md-6">
+                      <div class="d-flex flex-column">
+                        <small class="text-muted mb-2">
+                          <i class="bi bi-clock-history me-1"></i>
+                          Last Login
+                        </small>
+                        <p class="mb-0 fw-semibold fs-5">
+                          <%= current_user.current_sign_in_at&.strftime("%b %d, %Y") || "First login" %>
+                        </p>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="d-flex flex-column">
+                        <small class="text-muted mb-2">
+                          <i class="bi bi-hourglass-split me-1"></i>
+                          Session Duration
+                        </small>
+                        <p class="mb-0 fw-semibold fs-5">
+                          <%= time_ago_in_words(current_user.current_sign_in_at || Time.current) %>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Divider -->
+            <hr class="my-5 opacity-25">
+            
+            <!-- Warning Message -->
+            <div class="alert alert-warning border-warning border-3 alert-lg mb-5">
+              <div class="d-flex align-items-start">
+                <div class="me-3 flex-shrink-0">
+                  <i class="bi bi-exclamation-triangle-fill fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <h5 class="alert-heading fw-bold mb-3">Are you sure you want to logout?</h5>
+                  <p class="mb-3">You're about to end your current session. All unsaved changes will be lost.</p>
+                  <div class="d-flex align-items-center mt-4">
+                    <i class="bi bi-info-circle me-2 text-warning"></i>
+                    <small class="text-muted">
+                      You will need to log in again to access the fleet management system.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="action-buttons mt-5">
+              <div class="row g-4">
+                <div class="col-md-6">
+                  <%= link_to welcome_path, class: "btn btn-lg btn-outline-secondary w-100 py-3 px-4" do %>
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <i class="bi bi-arrow-left-circle fa-lg"></i>
+                      <span class="fw-semibold">Cancel & Return</span>
+                    </div>
+                    <small class="text-muted d-block mt-1">Go back to dashboard</small>
+                  <% end %>
+                </div>
+                
+                <div class="col-md-6">
+                  <%= link_to destroy_user_session_path, 
+                      method: :delete, 
+                      class: "btn btn-lg btn-danger w-100 py-3 px-4 logout-action-btn",
+                      data: { 
+                          turbo_method: :delete,
+                          turbo_confirm: "Final confirmation: Are you sure you want to log out now?"
+                      } do %>
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <i class="bi bi-box-arrow-right fa-lg"></i>
+                      <span class="fw-semibold">Yes, Logout</span>
+                    </div>
+                    <small class="text-light opacity-75 d-block mt-1">End current session</small>
+                  <% end %>
+                </div>
+              </div>
+              
+              <!-- Quick Return Link -->
+              <div class="mt-5 pt-3 border-top">
+                <%= link_to root_path, class: "text-decoration-none text-primary fw-medium" do %>
+                  <i class="bi bi-house-door me-2"></i>
+                  Return to Home Page
+                <% end %>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div class="card-footer text-center py-4 bg-light">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="bi bi-shield-check text-success"></i>
+                  <small class="text-muted fw-medium">Secure Session</small>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="bi bi-clock text-primary"></i>
+                  <small class="text-muted fw-medium">
+                    <%= Time.current.strftime("%I:%M %p") %>
+                  </small>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="d-flex align-items-center justify-content-center gap-2">
+                  <i class="bi bi-building text-primary"></i>
+                  <small class="text-muted fw-medium"><%= @agency.code %> Portal</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add custom full-screen styles -->
+<style>
+.logout-confirmation-container {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  position: relative;
+  overflow: auto;
+}
+
+.logout-confirmation-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, #1a73e8, #0d47a1);
+}
+
+.logout-card {
+  border-radius: 20px;
+  overflow: hidden;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.avatar-wrapper {
+  transition: transform 0.3s ease;
+}
+
+.avatar-wrapper:hover {
+  transform: scale(1.05);
+}
+
+.alert-lg {
+  padding: 1.5rem !important;
+  border-radius: 12px !important;
+}
+
+.session-details {
+  transition: all 0.3s ease;
+}
+
+.session-details:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+.logout-action-btn {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.logout-action-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.6s;
+}
+
+.logout-action-btn:hover::before {
+  left: 100%;
+}
+
+.logout-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3) !important;
+}
+
+.mb-6 {
+  margin-bottom: 3.5rem !important;
+}
+
+/* Ensure full height on all screen sizes */
+.min-vh-100 {
+  min-height: 100vh !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .logout-card {
+    margin: 1.5rem;
+    border-radius: 16px;
+  }
+  
+  .card-body {
+    padding: 2rem !important;
+  }
+  
+  .card-header {
+    padding: 3rem 1.5rem !important;
+  }
+  
+  .session-details {
+    padding: 1.5rem !important;
+  }
+  
+  .btn-lg {
+    padding: 1rem !important;
+    font-size: 1rem;
+  }
+  
+  h2 {
+    font-size: 1.75rem !important;
+  }
+  
+  h4 {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* Extra large screens */
+@media (min-width: 1400px) {
+  .logout-card {
+    max-width: 900px;
+  }
+  
+  .card-body {
+    padding: 4rem !important;
+  }
+  
+  .card-header {
+    padding: 4rem !important;
+  }
+}
+
+/* Animation for page entrance */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.logout-card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Background pattern */
+.logout-confirmation-container {
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(26, 115, 232, 0.05) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(13, 71, 161, 0.05) 0%, transparent 20%);
+}
+</style>

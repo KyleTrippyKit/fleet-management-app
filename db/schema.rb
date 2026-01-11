@@ -10,239 +10,418 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_03_204909) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
+  create_table "access_logs", force: :cascade do |t|
+    t.datetime "accessed_at"
+    t.string "action", null: false
+    t.bigint "agency_id"
+    t.datetime "created_at", null: false
+    t.jsonb "details"
+    t.string "ip_address"
+    t.string "outcome", null: false
+    t.bigint "resource_id"
+    t.string "resource_type"
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["action", "accessed_at"], name: "index_access_logs_on_action_and_accessed_at"
+    t.index ["agency_id", "accessed_at"], name: "index_access_logs_on_agency_id_and_accessed_at"
+    t.index ["agency_id"], name: "index_access_logs_on_agency_id"
+    t.index ["resource_type", "resource_id", "accessed_at"], name: "idx_on_resource_type_resource_id_accessed_at_e90a959e80"
+    t.index ["user_id", "accessed_at"], name: "index_access_logs_on_user_id_and_accessed_at"
+    t.index ["user_id"], name: "index_access_logs_on_user_id"
+  end
+
   create_table "active_storage_attachments", force: :cascade do |t|
-    t.bigint "blob_id"
-    t.timestamptz "created_at"
-    t.text "name"
-    t.bigint "record_id"
-    t.text "record_type"
-    t.index ["blob_id"], name: "idx_49549_index_active_storage_attachments_on_blob_id"
-    t.index ["record_type", "record_id", "name", "blob_id"], name: "idx_49549_index_active_storage_attachments_uniqueness", unique: true
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
   end
 
   create_table "active_storage_blobs", force: :cascade do |t|
-    t.bigint "byte_size"
-    t.text "checksum"
-    t.text "content_type"
-    t.timestamptz "created_at"
-    t.text "filename"
-    t.text "key"
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
     t.text "metadata"
-    t.text "service_name"
-    t.index ["key"], name: "idx_49501_index_active_storage_blobs_on_key", unique: true
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
   end
 
   create_table "active_storage_variant_records", force: :cascade do |t|
-    t.bigint "blob_id"
-    t.text "variation_digest"
-    t.index ["blob_id", "variation_digest"], name: "idx_49556_index_active_storage_variant_records_uniqueness", unique: true
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "agencies", force: :cascade do |t|
+    t.string "code"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.string "theme"
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_agencies_on_code", unique: true
+  end
+
+  create_table "alerts", force: :cascade do |t|
+    t.text "actions_taken"
+    t.bigint "agency_id"
+    t.string "alert_type", null: false
+    t.string "assigned_to"
+    t.string "coordinates"
+    t.datetime "created_at", null: false
+    t.string "created_by"
+    t.text "description"
+    t.bigint "driver_id"
+    t.datetime "estimated_resolution_time"
+    t.datetime "incident_time"
+    t.string "location"
+    t.jsonb "metadata", default: {}
+    t.text "notes"
+    t.string "priority", null: false
+    t.text "required_actions"
+    t.string "severity", null: false
+    t.string "status", default: "active", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id"
+    t.index ["agency_id", "created_at"], name: "index_alerts_on_agency_id_and_created_at"
+    t.index ["agency_id"], name: "index_alerts_on_agency_id"
+    t.index ["driver_id"], name: "index_alerts_on_driver_id"
+    t.index ["severity", "priority"], name: "index_alerts_on_severity_and_priority"
+    t.index ["status", "severity"], name: "index_alerts_on_status_and_severity"
+    t.index ["vehicle_id", "created_at"], name: "index_alerts_on_vehicle_id_and_created_at"
+    t.index ["vehicle_id"], name: "index_alerts_on_vehicle_id"
   end
 
   create_table "damage_reports", force: :cascade do |t|
-    t.timestamptz "created_at"
+    t.datetime "created_at", null: false
     t.text "description"
     t.bigint "driver_id"
-    t.timestamptz "updated_at"
-    t.bigint "vehicle_id"
-    t.index ["driver_id"], name: "idx_49563_index_damage_reports_on_driver_id"
-    t.index ["vehicle_id"], name: "idx_49563_index_damage_reports_on_vehicle_id"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["driver_id"], name: "index_damage_reports_on_driver_id"
+    t.index ["vehicle_id"], name: "index_damage_reports_on_vehicle_id"
   end
 
   create_table "drivers", force: :cascade do |t|
+    t.bigint "agency_id", null: false
     t.string "contact_number"
-    t.timestamptz "created_at"
+    t.datetime "created_at", null: false
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "employee_id"
-    t.text "license_number"
-    t.text "name"
+    t.string "license_number"
+    t.string "name", null: false
     t.text "notes"
-    t.text "phone"
-    t.text "status", default: "active"
-    t.timestamptz "updated_at"
+    t.string "phone"
+    t.string "status", default: "active"
+    t.datetime "updated_at", null: false
+    t.index ["agency_id"], name: "index_drivers_on_agency_id"
   end
 
   create_table "drivers_vehicles", id: false, force: :cascade do |t|
-    t.bigint "driver_id"
-    t.bigint "vehicle_id"
-    t.index ["driver_id", "vehicle_id"], name: "idx_49627_index_drivers_vehicles_on_driver_id_and_vehicle_id", unique: true
-    t.index ["driver_id"], name: "idx_49627_index_drivers_vehicles_on_driver_id"
-    t.index ["vehicle_id"], name: "idx_49627_index_drivers_vehicles_on_vehicle_id"
+    t.bigint "driver_id", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["driver_id", "vehicle_id"], name: "index_drivers_vehicles_on_driver_id_and_vehicle_id", unique: true
+    t.index ["driver_id"], name: "index_drivers_vehicles_on_driver_id"
+    t.index ["vehicle_id"], name: "index_drivers_vehicles_on_vehicle_id"
+  end
+
+  create_table "invoices", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.integer "created_by_id"
+    t.datetime "disputed_at"
+    t.integer "disputed_by_id"
+    t.date "due_date", null: false
+    t.date "invoice_date", null: false
+    t.string "invoice_number", null: false
+    t.bigint "maintenance_id"
+    t.text "notes"
+    t.datetime "paid_at"
+    t.integer "paid_by_id"
+    t.datetime "received_at"
+    t.integer "received_by_id"
+    t.string "status", default: "pending"
+    t.decimal "subtotal", precision: 10, scale: 2
+    t.decimal "tax", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.string "vendor", null: false
+    t.index ["invoice_number"], name: "index_invoices_on_invoice_number", unique: true
+    t.index ["maintenance_id"], name: "index_invoices_on_maintenance_id"
+    t.index ["status"], name: "index_invoices_on_status"
+    t.index ["vehicle_id"], name: "index_invoices_on_vehicle_id"
+    t.index ["vendor"], name: "index_invoices_on_vendor"
   end
 
   create_table "maintenance_parts", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.bigint "maintenance_id"
-    t.bigint "part_id"
-    t.bigint "quantity_needed"
-    t.timestamptz "updated_at"
-    t.index ["maintenance_id"], name: "idx_49570_index_maintenance_parts_on_maintenance_id"
-    t.index ["part_id"], name: "idx_49570_index_maintenance_parts_on_part_id"
+    t.datetime "created_at", null: false
+    t.bigint "maintenance_id", null: false
+    t.bigint "part_id", null: false
+    t.integer "quantity_needed"
+    t.datetime "updated_at", null: false
+    t.index ["maintenance_id"], name: "index_maintenance_parts_on_maintenance_id"
+    t.index ["part_id"], name: "index_maintenance_parts_on_part_id"
+  end
+
+  create_table "maintenance_requests", force: :cascade do |t|
+    t.date "completed_date"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.text "notes"
+    t.string "priority"
+    t.bigint "processing_agency_id"
+    t.date "requested_date"
+    t.bigint "requesting_agency_id", null: false
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["processing_agency_id"], name: "index_maintenance_requests_on_processing_agency_id"
+    t.index ["requesting_agency_id"], name: "index_maintenance_requests_on_requesting_agency_id"
+    t.index ["vehicle_id"], name: "index_maintenance_requests_on_vehicle_id"
   end
 
   create_table "maintenance_tasks", force: :cascade do |t|
-    t.bigint "assigned_to_id"
-    t.timestamptz "created_at"
-    t.bigint "maintenance_id"
-    t.text "name"
-    t.timestamptz "updated_at"
-    t.index ["assigned_to_id"], name: "idx_49575_index_maintenance_tasks_on_assigned_to_id"
-    t.index ["maintenance_id"], name: "idx_49575_index_maintenance_tasks_on_maintenance_id"
+    t.bigint "assigned_to_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "maintenance_id", null: false
+    t.string "name"
+    t.datetime "updated_at", null: false
+    t.index ["assigned_to_id"], name: "index_maintenance_tasks_on_assigned_to_id"
+    t.index ["maintenance_id"], name: "index_maintenance_tasks_on_maintenance_id"
   end
 
   create_table "maintenances", force: :cascade do |t|
-    t.text "assignment_type", default: "0"
-    t.text "category", default: "General"
+    t.string "assignment_type", default: "0"
+    t.string "category", default: "General"
     t.decimal "cost"
-    t.timestamptz "created_at"
+    t.datetime "created_at", null: false
     t.date "date"
     t.text "description"
     t.text "details"
     t.date "end_date", null: false
-    t.bigint "estimated_delivery"
+    t.integer "estimated_delivery"
     t.date "estimated_delivery_date"
-    t.bigint "mileage"
+    t.decimal "labor_hours", precision: 5, scale: 2
+    t.decimal "labor_rate", precision: 10, scale: 2
+    t.integer "mileage"
     t.date "next_due_date"
     t.text "notes"
     t.string "owner"
-    t.boolean "part_in_stock"
-    t.timestamptz "reminder_sent_at"
+    t.decimal "parts_cost", precision: 10, scale: 2
+    t.text "parts_used"
+    t.datetime "reminder_sent_at"
     t.bigint "service_provider_id"
-    t.text "service_type"
-    t.text "source"
+    t.string "service_type"
+    t.string "source"
     t.date "start_date", null: false
-    t.text "status"
-    t.text "technician"
-    t.timestamptz "updated_at"
-    t.text "urgency"
-    t.text "urgency_label"
-    t.text "urgency_status"
-    t.bigint "vehicle_id"
-    t.index ["service_provider_id"], name: "idx_49582_index_maintenances_on_service_provider_id"
-    t.index ["vehicle_id"], name: "idx_49582_index_maintenances_on_vehicle_id"
+    t.string "status"
+    t.string "technician"
+    t.datetime "updated_at", null: false
+    t.integer "urgency", default: 0, null: false
+    t.string "urgency_label"
+    t.bigint "vehicle_id", null: false
+    t.index ["service_provider_id"], name: "index_maintenances_on_service_provider_id"
+    t.index ["vehicle_id"], name: "index_maintenances_on_vehicle_id"
   end
 
   create_table "parts", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.text "name"
-    t.timestamptz "updated_at"
+    t.datetime "created_at", null: false
+    t.string "name"
+    t.datetime "updated_at", null: false
   end
 
   create_table "parts_stores", id: false, force: :cascade do |t|
-    t.bigint "part_id"
-    t.bigint "store_id"
+    t.bigint "part_id", null: false
+    t.bigint "store_id", null: false
+  end
+
+  create_table "permissions", force: :cascade do |t|
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.string "key"
+    t.datetime "updated_at", null: false
   end
 
   create_table "purchases", force: :cascade do |t|
-    t.timestamptz "created_at"
+    t.datetime "created_at", null: false
     t.date "eta"
-    t.bigint "part_id"
-    t.bigint "quantity"
-    t.text "status"
-    t.text "supplier"
-    t.timestamptz "updated_at"
-    t.index ["part_id"], name: "idx_49591_index_purchases_on_part_id"
+    t.bigint "part_id", null: false
+    t.integer "quantity"
+    t.string "status"
+    t.string "supplier"
+    t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_purchases_on_part_id"
+  end
+
+  create_table "role_permissions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "permission_id"
+    t.bigint "role_id"
+    t.datetime "updated_at", null: false
+    t.index ["permission_id"], name: "index_role_permissions_on_permission_id"
+    t.index ["role_id"], name: "index_role_permissions_on_role_id"
+  end
+
+  create_table "roles", force: :cascade do |t|
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.boolean "is_system_admin", default: false
+    t.string "name"
+    t.boolean "requires_gps_approval", default: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "service_providers", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.text "name"
-    t.timestamptz "updated_at"
+    t.datetime "created_at", null: false
+    t.string "name"
+    t.datetime "updated_at", null: false
   end
 
   create_table "stores", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.text "location"
-    t.text "name"
-    t.timestamptz "updated_at"
+    t.datetime "created_at", null: false
+    t.string "location"
+    t.string "name"
+    t.datetime "updated_at", null: false
   end
 
   create_table "trips", force: :cascade do |t|
-    t.timestamptz "created_at"
+    t.datetime "created_at", null: false
     t.decimal "distance_km", precision: 10, scale: 2, default: "0.0"
     t.bigint "driver_id"
     t.float "duration_hours"
-    t.timestamptz "end_time"
-    t.timestamptz "start_time"
-    t.timestamptz "updated_at"
-    t.bigint "vehicle_id"
-    t.index ["driver_id"], name: "idx_49598_index_trips_on_driver_id"
-    t.index ["end_time"], name: "idx_49598_index_trips_on_end_time"
-    t.index ["start_time"], name: "idx_49598_index_trips_on_start_time"
-    t.index ["vehicle_id"], name: "idx_49598_index_trips_on_vehicle_id"
+    t.datetime "end_time", null: false
+    t.datetime "start_time", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["driver_id"], name: "index_trips_on_driver_id"
+    t.index ["end_time"], name: "index_trips_on_end_time"
+    t.index ["start_time"], name: "index_trips_on_start_time"
+    t.index ["vehicle_id"], name: "index_trips_on_vehicle_id"
+  end
+
+  create_table "user_roles", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.datetime "created_at", null: false
+    t.bigint "role_id"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["agency_id"], name: "index_user_roles_on_agency_id"
+    t.index ["role_id"], name: "index_user_roles_on_role_id"
+    t.index ["user_id"], name: "index_user_roles_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.text "email", default: ""
-    t.text "encrypted_password", default: ""
-    t.text "name"
-    t.timestamptz "remember_created_at"
-    t.timestamptz "reset_password_sent_at"
-    t.text "reset_password_token"
-    t.timestamptz "updated_at"
-    t.index ["email"], name: "idx_49540_index_users_on_email", unique: true
-    t.index ["reset_password_token"], name: "idx_49540_index_users_on_reset_password_token", unique: true
+    t.bigint "agency_id"
+    t.datetime "created_at", null: false
+    t.datetime "current_sign_in_at"
+    t.string "current_sign_in_ip"
+    t.string "division"
+    t.string "email", default: "", null: false
+    t.string "employee_id"
+    t.string "encrypted_password", default: "", null: false
+    t.boolean "is_active", default: true
+    t.datetime "last_sign_in_at"
+    t.string "last_sign_in_ip"
+    t.string "name"
+    t.datetime "remember_created_at"
+    t.datetime "reset_password_sent_at"
+    t.string "reset_password_token"
+    t.string "role"
+    t.integer "sign_in_count", default: 0, null: false
+    t.string "time_zone", default: "UTC"
+    t.datetime "updated_at", null: false
+    t.index ["agency_id"], name: "index_users_on_agency_id"
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["time_zone"], name: "index_users_on_time_zone"
   end
 
   create_table "vehicle_documents", force: :cascade do |t|
-    t.timestamptz "created_at"
-    t.text "doc_type"
+    t.datetime "created_at", null: false
+    t.string "doc_type"
     t.date "expires_on"
-    t.text "file"
-    t.timestamptz "updated_at"
-    t.bigint "vehicle_id"
-    t.index ["vehicle_id"], name: "idx_49604_index_vehicle_documents_on_vehicle_id"
+    t.string "file"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["vehicle_id"], name: "index_vehicle_documents_on_vehicle_id"
   end
 
   create_table "vehicles", force: :cascade do |t|
-    t.text "body_style"
-    t.text "chassis_number"
-    t.text "color"
-    t.timestamptz "created_at"
+    t.bigint "agency_id", null: false
+    t.string "body_style"
+    t.string "chassis_number"
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.string "current_location"
     t.bigint "driver_id"
-    t.text "engine_number"
+    t.string "engine_number"
     t.integer "fuel_level"
-    t.text "fuel_type"
-    t.text "license_plate"
-    t.text "make"
-    t.bigint "mileage"
-    t.text "model"
+    t.string "fuel_type"
+    t.date "insurance_expiry_date"
+    t.decimal "latitude", precision: 10, scale: 6
+    t.string "license_plate"
+    t.string "location"
+    t.decimal "longitude", precision: 10, scale: 6
+    t.string "make"
+    t.integer "mileage"
+    t.string "model"
     t.text "modifications"
-    t.text "owner"
-    t.text "picture"
-    t.text "registration_number"
-    t.text "rfid_tag"
-    t.text "serial_number"
-    t.text "service_owner"
+    t.string "owner"
+    t.string "picture"
+    t.string "registration_number"
+    t.string "rfid_tag"
+    t.string "serial_number"
+    t.string "service_owner"
     t.string "status", default: "active"
-    t.text "transmission"
-    t.timestamptz "updated_at"
-    t.text "vehicle_type"
-    t.bigint "year_of_manufacture"
-    t.index ["driver_id"], name: "idx_49611_index_vehicles_on_driver_id"
-    t.index ["rfid_tag"], name: "idx_49611_index_vehicles_on_rfid_tag", unique: true
+    t.string "transmission"
+    t.datetime "updated_at", null: false
+    t.string "vehicle_type"
+    t.integer "year_of_manufacture"
+    t.index ["agency_id"], name: "index_vehicles_on_agency_id"
+    t.index ["driver_id"], name: "index_vehicles_on_driver_id"
+    t.index ["insurance_expiry_date"], name: "index_vehicles_on_insurance_expiry_date"
+    t.index ["latitude", "longitude"], name: "index_vehicles_on_latitude_and_longitude"
+    t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
-  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id", name: "active_storage_attachments_blob_id_fkey"
-  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id", name: "active_storage_variant_records_blob_id_fkey"
-  add_foreign_key "damage_reports", "drivers", name: "damage_reports_driver_id_fkey"
-  add_foreign_key "damage_reports", "vehicles", name: "damage_reports_vehicle_id_fkey"
-  add_foreign_key "drivers_vehicles", "drivers", name: "drivers_vehicles_driver_id_fkey"
-  add_foreign_key "drivers_vehicles", "vehicles", name: "drivers_vehicles_vehicle_id_fkey"
-  add_foreign_key "maintenance_parts", "maintenances", name: "maintenance_parts_maintenance_id_fkey"
-  add_foreign_key "maintenance_parts", "parts", name: "maintenance_parts_part_id_fkey"
-  add_foreign_key "maintenance_tasks", "maintenances", name: "maintenance_tasks_maintenance_id_fkey"
-  add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id", name: "maintenance_tasks_assigned_to_id_fkey"
-  add_foreign_key "maintenances", "service_providers", name: "maintenances_service_provider_id_fkey"
-  add_foreign_key "maintenances", "vehicles", name: "maintenances_vehicle_id_fkey"
-  add_foreign_key "purchases", "parts", name: "purchases_part_id_fkey"
-  add_foreign_key "trips", "users", column: "driver_id", name: "trips_driver_id_fkey"
-  add_foreign_key "trips", "vehicles", name: "trips_vehicle_id_fkey"
-  add_foreign_key "vehicle_documents", "vehicles", name: "vehicle_documents_vehicle_id_fkey"
-  add_foreign_key "vehicles", "drivers", name: "vehicles_driver_id_fkey"
+  add_foreign_key "access_logs", "users"
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "alerts", "agencies"
+  add_foreign_key "alerts", "drivers"
+  add_foreign_key "alerts", "vehicles"
+  add_foreign_key "damage_reports", "drivers"
+  add_foreign_key "damage_reports", "vehicles"
+  add_foreign_key "drivers_vehicles", "drivers"
+  add_foreign_key "drivers_vehicles", "vehicles"
+  add_foreign_key "invoices", "maintenances"
+  add_foreign_key "invoices", "vehicles"
+  add_foreign_key "maintenance_parts", "maintenances"
+  add_foreign_key "maintenance_parts", "parts"
+  add_foreign_key "maintenance_requests", "agencies", column: "processing_agency_id"
+  add_foreign_key "maintenance_requests", "agencies", column: "requesting_agency_id"
+  add_foreign_key "maintenance_requests", "vehicles"
+  add_foreign_key "maintenance_tasks", "maintenances"
+  add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
+  add_foreign_key "maintenances", "service_providers"
+  add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "purchases", "parts"
+  add_foreign_key "trips", "drivers"
+  add_foreign_key "trips", "vehicles"
+  add_foreign_key "vehicle_documents", "vehicles"
+  add_foreign_key "vehicles", "drivers"
 end

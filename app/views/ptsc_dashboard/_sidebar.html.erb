@@ -1,0 +1,96 @@
+<% if vehicles_needing_attention.any? %>
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-0 py-4">
+      <h6 class="fw-bold mb-0 d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+        Attention Required
+      </h6>
+    </div>
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+        <% vehicles_needing_attention.each do |vehicle| %>
+          <%= link_to vehicle_path(vehicle), class: "list-group-item list-group-item-action border-0 py-3 px-4" do %>
+            <div class="d-flex align-items-center">
+              <div class="me-3">
+                <% if vehicle.primary_photo.attached? %>
+                  <div class="rounded bg-light" style="width: 40px; height: 40px; overflow: hidden;">
+                    <%= image_tag vehicle.primary_photo.variant(resize_to_fill: [40, 40]), 
+                          class: "img-fluid", 
+                          style: "width: 100%; height: 100%; object-fit: cover;" %>
+                  </div>
+                <% else %>
+                  <div class="rounded bg-light d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <% if vehicle.vehicle_type == 'bus' %>
+                      <i class="bi bi-bus-front text-muted"></i>
+                    <% elsif vehicle.vehicle_type == 'truck' %>
+                      <i class="bi bi-truck text-muted"></i>
+                    <% else %>
+                      <i class="bi bi-car-front text-muted"></i>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+              <div class="flex-grow-1">
+                <h6 class="mb-1 fw-medium"><%= vehicle.make %> <%= vehicle.model %></h6>
+                <small class="text-muted"><%= vehicle.license_plate %></small>
+              </div>
+              <i class="bi bi-chevron-right text-muted"></i>
+            </div>
+            <div class="mt-2">
+              <% if vehicle.maintenance_overdue? %>
+                <span class="badge bg-danger me-1"><i class="bi bi-tools me-1"></i>Maintenance</span>
+              <% end %>
+              <% if vehicle.fuel_level.present? && vehicle.fuel_level < 20 %>
+                <span class="badge bg-warning"><i class="bi bi-fuel-pump me-1"></i>Low Fuel</span>
+              <% end %>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white border-0 py-4">
+    <h6 class="fw-bold mb-0 d-flex align-items-center">
+      <i class="bi bi-calendar-check text-primary me-2"></i>
+      Upcoming Maintenance
+    </h6>
+  </div>
+  <div class="card-body p-0">
+    <% if upcoming_maintenances.any? %>
+      <div class="list-group list-group-flush">
+        <% upcoming_maintenances.first(5).each do |maintenance| %>
+          <div class="list-group-item border-0 py-3 px-4">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="fw-medium mb-1"><%= maintenance.vehicle.make %> <%= maintenance.vehicle.model %></h6>
+                <small class="text-muted"><%= maintenance.service_type %></small>
+                <div class="mt-2">
+                  <% if maintenance.next_due_date %>
+                    <span class="badge <%= maintenance.next_due_date <= Date.today ? 'bg-danger' : 'bg-warning' %>">
+                      Due: <%= maintenance.next_due_date.strftime('%b %d') %>
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              <small class="text-muted text-nowrap">
+                <%= maintenance.vehicle.license_plate %>
+              </small>
+            </div>
+          </div>
+        <% end %>
+      </div>
+      <div class="p-4 pt-3">
+        <%= link_to "View All", agency_maintenance_path(current_user.agency, service_owner: 'PTSC'), 
+              class: "btn btn-outline-primary w-100 fw-bold" %>
+      </div>
+    <% else %>
+      <div class="p-4 text-center">
+        <i class="bi bi-calendar-check text-muted fs-1 mb-3"></i>
+        <p class="text-muted mb-0">No upcoming maintenance</p>
+      </div>
+    <% end %>
+  </div>
+</div>

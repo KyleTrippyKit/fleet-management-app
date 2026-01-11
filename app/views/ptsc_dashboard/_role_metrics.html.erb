@@ -1,0 +1,125 @@
+<div class="role-metrics-grid mb-5">
+  <% case @current_role %>
+  <% when :fleet_manager, :admin %>
+    <!-- Fleet Manager/Admin sees all metrics -->
+    <div class="metric-card fleet-manager-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">TOTAL DISTANCE</h6>
+        <h3 class="fw-bold mb-1"><%= number_with_delimiter(@usage_stats[:total_distance]) %> km</h3>
+        <p class="text-muted small mb-0">Last 30 days</p>
+      </div>
+    </div>
+    
+    <div class="metric-card fleet-manager-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">TOTAL HOURS</h6>
+        <h3 class="fw-bold mb-1"><%= number_with_delimiter(@usage_stats[:total_hours]) %> hrs</h3>
+        <p class="text-muted small mb-0">Last 30 days</p>
+      </div>
+    </div>
+    
+    <div class="metric-card fleet-manager-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">AVG UTILIZATION</h6>
+        <h3 class="fw-bold mb-1"><%= @usage_stats[:average_utilization] %>%</h3>
+        <p class="text-muted small mb-0">Fleet average</p>
+      </div>
+    </div>
+    
+    <div class="metric-card fleet-manager-card bg-danger bg-opacity-10">
+      <div class="card-body">
+        <h6 class="text-danger small mb-2">CRITICAL ALERTS</h6>
+        <h3 class="fw-bold mb-1 text-danger"><%= @maintenance_stats[:overdue] %></h3>
+        <p class="text-danger small mb-0">Action required</p>
+      </div>
+    </div>
+    
+  <% when :maintenance_supervisor %>
+    <!-- Maintenance Supervisor sees maintenance-focused metrics -->
+    <div class="metric-card maintenance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">PENDING MAINTENANCE</h6>
+        <h3 class="fw-bold mb-1"><%= @maintenance_stats[:pending] %></h3>
+        <p class="text-muted small mb-0">Vehicles</p>
+      </div>
+    </div>
+    
+    <div class="metric-card maintenance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">OVERDUE SERVICES</h6>
+        <h3 class="fw-bold mb-1"><%= @maintenance_stats[:overdue] %></h3>
+        <p class="text-muted small mb-0">Requires immediate attention</p>
+      </div>
+    </div>
+    
+    <div class="metric-card maintenance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">UPCOMING SERVICES</h6>
+        <h3 class="fw-bold mb-1"><%= @maintenance_stats[:upcoming] %></h3>
+        <p class="text-muted small mb-0">Next 30 days</p>
+      </div>
+    </div>
+    
+  <% when :finance %>
+    <!-- Finance sees financial metrics -->
+    <div class="metric-card finance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">MONTHLY TOTAL</h6>
+        <h3 class="fw-bold mb-1">$<%= number_with_delimiter(@invoice_stats[:monthly_total]) %></h3>
+        <p class="text-muted small mb-0">All invoices</p>
+      </div>
+    </div>
+    
+    <div class="metric-card finance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">PENDING INVOICES</h6>
+        <h3 class="fw-bold mb-1"><%= @invoice_stats[:pending_count] %></h3>
+        <p class="text-muted small mb-0">Requires processing</p>
+      </div>
+    </div>
+    
+    <div class="metric-card finance-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">OVERDUE INVOICES</h6>
+        <h3 class="fw-bold mb-1"><%= @invoice_stats[:overdue_count] %></h3>
+        <p class="text-muted small mb-0">Follow up required</p>
+      </div>
+    </div>
+    
+  <% when :driver %>
+    <!-- Driver sees their personal metrics -->
+    <div class="metric-card driver-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">YOUR DISTANCE</h6>
+        <h3 class="fw-bold mb-1"><%= number_with_delimiter(@driver_stats[:total_distance]) %> km</h3>
+        <p class="text-muted small mb-0">Last 30 days</p>
+      </div>
+    </div>
+    
+    <div class="metric-card driver-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">YOUR HOURS</h6>
+        <h3 class="fw-bold mb-1"><%= number_with_delimiter(@driver_stats[:total_hours]) %> hrs</h3>
+        <p class="text-muted small mb-0">Last 30 days</p>
+      </div>
+    </div>
+    
+    <div class="metric-card driver-card">
+      <div class="card-body">
+        <h6 class="text-muted small mb-2">TRIPS COMPLETED</h6>
+        <h3 class="fw-bold mb-1"><%= @driver_stats[:total_trips] %></h3>
+        <p class="text-muted small mb-0">Last 30 days</p>
+      </div>
+    </div>
+    
+    <% if @driver_stats[:alerts] > 0 %>
+      <div class="metric-card driver-card bg-warning bg-opacity-10">
+        <div class="card-body">
+          <h6 class="text-warning small mb-2">YOUR ALERTS</h6>
+          <h3 class="fw-bold mb-1 text-warning"><%= @driver_stats[:alerts] %></h3>
+          <p class="text-warning small mb-0">Maintenance alerts</p>
+        </div>
+      </div>
+    <% end %>
+  <% end %>
+</div>

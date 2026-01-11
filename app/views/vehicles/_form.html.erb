@@ -1,3 +1,4 @@
+<%# app/views/vehicles/_form.html.erb %>
 <%= form_with(model: vehicle, local: true, html: { multipart: true, class: "needs-validation" }) do |form| %>
   <% if vehicle.errors.any? %>
     <div class="alert alert-danger">
@@ -13,6 +14,25 @@
   <div class="row g-3">
     <!-- Left Column -->
     <div class="col-md-6">
+      <!-- Add Agency field here for VMCOTT users -->
+      <% if current_user.agency.code == "VMCOTT" %>
+        <div class="mb-3">
+          <%= form.label :agency_id, "Agency", class: "form-label" %>
+          <%= form.collection_select :agency_id, Agency.all.order(:name), :id, :name,
+                { include_blank: "Select Agency" },
+                { class: "form-select", required: true } %>
+          <small class="text-muted">Select which agency this vehicle belongs to</small>
+        </div>
+      <% else %>
+        <!-- Non-VMCOTT users: agency is automatically their own -->
+        <div class="mb-3">
+          <label class="form-label">Agency</label>
+          <input type="text" class="form-control" value="<%= current_user.agency.name %>" readonly>
+          <small class="text-muted">Your agency: <%= current_user.agency.code %></small>
+          <%= form.hidden_field :agency_id, value: current_user.agency.id %>
+        </div>
+      <% end %>
+
       <div class="mb-3">
         <%= form.label :make %>
         <%= form.text_field :make, class: "form-control", required: true %>
@@ -92,7 +112,9 @@
                         ["PTSC", "Police", "Fire Service"],
                         { prompt: "Select Owner" },
                         class: "form-select",
-                        required: true %>
+                        required: true,
+                        data: { controller: "agency-assign" } %>
+        <small class="text-muted">Selecting a service owner will auto-assign agency</small>
       </div>
 
       <div class="mb-3">
@@ -107,7 +129,7 @@
               class: "form-select" %>
       </div>
 
-      <!-- ✅ ADDED: Primary Photo Upload -->
+      <!-- Primary Photo Upload -->
       <div class="mb-4">
         <div class="mb-3">
           <%= form.label :primary_photo, "Main Vehicle Photo", class: "form-label" %>
@@ -132,7 +154,7 @@
         <% end %>
       </div>
 
-      <!-- ✅ ADDED: Gallery Photos Upload -->
+      <!-- Gallery Photos Upload -->
       <div class="mb-3">
         <%= form.label :gallery_photos, "Additional Photos", class: "form-label" %>
         <%= form.file_field :gallery_photos, 

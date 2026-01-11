@@ -1,0 +1,495 @@
+<div class="container-fluid">
+  <!-- Page Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Main Dashboard</h1>
+      <p class="text-muted mb-0">Fleet overview and alert monitoring</p>
+    </div>
+    <div>
+      <%= link_to 'View All Alerts', alerts_path, class: 'btn btn-outline-primary me-2' %>
+      <%= link_to 'Create Alert', new_alert_path, class: 'btn btn-primary' %>
+    </div>
+  </div>
+
+  <!-- Alert Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card h-100 border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Active Alerts</h6>
+              <h2 class="text-primary"><%= @active_alerts_count %></h2>
+            </div>
+            <div class="text-primary fs-1">
+              <i class="bi bi-bell"></i>
+            </div>
+          </div>
+          <p class="card-text text-muted small">Total active alerts across fleet</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100 border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Critical Alerts</h6>
+              <h2 class="text-danger"><%= @critical_alerts_count %></h2>
+            </div>
+            <div class="text-danger fs-1">
+              <i class="bi bi-exclamation-triangle"></i>
+            </div>
+          </div>
+          <p class="card-text text-muted small">Critical severity alerts</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100 border-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Urgent Alerts</h6>
+              <h2 class="text-warning"><%= @urgent_alerts_count %></h2>
+            </div>
+            <div class="text-warning fs-1">
+              <i class="bi bi-clock"></i>
+            </div>
+          </div>
+          <p class="card-text text-muted small">High priority alerts</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100 border-danger">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Need Attention</h6>
+              <h2 class="text-danger"><%= @needs_attention_count %></h2>
+            </div>
+            <div class="text-danger fs-1">
+              <i class="bi bi-exclamation-octagon"></i>
+            </div>
+          </div>
+          <p class="card-text text-muted small">Alerts requiring immediate action</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fleet Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Total Vehicles</h6>
+              <h2><%= @total_vehicles %></h2>
+            </div>
+            <div class="text-secondary fs-1">
+              <i class="bi bi-truck"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-success"><%= @active_vehicles %> Active</span>
+            <span class="badge bg-warning ms-1"><%= @maintenance_vehicles %> Maintenance</span>
+            <span class="badge bg-danger ms-1"><%= @overdue_vehicles %> Overdue</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Maintenance</h6>
+              <h2><%= @total_maintenances %></h2>
+            </div>
+            <div class="text-secondary fs-1">
+              <i class="bi bi-wrench"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-warning"><%= @pending_maintenances %> Pending</span>
+            <span class="badge bg-danger ms-1"><%= @overdue_maintenances %> Overdue</span>
+            <span class="badge bg-info ms-1"><%= @active_maintenances %> Active</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Avg Utilization</h6>
+              <h2><%= @avg_utilization %>%</h2>
+            </div>
+            <div class="text-secondary fs-1">
+              <i class="bi bi-speedometer2"></i>
+            </div>
+          </div>
+          <div class="progress mt-3" style="height: 10px;">
+            <div class="progress-bar bg-success" role="progressbar" style="width: <%= @avg_utilization %>%" 
+                 aria-valuenow="<%= @avg_utilization %>" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="card-subtitle mb-2 text-muted">Health Distribution</h6>
+              <h2>
+                <%= (@health_distribution[:excellent] + @health_distribution[:good]) * 100 / [@total_vehicles, 1].max %>%
+              </h2>
+            </div>
+            <div class="text-secondary fs-1">
+              <i class="bi bi-heart-pulse"></i>
+            </div>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-success"><%= @health_distribution[:excellent] %> Excellent</span>
+            <span class="badge bg-info ms-1"><%= @health_distribution[:good] %> Good</span>
+            <span class="badge bg-warning ms-1"><%= @health_distribution[:fair] %> Fair</span>
+            <span class="badge bg-danger ms-1"><%= @health_distribution[:poor] + @health_distribution[:critical] %> Poor/Critical</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two Column Layout -->
+  <div class="row">
+    <!-- Left Column: Alerts Needing Immediate Attention -->
+    <div class="col-lg-8 mb-4">
+      <div class="card">
+        <div class="card-header bg-danger text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">🚨 Alerts Needing Immediate Attention</h5>
+            <span class="badge bg-light text-dark"><%= @alerts_needing_attention.count %> alerts</span>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <% if @alerts_needing_attention.any? %>
+            <div class="list-group list-group-flush">
+              <% @alerts_needing_attention.each do |alert| %>
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center mb-1">
+                        <span class="me-2"><%= alert.short_display %></span>
+                        <h6 class="mb-0"><%= alert.title %></h6>
+                      </div>
+                      <p class="mb-1 text-muted"><%= truncate(alert.description, length: 100) %></p>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                          <i class="bi bi-truck me-1"></i>
+                          <%= alert.vehicle_display_name %>
+                        </small>
+                        <small class="text-muted">
+                          <i class="bi bi-geo-alt me-1"></i>
+                          <%= truncate(alert.display_location, length: 30) %>
+                        </small>
+                        <small class="text-muted">
+                          <i class="bi bi-clock me-1"></i>
+                          <%= time_ago_in_words(alert.created_at) %> ago
+                        </small>
+                      </div>
+                    </div>
+                    <div class="ms-3">
+                      <div class="btn-group">
+                        <%= form_with(url: acknowledge_alert_main_dashboard_path(alert), method: :post, class: "d-inline") do %>
+                          <button type="submit" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-check-circle"></i> Ack
+                          </button>
+                        <% end %>
+                        <%= form_with(url: resolve_alert_main_dashboard_path(alert), method: :post, class: "d-inline ms-1") do %>
+                          <%= hidden_field_tag :resolution_notes, "Resolved from dashboard" %>
+                          <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-check2-square"></i> Resolve
+                          </button>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-5">
+              <div class="text-success mb-3">
+                <i class="bi bi-check-circle" style="font-size: 3rem;"></i>
+              </div>
+              <h5>No alerts require immediate attention!</h5>
+              <p class="text-muted">All systems are operating normally.</p>
+            </div>
+          <% end %>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between">
+            <%= link_to 'View All Alerts', alerts_path, class: 'btn btn-sm btn-outline-primary' %>
+            <%= link_to 'Create New Alert', new_alert_path, class: 'btn btn-sm btn-primary' %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Vehicle Alert Status -->
+    <div class="col-lg-4 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Vehicle Alert Status</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Vehicle</th>
+                  <th class="text-center">Alerts</th>
+                  <th class="text-center">Health</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @vehicles_with_stats.each do |vehicle_data| %>
+                  <% vehicle = vehicle_data[:vehicle] %>
+                  <% summary = vehicle_data[:alert_summary] %>
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="me-2">
+                          <%= vehicle.short_display %>
+                        </div>
+                        <div>
+                          <div class="fw-bold"><%= link_to vehicle.display_name, vehicle, class: 'text-decoration-none' %></div>
+                          <small class="text-muted"><%= vehicle.license_plate %></small>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="text-center">
+                      <% if summary[:needs_attention] > 0 %>
+                        <span class="badge bg-danger"><%= summary[:needs_attention] %></span>
+                      <% elsif summary[:active_alerts] > 0 %>
+                        <span class="badge bg-warning"><%= summary[:active_alerts] %></span>
+                      <% else %>
+                        <span class="badge bg-success">0</span>
+                      <% end %>
+                    </td>
+                    <td class="text-center">
+                      <span class="badge <%= vehicle.health_status_badge_class %>">
+                        <%= vehicle_data[:health_score] %>
+                      </span>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer">
+          <%= link_to 'View All Vehicles', vehicles_path, class: 'btn btn-sm btn-outline-secondary w-100' %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity Section -->
+  <div class="row mt-4">
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Recent Trips</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            <% @recent_trips.each do |trip| %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="mb-0"><%= trip.vehicle.display_name %></h6>
+                    <small class="text-muted">
+                      <%= trip.driver&.name || 'No driver' %> • 
+                      <%= trip.distance_km.round(1) %> km • 
+                      <%= trip.duration_hours.round(1) %> hrs
+                    </small>
+                  </div>
+                  <small class="text-muted">
+                    <%= trip.start_time&.strftime('%I:%M %p') %>
+                  </small>
+                </div>
+              </div>
+            <% end %>
+            <% if @recent_trips.empty? %>
+              <div class="list-group-item text-center py-3">
+                <p class="text-muted mb-0">No recent trips</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div class="card-footer">
+          <%= link_to 'View All Trips', trips_path, class: 'btn btn-sm btn-outline-secondary w-100' %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Recent Maintenance</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            <% @recent_maintenances.each do |maintenance| %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="mb-0"><%= maintenance.vehicle.display_name %></h6>
+                    <small class="text-muted">
+                      <%= maintenance.service_type %> • 
+                      <%= maintenance.status %> • 
+                      $<%= maintenance.cost.to_i %>
+                    </small>
+                  </div>
+                  <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>">
+                    <%= maintenance.status %>
+                  </span>
+                </div>
+              </div>
+            <% end %>
+            <% if @recent_maintenances.empty? %>
+              <div class="list-group-item text-center py-3">
+                <p class="text-muted mb-0">No recent maintenance</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div class="card-footer">
+          <%= link_to 'View All Maintenance', maintenances_path, class: 'btn btn-sm btn-outline-secondary w-100' %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Recent Alerts</h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            <% @recent_alerts.each do |alert| %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div class="d-flex align-items-center">
+                      <span class="me-2"><%= alert.short_display %></span>
+                      <h6 class="mb-0"><%= truncate(alert.title, length: 30) %></h6>
+                    </div>
+                    <small class="text-muted">
+                      <%= alert.vehicle_display_name %> • 
+                      <%= alert.alert_type.humanize %>
+                    </small>
+                  </div>
+                  <small class="text-muted">
+                    <%= time_ago_in_words(alert.created_at) %> ago
+                  </small>
+                </div>
+              </div>
+            <% end %>
+            <% if @recent_alerts.empty? %>
+              <div class="list-group-item text-center py-3">
+                <p class="text-muted mb-0">No recent alerts</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div class="card-footer">
+          <%= link_to 'View All Alerts', alerts_path, class: 'btn btn-sm btn-outline-secondary w-100' %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Quick Actions</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <%= link_to new_alert_path, class: 'btn btn-outline-primary w-100' do %>
+                <i class="bi bi-plus-circle me-2"></i>Create Alert
+              <% end %>
+            </div>
+            <div class="col-md-3">
+              <%= link_to new_vehicle_path, class: 'btn btn-outline-secondary w-100' do %>
+                <i class="bi bi-truck me-2"></i>Add Vehicle
+              <% end %>
+            </div>
+            <div class="col-md-3">
+              <%= link_to new_maintenance_path, class: 'btn btn-outline-warning w-100' do %>
+                <i class="bi bi-wrench me-2"></i>Schedule Maintenance
+              <% end %>
+            </div>
+            <div class="col-md-3">
+              <%= link_to analytics_vehicles_path, class: 'btn btn-outline-info w-100' do %>
+                <i class="bi bi-graph-up me-2"></i>View Analytics
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.card {
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+}
+
+.list-group-item:hover {
+  background-color: #f8f9fa;
+}
+
+.badge {
+  font-size: 0.75em;
+  padding: 0.35em 0.65em;
+}
+
+.table th {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.progress {
+  border-radius: 5px;
+}
+
+.btn-group .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+</style>

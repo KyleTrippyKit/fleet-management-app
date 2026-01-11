@@ -1,0 +1,97 @@
+# Create the missing fleet_controls partial
+cat > app/views/ptsc_dashboard/_fleet_controls.html.erb << 'EOF'
+<%# app/views/ptsc_dashboard/_fleet_controls.html.erb %>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white border-0 py-3">
+    <h6 class="mb-0"><i class="bi bi-sliders text-info me-2"></i>Fleet Controls</h6>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="d-grid gap-2">
+          <% if current_user.can_add_vehicles? %>
+            <%= link_to new_vehicle_path(service_owner: 'PTSC'), class: "btn btn-outline-primary d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-plus-circle"></i>
+              <span>Add New Vehicle</span>
+            <% end %>
+          <% end %>
+          
+          <% if current_user.can_schedule_maintenance? %>
+            <%= link_to "#", class: "btn btn-outline-warning d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-tools"></i>
+              <span>Schedule Maintenance</span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="d-grid gap-2">
+          <% if current_user.can_view_reports? %>
+            <%= link_to "#", class: "btn btn-outline-info d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-graph-up"></i>
+              <span>Generate Reports</span>
+            <% end %>
+          <% end %>
+          
+          <% if current_user.fleet_manager? || current_user.admin? %>
+            <%= link_to "#", class: "btn btn-outline-success d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-download"></i>
+              <span>Export Data</span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <%# Quick Actions for Different Roles %>
+    <div class="mt-4 pt-3 border-top">
+      <h6 class="text-muted mb-3 small">Quick Actions</h6>
+      <div class="row g-2">
+        <% if current_user.driver? %>
+          <div class="col-6">
+            <%= link_to scan_path, class: "btn btn-sm btn-outline-dark w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-qr-code-scan"></i>
+              <span>Scan Vehicle</span>
+            <% end %>
+          </div>
+          <div class="col-6">
+            <%= link_to "#", class: "btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-clipboard-check"></i>
+              <span>Start Trip</span>
+            <% end %>
+          </div>
+        <% end %>
+        
+        <% if current_user.maintenance_supervisor? %>
+          <div class="col-6">
+            <%= link_to "#", class: "btn btn-sm btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-exclamation-triangle"></i>
+              <span>Report Issue</span>
+            <% end %>
+          </div>
+          <div class="col-6">
+            <%= link_to "#", class: "btn btn-sm btn-outline-info w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-clipboard-data"></i>
+              <span>Parts Inventory</span>
+            <% end %>
+          </div>
+        <% end %>
+        
+        <% if current_user.finance? %>
+          <div class="col-6">
+            <%= link_to "#", class: "btn btn-sm btn-outline-success w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-cash-coin"></i>
+              <span>Process Payment</span>
+            <% end %>
+          </div>
+          <div class="col-6">
+            <%= link_to "#", class: "btn btn-sm btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2" do %>
+              <i class="bi bi-file-earmark-text"></i>
+              <span>Create Invoice</span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
