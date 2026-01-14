@@ -174,7 +174,19 @@
   <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(@agency.code) %>
     <script>
       setTimeout(function() {
-        window.location.href = "<%= dashboard_path %>";
+        // Use the correct path based on agency
+        <% case @agency.code %>
+        <% when "PTSC" %>
+          window.location.href = "/ptsc-dashboard";
+        <% when "VMCOTT" %>
+          window.location.href = "/vmcott-dashboard";
+        <% when "TTPS" %>
+          window.location.href = "/ttps-dashboard";
+        <% when "TTDF" %>
+          window.location.href = "/ttdf-dashboard";
+        <% else %>
+          window.location.href = "/dashboard";
+        <% end %>
       }, 3000);
     </script>
   <% end %>
@@ -197,7 +209,7 @@
         </p>
         <div class="d-flex justify-content-center gap-3">
           <%= link_to "Contact Admin", "mailto:admin@vmcott.gov.tt", class: "btn btn-outline-danger" %>
-          <%= button_to "Sign Out", destroy_user_session_path, method: :delete, class: "btn btn-danger" %>
+          <%= button_to "Sign Out", "/logout", method: :get, class: "btn btn-danger" %>
         </div>
       </div>
       <div class="card-footer text-muted small">

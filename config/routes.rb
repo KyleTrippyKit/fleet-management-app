@@ -4,29 +4,30 @@ Rails.application.routes.draw do
   # Authentication - Use default Devise
   # ========================
   devise_for :users, 
-  path: '',
-  path_names: {
-    sign_in: 'login',
-    sign_out: 'logout',
-    password: 'password',
-    confirmation: 'verification',
-    unlock: 'unblock',
-    registration: 'register',
-    sign_up: 'signup'
-  },
-  controllers: {
-    sessions: 'users/sessions'
-  }
+    skip: :all,
+    controllers: {
+      sessions: 'users/sessions'
+    }
   
   # ========================
   # Explicit session routes for Devise
   # ========================
   devise_scope :user do
-    # DELETE route for sign out (Turbo/Stimulus compatible)
-    delete '/users/sign_out', to: 'devise/sessions#destroy'
+    # These are the ONLY session routes you need
+    get '/users/sign_in', to: 'devise/sessions#new', as: :new_user_session
+    post '/users/sign_in', to: 'devise/sessions#create', as: :user_session
     
-    # GET route as fallback (optional)
+    # ADD THIS DELETE ROUTE:
+    delete '/users/sign_out', to: 'devise/sessions#destroy', as: :destroy_user_session
+    
+    # Keep GET route for logout with different name to avoid conflict
     get '/users/sign_out', to: 'devise/sessions#destroy', as: :get_sign_out
+
+    get '/users/password/new', to: 'devise/passwords#new', as: :new_user_password
+    get '/users/password/edit', to: 'devise/passwords#edit', as: :edit_user_password
+    patch '/users/password', to: 'devise/passwords#update', as: :user_password
+    put '/users/password', to: 'devise/passwords#update'
+    post '/users/password', to: 'devise/passwords#create', as: :user_password_create
   end
 
   # ========================
@@ -42,8 +43,10 @@ Rails.application.routes.draw do
   get 'ttps-dashboard', to: 'ttps_dashboard#index', as: 'ttps_dashboard'
   get 'ttdf-dashboard', to: 'ttdf_dashboard#index', as: 'ttdf_dashboard'
   get 'main-dashboard', to: 'main_dashboard#index', as: 'main_dashboard'
+  get 'welcome', to: 'welcome#index', as: :welcome
   post 'main-dashboard/alerts/:id/acknowledge', to: 'main_dashboard#acknowledge_alert', as: 'acknowledge_alert_main_dashboard'
   post 'main-dashboard/alerts/:id/resolve', to: 'main_dashboard#resolve_alert', as: 'resolve_alert_main_dashboard'
+  
 
   # ========================
   # PTSC DASHBOARD NAMESPACED ROUTES

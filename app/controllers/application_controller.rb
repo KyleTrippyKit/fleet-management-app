@@ -33,19 +33,18 @@ class ApplicationController < ActionController::Base
     Rails.logger.info "Role: #{resource.role}"
     Rails.logger.info "=============================="
     
-    # Redirect PTSC users to their specialized dashboard
+    # Use string paths instead of route helpers to avoid NameError
     if resource.agency&.code == 'PTSC'
-      ptsc_dashboard_path
-    # Add other agency-specific dashboards here as needed
+      '/ptsc-dashboard'
     elsif resource.agency&.code == 'VMCOTT'
-      vmcott_dashboard_path
+      '/vmcott-dashboard'
     elsif resource.agency&.code == 'TTPS'
-      ttps_dashboard_path
+      '/ttps-dashboard'
     elsif resource.agency&.code == 'TTDF'
-      ttdf_dashboard_path
+      '/ttdf-dashboard'
     else
       # Default to main dashboard
-      main_dashboard_path
+      '/main-dashboard'
     end
   end
 
