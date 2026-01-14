@@ -3,10 +3,21 @@ Rails.application.routes.draw do
   # ========================
   # Authentication - Use default Devise
   # ========================
-  devise_for :users, controllers: {
+  devise_for :users, 
+  path: '',
+  path_names: {
+    sign_in: 'login',
+    sign_out: 'logout',
+    password: 'password',
+    confirmation: 'verification',
+    unlock: 'unblock',
+    registration: 'register',
+    sign_up: 'signup'
+  },
+  controllers: {
     sessions: 'users/sessions'
   }
-
+  
   # ========================
   # Explicit session routes for Devise
   # ========================
