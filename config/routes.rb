@@ -158,6 +158,22 @@ Rails.application.routes.draw do
       post :sync_to_quickbooks
       post :create_transaction
       post :create_pos_transaction
+      # Add new payment history routes
+      get :payment_timeline
+      post :record_payment
+    end
+  end
+
+  # ========================
+  # PAYMENT HISTORY ROUTES (Add this new section)
+  # ========================
+  resources :payment_histories, only: [:index, :show] do
+    collection do
+      get 'agency/:agency_id', to: 'payment_histories#agency_index', as: :agency
+      get 'reports'
+      get 'summary'
+      get 'export_csv'
+      get 'dashboard'
     end
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_14_022338) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_14_054251) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -257,6 +257,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_14_022338) do
   create_table "parts_stores", id: false, force: :cascade do |t|
     t.bigint "part_id", null: false
     t.bigint "store_id", null: false
+  end
+
+  create_table "payment_histories", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "invoice_id", null: false
+    t.text "notes"
+    t.date "payment_date", null: false
+    t.string "payment_method"
+    t.bigint "payment_transaction_id", null: false
+    t.string "reference_number"
+    t.string "status", default: "completed"
+    t.datetime "updated_at", null: false
+    t.index ["invoice_id"], name: "index_payment_histories_on_invoice_id"
+    t.index ["payment_date"], name: "index_payment_histories_on_payment_date"
+    t.index ["payment_transaction_id"], name: "index_payment_histories_on_payment_transaction_id", unique: true
+    t.index ["reference_number"], name: "index_payment_histories_on_reference_number"
+    t.index ["status"], name: "index_payment_histories_on_status"
   end
 
   create_table "permissions", force: :cascade do |t|
@@ -534,6 +552,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_14_022338) do
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "payment_histories", "invoices"
+  add_foreign_key "payment_histories", "transactions", column: "payment_transaction_id"
   add_foreign_key "pos_transactions", "invoices"
   add_foreign_key "pos_transactions", "users"
   add_foreign_key "pos_transactions", "vehicles"
