@@ -1,0 +1,136 @@
+<%# app/views/invoices/_integration_status.html.erb %>
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0">
+      <i class="bi bi-plug me-2"></i>System Integrations
+    </h5>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-3">
+        <div class="text-center p-3 border rounded bg-light">
+          <div class="mb-3">
+            <i class="bi bi-graph-up-arrow fs-1 <%= @invoice.quickbooks_synced? ? 'text-success' : 'text-muted' %>"></i>
+          </div>
+          <h6>QuickBooks</h6>
+          <% if @invoice.quickbooks_synced? %>
+            <p class="mb-1"><small class="text-success">Connected</small></p>
+            <p class="text-muted mb-0">
+              <small>ID: <%= @invoice.quickbooks_id %></small><br>
+              <small>Sync: <%= @invoice.last_sync_at&.strftime('%b %d, %Y') || 'Never' %></small>
+            </p>
+          <% else %>
+            <p class="mb-1"><small class="text-warning">Not Connected</small></p>
+            <% if current_user.can_sync_quickbooks? %>
+              <%= button_to sync_to_quickbooks_invoice_path(@invoice), 
+                    method: :post,
+                    class: 'btn btn-sm btn-outline-primary mt-2',
+                    data: { confirm: 'Sync this invoice with QuickBooks?' } do %>
+                <i class="bi bi-arrow-repeat me-1"></i> Sync Now
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="text-center p-3 border rounded bg-light">
+          <div class="mb-3">
+            <i class="bi bi-cash-coin fs-1 <%= @invoice.pos_payment_made? ? 'text-primary' : 'text-muted' %>"></i>
+          </div>
+          <h6>POS Payment</h6>
+          <% if @invoice.pos_payment_made? %>
+            <p class="mb-1"><small class="text-success">Payment Made</small></p>
+            <p class="text-muted mb-0">
+              <% if @invoice.pos_transaction %>
+                <small>ID: <%= @invoice.pos_transaction.transaction_id %></small><br>
+                <small>Amount: $<%= number_with_precision(@invoice.pos_transaction.amount, precision: 2) %></small>
+              <% end %>
+            </p>
+          <% else %>
+            <p class="mb-1"><small class="text-warning">No POS Payment</small></p>
+            <% if current_user.can_pay_invoices? %>
+              <%= link_to new_pos_transaction_path(invoice_id: @invoice.id), 
+                    class: 'btn btn-sm btn-outline-primary mt-2' do %>
+                <i class="bi bi-plus-circle me-1"></i> Create POS
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="text-center p-3 border rounded bg-light">
+          <div class="mb-3">
+            <i class="bi bi-cart-check fs-1 <%= @invoice.has_purchase_order? ? 'text-info' : 'text-muted' %>"></i>
+          </div>
+          <h6>Purchase Order</h6>
+          <% if @invoice.has_purchase_order? %>
+            <p class="mb-1"><small class="text-success">Linked</small></p>
+            <p class="text-muted mb-0">
+              <% if @invoice.purchase_order %>
+                <small>PO #: <%= @invoice.purchase_order.po_number %></small><br>
+                <small>Status: <%= @invoice.purchase_order.status.titleize %></small>
+              <% end %>
+            </p>
+          <% else %>
+            <p class="mb-1"><small class="text-warning">No PO</small></p>
+            <% if current_user.can_create_invoices? %>
+              <%= link_to new_purchase_order_path(invoice_id: @invoice.id), 
+                    class: 'btn btn-sm btn-outline-primary mt-2' do %>
+                <i class="bi bi-plus-circle me-1"></i> Create PO
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="text-center p-3 border rounded bg-light">
+          <div class="mb-3">
+            <i class="bi bi-credit-card fs-1 <%= @invoice.has_transactions? ? 'text-info' : 'text-muted' %>"></i>
+          </div>
+          <h6>Transactions</h6>
+          <% if @invoice.has_transactions? %>
+            <p class="mb-1"><small class="text-success"><%= @invoice.transactions.count %> payment(s)</small></p>
+            <p class="text-muted mb-0">
+              <small>Total: $<%= number_with_precision(@invoice.total_paid, precision: 2) %></small><br>
+              <small>Balance: $<%= number_with_precision(@invoice.balance_due, precision: 2) %></small>
+            </p>
+          <% else %>
+            <p class="mb-1"><small class="text-warning">No payments</small></p>
+            <% if current_user.can_pay_invoices? %>
+              <%= link_to new_transaction_path(invoice_id: @invoice.id), 
+                    class: 'btn btn-sm btn-outline-primary mt-2' do %>
+                <i class="bi bi-plus-circle me-1"></i> Add Payment
+              <% end %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <%# Integration Summary %>
+    <div class="mt-4">
+      <h6 class="text-muted mb-3">Integration Status Summary</h6>
+      <div class="row">
+        <% @invoice.integration_status.each do |integration| %>
+          <div class="col-auto">
+            <span class="badge bg-success me-2">
+              <i class="bi bi-check-circle me-1"></i>
+              <%= integration.titleize %> Connected
+            </span>
+          </div>
+        <% end %>
+        <% if @invoice.integration_status.empty? %>
+          <div class="col">
+            <p class="text-muted mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              No system integrations connected
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

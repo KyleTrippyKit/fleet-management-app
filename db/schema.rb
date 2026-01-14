@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_14_022338) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -152,16 +152,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
     t.text "notes"
     t.datetime "paid_at"
     t.integer "paid_by_id"
+    t.integer "pos_transaction_id"
+    t.integer "purchase_order_id"
+    t.string "quickbooks_id"
     t.datetime "received_at"
     t.integer "received_by_id"
+    t.datetime "reviewed_at"
+    t.integer "reviewed_by_id"
     t.string "status", default: "pending"
     t.decimal "subtotal", precision: 10, scale: 2
     t.decimal "tax", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
     t.string "vendor", null: false
+    t.index ["category"], name: "index_invoices_on_category"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number", unique: true
     t.index ["maintenance_id"], name: "index_invoices_on_maintenance_id"
+    t.index ["pos_transaction_id"], name: "index_invoices_on_pos_transaction_id"
+    t.index ["purchase_order_id"], name: "index_invoices_on_purchase_order_id"
+    t.index ["quickbooks_id"], name: "index_invoices_on_quickbooks_id"
+    t.index ["reviewed_by_id"], name: "index_invoices_on_reviewed_by_id"
     t.index ["status"], name: "index_invoices_on_status"
     t.index ["vehicle_id"], name: "index_invoices_on_vehicle_id"
     t.index ["vendor"], name: "index_invoices_on_vendor"
@@ -256,6 +266,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "pos_transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "invoice_id"
+    t.text "notes"
+    t.integer "payment_type", default: 0
+    t.integer "status", default: 0
+    t.string "transaction_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.bigint "vehicle_id"
+    t.index ["invoice_id"], name: "index_pos_transactions_on_invoice_id"
+    t.index ["transaction_id"], name: "index_pos_transactions_on_transaction_id", unique: true
+    t.index ["user_id"], name: "index_pos_transactions_on_user_id"
+    t.index ["vehicle_id"], name: "index_pos_transactions_on_vehicle_id"
+  end
+
+  create_table "purchase_orders", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.string "po_number", null: false
+    t.integer "status", default: 0
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id"
+    t.string "vendor", null: false
+    t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
+    t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
+    t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
+    t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
+  end
+
   create_table "purchases", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.date "eta"
@@ -265,6 +310,55 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
     t.string "supplier"
     t.datetime "updated_at", null: false
     t.index ["part_id"], name: "index_purchases_on_part_id"
+  end
+
+  create_table "quickbooks_integrations", force: :cascade do |t|
+    t.string "access_token"
+    t.boolean "auto_sync", default: false
+    t.string "company_id"
+    t.boolean "connected", default: false
+    t.datetime "created_at", null: false
+    t.datetime "last_sync_at"
+    t.string "realm_id"
+    t.string "refresh_token"
+    t.text "sync_error"
+    t.string "sync_status"
+    t.datetime "token_expires_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["company_id"], name: "index_quickbooks_integrations_on_company_id", unique: true
+    t.index ["connected"], name: "index_quickbooks_integrations_on_connected"
+    t.index ["user_id"], name: "index_quickbooks_integrations_on_user_id"
+  end
+
+  create_table "quickbooks_settings", force: :cascade do |t|
+    t.text "access_token"
+    t.boolean "auto_sync"
+    t.string "company_id"
+    t.boolean "connected"
+    t.datetime "created_at", null: false
+    t.datetime "last_sync_at"
+    t.text "refresh_token"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_quickbooks_settings_on_user_id"
+  end
+
+  create_table "quotations", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.text "notes"
+    t.string "quote_number", null: false
+    t.integer "status", default: 0
+    t.datetime "updated_at", null: false
+    t.date "valid_from"
+    t.date "valid_to"
+    t.bigint "vehicle_id"
+    t.string "vendor", null: false
+    t.index ["created_by_id"], name: "index_quotations_on_created_by_id"
+    t.index ["quote_number"], name: "index_quotations_on_quote_number", unique: true
+    t.index ["vehicle_id"], name: "index_quotations_on_vehicle_id"
   end
 
   create_table "role_permissions", force: :cascade do |t|
@@ -296,6 +390,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
     t.string "location"
     t.string "name"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "transactions", force: :cascade do |t|
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.bigint "invoice_id"
+    t.text "notes"
+    t.string "payment_method"
+    t.string "reference_number"
+    t.integer "status", default: 0
+    t.integer "transaction_type", default: 0
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.bigint "vehicle_id"
+    t.index ["invoice_id"], name: "index_transactions_on_invoice_id"
+    t.index ["reference_number"], name: "index_transactions_on_reference_number", unique: true
+    t.index ["status"], name: "index_transactions_on_status"
+    t.index ["transaction_type"], name: "index_transactions_on_transaction_type"
+    t.index ["user_id"], name: "index_transactions_on_user_id"
+    t.index ["vehicle_id"], name: "index_transactions_on_vehicle_id"
   end
 
   create_table "trips", force: :cascade do |t|
@@ -419,7 +534,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_11_182500) do
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "pos_transactions", "invoices"
+  add_foreign_key "pos_transactions", "users"
+  add_foreign_key "pos_transactions", "vehicles"
+  add_foreign_key "purchase_orders", "users", column: "approved_by_id"
+  add_foreign_key "purchase_orders", "users", column: "created_by_id"
+  add_foreign_key "purchase_orders", "vehicles"
   add_foreign_key "purchases", "parts"
+  add_foreign_key "quickbooks_integrations", "users"
+  add_foreign_key "quickbooks_settings", "users"
+  add_foreign_key "quotations", "users", column: "created_by_id"
+  add_foreign_key "quotations", "vehicles"
+  add_foreign_key "transactions", "invoices"
+  add_foreign_key "transactions", "users"
+  add_foreign_key "transactions", "vehicles"
   add_foreign_key "trips", "drivers"
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"

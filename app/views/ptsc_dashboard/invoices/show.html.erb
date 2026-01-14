@@ -1,0 +1,347 @@
+<%# app/views/invoices/show.html.erb %>
+<div class="container-fluid mt-4">
+  <%# Header %>
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h2 mb-1">Invoice Details</h1>
+      <p class="text-muted mb-0">Invoice #<%= @invoice.invoice_number %> - <%= @invoice.vendor %></p>
+    </div>
+    <div class="btn-group">
+      <%= link_to 'Back to Invoices', invoices_path, class: 'btn btn-outline-secondary me-2' %>
+      
+      <div class="dropdown">
+        <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-gear me-2"></i>Actions
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <%= link_to download_invoice_path(@invoice), class: 'dropdown-item' do %>
+              <i class="bi bi-download me-2"></i>Download PDF
+            <% end %>
+          </li>
+          <li>
+            <%= link_to print_invoice_path(@invoice), class: 'dropdown-item' do %>
+              <i class="bi bi-printer me-2"></i>Print Invoice
+            <% end %>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          
+          <% if @invoice.pending? || @invoice.overdue? %>
+            <% if current_user.can_pay_invoices? %>
+              <li>
+                <%= button_to mark_as_paid_invoice_path(@invoice), 
+                      method: :post,
+                      class: 'dropdown-item text-success',
+                      data: { confirm: "Mark invoice #{@invoice.invoice_number} as paid?" } do %>
+                  <i class="bi bi-check-circle me-2"></i>Mark as Paid
+                <% end %>
+              </li>
+            <% end %>
+            
+            <% if current_user.can_dispute_invoices? %>
+              <li>
+                <a href="#" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#disputeModal">
+                  <i class="bi bi-question-circle me-2"></i>Mark as Disputed
+                </a>
+              </li>
+            <% end %>
+            
+            <% if current_user.can_pay_invoices? %>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <%= link_to new_transaction_path(invoice_id: @invoice.id), class: 'dropdown-item' do %>
+                  <i class="bi bi-credit-card me-2"></i>Record Payment
+                <% end %>
+              </li>
+              <li>
+                <%= link_to new_pos_transaction_path(invoice_id: @invoice.id), class: 'dropdown-item' do %>
+                  <i class="bi bi-cash-coin me-2"></i>Create POS Payment
+                <% end %>
+              </li>
+            <% end %>
+          <% end %>
+          
+          <% if current_user.can_edit_invoices? %>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <%= link_to edit_invoice_path(@invoice), class: 'dropdown-item' do %>
+                <i class="bi bi-pencil me-2"></i>Edit Invoice
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <%# Status Alert %>
+  <div class="alert alert-<%= @invoice.status_badge_class.gsub('bg-', '') %> alert-dismissible fade show" role="alert">
+    <div class="d-flex justify-content-between align-items-center">
+      <div>
+        <strong><%= @invoice.status.titleize %></strong> 
+        - <%= @invoice.payment_status %>
+        <% if @invoice.overdue? %>
+          - <strong>Overdue by <%= -@invoice.days_until_due %> days</strong>
+        <% elsif @invoice.days_until_due && @invoice.days_until_due >= 0 %>
+          - Due in <%= @invoice.days_until_due %> days
+        <% end %>
+      </div>
+      <div>
+        <% if @invoice.reviewed? %>
+          <span class="badge bg-info">Reviewed</span>
+        <% else %>
+          <span class="badge bg-warning">Awaiting Review</span>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <%# Left Column - Invoice Details %>
+    <div class="col-md-8">
+      <%# Invoice Summary Card %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="bi bi-receipt me-2"></i>Invoice Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-borderless">
+                <tr>
+                  <th width="40%">Invoice #:</th>
+                  <td><strong><%= @invoice.invoice_number %></strong></td>
+                </tr>
+                <tr>
+                  <th>Date:</th>
+                  <td><%= @invoice.invoice_date.strftime('%b %d, %Y') %></td>
+                </tr>
+                <tr>
+                  <th>Due Date:</th>
+                  <td class="<%= @invoice.overdue? ? 'text-danger fw-bold' : '' %>">
+                    <%= @invoice.due_date.strftime('%b %d, %Y') %>
+                    <% if @invoice.days_until_due %>
+                      (<%= @invoice.days_until_due %> days)
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Vendor:</th>
+                  <td><%= @invoice.vendor %></td>
+                </tr>
+                <tr>
+                  <th>Category:</th>
+                  <td>
+                    <span class="badge bg-light text-dark">
+                      <%= @invoice.category.titleize %>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-borderless">
+                <tr>
+                  <th width="40%">Vehicle:</th>
+                  <td>
+                    <% if @invoice.vehicle %>
+                      <%= link_to @invoice.vehicle_display, @invoice.vehicle, class: 'text-decoration-none' %>
+                    <% else %>
+                      <span class="text-muted">No vehicle assigned</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Agency:</th>
+                  <td><%= @invoice.agency_name %></td>
+                </tr>
+                <tr>
+                  <th>Created By:</th>
+                  <td>
+                    <%= @invoice.created_by&.email || 'System' %>
+                    <br><small class="text-muted"><%= @invoice.created_at.strftime('%b %d, %Y %I:%M %p') %></small>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Reviewed By:</th>
+                  <td>
+                    <% if @invoice.reviewed? %>
+                      <%= @invoice.received_by&.email || 'System' %>
+                      <br><small class="text-muted"><%= @invoice.received_at.strftime('%b %d, %Y %I:%M %p') %></small>
+                    <% else %>
+                      <span class="text-muted">Not reviewed</span>
+                    <% end %>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          
+          <%# Payment Progress %>
+          <div class="mt-4">
+            <h6 class="text-muted mb-3">Payment Progress</h6>
+            <div class="d-flex justify-content-between mb-1">
+              <span>Amount Paid: $<%= number_with_precision(@invoice.total_paid, precision: 2) %></span>
+              <span>Balance Due: $<%= number_with_precision(@invoice.balance_due, precision: 2) %></span>
+            </div>
+            <div class="progress" style="height: 20px;">
+              <div class="progress-bar <%= @invoice.paid_in_full? ? 'bg-success' : 'bg-warning' %>" 
+                   role="progressbar" 
+                   style="width: <%= @invoice.payment_percentage %>%"
+                   aria-valuenow="<%= @invoice.payment_percentage %>" 
+                   aria-valuemin="0" 
+                   aria-valuemax="100">
+                <%= @invoice.payment_percentage %>%
+              </div>
+            </div>
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                Total Amount: <strong>$<%= number_with_precision(@invoice.amount, precision: 2) %></strong>
+              </small>
+            </div>
+          </div>
+          
+          <%# Notes %>
+          <% if @invoice.notes.present? %>
+            <div class="mt-4">
+              <h6 class="text-muted mb-2">Notes</h6>
+              <div class="bg-light p-3 rounded">
+                <%= simple_format(@invoice.notes) %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Render Timeline %>
+      <%= render 'timeline' %>
+    </div>
+
+    <%# Right Column - Quick Actions & Integrations %>
+    <div class="col-md-4">
+      <%# Payment Summary Card %>
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="card-title mb-0">
+            <i class="bi bi-currency-dollar me-2"></i>Financial Summary
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-2">
+              <span>Invoice Amount:</span>
+              <strong>$<%= number_with_precision(@invoice.amount, precision: 2) %></strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span>Amount Paid:</span>
+              <strong class="text-success">$<%= number_with_precision(@invoice.total_paid, precision: 2) %></strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span>Balance Due:</span>
+              <strong class="<%= @invoice.balance_due > 0 ? 'text-danger' : 'text-success' %>">
+                $<%= number_with_precision(@invoice.balance_due, precision: 2) %>
+              </strong>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between">
+              <span>Payment Status:</span>
+              <span class="badge <%= @invoice.paid_in_full? ? 'bg-success' : 'bg-warning' %>">
+                <%= @invoice.payment_status %>
+              </span>
+            </div>
+          </div>
+          
+          <% if @invoice.balance_due > 0 && current_user.can_pay_invoices? %>
+            <div class="mt-4">
+              <h6 class="text-muted mb-3">Quick Payment</h6>
+              <div class="d-grid gap-2">
+                <%= link_to new_transaction_path(invoice_id: @invoice.id, amount: @invoice.balance_due), 
+                      class: 'btn btn-success' do %>
+                  <i class="bi bi-check-circle me-2"></i>Pay Full Balance
+                <% end %>
+                <%= link_to new_transaction_path(invoice_id: @invoice.id), 
+                      class: 'btn btn-outline-primary' do %>
+                  <i class="bi bi-credit-card me-2"></i>Record Custom Payment
+                <% end %>
+                <%= link_to payment_history_invoice_path(@invoice), 
+                      class: 'btn btn-outline-info' do %>
+                  <i class="bi bi-clock-history me-2"></i>View Payment History
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Render Integration Status %>
+      <%= render 'integration_status' %>
+
+      <%# Quick Actions Card %>
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="bi bi-lightning me-2"></i>Quick Actions
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <%= link_to download_invoice_path(@invoice), class: 'btn btn-outline-secondary' do %>
+              <i class="bi bi-download me-2"></i>Download PDF
+            <% end %>
+            
+            <%= link_to print_invoice_path(@invoice), class: 'btn btn-outline-secondary' do %>
+              <i class="bi bi-printer me-2"></i>Print Invoice
+            <% end %>
+            
+            <% if current_user.can_edit_invoices? %>
+              <%= link_to edit_invoice_path(@invoice), class: 'btn btn-outline-warning' do %>
+                <i class="bi bi-pencil me-2"></i>Edit Invoice
+              <% end %>
+            <% end %>
+            
+            <% if @invoice.quickbooks_synced? %>
+              <button class="btn btn-outline-success" disabled>
+                <i class="bi bi-check-circle me-2"></i>Synced with QuickBooks
+              </button>
+            <% elsif current_user.can_sync_quickbooks? %>
+              <%= button_to sync_to_quickbooks_invoice_path(@invoice), 
+                    method: :post,
+                    class: 'btn btn-outline-primary',
+                    data: { confirm: 'Sync this invoice with QuickBooks?' } do %>
+                <i class="bi bi-arrow-repeat me-2"></i>Sync to QuickBooks
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Dispute Modal %>
+<div class="modal fade" id="disputeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Dispute Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: dispute_invoice_path(@invoice), method: :post, local: true do |f| %>
+        <div class="modal-body">
+          <p>You are about to mark invoice <strong><%= @invoice.invoice_number %></strong> as disputed.</p>
+          <div class="mb-3">
+            <%= f.label :reason, 'Reason for dispute', class: 'form-label' %>
+            <%= f.text_area :reason, class: 'form-control', rows: 3, required: true, 
+                  placeholder: 'Please provide the reason for disputing this invoice...' %>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit 'Mark as Disputed', class: 'btn btn-warning' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

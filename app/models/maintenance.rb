@@ -17,7 +17,7 @@ class Maintenance < ApplicationRecord
                   Electrical BodyWork AirConditioning Suspension General].freeze
 
   # =====================================================
-  # Validations
+  # Validations - UPDATED
   # =====================================================
   validates :status, inclusion: { in: STATUSES }
   validates :assignment_type, inclusion: { in: ASSIGNMENT_TYPES }, allow_nil: true
@@ -25,13 +25,15 @@ class Maintenance < ApplicationRecord
   validates :category, inclusion: { in: CATEGORIES }, allow_nil: true
   validates :service_type, presence: true
   validates :date, presence: true
+  validates :start_date, presence: true
+  validates :end_date, presence: true
   validates :cost, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   
   validate :end_date_after_start_date
   validate :next_due_date_not_before_date
 
   # =====================================================
-  # Callbacks - Set defaults before validation
+  # Callbacks - UPDATED: Set defaults BEFORE validation
   # =====================================================
   before_validation :set_defaults
 
@@ -66,7 +68,7 @@ class Maintenance < ApplicationRecord
   }
 
   # =====================================================
-  # Status Helpers
+  # Status Helpers - ADD SAFE VERSION
   # =====================================================
   def completed?
     status == "Completed"
@@ -95,6 +97,21 @@ class Maintenance < ApplicationRecord
   def active?
     return false unless pending? && start_date.present? && end_date.present?
     start_date <= Date.today && end_date >= Date.today
+  end
+
+  # =====================================================
+  # Safe Date Methods - NEW: For handling nil dates
+  # =====================================================
+  def safe_date
+    date || Date.today
+  end
+
+  def safe_start_date
+    start_date || Date.today
+  end
+
+  def safe_end_date
+    end_date || (Date.today + 7.days)
   end
 
   # =====================================================
@@ -176,21 +193,36 @@ class Maintenance < ApplicationRecord
 
   def display_dates
     if start_date.blank? || end_date.blank?
-      date&.strftime("%b %d, %Y") || "No dates set"
+      safe_date.strftime("%b %d, %Y") || "No dates set"
     elsif start_date == end_date
-      start_date.strftime("%b %d, %Y")
+      safe_start_date.strftime("%b %d, %Y")
     else
-      "#{start_date.strftime("%b %d")} - #{end_date.strftime("%b %d, %Y")}"
+      "#{safe_start_date.strftime("%b %d")} - #{safe_end_date.strftime("%b %d, %Y")}"
     end
   end
 
   # Helper method for JSON date formatting
   def start_date_iso
-    start_date&.iso8601
+    safe_start_date.iso8601
   end
 
   def end_date_iso
-    end_date&.iso8601
+    safe_end_date.iso8601
+  end
+
+  # =====================================================
+  # Gantt Chart Methods - FIXED
+  # =====================================================
+  def gantt_datasets
+    {
+      label: "#{details} (#{status})",
+      backgroundColor: status == 'Completed' ? 'rgba(75, 192, 192, 0.7)' : 'rgba(255, 99, 132, 0.7)',
+      data: [{
+        x: safe_start_date.strftime("%Y-%m-%d"),
+        x2: safe_end_date.strftime("%Y-%m-%d"),
+        y: "#{vehicle.try(:make)} - #{vehicle.try(:license_plate)}"
+      }]
+    }
   end
 
   # =====================================================
@@ -218,8 +250,8 @@ class Maintenance < ApplicationRecord
       vehicle.display_name,
       vehicle.registration_number,
       service_type,
-      start_date&.strftime("%Y-%m-%d") || "",
-      end_date&.strftime("%Y-%m-%d") || "",
+      safe_start_date.strftime("%Y-%m-%d"),
+      safe_end_date.strftime("%Y-%m-%d"),
       duration_days,
       status,
       urgency || "",
@@ -263,8 +295,8 @@ class Maintenance < ApplicationRecord
     {
       id: "maintenance_#{id}",
       name: service_type.presence || "Maintenance ##{id}",
-      start: start_date&.to_s || Date.today.to_s,
-      end: end_date&.to_s || (Date.today + 7.days).to_s,
+      start: safe_start_date.to_s,
+      end: safe_end_date.to_s,
       parent: "vehicle_#{vehicle_id}",
       type: 'maintenance',
       color: gantt_bar_color,
@@ -280,13 +312,13 @@ class Maintenance < ApplicationRecord
     }
   end
 
-  # NEW: Method specifically for DHTMLX Gantt format
+  # Method specifically for DHTMLX Gantt format
   def dhtmlx_gantt_data
     {
       id: "maintenance_#{id}",
       text: service_type.presence || "Maintenance ##{id}",
-      start_date: start_date&.strftime("%Y-%m-%d") || Date.today.strftime("%Y-%m-%d"),
-      end_date: end_date&.strftime("%Y-%m-%d") || (Date.today + 7.days).strftime("%Y-%m-%d"),
+      start_date: safe_start_date.strftime("%Y-%m-%d"),
+      end_date: safe_end_date.strftime("%Y-%m-%d"),
       parent: "vehicle_#{vehicle_id}",
       progress: completed? ? 1 : 0.5,
       open: true,
@@ -316,7 +348,7 @@ class Maintenance < ApplicationRecord
   end
 
   def to_s
-    "#{service_type} (#{date&.strftime('%Y-%m-%d')})"
+    "#{service_type} (#{safe_date.strftime('%Y-%m-%d')})"
   end
 
   # =====================================================
@@ -345,12 +377,13 @@ class Maintenance < ApplicationRecord
   # Set default values
   # =====================================================
   def set_defaults
-    self.assignment_type ||= 'stores' if assignment_type.nil?
-    self.urgency ||= 'routine' if urgency.nil?
-    self.status ||= 'Pending' if status.nil?
     self.date ||= Date.today if date.nil?
     self.start_date ||= Date.today if start_date.nil?
     self.end_date ||= (Date.today + 7.days) if end_date.nil?
+    self.status ||= 'Pending' if status.nil?
+    self.urgency ||= 'routine' if urgency.nil?
+    self.assignment_type ||= 'stores' if assignment_type.nil?
+    self.category ||= 'General' if category.nil?
     self.owner ||= vehicle&.service_owner if owner.nil?
   end
 

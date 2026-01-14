@@ -1,0 +1,146 @@
+<%# app/views/invoices/_timeline.html.erb %>
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0">
+      <i class="bi bi-clock-history me-2"></i>Invoice Timeline
+    </h5>
+  </div>
+  <div class="card-body">
+    <% timeline = @invoice.timeline %>
+    
+    <% if timeline.any? %>
+      <div class="timeline">
+        <% timeline.each_with_index do |event, index| %>
+          <div class="timeline-item <%= index.even? ? 'timeline-left' : 'timeline-right' %>">
+            <div class="timeline-badge <%= event_color(event[:event]) %>">
+              <i class="<%= event_icon(event[:event]) %>"></i>
+            </div>
+            <div class="timeline-panel">
+              <div class="timeline-heading">
+                <h6 class="timeline-title">
+                  <%= event[:event] %>
+                  <% if event[:date] %>
+                    <small class="text-muted ms-2">
+                      <i class="bi bi-calendar"></i> <%= event[:date].strftime('%b %d, %Y %I:%M %p') %>
+                    </small>
+                  <% end %>
+                </h6>
+              </div>
+              <div class="timeline-body">
+                <p class="mb-1"><%= event[:description] %></p>
+                <% if event[:user] %>
+                  <small class="text-muted">
+                    <i class="bi bi-person"></i> <%= event[:user].email %>
+                  </small>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="text-center py-4">
+        <div class="text-muted">
+          <i class="bi bi-clock display-4 d-block mb-3"></i>
+          <h5>No timeline events</h5>
+          <p>Invoice history will appear here as events occur.</p>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+.timeline {
+  position: relative;
+  padding: 20px 0;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #e9ecef;
+  transform: translateX(-50%);
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 30px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.timeline-left {
+  flex-direction: row;
+}
+
+.timeline-right {
+  flex-direction: row-reverse;
+}
+
+.timeline-badge {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: white;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.timeline-panel {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 0 20px;
+  flex: 1;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.timeline-left .timeline-panel {
+  margin-left: 30px;
+}
+
+.timeline-right .timeline-panel {
+  margin-right: 30px;
+  text-align: right;
+}
+
+.timeline-title {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+</style>
+
+<script>
+function event_color(event_name) {
+  const colors = {
+    'Created': 'bg-primary',
+    'Received': 'bg-info',
+    'Payment': 'bg-success',
+    'Disputed': 'bg-warning',
+    'QuickBooks Sync': 'bg-secondary',
+    'Payment Recorded': 'bg-success'
+  };
+  return colors[event_name] || 'bg-secondary';
+}
+
+function event_icon(event_name) {
+  const icons = {
+    'Created': 'bi bi-plus-circle',
+    'Received': 'bi bi-check-circle',
+    'Payment': 'bi bi-currency-dollar',
+    'Disputed': 'bi bi-exclamation-triangle',
+    'QuickBooks Sync': 'bi bi-graph-up-arrow',
+    'Payment Recorded': 'bi bi-credit-card'
+  };
+  return icons[event_name] || 'bi bi-circle';
+}
+</script>

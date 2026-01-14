@@ -1,5 +1,5 @@
 # db/migrate/YYYYMMDDHHMMSS_add_insurance_expiry_date_to_vehicles.rb
-class AddInsuranceExpiryDateToVehicles < ActiveRecord::Migration[7.0]
+class AddInsuranceExpiryDateToVehicles < ActiveRecord::Migration[8.1]
   def change
     add_column :vehicles, :insurance_expiry_date, :date
     

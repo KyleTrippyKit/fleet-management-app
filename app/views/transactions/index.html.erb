@@ -1,0 +1,150 @@
+<%# app/views/transactions/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0"><%= current_user.agency_code %> Transactions</h1>
+      <p class="text-muted mb-0">Payment and financial transactions for <%= current_user.agency_code %> vehicles</p>
+    </div>
+    <div class="d-flex gap-2">
+      <% if @stats[:total_count] > 0 %>
+        <div class="d-flex gap-3">
+          <div class="text-center">
+            <div class="fs-5 fw-bold text-primary"><%= number_to_currency(@stats[:total_amount]) %></div>
+            <div class="small text-muted">Total Amount</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-5 fw-bold text-success"><%= @stats[:completed_count] %></div>
+            <div class="small text-muted">Completed</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-5 fw-bold text-warning"><%= @stats[:pending_count] %></div>
+            <div class="small text-muted">Pending</div>
+          </div>
+        </div>
+      <% end %>
+      
+      <%= link_to new_transaction_path, class: "btn btn-primary" do %>
+        <i class="bi bi-plus-circle me-2"></i>New Transaction
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Agency Navigation -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <nav class="nav nav-pills">
+        <%= link_to dashboard_transactions_path, class: "nav-link" do %>
+          <i class="bi bi-speedometer2 me-2"></i>Dashboard
+        <% end %>
+        <%= link_to transactions_path, class: "nav-link active" do %>
+          <i class="bi bi-receipt me-2"></i>All Transactions
+        <% end %>
+        <%= link_to reports_transactions_path, class: "nav-link" do %>
+          <i class="bi bi-graph-up me-2"></i>Reports
+        <% end %>
+        <%= link_to export_transactions_path(format: :csv), class: "nav-link" do %>
+          <i class="bi bi-download me-2"></i>Export
+        <% end %>
+        <%= link_to reconcile_transactions_path, class: "nav-link" do %>
+          <i class="bi bi-check-circle me-2"></i>Reconcile
+        <% end %>
+      </nav>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <% if @transactions.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Reference</th>
+                <th>Vehicle</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Agency</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @transactions.each do |transaction| %>
+                <tr>
+                  <td><%= transaction.created_at.strftime("%b %d, %Y") %></td>
+                  <td><code><%= transaction.reference_number %></code></td>
+                  <td>
+                    <% if transaction.vehicle %>
+                      <%= transaction.vehicle.license_plate %>
+                      <br>
+                      <small class="text-muted"><%= transaction.vehicle.make %> <%= transaction.vehicle.model %></small>
+                    <% else %>
+                      N/A
+                    <% end %>
+                  </td>
+                  <td><%= transaction.description %></td>
+                  <td class="fw-bold <%= transaction.amount > 0 ? 'text-success' : 'text-danger' %>">
+                    <%= number_to_currency(transaction.amount) %>
+                  </td>
+                  <td>
+                    <span class="badge bg-info">
+                      <%= transaction.transaction_type.humanize if transaction.transaction_type %>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge <%= transaction.status == 'completed' ? 'bg-success' : 'bg-warning' %>">
+                      <%= transaction.status.humanize %>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-secondary">
+                      <%= transaction.vehicle&.service_owner || current_user.agency_code %>
+                    </span>
+                  </td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to transaction_path(transaction), class: "btn btn-outline-primary" do %>
+                        <i class="bi bi-eye"></i>
+                      <% end %>
+                      <%= link_to edit_transaction_path(transaction), class: "btn btn-outline-warning" do %>
+                        <i class="bi bi-pencil"></i>
+                      <% end %>
+                      <% if transaction.status == 'pending' %>
+                        <%= link_to void_transaction_path(transaction), 
+                              method: :post,
+                              data: { confirm: "Void this transaction?" },
+                              class: "btn btn-outline-danger" do %>
+                          <i class="bi bi-x-circle"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="text-muted small">
+            Showing <%= @transactions.offset_value + 1 %> to <%= @transactions.offset_value + @transactions.length %> of <%= @transactions.total_count %> <%= current_user.agency_code %> transactions
+          </div>
+          <div>
+            <%= paginate @transactions %>
+          </div>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-receipt text-muted" style="font-size: 3rem;"></i>
+          <h4 class="text-muted mt-3">No transactions yet for <%= current_user.agency_code %></h4>
+          <p class="text-muted">Start recording payments for your agency's vehicles</p>
+          <%= link_to new_transaction_path, class: "btn btn-primary" do %>
+            <i class="bi bi-plus-circle me-2"></i>Create First Transaction
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,503 @@
+<%# app/views/quickbooks/dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Agency Header -->
+  <div class="alert alert-info mb-4">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-building fs-4 me-3"></i>
+      <div>
+        <h5 class="alert-heading mb-1">Viewing <%= @current_agency %> Data</h5>
+        <p class="mb-0 small">QuickBooks integration is scoped to your agency. Other agencies' data is not visible.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header with Quick Stats -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">
+        <i class="bi bi-graph-up text-primary me-2"></i>
+        <%= @current_agency %> QuickBooks Integration
+      </h1>
+      <p class="text-muted mb-0">Sync <%= @current_agency %> fleet finances with QuickBooks Online</p>
+    </div>
+    
+    <!-- Agency Badge + Connection Status + Quick Stats -->
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge bg-secondary px-3 py-2">
+        <i class="bi bi-building me-1"></i><%= @current_agency %>
+      </span>
+      
+      <% if @quickbooks_connected %>
+        <span class="badge bg-success px-3 py-2">
+          <i class="bi bi-plug me-1"></i>Connected
+        </span>
+      <% else %>
+        <span class="badge bg-danger px-3 py-2">
+          <i class="bi bi-plug me-1"></i>Not Connected
+        </span>
+      <% end %>
+      
+      <!-- Quick Stats Badge -->
+      <div class="dropdown">
+        <button class="btn btn-outline-info btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-bar-chart me-1"></i>Stats
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-3" style="min-width: 250px;">
+          <h6 class="dropdown-header">Sync Statistics</h6>
+          <div class="small mb-2">
+            <div class="d-flex justify-content-between">
+              <span>Invoices:</span>
+              <strong><%= @sync_stats[:invoices_synced] %></strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Transactions:</span>
+              <strong><%= @sync_stats[:transactions_synced] %></strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span>Pending Sync:</span>
+              <strong><%= @sync_stats[:pending_sync] || 0 %></strong>
+            </div>
+          </div>
+          <div class="dropdown-divider"></div>
+          <div class="text-center">
+            <small class="text-muted">Last sync: <%= time_ago_in_words(@last_sync) %> ago</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connection Status Card - Enhanced -->
+  <div class="card shadow-sm mb-4 <%= @quickbooks_connected ? 'border-success' : 'border-danger' %>">
+    <div class="card-header <%= @quickbooks_connected ? 'bg-success text-white' : 'bg-danger text-white' %> d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="bi bi-<%= @quickbooks_connected ? 'check-circle' : 'x-circle' %> me-2"></i>
+        <%= @current_agency %> QuickBooks Connection
+      </h5>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" 
+               id="autoSyncSwitch" <%= 'checked' if @auto_sync %> 
+               data-url="<%= quickbooks_settings_path %>"
+               data-param="auto_sync">
+        <label class="form-check-label text-white" for="autoSyncSwitch">Auto-sync</label>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <% if @quickbooks_connected %>
+            <div class="d-flex align-items-start mb-3">
+              <i class="bi bi-building-check fs-2 text-success me-3"></i>
+              <div class="flex-grow-1">
+                <h5 class="mb-1">Connected to QuickBooks</h5>
+                <p class="text-muted mb-1">
+                  <i class="bi bi-building me-1"></i><%= @company_info['CompanyName'] %>
+                  <% if @company_info['CompanyAddr'] %>
+                    <br><small><i class="bi bi-geo-alt me-1"></i><%= @company_info['CompanyAddr'] %></small>
+                  <% end %>
+                </p>
+                <div class="progress mb-2" style="height: 8px;">
+                  <div class="progress-bar bg-success" role="progressbar" style="width: <%= @sync_stats[:sync_progress] || 100 %>%"></div>
+                </div>
+                <div class="d-flex justify-content-between small text-muted">
+                  <span>Last sync: <%= time_ago_in_words(@last_sync) %> ago</span>
+                  <span><%= @sync_stats[:sync_progress] || 100 %>% complete</span>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <div class="d-flex align-items-start mb-3">
+              <i class="bi bi-plug fs-2 text-danger me-3"></i>
+              <div>
+                <h5 class="mb-1">Not Connected to QuickBooks</h5>
+                <p class="text-muted mb-3">Connect your <%= @current_agency %> account to sync financial data</p>
+                <div class="alert alert-warning">
+                  <h6 class="alert-heading mb-2">Benefits of Connecting:</h6>
+                  <ul class="mb-0 small">
+                    <li>Automated invoice synchronization</li>
+                    <li>Real-time financial reporting</li>
+                    <li>Transaction tracking and reconciliation</li>
+                    <li>Tax preparation support</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <div class="col-md-4">
+          <div class="d-grid gap-2">
+            <% if @quickbooks_connected %>
+              <%= link_to quickbooks_settings_path, class: "btn btn-outline-primary d-flex align-items-center justify-content-center" do %>
+                <i class="bi bi-gear me-2"></i>Settings
+              <% end %>
+              <%= button_to quickbooks_connection_disconnect_path, 
+                  method: :post, 
+                  class: "btn btn-outline-danger d-flex align-items-center justify-content-center",
+                  data: { confirm: "Disconnect #{@current_agency} from QuickBooks?", turbo_confirm: "Disconnect #{@current_agency} from QuickBooks?" } do %>
+                <i class="bi bi-plug me-2"></i>Disconnect
+              <% end %>
+              <%= link_to quickbooks_status_path, class: "btn btn-outline-info d-flex align-items-center justify-content-center" do %>
+                <i class="bi bi-heart-pulse me-2"></i>Health Check
+              <% end %>
+            <% else %>
+              <%= link_to quickbooks_connection_path, class: "btn btn-primary d-flex align-items-center justify-content-center" do %>
+                <i class="bi bi-plug me-2"></i>Connect to QuickBooks
+              <% end %>
+              <div class="text-center small text-muted mt-2">
+                Need help? <a href="#" class="text-decoration-none">View setup guide</a>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync Dashboard -->
+  <div class="row">
+    <!-- Left Column: Sync Actions -->
+    <div class="col-lg-8">
+      <!-- Sync Actions Card -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-arrow-repeat me-2"></i>
+            <%= @current_agency %> Data Sync
+          </h5>
+          <small>
+            <i class="bi bi-info-circle me-1"></i>
+            Only <%= @current_agency %> data will be synced
+          </small>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-8">
+              <h6 class="mb-3">Manual Sync Options</h6>
+              <p class="text-muted mb-3">Choose what to sync manually. Auto-sync runs every 6 hours.</p>
+              
+              <div class="d-flex flex-wrap gap-2 mb-4">
+                <%= link_to quickbooks_sync_all_path, 
+                    method: :post,
+                    class: "btn btn-primary d-flex align-items-center",
+                    data: { 
+                      confirm: "Sync ALL #{@current_agency} data to QuickBooks?",
+                      turbo_confirm: "Sync ALL #{@current_agency} data to QuickBooks?"
+                    } do %>
+                  <i class="bi bi-arrow-clockwise me-2"></i>Sync All
+                <% end %>
+                
+                <%= link_to quickbooks_sync_invoices_path, 
+                    method: :post,
+                    class: "btn btn-outline-primary d-flex align-items-center",
+                    data: { 
+                      confirm: "Sync #{@current_agency} invoices to QuickBooks?",
+                      turbo_confirm: "Sync #{@current_agency} invoices to QuickBooks?"
+                    } do %>
+                  <i class="bi bi-file-earmark-text me-2"></i>Sync Invoices
+                  <% if @sync_stats[:pending_invoices] && @sync_stats[:pending_invoices] > 0 %>
+                    <span class="badge bg-danger ms-2"><%= @sync_stats[:pending_invoices] %></span>
+                  <% end %>
+                <% end %>
+                
+                <%= link_to quickbooks_sync_transactions_path, 
+                    method: :post,
+                    class: "btn btn-outline-primary d-flex align-items-center",
+                    data: { 
+                      confirm: "Sync #{@current_agency} transactions to QuickBooks?",
+                      turbo_confirm: "Sync #{@current_agency} transactions to QuickBooks?"
+                    } do %>
+                  <i class="bi bi-currency-exchange me-2"></i>Sync Transactions
+                  <% if @sync_stats[:pending_transactions] && @sync_stats[:pending_transactions] > 0 %>
+                    <span class="badge bg-danger ms-2"><%= @sync_stats[:pending_transactions] %></span>
+                  <% end %>
+                <% end %>
+                
+                <%= link_to "#", 
+                    class: "btn btn-outline-secondary d-flex align-items-center",
+                    data: { bs_toggle: "modal", bs_target: "#syncScheduleModal" } do %>
+                  <i class="bi bi-calendar-plus me-2"></i>Schedule Sync
+                <% end %>
+              </div>
+              
+              <!-- Quick Sync Progress -->
+              <% if @sync_stats[:pending_sync] && @sync_stats[:pending_sync] > 0 %>
+                <div class="alert alert-warning">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <i class="bi bi-exclamation-triangle me-2"></i>
+                      <strong><%= @sync_stats[:pending_sync] %> items pending sync</strong>
+                    </div>
+                    <%= link_to "Sync Now", quickbooks_sync_all_path, 
+                        method: :post,
+                        class: "btn btn-sm btn-warning" %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            <div class="col-md-4">
+              <div class="bg-light p-3 rounded h-100">
+                <h6 class="mb-3">Sync Statistics</h6>
+                <div class="mb-3">
+                  <div class="d-flex justify-content-between mb-2">
+                    <span class="small">Invoices Synced:</span>
+                    <strong><%= @sync_stats[:invoices_synced] %></strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span class="small">Transactions Synced:</span>
+                    <strong><%= @sync_stats[:transactions_synced] %></strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-2">
+                    <span class="small">Purchase Orders:</span>
+                    <strong><%= @sync_stats[:purchase_orders_synced] %></strong>
+                  </div>
+                  <div class="d-flex justify-content-between">
+                    <span class="small">Last 7 Days:</span>
+                    <strong><%= @sync_stats[:last_7_days] %></strong>
+                  </div>
+                </div>
+                <div class="text-center">
+                  <%= link_to "View Detailed Report", "#", class: "btn btn-sm btn-outline-info" %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity with Tabs -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#recent-tab" type="button">
+                <i class="bi bi-clock-history me-1"></i>Recent Activity
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#errors-tab" type="button">
+                <i class="bi bi-exclamation-triangle me-1"></i>Errors
+                <% if @recent_errors && @recent_errors.any? %>
+                  <span class="badge bg-danger ms-1"><%= @recent_errors.count %></span>
+                <% end %>
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#queued-tab" type="button">
+                <i class="bi bi-list-check me-1"></i>Queued
+                <% if @queued_items && @queued_items.any? %>
+                  <span class="badge bg-info ms-1"><%= @queued_items.count %></span>
+                <% end %>
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div class="card-body">
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="recent-tab" role="tabpanel">
+              <% if @recent_activity.any? %>
+                <div class="list-group list-group-flush">
+                  <% @recent_activity.each do |activity| %>
+                    <div class="list-group-item border-0 px-0 py-3">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                          <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-<%= activity[:status] == 'success' ? 'success' : 'danger' %> me-2">
+                              <%= activity[:status].titleize %>
+                            </span>
+                            <span class="text-muted small"><%= time_ago_in_words(activity[:time]) %> ago</span>
+                          </div>
+                          <p class="mb-1"><%= activity[:description] %></p>
+                          <% if activity[:details] %>
+                            <small class="text-muted"><%= activity[:details] %></small>
+                          <% end %>
+                        </div>
+                        <i class="bi bi-<%= activity[:status] == 'success' ? 'check-circle text-success' : 'x-circle text-danger' %> fs-5"></i>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+                <div class="text-center mt-3">
+                  <%= link_to "View All Activity", "#", class: "btn btn-sm btn-outline-primary" %>
+                </div>
+              <% else %>
+                <div class="text-center py-4">
+                  <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+                  <p class="text-muted">No recent sync activity for <%= @current_agency %></p>
+                </div>
+              <% end %>
+            </div>
+            <!-- Error Tab Content -->
+            <div class="tab-pane fade" id="errors-tab" role="tabpanel">
+              <!-- Content for errors tab -->
+            </div>
+            <!-- Queued Tab Content -->
+            <div class="tab-pane fade" id="queued-tab" role="tabpanel">
+              <!-- Content for queued tab -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right Column: Quick Actions & Info -->
+    <div class="col-lg-4">
+      <!-- Quick Actions Card -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-speedometer2 me-2"></i>
+            Quick Actions
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <%= link_to quickbooks_connection_path, class: "btn btn-outline-primary d-flex align-items-center justify-content-start" do %>
+              <i class="bi bi-plug me-2"></i>Connection Status
+            <% end %>
+            <%= link_to quickbooks_settings_path, class: "btn btn-outline-primary d-flex align-items-center justify-content-start" do %>
+              <i class="bi bi-sliders me-2"></i>Sync Settings
+            <% end %>
+            <%= link_to "#", class: "btn btn-outline-secondary d-flex align-items-center justify-content-start" do %>
+              <i class="bi bi-journal-text me-2"></i>API Logs
+            <% end %>
+            <%= link_to "#", class: "btn btn-outline-success d-flex align-items-center justify-content-start" do %>
+              <i class="bi bi-file-earmark-arrow-down me-2"></i>Export Report
+            <% end %>
+            <%= link_to quickbooks_status_path, class: "btn btn-outline-info d-flex align-items-center justify-content-start" do %>
+              <i class="bi bi-heart-pulse me-2"></i>System Health
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Agency Sync Info -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="bi bi-info-circle me-2"></i>
+            Agency Sync Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <h6 class="small text-muted mb-2">Sync Scope</h6>
+            <p class="mb-0">
+              <i class="bi bi-shield-check text-success me-2"></i>
+              Only <%= @current_agency %> data is visible and synced
+            </p>
+          </div>
+          
+          <div class="mb-3">
+            <h6 class="small text-muted mb-2">Security Features</h6>
+            <ul class="small mb-0 ps-3">
+              <li>Separate QuickBooks credentials per agency</li>
+              <li>Encrypted token storage</li>
+              <li>Role-based access control</li>
+            </ul>
+          </div>
+          
+          <div class="mb-3">
+            <h6 class="small text-muted mb-2">Data Isolation</h6>
+            <p class="small mb-0">Agencies cannot access each other's financial data. All sync operations are scoped to your agency only.</p>
+          </div>
+          
+          <hr>
+          <div class="text-center">
+            <span class="badge bg-info px-3 py-2">
+              <i class="bi bi-shield-check me-1"></i>
+              Agency-Scoped Integration
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Support Card -->
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">
+            <i class="bi bi-headset me-2"></i>
+            Need Help?
+          </h6>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted mb-3">Having trouble with QuickBooks integration?</p>
+          <div class="d-grid gap-2">
+            <%= link_to "#", class: "btn btn-sm btn-outline-secondary" do %>
+              <i class="bi bi-file-text me-1"></i>Documentation
+            <% end %>
+            <%= link_to "#", class: "btn btn-sm btn-outline-primary" do %>
+              <i class="bi bi-chat-dots me-1"></i>Contact Support
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Sync Modal -->
+<div class="modal fade" id="syncScheduleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Schedule Automatic Sync</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Configure automatic sync schedule for <%= @current_agency %> data.</p>
+        <!-- Add schedule form here -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary">Save Schedule</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for Auto-sync Toggle -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const autoSyncSwitch = document.getElementById('autoSyncSwitch');
+  if (autoSyncSwitch) {
+    autoSyncSwitch.addEventListener('change', function() {
+      const url = this.dataset.url;
+      const param = this.dataset.param;
+      const value = this.checked;
+      
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ [param]: value })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Show success message
+          const toast = new bootstrap.Toast(document.getElementById('syncToast'));
+          document.getElementById('toastMessage').textContent = 
+            value ? 'Auto-sync enabled' : 'Auto-sync disabled';
+          toast.show();
+        }
+      });
+    });
+  }
+});
+</script>
+
+<!-- Toast for notifications -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+  <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <i class="bi bi-check-circle text-success me-2"></i>
+      <strong class="me-auto">QuickBooks Settings</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+    <div class="toast-body" id="toastMessage">
+      Settings updated successfully.
+    </div>
+  </div>
+</div>

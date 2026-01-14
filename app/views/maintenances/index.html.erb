@@ -42,20 +42,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- GANTT CHART ---
+  // --- GANTT CHART --- (SAFE VERSION)
   const ganttCtx = document.getElementById('maintenanceGanttChart').getContext('2d');
-  const vehicles = <%= raw @maintenances.map { |m| "#{m.vehicle.make} - #{m.vehicle.license_plate}" }.uniq.to_json %> || [];
+  
+  // SAFE DATA PREPARATION
   const ganttDatasets = <%= raw @maintenances.map { |m|
     {
-      label: "#{m.details} (#{m.status})",
+      label: "#{m.details.presence || m.service_type || 'Maintenance'} (#{m.status.presence || 'Pending'})",
       backgroundColor: m.status == 'Completed' ? 'rgba(75, 192, 192, 0.7)' : 'rgba(255, 99, 132, 0.7)',
       data: [{
-        x: m.date.strftime("%Y-%m-%d"),
-        x2: (m.date + 1.day).strftime("%Y-%m-%d"),
-        y: "#{m.vehicle.make} - #{m.vehicle.license_plate}"
+        x: m.start_date ? m.start_date.strftime("%Y-%m-%d") : Date.today.strftime("%Y-%m-%d"),
+        x2: m.end_date ? m.end_date.strftime("%Y-%m-%d") : (Date.today + 1.day).strftime("%Y-%m-%d"),
+        y: m.vehicle ? "#{m.vehicle.make} - #{m.vehicle.license_plate.presence || m.vehicle.registration_number}" : "Unknown Vehicle"
       }]
     }
-  }.to_json %> || [];
+  }.to_json %>;
 
   if (ganttDatasets.length > 0) {
     ganttDatasets.forEach(ds => {
@@ -68,7 +69,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   new Chart(ganttCtx, {
     type: 'bar',
-    data: { labels: vehicles, datasets: ganttDatasets },
+    data: { 
+      datasets: ganttDatasets 
+    },
     options: {
       indexAxis: 'y',
       plugins: {
@@ -89,10 +92,10 @@ document.addEventListener("DOMContentLoaded", () => {
         x: {
           type: 'time',
           time: { unit: 'day' },
-          title: { display: true, text: 'Date' },
-          min: vehicles.length > 0 ? undefined : null
+          title: { display: true, text: 'Date' }
         },
         y: {
+          type: 'category',
           title: { display: true, text: 'Vehicles' }
         }
       }
@@ -119,17 +122,24 @@ document.addEventListener("DOMContentLoaded", () => {
   <tbody>
     <% @maintenances.each do |m| %>
       <tr>
-        <td><%= m.date.strftime("%Y-%m-%d") %></td>
-        <td><%= m.details %></td>
+        <!-- SAFE DATE FORMATTING -->
+        <td><%= display_date(m.date) %></td>
+        <td><%= m.details.presence || m.service_type || "N/A" %></td>
         <td>
           <span class="badge <%= m.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
-            <%= m.status %>
+            <%= m.status.presence || 'Pending' %>
           </span>
         </td>
         <td>
           <%= urgency_badge(m) %>
         </td>
-        <td><%= m.vehicle.make %> - <%= m.vehicle.license_plate %></td>
+        <td>
+          <% if m.vehicle.present? %>
+            <%= m.vehicle.make %> - <%= m.vehicle.license_plate.presence || m.vehicle.registration_number %>
+          <% else %>
+            Vehicle not found
+          <% end %>
+        </td>
         <td>
           <%= link_to "Edit", edit_maintenance_path(m), class: "btn btn-sm btn-warning me-1" %>
           <%= link_to "Delete", m, method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-danger" %>

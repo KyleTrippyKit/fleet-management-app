@@ -1,3 +1,4 @@
+# app/models/user.rb
 class User < ApplicationRecord
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
@@ -136,11 +137,16 @@ class User < ApplicationRecord
   end
   
   # ========================
-  # INVOICE PERMISSIONS
+  # NEW INVOICE PERMISSIONS (Added for new controller)
   # ========================
   def can_create_invoices?
     # Only VMCOTT staff create invoices (they are the service provider)
-    vmcott_staff? || admin?
+    vmcott_staff? || admin? || finance?
+  end
+  
+  def can_edit_invoices?
+    # Only VMCOTT and finance can edit invoices
+    vmcott_staff? || admin? || finance?
   end
   
   def can_review_invoices?
@@ -166,9 +172,9 @@ class User < ApplicationRecord
     finance? || fleet_manager? || admin?
   end
   
-  def can_edit_invoices?
-    # Only VMCOTT can edit invoices they created
-    vmcott_staff? || admin?
+  def can_sync_quickbooks?
+    # VMCOTT and finance can sync with QuickBooks
+    vmcott_staff? || finance? || admin?
   end
   
   def can_access_invoices?
@@ -236,7 +242,7 @@ class User < ApplicationRecord
     elsif agency.present?
       # Agency staff only see their agency's invoices
       # Join with vehicles that belong to this agency
-      Invoice.joins(:vehicle).where(vehicles: { agency_id: agency.id })
+      Invoice.joins(:vehicle).where(vehicles: { service_owner: agency_code })
     else
       Invoice.none
     end
@@ -378,5 +384,9 @@ class User < ApplicationRecord
   
   def show_maintenance_tab?
     can_see_maintenance_data? && !driver?
+  end
+  
+  def show_quickbooks_sync_button?
+    can_sync_quickbooks? && !driver?
   end
 end

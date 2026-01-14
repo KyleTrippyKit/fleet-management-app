@@ -24,14 +24,6 @@ Rails.application.routes.draw do
   root to: 'welcome#index'
 
   # ========================
-  # PTSC Dashboard Namespace
-  # ========================
-  namespace :ptsc_dashboard do
-    get 'vehicle_locations', to: 'dashboard#vehicle_locations'
-    get 'fleet_overview', to: 'fleet#index', as: 'fleet_overview'
-  end
-
-  # ========================
   # Dashboard routes
   # ========================
   get 'ptsc-dashboard', to: 'ptsc_dashboard#index', as: 'ptsc_dashboard'
@@ -43,9 +35,29 @@ Rails.application.routes.draw do
   post 'main-dashboard/alerts/:id/resolve', to: 'main_dashboard#resolve_alert', as: 'resolve_alert_main_dashboard'
 
   # ========================
+  # PTSC DASHBOARD NAMESPACED ROUTES
+  # ========================
+  # PTSC Transactions
+  resources :alerts do
+    member do
+      post :acknowledge
+      post :resolve
+      post :escalate
+    end
+    collection do
+      get :needs_attention
+      get :recent
+      get :summary
+    end
+  end
+  
+  # Add other PTSC-specific routes here as needed
+  # resources :vehicles, only: [:index, :show]
+  # resources :invoices, only: [:index, :show]
+
+  # ========================
   # Other Welcome Routes
   # ========================
-  # Remove the duplicate 'welcome' route since root now points to welcome#index
   get 'logout', to: 'welcome#logout', as: 'logout_confirmation'
   get 'scan', to: 'welcome#scan', as: 'scan'
   get 'dashboard', to: 'welcome#dashboard', as: 'dashboard'
@@ -110,13 +122,16 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # INVOICE ROUTES (UPDATED)
+  # COMPREHENSIVE INVOICE ROUTES
   # ========================
   resources :invoices do
     collection do
       get :reports
-      get :export
+      get :dashboard
       get :summary
+      get :bulk_actions
+      post :process_bulk
+      post :sync_quickbooks  # Added bulk sync route
     end
     
     member do
@@ -125,7 +140,114 @@ Rails.application.routes.draw do
       post :dispute
       get :download
       get :print
+      get :payment_history
+      post :sync_to_quickbooks
+      post :create_transaction
+      post :create_pos_transaction
     end
+  end
+
+  # ========================
+  # REGULAR TRANSACTIONS ROUTES (For all agencies/global)
+  # Keep these if you want global transactions accessible to all
+  # ========================
+  resources :transactions do
+    collection do
+      get :reports
+      get :export
+      get :reconcile
+      post :process_reconciliation
+      get :dashboard
+    end
+    
+    member do
+      post :void
+      post :refund
+      get :receipt
+    end
+  end
+
+  # ========================
+  # PURCHASE ORDERS ROUTES
+  # ========================
+  resources :purchase_orders do
+    collection do
+      get :reports
+      get :export
+      get :pending_approval
+      post :bulk_approve
+    end
+    
+    member do
+      post :approve
+      post :reject
+      post :convert_to_invoice
+      get :print
+    end
+    
+    resources :purchase_order_items
+  end
+
+  # ========================
+  # QUOTATIONS ROUTES
+  # ========================
+  resources :quotations do
+    collection do
+      get :reports
+      get :export
+      get :pending
+      get :expired
+    end
+    
+    member do
+      post :accept
+      post :reject
+      post :convert_to_purchase_order
+      get :print
+      get :email
+    end
+  end
+
+  # ========================
+  # POS TRANSACTIONS ROUTES
+  # ========================
+  resources :pos_transactions do
+    collection do
+      get :dashboard
+      get :reports
+      get :export
+      get :today
+      get :voided
+      post :process_payment
+    end
+    
+    member do
+      post :void
+      post :refund
+      get :receipt
+      get :reprint
+    end
+  end
+
+  # ========================
+  # QUICKBOOKS INTEGRATION ROUTES
+  # ========================
+  namespace :quickbooks do
+    # Agency-specific QuickBooks routes
+    get 'dashboard', to: 'dashboard#index', as: 'dashboard'
+    get 'settings', to: 'settings#index', as: 'settings'
+    post 'settings', to: 'settings#update'
+    
+    # Agency-specific connection
+    get 'connection', to: 'connection#index', as: 'connection'
+    post 'connection/authenticate', to: 'connection#authenticate'
+    post 'connection/disconnect', to: 'connection#disconnect'
+    
+    # Agency-specific sync
+    post 'sync/all', to: 'sync#all', as: 'sync_all'
+    post 'sync/invoices', to: 'sync#invoices', as: 'sync_invoices'
+    post 'sync/transactions', to: 'sync#transactions', as: 'sync_transactions'
+    get 'status', to: 'status#index', as: 'status'
   end
 
   # ========================
@@ -163,6 +285,13 @@ Rails.application.routes.draw do
   
   # Quick reports
   resources :quick_reports, only: [:create]
+
+  # ========================
+  # Financial Dashboard
+  # ========================
+  get 'financial-dashboard', to: 'financial_dashboard#index', as: 'financial_dashboard'
+  get 'financial-dashboard/cashflow', to: 'financial_dashboard#cashflow', as: 'cashflow_dashboard'
+  get 'financial-dashboard/aged_receivables', to: 'financial_dashboard#aged_receivables', as: 'aged_receivables'
 
   # ========================
   # Public routes

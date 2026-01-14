@@ -1,4 +1,3 @@
-# app/helpers/vehicles_helper.rb
 module VehiclesHelper
   # Main method - simplified and fixed
   def vehicle_image(vehicle, variant: :medium, **html_options)
@@ -105,7 +104,7 @@ module VehiclesHelper
     vehicle.gallery_photos.attached?
   end
   
-  # Simple mapping for service owner badges - KEEP THIS METHOD FOR INDEX.HTML.ERB
+  # Simple mapping for service owner badges
   def service_owner_badge_class(owner)
     case owner.to_s
     when 'Police'
@@ -139,7 +138,7 @@ module VehiclesHelper
     end
   end
   
-  # Owner badge color for analytics page (FIXED - WAS MISSING)
+  # Owner badge color for analytics page
   def owner_badge_color(owner)
     case owner.to_s
     when 'Police'
@@ -153,7 +152,7 @@ module VehiclesHelper
     end
   end
   
-  # Utilization badge color for analytics page (FIXED - WAS MISSING)
+  # Utilization badge color for analytics page
   def utilization_badge_color(utilization)
     case utilization.to_f
     when 70..100
@@ -164,9 +163,46 @@ module VehiclesHelper
       'danger'
     end
   end
-end
 
- # Insurance status badge
+  # =====================================================
+  # MAINTENANCE HELPER METHODS - ADDED
+  # =====================================================
+  
+  # Safe date formatting
+  def format_date(date, format = "%b %d, %Y")
+    date.present? ? date.strftime(format) : "Date not set"
+  end
+
+  # Safe date for tables
+  def display_date(date, format = "%Y-%m-%d")
+    date.present? ? date.strftime(format) : "-"
+  end
+
+  # Urgency badge helper
+  def urgency_badge(maintenance)
+    urgency = maintenance.urgency.presence || 'routine'
+    label = urgency.titleize
+    css_class = case urgency.downcase
+                when 'emergency', 'high' then 'bg-danger'
+                when 'scheduled', 'medium' then 'bg-warning text-dark'
+                when 'routine', 'low' then 'bg-primary'
+                else 'bg-secondary'
+                end
+    
+    content_tag(:span, label, class: "badge #{css_class}")
+  end
+
+  # Owner badge class
+  def owner_badge_class(owner)
+    case owner.to_s
+    when 'Police' then 'badge bg-info'
+    when 'Fire Service' then 'badge bg-danger'
+    when 'PTSC' then 'badge bg-primary'
+    else 'badge bg-secondary'
+    end
+  end
+  
+  # Insurance status badge
   def insurance_status_badge(vehicle)
     content_tag(:span, 
                 vehicle.insurance_status_display, 
@@ -212,3 +248,4 @@ end
               title: "#{active} active"))
     end
   end
+end
