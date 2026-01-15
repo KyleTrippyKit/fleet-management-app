@@ -1,0 +1,849 @@
+<%# app/views/quotations/_form.html.erb %>
+<%= form_with model: @quotation, local: true, class: 'tt-quotation-form' do |f| %>
+  <% if @quotation.errors.any? %>
+    <div class="alert alert-danger">
+      <h4><%= pluralize(@quotation.errors.count, "error") %> prohibited this quotation from being saved:</h4>
+      <ul>
+        <% @quotation.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <!-- Header Section -->
+  <div class="form-header mb-4" style="background: linear-gradient(135deg, <%= @agency&.gradient_colors[:start] || '#4a148c' %> 0%, <%= @agency&.gradient_colors[:end] || '#6a1b9a' %> 100%);">
+    <div class="row align-items-center">
+      <div class="col-md-2 text-center">
+        <div class="gov-logo-placeholder">
+          <div class="logo-circle" style="color: <%= @agency&.gradient_colors[:start] || '#4a148c' %>;">
+            <%= @agency&.code || 'TT' %>
+          </div>
+          <small>Government of Trinidad and Tobago</small>
+        </div>
+      </div>
+      <div class="col-md-8 text-center">
+        <h1 class="form-title">REQUEST FOR QUOTATION</h1>
+        <h3 class="form-subtitle"><%= @agency&.display_name || 'Judiciary of Trinidad and Tobago' %></h3>
+        <p class="form-code">RFQ Form <%= @agency&.code || 'JOTT' %>-01</p>
+      </div>
+      <div class="col-md-2 text-center">
+        <div class="form-number">
+          <p class="mb-1"><strong>Quote #</strong></p>
+          <p class="quote-number"><%= @quotation.quote_number || 'Auto-generated' %></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Form Section -->
+  <div class="form-body">
+    <!-- Section 1: Basic Information -->
+    <div class="form-section mb-4">
+      <div class="section-header">
+        <h4>SECTION 1: BASIC INFORMATION</h4>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <%= f.label :vendor, "VENDOR/SUPPLIER NAME", class: 'form-label required' %>
+              <%= f.text_field :vendor, class: 'form-control gov-input', placeholder: "Enter full vendor/supplier name", required: true,
+                  minlength: 2, maxlength: 100, pattern: '.{2,}' %>
+              <small class="form-text text-muted">Enter the full legal name of the vendor/supplier company</small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <%= f.label :vehicle_id, "VEHICLE ASSIGNED", class: 'form-label' %>
+              <%= f.collection_select :vehicle_id, @vehicles, :id, :license_plate_with_details, 
+                  { include_blank: 'Select Vehicle (if applicable)' }, 
+                  class: 'form-select gov-select' %>
+              <small class="form-text text-muted">Optional: Select a vehicle for vehicle-specific quotations</small>
+            </div>
+          </div>
+        </div>
+        
+        <div class="row">
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <%= f.label :valid_from, "QUOTATION DATE", class: 'form-label required' %>
+              <%= f.date_field :valid_from, class: 'form-control gov-input', required: true,
+                  min: Date.today, max: 1.year.from_now.to_date %>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <%= f.label :valid_to, "VALID UNTIL", class: 'form-label required' %>
+              <%= f.date_field :valid_to, class: 'form-control gov-input', required: true,
+                  min: Date.tomorrow, max: 2.years.from_now.to_date %>
+              <small class="form-text text-muted">Must be after quotation date</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <%= f.label :amount, "QUOTED AMOUNT (TTD)", class: 'form-label required' %>
+              <div class="input-group">
+                <span class="input-group-text gov-currency">$</span>
+                <%= f.number_field :amount, step: '0.01', min: '0.01', max: '9999999.99',
+                    class: 'form-control gov-input', placeholder: "0.00", required: true,
+                    pattern: '^\d+(\.\d{1,2})?$' %>
+              </div>
+              <small class="form-text text-muted">Excluding VAT (12.5% will be added automatically)</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Line Items -->
+    <div class="form-section mb-4">
+      <div class="section-header">
+        <h4>SECTION 2: ITEMS/SERVICES REQUIRED</h4>
+        <p class="section-subtitle">List all items/services for which quotation is being requested</p>
+      </div>
+      <div class="section-body">
+        <div id="line-items">
+          <%= f.fields_for :quotation_line_items do |line_item| %>
+            <%= render 'line_item_fields', f: line_item %>
+          <% end %>
+        </div>
+        
+        <div class="text-center mt-3">
+          <button type="button" id="add-line-item" class="btn btn-outline-primary gov-btn">
+            <i class="bi bi-plus-circle"></i> ADD ANOTHER ITEM
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Terms & Conditions -->
+    <div class="form-section mb-4">
+      <div class="section-header">
+        <h4>SECTION 3: TERMS & CONDITIONS</h4>
+      </div>
+      <div class="section-body">
+        <div class="form-group mb-3">
+          <%= f.label :notes, "SPECIAL INSTRUCTIONS / ADDITIONAL TERMS", class: 'form-label' %>
+          <%= f.text_area :notes, rows: 4, class: 'form-control gov-textarea', 
+              placeholder: "Enter any special instructions, delivery terms, payment terms, or additional conditions...",
+              maxlength: 1000 %>
+          <small class="form-text text-muted">Maximum 1000 characters</small>
+        </div>
+        
+        <div class="terms-checklist">
+          <div class="form-check mb-2">
+            <%= f.check_box :terms_accepted, class: 'form-check-input', required: true, id: 'terms1' %>
+            <%= f.label :terms_accepted, "Quotation includes all applicable taxes (VAT 12.5%)", 
+                class: 'form-check-label', for: 'terms1' %>
+          </div>
+          <div class="form-check mb-2">
+            <%= f.check_box :prices_firm, class: 'form-check-input', required: true, id: 'terms2' %>
+            <%= f.label :prices_firm, "Prices quoted are firm and valid until date specified", 
+                class: 'form-check-label', for: 'terms2' %>
+          </div>
+          <div class="form-check mb-2">
+            <%= f.check_box :delivery_included, class: 'form-check-input', id: 'terms3' %>
+            <%= f.label :delivery_included, "Delivery included in quoted price (if applicable)", 
+                class: 'form-check-label', for: 'terms3' %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Contact Information -->
+    <div class="form-section mb-4">
+      <div class="section-header">
+        <h4>SECTION 4: CONTACT INFORMATION</h4>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label class="form-label">PREPARED BY</label>
+              <input type="text" class="form-control gov-input" 
+                     value="<%= current_user.name || current_user.email %>" readonly>
+              <small class="form-text text-muted">System User ID: <%= current_user.id %></small>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group mb-3">
+              <label class="form-label">DATE PREPARED</label>
+              <input type="text" class="form-control gov-input" 
+                     value="<%= Date.today.strftime('%d %B, %Y') %>" readonly>
+              <small class="form-text text-muted">System Date</small>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Agency Contact Info -->
+        <% if @agency %>
+          <div class="card border-info mt-3">
+            <div class="card-header bg-info bg-opacity-10 border-info py-2">
+              <h6 class="mb-0 fw-bold"><i class="bi bi-info-circle me-2"></i>AGENCY CONTACT</h6>
+            </div>
+            <div class="card-body py-2">
+              <p class="mb-1 small">
+                <i class="bi bi-geo-alt me-1"></i>
+                <%= @agency.agency_config[:address] %>
+              </p>
+              <p class="mb-1 small"><i class="bi bi-telephone me-1"></i> <%= @agency.agency_config[:phone] %></p>
+              <p class="mb-0 small"><i class="bi bi-envelope me-1"></i> <%= @agency.agency_config[:procurement_email] %></p>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Footer Section -->
+    <div class="form-footer mt-4">
+      <div class="row">
+        <div class="col-md-6">
+          <div class="signature-box">
+            <p class="signature-label">VENDOR AUTHORIZED SIGNATURE</p>
+            <div class="signature-line"></div>
+            <p class="signature-details">Name: _______________________ Date: _______________</p>
+            <p class="signature-details small">Company Stamp: _______________________</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="signature-box">
+            <p class="signature-label"><%= @agency&.short_name || 'JUDICIARY' %> FLEET MANAGEMENT</p>
+            <div class="signature-line"></div>
+            <p class="signature-details">Authorized by: _______________________ Date: _______________</p>
+            <p class="signature-details small">Ref No: <%= @quotation.quote_number || 'Pending' %></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Form Actions -->
+  <div class="form-actions mt-4 pt-4 border-top">
+    <div class="row">
+      <div class="col-md-8">
+        <div class="alert alert-info gov-alert">
+          <i class="bi bi-info-circle"></i>
+          <strong>IMPORTANT:</strong> All quotations are subject to <%= @agency&.display_name || 'Judiciary of Trinidad and Tobago' %> procurement regulations. 
+          Submission of quotation constitutes acceptance of terms. VAT 12.5% applies to all transactions.
+        </div>
+      </div>
+      <div class="col-md-4 text-end">
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+          <%= link_to 'Cancel', quotations_path, class: 'btn btn-outline-secondary gov-btn' %>
+          <%= f.submit 'SAVE AS DRAFT', class: 'btn btn-secondary gov-btn', 
+                name: 'commit', data: { disable_with: 'Saving...' } %>
+          <%= f.submit 'SUBMIT QUOTATION', class: 'btn btn-primary gov-btn',
+                name: 'commit', data: { 
+                  disable_with: 'Submitting...',
+                  confirm: 'Are you sure you want to submit this quotation? This action cannot be undone.'
+                } %>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<!-- Template for new line item -->
+<template id="line-item-template">
+  <div class="line-item-row gov-table-row">
+    <div class="row">
+      <div class="col-md-1">
+        <div class="form-group">
+          <label class="form-label">ITEM NO.</label>
+          <input type="text" class="form-control gov-input item-number" readonly>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="form-group">
+          <label class="form-label">DESCRIPTION OF ITEM/SERVICE</label>
+          <input type="text" name="quotation[quotation_line_items_attributes][NEW_RECORD][description]" 
+                 class="form-control gov-input line-item-description" 
+                 placeholder="Describe item/service in detail" required>
+        </div>
+      </div>
+      <div class="col-md-1">
+        <div class="form-group">
+          <label class="form-label">QTY</label>
+          <input type="number" name="quotation[quotation_line_items_attributes][NEW_RECORD][quantity]" 
+                 class="form-control gov-input line-item-quantity" value="1" min="1" 
+                 max="9999" required>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+          <label class="form-label">UNIT PRICE (TTD)</label>
+          <div class="input-group">
+            <span class="input-group-text gov-currency">$</span>
+            <input type="number" step="0.01" min="0.01" max="9999999.99"
+                   name="quotation[quotation_line_items_attributes][NEW_RECORD][unit_price]" 
+                   class="form-control gov-input line-item-unit-price" placeholder="0.00" 
+                   required>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <div class="form-group">
+          <label class="form-label">TOTAL (TTD)</label>
+          <input type="text" class="form-control gov-input line-item-total" readonly placeholder="0.00">
+        </div>
+      </div>
+      <div class="col-md-1">
+        <div class="form-group">
+          <label class="form-label">&nbsp;</label>
+          <button type="button" class="btn btn-sm btn-outline-danger remove-line-item w-100">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="row mt-2">
+      <div class="col-md-12">
+        <div class="form-group">
+          <label class="form-label">SPECIFICATIONS / ADDITIONAL DETAILS</label>
+          <textarea name="quotation[quotation_line_items_attributes][NEW_RECORD][specifications]" 
+                    rows="2" class="form-control gov-textarea line-item-specs" 
+                    placeholder="Enter specifications, model numbers, or additional requirements..."></textarea>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" name="quotation[quotation_line_items_attributes][NEW_RECORD][_destroy]" value="0" class="destroy-field">
+    <hr class="gov-divider">
+  </div>
+</template>
+
+<!-- Custom Styles for T&T Quotation Form -->
+<style>
+.tt-quotation-form {
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.form-header {
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+}
+
+.gov-logo-placeholder {
+  padding: 10px;
+}
+
+.logo-circle {
+  width: 60px;
+  height: 60px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 24px;
+  margin: 0 auto 10px;
+  border: 2px solid rgba(255,255,255,0.3);
+}
+
+.form-title {
+  font-weight: 700;
+  font-size: 28px;
+  margin-bottom: 5px;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.form-subtitle {
+  font-weight: 600;
+  font-size: 18px;
+  margin-bottom: 5px;
+  color: rgba(255,255,255,0.9);
+}
+
+.form-code {
+  font-size: 14px;
+  color: rgba(255,255,255,0.8);
+  font-style: italic;
+}
+
+.form-number {
+  background: rgba(255,255,255,0.9);
+  color: #1a237e;
+  padding: 10px;
+  border-radius: 4px;
+  border: 2px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(10px);
+}
+
+.quote-number {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 18px;
+  color: #1a237e;
+}
+
+.form-section {
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.section-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #2c3e50;
+  padding: 12px 20px;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.section-header h4 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 18px;
+  color: #2c3e50;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  color: #6c757d;
+  margin: 5px 0 0;
+}
+
+.section-body {
+  padding: 20px;
+}
+
+.form-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2c3e50;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.form-label.required::after {
+  content: " *";
+  color: #dc3545;
+}
+
+.gov-input, .gov-select, .gov-textarea {
+  border: 2px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  transition: all 0.15s ease-in-out;
+}
+
+.gov-input:focus, .gov-select:focus, .gov-textarea:focus {
+  border-color: #3949ab;
+  box-shadow: 0 0 0 0.2rem rgba(57, 73, 171, 0.15);
+  background-color: #fff;
+}
+
+.gov-input:read-only {
+  background-color: #f8f9fa;
+  border-color: #ced4da;
+}
+
+.gov-currency {
+  background-color: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-right: none;
+  font-weight: bold;
+  color: #495057;
+}
+
+.terms-checklist {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  border-left: 4px solid #3949ab;
+}
+
+.form-check-label {
+  font-size: 14px;
+  color: #495057;
+  cursor: pointer;
+}
+
+.form-check-input:checked {
+  background-color: #3949ab;
+  border-color: #3949ab;
+}
+
+.signature-box {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 4px;
+  border: 1px dashed #adb5bd;
+  text-align: center;
+  height: 100%;
+}
+
+.signature-label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.signature-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, #adb5bd 50%, transparent 100%);
+  margin: 20px 0;
+}
+
+.signature-details {
+  font-size: 13px;
+  color: #6c757d;
+  margin-top: 10px;
+}
+
+.gov-btn {
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: none;
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+.gov-btn.btn-primary {
+  background: linear-gradient(135deg, #3949ab 0%, #303f9f 100%);
+  color: white;
+}
+
+.gov-btn.btn-secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+  color: white;
+}
+
+.gov-btn.btn-outline-secondary {
+  background: white;
+  border: 2px solid #6c757d;
+  color: #6c757d;
+}
+
+.gov-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.gov-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gov-alert {
+  background-color: #e3f2fd;
+  border-left: 4px solid #3949ab;
+  color: #2c3e50;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.line-item-row {
+  background-color: #f8f9fa;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  border-left: 4px solid #3949ab;
+  transition: all 0.2s ease;
+}
+
+.line-item-row:hover {
+  background-color: #e9ecef;
+  border-left-color: #283593;
+}
+
+.gov-table-row {
+  border: 1px solid #dee2e6;
+}
+
+.gov-divider {
+  margin: 20px 0;
+  border-top: 2px solid #dee2e6;
+  opacity: 0.5;
+}
+
+/* Validation styles */
+.gov-input:invalid:not(:focus):not(:placeholder-shown) {
+  border-color: #dc3545;
+}
+
+.gov-input:valid:not(:focus):not(:placeholder-shown) {
+  border-color: #28a745;
+}
+
+/* For smaller screens */
+@media (max-width: 768px) {
+  .form-title {
+    font-size: 22px;
+  }
+  
+  .form-subtitle {
+    font-size: 16px;
+  }
+  
+  .section-body {
+    padding: 15px;
+  }
+  
+  .gov-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+    min-width: 120px;
+  }
+  
+  .logo-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  
+  .form-actions .d-flex {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .form-actions .gov-btn {
+    width: 100%;
+  }
+}
+
+/* Print styles */
+@media print {
+  .tt-quotation-form {
+    background: white;
+    padding: 0;
+    border: none;
+  }
+  
+  .form-header {
+    background: #4a148c !important;
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+  }
+  
+  .gov-btn, .remove-line-item, #add-line-item {
+    display: none !important;
+  }
+  
+  .form-section {
+    border: 1px solid #000;
+    break-inside: avoid;
+  }
+  
+  .signature-box {
+    border: 1px dashed #000;
+  }
+  
+  .gov-input, .gov-select, .gov-textarea {
+    border: 1px solid #ccc;
+    background: white !important;
+  }
+  
+  .gov-input:read-only {
+    border: none;
+    background: transparent !important;
+  }
+}
+</style>
+
+<!-- JavaScript for line item management -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const lineItemsContainer = document.getElementById('line-items');
+  const addButton = document.getElementById('add-line-item');
+  const template = document.getElementById('line-item-template');
+  
+  // Counter for new line items
+  let newLineItemCounter = <%= @quotation.quotation_line_items.size || 0 %>;
+  
+  // Initialize item numbers
+  updateItemNumbers();
+  
+  // Add new line item
+  addButton.addEventListener('click', function() {
+    const newItem = template.content.cloneNode(true);
+    const itemRow = newItem.querySelector('.line-item-row');
+    
+    // Generate a unique identifier for this new line item
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const newRecordId = 'new_' + timestamp + '_' + random;
+    
+    // Update all input names with the new record ID
+    updateInputNames(itemRow, newRecordId);
+    
+    lineItemsContainer.appendChild(itemRow);
+    updateItemNumbers();
+    attachLineItemListeners(itemRow);
+    
+    // Increment counter
+    newLineItemCounter++;
+  });
+  
+  // Function to update input names with correct record ID
+  function updateInputNames(row, recordId) {
+    // Find all inputs with name attribute containing NEW_RECORD
+    const inputs = row.querySelectorAll('[name]');
+    
+    inputs.forEach(input => {
+      // Replace NEW_RECORD with the actual record ID
+      input.name = input.name.replace(/NEW_RECORD/g, recordId);
+    });
+    
+    // Also update data attributes if needed
+    const destroyField = row.querySelector('.destroy-field');
+    if (destroyField) {
+      destroyField.value = '0'; // Ensure it's not marked for destruction
+    }
+  }
+  
+  // Function to update item numbers
+  function updateItemNumbers() {
+    document.querySelectorAll('.line-item-row').forEach((row, index) => {
+      const itemNumberField = row.querySelector('.item-number');
+      if (itemNumberField) {
+        itemNumberField.value = index + 1;
+      }
+    });
+  }
+  
+  // Function to calculate totals
+  function calculateTotal(row) {
+    const quantityInput = row.querySelector('.line-item-quantity');
+    const unitPriceInput = row.querySelector('.line-item-unit-price');
+    const totalField = row.querySelector('.line-item-total');
+    
+    if (quantityInput && unitPriceInput && totalField) {
+      const quantity = parseFloat(quantityInput.value) || 0;
+      const unitPrice = parseFloat(unitPriceInput.value) || 0;
+      const total = quantity * unitPrice;
+      
+      totalField.value = total.toFixed(2);
+      
+      // Format with currency symbol if needed
+      if (!totalField.value.includes('$')) {
+        totalField.value = '$' + totalField.value;
+      }
+    }
+  }
+  
+  // Function to attach event listeners to line item
+  function attachLineItemListeners(row) {
+    // Calculate total when quantity or price changes
+    const quantityInput = row.querySelector('.line-item-quantity');
+    const priceInput = row.querySelector('.line-item-unit-price');
+    
+    if (quantityInput) {
+      quantityInput.addEventListener('input', function() {
+        calculateTotal(row);
+      });
+    }
+    
+    if (priceInput) {
+      priceInput.addEventListener('input', function() {
+        calculateTotal(row);
+      });
+    }
+    
+    // Remove button
+    const removeBtn = row.querySelector('.remove-line-item');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function() {
+        const row = this.closest('.line-item-row');
+        const destroyField = row.querySelector('.destroy-field');
+        
+        if (destroyField) {
+          // If it's a persisted record, mark for destruction
+          if (destroyField.name.includes('][id]') || destroyField.name.includes('[0]') || destroyField.name.includes('[1]') || destroyField.name.includes('[2]')) {
+            // This is likely a persisted record, mark for destruction
+            destroyField.value = '1';
+            row.style.display = 'none';
+          } else {
+            // This is a new record, just remove it
+            row.remove();
+            updateItemNumbers();
+          }
+        } else {
+          // No destroy field, just remove
+          row.remove();
+          updateItemNumbers();
+        }
+      });
+    }
+    
+    // Calculate initial total
+    calculateTotal(row);
+  }
+  
+  // Attach listeners to existing line items
+  document.querySelectorAll('.line-item-row').forEach(row => {
+    attachLineItemListeners(row);
+  });
+  
+  // Also attach a global listener for remove buttons (for dynamically added items)
+  lineItemsContainer.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-line-item') || e.target.closest('.remove-line-item')) {
+      const removeBtn = e.target.classList.contains('remove-line-item') ? e.target : e.target.closest('.remove-line-item');
+      const row = removeBtn.closest('.line-item-row');
+      
+      const destroyField = row.querySelector('.destroy-field');
+      if (destroyField) {
+        if (destroyField.name.includes('new_')) {
+          // New record, just remove it
+          row.remove();
+          updateItemNumbers();
+        } else {
+          // Persisted record, mark for destruction
+          destroyField.value = '1';
+          row.style.display = 'none';
+        }
+      } else {
+        // No destroy field, just remove
+        row.remove();
+        updateItemNumbers();
+      }
+    }
+  });
+  
+  // Recalculate all totals when page loads
+  document.querySelectorAll('.line-item-row').forEach(row => {
+    calculateTotal(row);
+  });
+  
+  // Handle form submission to ensure all line items are included
+  const form = document.querySelector('.tt-quotation-form');
+  if (form) {
+    form.addEventListener('submit', function() {
+      // Update item numbers one last time before submission
+      updateItemNumbers();
+      
+      // Ensure all line items are properly included
+      document.querySelectorAll('.line-item-row').forEach((row, index) => {
+        const quantityInput = row.querySelector('.line-item-quantity');
+        const priceInput = row.querySelector('.line-item-unit-price');
+        
+        if (quantityInput && priceInput) {
+          // Ensure values are valid
+          if (!quantityInput.value || parseFloat(quantityInput.value) <= 0) {
+            quantityInput.value = '1';
+          }
+          if (!priceInput.value || parseFloat(priceInput.value) < 0) {
+            priceInput.value = '0.00';
+          }
+        }
+      });
+    });
+  }
+});
+</script>

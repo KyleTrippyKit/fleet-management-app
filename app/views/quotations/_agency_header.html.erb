@@ -1,0 +1,80 @@
+<%# app/views/quotations/_agency_header.html.erb %>
+<%# This partial shows different headers based on agency code %>
+<%
+  agency_name = @quotation.vehicle&.service_owner || @quotation.vehicle&.agency&.name || 'Fleet Management System'
+  agency_code = @quotation.vehicle&.agency&.code || 'FLEET'
+  
+  # Define agency-specific colors and logos
+  agency_config = {
+    'PTSC' => {
+      bg_color: 'bg-primary',
+      text_color: 'text-white',
+      logo: 'bus-front',
+      accent_color: '#1a73e8'
+    },
+    'TTPS' => {
+      bg_color: 'bg-danger',
+      text_color: 'text-white', 
+      logo: 'shield',
+      accent_color: '#dc3545'
+    },
+    'TTDF' => {
+      bg_color: 'bg-success',
+      text_color: 'text-white',
+      logo: 'shield-fill',
+      accent_color: '#198754'
+    },
+    'VMCOTT' => {
+      bg_color: 'bg-info',
+      text_color: 'text-white',
+      logo: 'shield-check',
+      accent_color: '#0dcaf0'
+    }
+  }
+  
+  config = agency_config[agency_code] || {
+    bg_color: 'bg-secondary',
+    text_color: 'text-white',
+    logo: 'building',
+    accent_color: '#6c757d'
+  }
+%>
+
+<div class="card border-0 shadow-sm mb-4 agency-header-card" style="border-left: 8px solid <%= config[:accent_color] %>;">
+  <div class="card-body p-4 <%= config[:bg_color] %> <%= config[:text_color] %>">
+    <div class="row align-items-center">
+      <div class="col-auto">
+        <div class="agency-logo d-flex align-items-center">
+          <div class="agency-icon me-3" style="background: rgba(255,255,255,0.2);">
+            <i class="bi bi-<%= config[:logo] %> fa-3x"></i>
+          </div>
+          <div class="agency-text">
+            <h1 class="h3 mb-0 fw-bold"><%= agency_name.upcase %></h1>
+            <p class="mb-0 opacity-75">FLEET MANAGEMENT DIVISION</p>
+          </div>
+        </div>
+      </div>
+      <div class="col text-end">
+        <div class="quotation-badge bg-white text-dark px-3 py-2 rounded-3 d-inline-block" style="border-left: 4px solid <%= config[:accent_color] %>;">
+          <h4 class="mb-0 fw-bold">REQUEST FOR QUOTATION</h4>
+          <small>REFERENCE: <strong><%= @quotation.quote_number %></strong></small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .agency-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .quotation-badge {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+</style>

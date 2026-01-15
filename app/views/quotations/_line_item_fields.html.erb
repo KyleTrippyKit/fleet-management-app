@@ -1,0 +1,71 @@
+<%# app/views/quotations/_line_item_fields.html.erb %>
+<%# Create a safe reference to handle nil f.object %>
+<% line_item = f.object || QuotationLineItem.new %>
+
+<div class="line-item-row gov-table-row" data-line-item-id="<%= line_item.id || 'new' %>">
+  <div class="row">
+    <div class="col-md-1">
+      <div class="form-group">
+        <label class="form-label">ITEM NO.</label>
+        <input type="text" class="form-control gov-input item-number" readonly 
+               value="<%= (f.options[:child_index] || 0) + 1 %>">
+      </div>
+    </div>
+    <div class="col-md-5">
+      <div class="form-group">
+        <%= f.label :description, "DESCRIPTION OF ITEM/SERVICE", class: 'form-label required' %>
+        <%= f.text_field :description, class: 'form-control gov-input', 
+            placeholder: "Describe item/service in detail", required: true %>
+      </div>
+    </div>
+    <div class="col-md-1">
+      <div class="form-group">
+        <%= f.label :quantity, "QTY", class: 'form-label required' %>
+        <%= f.number_field :quantity, class: 'form-control gov-input', min: 1, required: true %>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="form-group">
+        <%= f.label :unit_price, "UNIT PRICE (TTD)", class: 'form-label required' %>
+        <div class="input-group">
+          <span class="input-group-text gov-currency">$</span>
+          <%= f.number_field :unit_price, step: '0.01', min: '0', 
+              class: 'form-control gov-input', placeholder: "0.00", required: true %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="form-group">
+        <label class="form-label">TOTAL (TTD)</label>
+        <input type="text" class="form-control gov-input total-price" readonly 
+               data-calculated-total="<%= line_item.total_price %>"
+               value="<%= number_to_currency(line_item.total_price, unit: "$") %>" 
+               placeholder="0.00">
+      </div>
+    </div>
+    <div class="col-md-1">
+      <div class="form-group">
+        <label class="form-label">&nbsp;</label>
+        <%= f.hidden_field :_destroy, class: 'destroy-field' %>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-line-item w-100">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-md-12">
+      <div class="form-group">
+        <%= f.label :specifications, "SPECIFICATIONS / ADDITIONAL DETAILS", class: 'form-label' %>
+        <%= f.text_area :specifications, rows: 2, class: 'form-control gov-textarea', 
+            placeholder: "Enter specifications, model numbers, or additional requirements..." %>
+      </div>
+    </div>
+  </div>
+  
+  <% if line_item.persisted? %>
+    <%= f.hidden_field :id %>
+  <% end %>
+  
+  <hr class="gov-divider">
+</div>

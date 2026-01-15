@@ -78,6 +78,10 @@ class Vehicle < ApplicationRecord
     agency&.display_name || service_owner
   end
 
+  def license_plate_with_details
+    "#{license_plate} - #{make} #{model} (#{year_of_manufacture})"
+  end
+
   # ------------------------------------------------------------
   # Scopes for filtering
   # ------------------------------------------------------------

@@ -1,0 +1,150 @@
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col">
+      <h1>Quotations Dashboard</h1>
+    </div>
+    <div class="col-auto">
+      <div class="d-flex gap-2" style="margin-left: -320px;">
+        <%= link_to 'Back to List', quotations_path, class: 'btn btn-outline-secondary' %>
+        <%= link_to 'Reports', reports_quotations_path, class: 'btn btn-info' %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-white bg-primary">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:total_quotations] %></h5>
+          <p class="card-text">Total Quotations</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-warning">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:pending_quotations] %></h5>
+          <p class="card-text">Pending</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-danger">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:expiring_soon] %></h5>
+          <p class="card-text">Expiring Soon</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-success">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= number_to_currency(@stats[:total_amount]) %></h5>
+          <p class="card-text">Total Amount</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Recent Quotations -->
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Recent Quotations</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Quote #</th>
+                  <th>Vendor</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @recent_quotations.each do |quotation| %>
+                  <tr>
+                    <td><%= link_to quotation.quote_number, quotation %></td>
+                    <td><%= quotation.vendor %></td>
+                    <td><%= quotation.formatted_amount %></td>
+                    <td>
+                      <span class="badge <%= quotation.status_badge_class %>">
+                        <%= quotation.display_status %>
+                      </span>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expiring Soon -->
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Quotations Expiring Soon</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Quote #</th>
+                  <th>Vendor</th>
+                  <th>Valid To</th>
+                  <th>Days Left</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @expiring_soon.each do |quotation| %>
+                  <tr>
+                    <td><%= link_to quotation.quote_number, quotation %></td>
+                    <td><%= quotation.vendor %></td>
+                    <td><%= quotation.valid_to %></td>
+                    <td>
+                      <span class="badge <%= quotation.urgency_badge_class %>">
+                        <%= pluralize(quotation.days_until_expiry, 'day') %> left
+                      </span>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Vendors -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Vendors</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <% @stats[:top_vendors].each do |vendor, count| %>
+              <div class="col-md-2 mb-3">
+                <div class="card">
+                  <div class="card-body text-center">
+                    <h6 class="card-title"><%= vendor.truncate(15) %></h6>
+                    <p class="card-text"><%= count %> quotations</p>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

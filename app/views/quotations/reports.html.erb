@@ -1,0 +1,243 @@
+<%# app/views/quotations/reports.html.erb %>
+<div class="container-fluid">
+  <!-- Navigation Breadcrumb Header - Custom layout -->
+  <div class="d-flex align-items-center mb-4">
+    <!-- Left section for breadcrumb and title -->
+    <div class="flex-grow-1">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <%= link_to 'Dashboard', ptsc_dashboard_path, class: 'text-decoration-none' %>
+          </li>
+          <li class="breadcrumb-item">
+            <%= link_to 'Quotations', quotations_path, class: 'text-decoration-none' %>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">Reports</li>
+        </ol>
+      </nav>
+      <h1 class="h2 mb-0 mt-2">Quotation Reports</h1>
+    </div>
+    
+    <!-- Right section for action buttons - pushed left -->
+    <div class="flex-shrink-0" style="position: relative; right: 120px;">
+      <div class="d-flex gap-2">
+        <%= link_to 'Dashboard', dashboard_quotations_path, class: 'btn btn-info gov-btn' if current_user.can_view_quotation_reports? %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rest of reports content remains exactly the same -->
+  <%= form_with url: reports_quotations_path, method: :get, local: true, class: 'card mb-4' do |f| %>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <%= label_tag :start_date, 'Start Date', class: 'form-label' %>
+          <%= date_field_tag :start_date, @start_date, class: 'form-control gov-input' %>
+        </div>
+        <div class="col-md-3">
+          <%= label_tag :end_date, 'End Date', class: 'form-label' %>
+          <%= date_field_tag :end_date, @end_date, class: 'form-control gov-input' %>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <%= submit_tag 'Generate Report', class: 'btn btn-primary gov-btn me-2' %>
+          <%= link_to 'Reset', reports_quotations_path, class: 'btn btn-outline-secondary gov-btn' %>
+        </div>
+        <div class="col-md-3 d-flex align-items-end justify-content-end">
+          <%= link_to 'Export CSV', reports_quotations_path(format: :csv, start_date: @start_date, end_date: @end_date), class: 'btn btn-info gov-btn me-2' %>
+          <%= link_to 'Export PDF', reports_quotations_path(format: :pdf, start_date: @start_date, end_date: @end_date), class: 'btn btn-danger gov-btn' %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title">
+            <%= number_to_currency(@report_stats[:by_vendor].values.sum, unit: "TT$ ") %>
+          </h5>
+          <p class="card-text">Total Amount</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @report_stats[:acceptance_rate] %>%</h5>
+          <p class="card-text">Acceptance Rate</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @report_stats[:avg_response_time] %> days</h5>
+          <p class="card-text">Avg Response Time</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @report_stats[:top_vendors].count %></h5>
+          <p class="card-text">Vendors</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Distribution -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Status Distribution</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <% @report_stats[:by_status].each do |status, count| %>
+              <% next if status.nil? || status.blank? %>
+              <tr>
+                <td><%= status.present? ? Quotation.new(status: status).display_status : 'Unknown' %></td>
+                <td><%= count %></td>
+                <td width="50%">
+                  <div class="progress">
+                    <div class="progress-bar" style="width: <%= (count.to_f / @report_stats[:by_status].values.sum * 100).round(1) %>%"></div>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Vendors -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Top Vendors by Amount</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <% @report_stats[:by_vendor].first(10).each do |vendor, amount| %>
+              <tr>
+                <td><%= vendor %></td>
+                <td><%= number_to_currency(amount, unit: "TT$ ") %></td>
+              </tr>
+            <% end %>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Totals -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">Monthly Totals</h5>
+    </div>
+    <div class="card-body">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @report_stats[:monthly_totals].each do |month, amount| %>
+            <tr>
+              <td><%= month %></td>
+              <td><%= number_to_currency(amount, unit: "TT$ ") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Button styles to match the form */
+.gov-btn {
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: none;
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+.gov-btn.btn-primary {
+  background: linear-gradient(135deg, #3949ab 0%, #303f9f 100%);
+  color: white;
+}
+
+.gov-btn.btn-secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+  color: white;
+}
+
+.gov-btn.btn-info {
+  background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+  color: white;
+}
+
+.gov-btn.btn-danger {
+  background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+  color: white;
+}
+
+.gov-btn.btn-outline-secondary {
+  background: white;
+  border: 2px solid #6c757d;
+  color: #6c757d;
+}
+
+.gov-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.gov-input {
+  border: 2px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  transition: all 0.15s ease-in-out;
+}
+
+.gov-input:focus {
+  border-color: #3949ab;
+  box-shadow: 0 0 0 0.2rem rgba(57, 73, 171, 0.15);
+  background-color: #fff;
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+  background-color: transparent;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.breadcrumb-item a {
+  color: #6c757d;
+  text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+  color: #3949ab;
+  text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+  color: #3949ab;
+  font-weight: 500;
+}
+</style>

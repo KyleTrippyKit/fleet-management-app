@@ -1,0 +1,43 @@
+<div class="quotation-card card mb-3">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-8">
+        <h5 class="card-title">
+          <%= link_to quotation.quote_number, quotation %>
+          <span class="badge <%= quotation.status_badge_class %> ms-2">
+            <%= quotation.display_status %>
+          </span>
+        </h5>
+        <p class="card-text mb-1">
+          <strong>Vendor:</strong> <%= quotation.vendor %>
+          <% if quotation.vehicle %>
+            | <strong>Vehicle:</strong> <%= quotation.vehicle.license_plate %>
+          <% end %>
+        </p>
+        <p class="card-text mb-1">
+          <strong>Amount:</strong> <%= quotation.formatted_amount %>
+          | <strong>Valid To:</strong> <%= quotation.valid_to %>
+          <% if quotation.days_until_expiry && quotation.days_until_expiry >= 0 %>
+            <span class="badge <%= quotation.urgency_badge_class %> ms-2">
+              <%= pluralize(quotation.days_until_expiry, 'day') %> left
+            </span>
+          <% end %>
+        </p>
+        <p class="card-text text-muted mb-0">
+          <small>Created <%= time_ago_in_words(quotation.created_at) %> ago by <%= quotation.created_by&.name || 'System' %></small>
+        </p>
+      </div>
+      <div class="col-md-4 text-end">
+        <div class="btn-group">
+          <%= link_to 'View', quotation, class: 'btn btn-sm btn-outline-primary' %>
+          <% if quotation.can_be_edited? && current_user.can_edit_quotations? %>
+            <%= link_to 'Edit', edit_quotation_path(quotation), class: 'btn btn-sm btn-outline-secondary' %>
+          <% end %>
+          <% if quotation.can_be_sent? && current_user.can_send_quotations? %>
+            <%= link_to 'Send', send_to_vendor_quotation_path(quotation), method: :post, class: 'btn btn-sm btn-outline-info', data: { confirm: 'Send this quotation to vendor?' } %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

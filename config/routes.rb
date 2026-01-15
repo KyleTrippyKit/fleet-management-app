@@ -218,25 +218,29 @@ Rails.application.routes.draw do
     resources :purchase_order_items
   end
 
-  # ========================
-  # QUOTATIONS ROUTES
-  # ========================
-  resources :quotations do
-    collection do
-      get :reports
-      get :export
-      get :pending
-      get :expired
-    end
-    
-    member do
-      post :accept
-      post :reject
-      post :convert_to_purchase_order
-      get :print
-      get :email
-    end
+ # ========================
+# QUOTATIONS ROUTES
+# ========================
+resources :quotations do
+  collection do
+    get :reports
+    get :export
+    get :pending
+    get :expired
+    get :dashboard
   end
+  
+  member do
+    post :accept
+    post :reject
+    post :convert_to_purchase_order
+    post :send_to_vendor
+    post :send_email
+    get :duplicate
+    get :print
+    get :email
+  end
+end
 
   # ========================
   # POS TRANSACTIONS ROUTES

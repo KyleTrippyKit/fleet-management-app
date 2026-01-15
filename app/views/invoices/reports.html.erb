@@ -33,7 +33,7 @@
     </div>
   </div>
 
-  <%# Summary Stats %>
+  <%# Summary Stats - FIXED: Added nil check %>
   <div class="row mb-4">
     <div class="col-md-12">
       <div class="card">
@@ -42,37 +42,43 @@
         </div>
         <div class="card-body">
           <div class="row">
-            <% total_invoices = @report_invoices.count %>
-            <% total_amount = @report_invoices.sum(:amount) %>
-            <% paid_amount = @report_invoices.paid.sum(:amount) %>
-            
-            <div class="col-md-4">
-              <div class="border rounded p-3 text-center">
-                <h3 class="text-primary"><%= total_invoices %></h3>
-                <p class="text-muted mb-0">Total Invoices</p>
+            <% if @report_invoices.present? %>
+              <% total_invoices = @report_invoices.count %>
+              <% total_amount = @report_invoices.sum(:amount) %>
+              <% paid_amount = @report_invoices.paid.sum(:amount) %>
+              
+              <div class="col-md-4">
+                <div class="border rounded p-3 text-center">
+                  <h3 class="text-primary"><%= total_invoices %></h3>
+                  <p class="text-muted mb-0">Total Invoices</p>
+                </div>
               </div>
-            </div>
-            
-            <div class="col-md-4">
-              <div class="border rounded p-3 text-center">
-                <h3 class="text-success">$<%= number_with_precision(total_amount, precision: 2) %></h3>
-                <p class="text-muted mb-0">Total Billed</p>
+              
+              <div class="col-md-4">
+                <div class="border rounded p-3 text-center">
+                  <h3 class="text-success">$<%= number_with_precision(total_amount, precision: 2) %></h3>
+                  <p class="text-muted mb-0">Total Billed</p>
+                </div>
               </div>
-            </div>
-            
-            <div class="col-md-4">
-              <div class="border rounded p-3 text-center">
-                <h3 class="text-info">$<%= number_with_precision(paid_amount, precision: 2) %></h3>
-                <p class="text-muted mb-0">Total Paid</p>
+              
+              <div class="col-md-4">
+                <div class="border rounded p-3 text-center">
+                  <h3 class="text-info">$<%= number_with_precision(paid_amount, precision: 2) %></h3>
+                  <p class="text-muted mb-0">Total Paid</p>
+                </div>
               </div>
-            </div>
+            <% else %>
+              <div class="col-12 text-center py-4">
+                <p class="text-muted">No invoices found for the selected period</p>
+              </div>
+            <% end %>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <%# Status Breakdown %>
+  <%# Status Breakdown - FIXED: Added nil checks %>
   <div class="row mb-4">
     <div class="col-md-6">
       <div class="card h-100">
@@ -80,7 +86,7 @@
           <h5 class="mb-0">Invoices by Status</h5>
         </div>
         <div class="card-body">
-          <% if @report_stats[:by_status].any? %>
+          <% if @report_stats && @report_stats[:by_status].present? && @report_stats[:by_status].any? %>
             <table class="table">
               <thead>
                 <tr>
@@ -91,10 +97,24 @@
               </thead>
               <tbody>
                 <% @report_stats[:by_status].each do |status, count| %>
+                  <%# FIXED: Use safe navigation and provide default for status_badge_class %>
+                  <%
+                    badge_class = if Invoice.statuses.key?(status)
+                      Invoice.new(status: status).status_badge_class
+                    else
+                      'bg-secondary'
+                    end
+                  %>
                   <tr>
-                    <td><span class="badge <%= Invoice.new(status: status).status_badge_class %>"><%= status.humanize %></span></td>
+                    <td><span class="badge <%= badge_class %>"><%= status.present? ? status.humanize : 'Unknown' %></span></td>
                     <td class="text-end"><%= count %></td>
-                    <td class="text-end">$<%= number_with_precision(@report_invoices.where(status: status).sum(:amount), precision: 2) %></td>
+                    <td class="text-end">
+                      <% if @report_invoices.present? %>
+                        $<%= number_with_precision(@report_invoices.where(status: status).sum(:amount), precision: 2) %>
+                      <% else %>
+                        $0.00
+                      <% end %>
+                    </td>
                   </tr>
                 <% end %>
               </tbody>
@@ -106,13 +126,14 @@
       </div>
     </div>
 
+    <%# Top Vendors - FIXED: Added nil checks %>
     <div class="col-md-6">
       <div class="card h-100">
         <div class="card-header">
           <h5 class="mb-0">Top Vendors</h5>
         </div>
         <div class="card-body">
-          <% if @report_stats[:by_vendor].any? %>
+          <% if @report_stats && @report_stats[:by_vendor].present? && @report_stats[:by_vendor].any? %>
             <table class="table">
               <thead>
                 <tr>
@@ -123,7 +144,7 @@
               <tbody>
                 <% @report_stats[:by_vendor].first(5).each do |vendor, amount| %>
                   <tr>
-                    <td><%= vendor %></td>
+                    <td><%= vendor.present? ? vendor : 'Unknown Vendor' %></td>
                     <td class="text-end">$<%= number_with_precision(amount, precision: 2) %></td>
                   </tr>
                 <% end %>
@@ -137,7 +158,7 @@
     </div>
   </div>
 
-  <%# Category Breakdown %>
+  <%# Category Breakdown - FIXED: Added nil checks %>
   <div class="row">
     <div class="col-md-12">
       <div class="card">
@@ -145,7 +166,7 @@
           <h5 class="mb-0">Expenses by Category</h5>
         </div>
         <div class="card-body">
-          <% if @report_stats[:by_category].any? %>
+          <% if @report_stats && @report_stats[:by_category].present? && @report_stats[:by_category].any? %>
             <table class="table">
               <thead>
                 <tr>
@@ -160,7 +181,13 @@
                   <tr>
                     <td><%= category.present? ? category.humanize : 'Uncategorized' %></td>
                     <td class="text-end">$<%= number_with_precision(amount, precision: 2) %></td>
-                    <td class="text-end"><%= number_to_percentage((amount / total) * 100, precision: 1) %></td>
+                    <td class="text-end">
+                      <% if total > 0 %>
+                        <%= number_to_percentage((amount / total) * 100, precision: 1) %>
+                      <% else %>
+                        0.0%
+                      <% end %>
+                    </td>
                   </tr>
                 <% end %>
               </tbody>
@@ -172,4 +199,39 @@
       </div>
     </div>
   </div>
+
+  <%# Monthly Breakdown - Optional: Add if you have this data in @report_stats %>
+  <% if @report_stats && @report_stats[:monthly_totals].present? && @report_stats[:monthly_totals].any? %>
+    <div class="row mt-4">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Monthly Breakdown</h5>
+          </div>
+          <div class="card-body">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th class="text-end">Invoices</th>
+                  <th class="text-end">Total Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @report_stats[:monthly_totals].each do |month, amount| %>
+                  <tr>
+                    <td><%= month %></td>
+                    <td class="text-end">
+                      <%= @report_stats[:monthly_counts][month] || 0 %>
+                    </td>
+                    <td class="text-end">$<%= number_with_precision(amount, precision: 2) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>

@@ -183,6 +183,53 @@ class User < ApplicationRecord
   end
   
   # ========================
+  # NEW QUOTATION PERMISSIONS (Added for quotations controller)
+  # ========================
+  def can_manage_quotations?
+    finance? || admin? || fleet_manager? || vmcott_staff?
+  end
+  
+  def can_view_quotations?
+    finance? || admin? || fleet_manager? || maintenance_supervisor? || ptsc_staff? || ttps_staff? || ttdf_staff?
+  end
+  
+  def can_create_quotations?
+    finance? || admin? || fleet_manager? || vmcott_staff?
+  end
+  
+  def can_edit_quotations?
+    finance? || admin? || fleet_manager? || vmcott_staff?
+  end
+  
+  def can_delete_quotations?
+    admin? || finance?
+  end
+  
+  def can_accept_quotations?
+    finance? || admin?
+  end
+  
+  def can_reject_quotations?
+    finance? || admin? || fleet_manager?
+  end
+  
+  def can_convert_quotations_to_po?
+    finance? || admin?
+  end
+  
+  def can_export_quotations?
+    finance? || admin? || fleet_manager?
+  end
+  
+  def can_view_quotation_reports?
+    finance? || admin? || fleet_manager?
+  end
+  
+  def can_send_quotations?
+    finance? || admin? || fleet_manager? || vmcott_staff?
+  end
+  
+  # ========================
   # AGENCY INFORMATION
   # ========================
   def agency_name
@@ -245,6 +292,21 @@ class User < ApplicationRecord
       Invoice.joins(:vehicle).where(vehicles: { service_owner: agency_code })
     else
       Invoice.none
+    end
+  end
+  
+  def agency_quotations
+    if admin? || finance? || fleet_manager?
+      # Admin/Finance/Fleet managers can see all quotations
+      Quotation.all
+    elsif vmcott_staff?
+      # VMCOTT can see all quotations they created
+      Quotation.all
+    elsif agency.present?
+      # Agency staff only see their agency's quotations
+      Quotation.joins(:vehicle).where(vehicles: { agency_id: agency.id })
+    else
+      Quotation.none
     end
   end
   
@@ -388,5 +450,129 @@ class User < ApplicationRecord
   
   def show_quickbooks_sync_button?
     can_sync_quickbooks? && !driver?
+  end
+  
+  # New quotation view helpers
+  def show_quotation_create_button?
+    can_create_quotations? && !driver?
+  end
+  
+  def show_quotation_edit_button?
+    can_edit_quotations? && !driver?
+  end
+  
+  def show_quotation_accept_button?
+    can_accept_quotations? && !driver?
+  end
+  
+  def show_quotation_reject_button?
+    can_reject_quotations? && !driver?
+  end
+  
+  def show_quotation_convert_button?
+    can_convert_quotations_to_po? && !driver?
+  end
+  
+  def show_quotation_export_button?
+    can_export_quotations? && !driver?
+  end
+  
+  def show_quotation_reports_button?
+    can_view_quotation_reports? && !driver?
+  end
+  
+  def show_quotation_send_button?
+    can_send_quotations? && !driver?
+  end
+
+  def can_send_quotations?
+    finance? || admin? || fleet_manager? || vmcott_staff?
+  end
+  
+  # ========================
+  # AGENCY TYPE CHECKERS
+  # ========================
+  def is_ptsc?
+    agency_code == 'PTSC'
+  end
+  
+  def is_ttps?
+    agency_code == 'TTPS'
+  end
+  
+  def is_ttdf?
+    agency_code == 'TTDF'
+  end
+  
+  def is_vmcott?
+    agency_code == 'VMCOTT'
+  end
+  
+  # ========================
+  # PERMISSION GROUPS
+  # ========================
+  def financial_permissions
+    {
+      can_view_invoices: can_access_invoices?,
+      can_create_invoices: can_create_invoices?,
+      can_pay_invoices: can_pay_invoices?,
+      can_view_quotations: can_view_quotations?,
+      can_create_quotations: can_create_quotations?,
+      can_accept_quotations: can_accept_quotations?,
+      can_view_reports: can_view_reports?,
+      can_sync_quickbooks: can_sync_quickbooks?
+    }
+  end
+  
+  def fleet_permissions
+    {
+      can_manage_vehicles: can_edit_vehicles?,
+      can_manage_drivers: can_manage_drivers?,
+      can_schedule_maintenance: can_schedule_maintenance?,
+      can_view_analytics: can_see_analytics?,
+      can_view_locations: can_see_live_locations?,
+      can_manage_quotations: can_manage_quotations?
+    }
+  end
+  
+  # ========================
+  # ROLE SUMMARY FOR DISPLAY
+  # ========================
+  def role_summary
+    if admin?
+      "System Administrator - Full access to all features"
+    elsif finance?
+      "Finance Manager - Invoices, payments, quotations, and reports"
+    elsif fleet_manager?
+      "Fleet Manager - Vehicles, maintenance, drivers, and quotations"
+    elsif maintenance_supervisor?
+      "Maintenance Supervisor - Vehicle maintenance and scheduling"
+    elsif vmcott_staff?
+      "VMCOTT Staff - Service provider with quotation and invoice creation"
+    elsif ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? || health_staff? || education_staff?
+      "#{agency_display_name} Staff - Agency vehicle management and invoice review"
+    elsif driver?
+      "Driver - Assigned vehicle access only"
+    else
+      "User - Limited access"
+    end
+  end
+  
+  # ========================
+  # JSON/API SERIALIZATION
+  # ========================
+  def as_json(options = {})
+    super(options.merge(
+      methods: [
+        :display_name,
+        :agency_name,
+        :agency_code,
+        :role_name,
+        :role_summary,
+        :financial_permissions,
+        :fleet_permissions
+      ],
+      only: [:id, :email, :name, :created_at]
+    ))
   end
 end

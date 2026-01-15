@@ -49,9 +49,16 @@ gem 'bullet', group: :development
 # gem 'prawn-table'
 
 # Or for HTML to PDF
-gem 'wkhtmltopdf-binary', '~> 0.12.6.10'
+gem 'wicked_pdf'
+gem 'wkhtmltopdf-binary'  # Binary for PDF generation
+
 gem 'faker'
 gem "aws-sdk-s3", require: false
 # JavaScript compressor
 gem 'terser', '~> 1.2'
 
+gem 'caxlsx'
+
+# Replace old axlsx with modern caxlsx
+gem 'caxlsx'
+gem 'caxlsx_rails'

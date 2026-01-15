@@ -276,17 +276,20 @@ class InvoicesController < ApplicationController
     @start_date = params[:start_date] || 30.days.ago.to_date
     @end_date = params[:end_date] || Date.today
     
-    # Scope invoices for reports
+    # FIXED: Create separate query for report stats (no ORDER BY)
     report_invoices = current_user.agency_invoices
                                   .where(invoice_date: @start_date..@end_date)
-                                  .order(:invoice_date)
+    
+    # Create ordered query for CSV and display
+    ordered_invoices = report_invoices.order(:invoice_date)
     
     @report_stats = calculate_report_stats(report_invoices)
+    @ordered_invoices = ordered_invoices
     
     respond_to do |format|
       format.html
       format.csv do
-        send_data generate_csv_report(report_invoices),
+        send_data generate_csv_report(ordered_invoices),
                   filename: "#{current_user.agency_code.downcase}-invoices-#{@start_date}-to-#{@end_date}.csv"
       end
       format.pdf do
@@ -461,17 +464,90 @@ class InvoicesController < ApplicationController
   end
 
   def calculate_report_stats(invoices)
-    {
+    # FIXED: PostgreSQL grouping error - using Arel.sql for ORDER BY
+    
+    stats = {
+      # Group by status - simple count (no ordering issues here)
       by_status: invoices.group(:status).count,
+      
+      # Group by vendor with sum
       by_vendor: invoices.group(:vendor).sum(:amount),
+      
+      # Group by category with sum
       by_category: invoices.group(:category).sum(:amount),
-      monthly_totals: invoices.group_by_month(:invoice_date, format: "%b %Y").sum(:amount),
-      integration_stats: {
-        quickbooks_synced: invoices.where.not(quickbooks_id: nil).count,
-        has_pos: invoices.joins(:pos_transaction).distinct.count,
-        has_po: invoices.where.not(purchase_order_id: nil).count
-      }
     }
+    
+    # Monthly totals - using Arel.sql for explicit SQL
+    monthly_totals_query = invoices
+      .select("DATE_TRUNC('month', invoice_date) as month, SUM(amount) as total_amount")
+      .group("DATE_TRUNC('month', invoice_date)")
+      .order(Arel.sql("DATE_TRUNC('month', invoice_date) ASC"))
+    
+    stats[:monthly_totals] = monthly_totals_query.each_with_object({}) do |record, hash|
+      hash[record.month.strftime('%b %Y')] = record.total_amount.to_f
+    end
+    
+    # Monthly counts
+    monthly_counts_query = invoices
+      .select("DATE_TRUNC('month', invoice_date) as month, COUNT(*) as invoice_count")
+      .group("DATE_TRUNC('month', invoice_date)")
+      .order(Arel.sql("DATE_TRUNC('month', invoice_date) ASC"))
+    
+    stats[:monthly_counts] = monthly_counts_query.each_with_object({}) do |record, hash|
+      hash[record.month.strftime('%b %Y')] = record.invoice_count
+    end
+    
+    # Integration stats
+    stats[:integration_stats] = {
+      quickbooks_synced: invoices.where.not(quickbooks_id: nil).count,
+      has_pos: invoices.joins(:pos_transaction).distinct.count,
+      has_po: invoices.where.not(purchase_order_id: nil).count,
+      has_transactions: invoices.joins(:transactions).distinct.count
+    }
+    
+    # Calculate basic stats
+    stats[:total_amount] = invoices.sum(:amount)
+    stats[:total_invoices] = invoices.count
+    stats[:average_amount] = stats[:total_invoices] > 0 ? (stats[:total_amount] / stats[:total_invoices]).round(2) : 0
+    
+    # Status-based stats
+    stats[:pending_count] = invoices.pending.count
+    stats[:overdue_count] = invoices.overdue.count
+    stats[:paid_count] = invoices.paid.count
+    stats[:disputed_count] = invoices.disputed.count
+    
+    stats[:pending_amount] = invoices.pending.sum(:amount)
+    stats[:overdue_amount] = invoices.overdue.sum(:amount)
+    stats[:paid_amount] = invoices.paid.sum(:amount)
+    
+    # Top vendors by volume (first 5)
+    stats[:top_vendors] = stats[:by_vendor].sort_by { |_, amount| -amount }.first(5).to_h
+    
+    # Acceptance rate
+    if invoices.where(status: 'sent').any?
+      total_sent = invoices.where(status: 'sent').count
+      total_accepted = invoices.where(status: 'accepted').count
+      stats[:acceptance_rate] = total_sent > 0 ? ((total_accepted.to_f / total_sent) * 100).round(2) : 0
+    else
+      stats[:acceptance_rate] = 0
+    end
+    
+    # Daily breakdown (optional)
+    daily_totals = invoices
+      .select("invoice_date, SUM(amount) as daily_total, COUNT(*) as daily_count")
+      .group(:invoice_date)
+      .order(Arel.sql("invoice_date ASC"))
+      .limit(30) # Last 30 days
+    
+    stats[:daily_breakdown] = daily_totals.map do |record|
+      {
+        date: record.invoice_date,
+        total: record.daily_total.to_f,
+        count: record.daily_count
+      }
+    end
+    
+    stats
   end
 
   def generate_invoice_pdf(invoice)

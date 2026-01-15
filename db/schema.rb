@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_14_054251) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -362,12 +362,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_14_054251) do
     t.index ["user_id"], name: "index_quickbooks_settings_on_user_id"
   end
 
+  create_table "quotation_line_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.integer "quantity"
+    t.bigint "quotation_id", null: false
+    t.text "specifications"
+    t.decimal "unit_price"
+    t.datetime "updated_at", null: false
+    t.index ["quotation_id"], name: "index_quotation_line_items_on_quotation_id"
+  end
+
   create_table "quotations", force: :cascade do |t|
+    t.datetime "accepted_at"
     t.decimal "amount", precision: 10, scale: 2, null: false
+    t.datetime "converted_at"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.text "notes"
     t.string "quote_number", null: false
+    t.datetime "rejected_at"
     t.integer "status", default: 0
     t.datetime "updated_at", null: false
     t.date "valid_from"
@@ -563,6 +577,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_14_054251) do
   add_foreign_key "purchases", "parts"
   add_foreign_key "quickbooks_integrations", "users"
   add_foreign_key "quickbooks_settings", "users"
+  add_foreign_key "quotation_line_items", "quotations"
   add_foreign_key "quotations", "users", column: "created_by_id"
   add_foreign_key "quotations", "vehicles"
   add_foreign_key "transactions", "invoices"

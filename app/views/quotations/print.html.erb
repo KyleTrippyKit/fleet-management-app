@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Quotation: <%= @quotation.quote_number %></title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #000;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .total-row {
+      font-weight: bold;
+    }
+    .footer {
+      margin-top: 50px;
+      border-top: 1px solid #ddd;
+      padding-top: 20px;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .signature-section {
+      margin-top: 50px;
+    }
+    .signature-line {
+      border-top: 1px solid #000;
+      width: 200px;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>REQUEST FOR QUOTATION</h1>
+    <h2>Quote #: <%= @quotation.quote_number %></h2>
+    <p>Date: <%= Date.today.strftime('%B %d, %Y') %></p>
+  </div>
+
+  <div class="section">
+    <h3>Quotation Details</h3>
+    <table>
+      <tr>
+        <td><strong>Quote Number:</strong></td>
+        <td><%= @quotation.quote_number %></td>
+      </tr>
+      <tr>
+        <td><strong>Vendor:</strong></td>
+        <td><%= @quotation.vendor %></td>
+      </tr>
+      <tr>
+        <td><strong>Valid From:</strong></td>
+        <td><%= @quotation.valid_from.strftime('%B %d, %Y') %></td>
+      </tr>
+      <tr>
+        <td><strong>Valid To:</strong></td>
+        <td><%= @quotation.valid_to.strftime('%B %d, %Y') %></td>
+      </tr>
+      <tr>
+        <td><strong>Status:</strong></td>
+        <td><%= @quotation.display_status %></td>
+      </tr>
+    </table>
+  </div>
+
+  <% if @quotation.vehicle %>
+  <div class="section">
+    <h3>Vehicle Information</h3>
+    <table>
+      <tr>
+        <td><strong>Registration:</strong></td>
+        <td><%= @quotation.vehicle.license_plate %></td>
+      </tr>
+      <tr>
+        <td><strong>Make/Model:</strong></td>
+        <td><%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %></td>
+      </tr>
+      <tr>
+        <td><strong>Year:</strong></td>
+        <td><%= @quotation.vehicle.year_of_manufacture %></td>
+      </tr>
+      <tr>
+        <td><strong>Agency:</strong></td>
+        <td><%= @quotation.agency_name %></td>
+      </tr>
+    </table>
+  </div>
+  <% end %>
+
+  <% if @quotation.quotation_line_items.any? %>
+  <div class="section">
+    <h3>Line Items</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Quantity</th>
+          <th>Unit Price</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @quotation.quotation_line_items.each do |item| %>
+          <tr>
+            <td><%= item.description %></td>
+            <td><%= item.quantity %></td>
+            <td><%= number_to_currency(item.unit_price || 0) %></td>
+            <td><%= number_to_currency(item.total_price) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;">Subtotal:</td>
+          <td><%= number_to_currency(@quotation.amount) %></td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;">VAT (12.5%):</td>
+          <td><%= number_to_currency(@quotation.vat_amount) %></td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;">Total:</td>
+          <td><%= number_to_currency(@quotation.total_with_vat) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <% end %>
+
+  <% if @quotation.notes.present? %>
+  <div class="section">
+    <h3>Notes</h3>
+    <div style="white-space: pre-wrap;"><%= @quotation.notes %></div>
+  </div>
+  <% end %>
+
+  <div class="signature-section">
+    <div style="float: left; width: 45%;">
+      <p><strong>Vendor Signature:</strong></p>
+      <div class="signature-line"></div>
+      <p>Date: ___________________</p>
+    </div>
+    <div style="float: right; width: 45%; text-align: right;">
+      <p><strong>Authorized by:</strong></p>
+      <div class="signature-line" style="margin-left: auto;"></div>
+      <p>Date: ___________________</p>
+    </div>
+    <div style="clear: both;"></div>
+  </div>
+
+  <div class="footer">
+    <p>Generated on: <%= Time.current.strftime('%B %d, %Y at %I:%M %p') %></p>
+    <p>Quotation #<%= @quotation.quote_number %> | Page 1 of 1</p>
+  </div>
+
+  <script>
+    // Auto-print when page loads
+    window.onload = function() {
+      window.print();
+    }
+  </script>
+</body>
+</html>

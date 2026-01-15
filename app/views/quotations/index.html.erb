@@ -1,0 +1,261 @@
+<%# app/views/quotations/index.html.erb %>
+<div class="container-fluid">
+  <!-- Navigation Breadcrumb Header - Custom layout -->
+  <div class="d-flex align-items-center mb-4">
+    <!-- Left section for breadcrumb and title -->
+    <div class="flex-grow-1">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <%= link_to 'Dashboard', ptsc_dashboard_path, class: 'text-decoration-none' %>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">Quotations</li>
+        </ol>
+      </nav>
+      <h1 class="h2 mb-0 mt-2">Quotations</h1>
+    </div>
+    
+    <!-- Right section for action buttons - pushed left -->
+    <div class="flex-shrink-0" style="position: relative; right: 120px;">
+      <div class="d-flex gap-2">
+        <% if current_user.can_create_quotations? %>
+          <%= link_to new_quotation_path, class: 'btn btn-primary gov-btn' do %>
+            <i class="bi bi-plus-circle me-1"></i> New Quotation
+          <% end %>
+        <% end %>
+        <%= link_to 'Dashboard', dashboard_quotations_path, class: 'btn btn-info gov-btn' if current_user.can_view_quotation_reports? %>
+        <%= link_to 'Reports', reports_quotations_path, class: 'btn btn-secondary gov-btn' if current_user.can_view_quotation_reports? %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rest of your index content remains exactly the same -->
+  <!-- Filter Section -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_with url: quotations_path, method: :get, local: true, class: 'row g-3' do |f| %>
+        <div class="col-md-3">
+          <label class="form-label">Status</label>
+          <%= select_tag :status, 
+              options_for_select([
+                ['All', ''],
+                ['Draft', 'draft'],
+                ['Sent', 'sent'],
+                ['Accepted', 'accepted'],
+                ['Rejected', 'rejected'],
+                ['Expired', 'expired'],
+                ['Converted', 'converted']
+              ], params[:status]), 
+              class: 'form-select gov-select' %>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Search</label>
+          <%= text_field_tag :search, params[:search], 
+                class: 'form-control gov-input', 
+                placeholder: 'Quote #, Vendor, Notes' %>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Vendor</label>
+          <%= text_field_tag :vendor, params[:vendor], 
+                class: 'form-control gov-input', 
+                placeholder: 'Vendor name' %>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <%= submit_tag 'Filter', class: 'btn btn-primary gov-btn me-2' %>
+          <%= link_to 'Clear', quotations_path, class: 'btn btn-outline-secondary gov-btn' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:total] %></h5>
+          <p class="card-text">Total</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:pending] %></h5>
+          <p class="card-text">Pending</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:accepted] %></h5>
+          <p class="card-text">Accepted</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:expiring_soon] %></h5>
+          <p class="card-text">Expiring Soon</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= number_to_currency(@stats[:total_amount]) %></h5>
+          <p class="card-text">Total Amount</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card">
+        <div class="card-body text-center">
+          <h5 class="card-title"><%= @stats[:conversion_rate] %>%</h5>
+          <p class="card-text">Conversion Rate</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quotations Table -->
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Quote #</th>
+              <th>Vendor</th>
+              <th>Vehicle</th>
+              <th>Agency</th>
+              <th>Amount</th>
+              <th>Valid To</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @quotations.each do |quotation| %>
+              <tr>
+                <td><%= quotation.quote_number %></td>
+                <td><%= quotation.vendor %></td>
+                <td><%= quotation.vehicle&.license_plate || 'N/A' %></td>
+                <td><%= quotation.agency_name %></td>
+                <td><%= quotation.formatted_amount %></td>
+                <td>
+                  <%= quotation.valid_to %>
+                  <% if quotation.days_until_expiry && quotation.days_until_expiry >= 0 %>
+                    <span class="badge <%= quotation.urgency_badge_class %>">
+                      <%= pluralize(quotation.days_until_expiry, 'day') %> left
+                    </span>
+                  <% end %>
+                </td>
+                <td>
+                  <span class="badge <%= quotation.status_badge_class %>">
+                    <%= quotation.display_status %>
+                  </span>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <%= link_to 'View', quotation, class: 'btn btn-outline-primary' %>
+                    <% if quotation.can_be_edited? && current_user.can_edit_quotations? %>
+                      <%= link_to 'Edit', edit_quotation_path(quotation), class: 'btn btn-outline-secondary' %>
+                    <% end %>
+                    <% if quotation.can_be_sent? && current_user.can_send_quotations? %>
+                      <%= link_to 'Send', send_to_vendor_quotation_path(quotation), method: :post, class: 'btn btn-outline-info', data: { confirm: 'Send this quotation to vendor?' } %>
+                    <% end %>
+                    <% if quotation.can_be_accepted? && current_user.can_accept_quotations? %>
+                      <%= link_to 'Accept', accept_quotation_path(quotation), method: :post, class: 'btn btn-outline-success', data: { confirm: 'Accept this quotation?' } %>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+      <%= paginate @quotations %>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Button styles to match the form */
+.gov-btn {
+  border-radius: 4px;
+  padding: 10px 20px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: none;
+  transition: all 0.2s ease;
+  min-width: 140px;
+}
+
+.gov-btn.btn-primary {
+  background: linear-gradient(135deg, #3949ab 0%, #303f9f 100%);
+  color: white;
+}
+
+.gov-btn.btn-secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+  color: white;
+}
+
+.gov-btn.btn-info {
+  background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+  color: white;
+}
+
+.gov-btn.btn-outline-secondary {
+  background: white;
+  border: 2px solid #6c757d;
+  color: #6c757d;
+}
+
+.gov-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.gov-input, .gov-select {
+  border: 2px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  transition: all 0.15s ease-in-out;
+}
+
+.gov-input:focus, .gov-select:focus {
+  border-color: #3949ab;
+  box-shadow: 0 0 0 0.2rem rgba(57, 73, 171, 0.15);
+  background-color: #fff;
+}
+
+/* Breadcrumb styling */
+.breadcrumb {
+  background-color: transparent;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.breadcrumb-item a {
+  color: #6c757d;
+  text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+  color: #3949ab;
+  text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+  color: #3949ab;
+  font-weight: 500;
+}
+</style>
