@@ -1,46 +1,47 @@
-<%# app/views/invoices/index.html.erb - UPDATED WITH SYNC INDICATORS %>
+<%# app/views/invoices/index.html.erb - UPDATED WITH BUTTONS MOVED LEFT %>
 <div class="container-fluid mt-4">
-  <%# Page Header - Show agency name %>
+  <%# Page Header - More professional design %>
   <div class="d-flex justify-content-between align-items-start mb-4">
     <div>
-      <h1 class="h2 mb-1">
+      <h1 class="h3 mb-1 fw-bold text-dark" style="letter-spacing: -0.5px;">
         <% if current_user.agency_name.present? %>
           <%= current_user.agency_name %> Invoices
         <% else %>
-          Invoices
+          Invoice Management
         <% end %>
       </h1>
-      <p class="text-muted mb-0">
+      <p class="text-muted mb-0" style="font-size: 0.9rem; font-weight: 400;">
         Manage invoices received from service providers
         <% if current_user.agency_name.present? %>
-          for <%= current_user.agency_name %>
+          for <span class="fw-semibold text-dark"><%= current_user.agency_name %></span>
         <% end %>
       </p>
     </div>
     
-    <div class="d-flex align-items-center gap-2" style="transform: translateX(-120px);">
+    <%# Buttons moved 200px to the left %>
+    <div class="d-flex align-items-center gap-2" style="position: relative; z-index: 1000; transform: translateX(-120px);">
       <%# "Back to Dashboard" button - Now links to ptsc_dashboard %>
-      <%= link_to ptsc_dashboard_path, class: "btn btn-light border px-3 py-1" do %>
-        <i class="bi bi-speedometer2 me-1"></i> Back to Dashboard
+      <%= link_to ptsc_dashboard_path, class: "btn btn-light border px-3 py-2" do %>
+        <i class="bi bi-speedometer2 me-1"></i> Dashboard
       <% end %>
       
       <% if current_user.can_view_invoice_reports? %>
-        <%= link_to reports_invoices_path, class: "btn btn-outline-primary px-3 py-1" do %>
+        <%= link_to reports_invoices_path, class: "btn btn-outline-primary px-3 py-2" do %>
           <i class="bi bi-graph-up me-1"></i> Reports
         <% end %>
       <% end %>
       
-      <%# NEW: Sync status filter dropdown %>
-      <div class="dropdown">
-        <button class="btn btn-outline-info px-3 py-1 dropdown-toggle" type="button" id="syncFilterDropdown" data-bs-toggle="dropdown">
+      <%# NEW: Sync status filter dropdown - FIXED WITH Z-INDEX %>
+      <div class="dropdown" style="position: relative;">
+        <button class="btn btn-outline-info px-3 py-2 dropdown-toggle" type="button" id="syncFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-cloud-arrow-up me-1"></i> Sync Status
         </button>
-        <ul class="dropdown-menu" aria-labelledby="syncFilterDropdown">
+        <ul class="dropdown-menu" aria-labelledby="syncFilterDropdown" style="z-index: 1050; position: absolute;">
           <li><%= link_to "All Sync Status", invoices_path, class: "dropdown-item" %></li>
-          <li><%= link_to "Recently Synced (< 24h)", invoices_path(sync_status: "recent"), class: "dropdown-item" %></li>
-          <li><%= link_to "Sync Stale (> 7d)", invoices_path(sync_status: "stale"), class: "dropdown-item" %></li>
-          <li><%= link_to "Not Synced", invoices_path(sync_status: "not_synced"), class: "dropdown-item" %></li>
-          <li><%= link_to "Sync Failed", invoices_path(sync_status: "failed"), class: "dropdown-item" %></li>
+          <li><%= link_to "Recently Synced (< 24h)", invoices_path(sync_filter: "recent"), class: "dropdown-item" %></li>
+          <li><%= link_to "Sync Stale (> 7d)", invoices_path(sync_filter: "stale"), class: "dropdown-item" %></li>
+          <li><%= link_to "Not Synced", invoices_path(sync_filter: "not_synced"), class: "dropdown-item" %></li>
+          <li><%= link_to "Sync Failed", invoices_path(sync_filter: "failed"), class: "dropdown-item" %></li>
         </ul>
       </div>
     </div>
@@ -113,7 +114,7 @@
     </div>
   </div>
 
-  <%# NEW: Sync Stats Row %>
+  <%# NEW: Sync Stats Row - These might not be populated yet %>
   <div class="row mb-4">
     <div class="col-md-3 col-6">
       <div class="card border-success">
@@ -121,7 +122,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">Synced</h6>
-              <h3 class="mb-0"><%= @stats[:synced] || 0 %></h3>
+              <h3 class="mb-0"><%= @stats[:qb_synced] || 0 %></h3>
             </div>
             <div class="avatar-sm bg-success bg-opacity-10 rounded">
               <i class="bi bi-cloud-check fs-4 text-success"></i>
@@ -137,7 +138,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">Not Synced</h6>
-              <h3 class="mb-0"><%= @stats[:not_synced] || 0 %></h3>
+              <h3 class="mb-0"><%= @stats[:total].to_i - (@stats[:qb_synced] || 0).to_i %></h3>
             </div>
             <div class="avatar-sm bg-secondary bg-opacity-10 rounded">
               <i class="bi bi-cloud-slash fs-4 text-secondary"></i>
@@ -228,8 +229,8 @@
         
         <div class="col-md-2 d-flex align-items-end">
           <div class="w-100 d-flex gap-2">
-            <%= submit_tag "Apply", class: "btn btn-primary flex-grow-1 px-3 py-1" %>
-            <%= link_to "Clear", invoices_path, class: "btn btn-outline-secondary flex-grow-1 px-3 py-1" %>
+            <%= submit_tag "Apply", class: "btn btn-primary flex-grow-1 px-3 py-2" %>
+            <%= link_to "Clear", invoices_path, class: "btn btn-outline-secondary flex-grow-1 px-3 py-2" %>
           </div>
         </div>
       <% end %>
@@ -263,31 +264,31 @@
                       <span class="badge bg-warning ms-1" title="Pending">PENDING</span>
                     <% end %>
                     <% if invoice.quickbooks_id %>
-                      <% if invoice.sync_success? %>
-                        <% if invoice.recently_synced?(1) %>
-                          <span class="badge bg-success ms-1" title="Recently synced to QuickBooks (within 1 hour)">
+                      <% if invoice.sync_status == 'success' %>
+                        <% if invoice.last_sync_at && invoice.last_sync_at > 24.hours.ago %>
+                          <span class="badge bg-success ms-1" title="Recently synced to QuickBooks (within 24 hours)">
                             <i class="bi bi-check-circle-fill"></i> Recent
                           </span>
-                        <% elsif invoice.recently_synced?(24) %>
-                          <span class="badge bg-info ms-1" title="Synced today to QuickBooks">
-                            <i class="bi bi-check-circle"></i> Today
+                        <% elsif invoice.last_sync_at && invoice.last_sync_at > 7.days.ago %>
+                          <span class="badge bg-info ms-1" title="Synced within 7 days">
+                            <i class="bi bi-check-circle"></i> Synced
                           </span>
-                        <% elsif invoice.sync_stale? %>
+                        <% else %>
                           <span class="badge bg-warning ms-1" title="Sync stale (more than 7 days)">
                             <i class="bi bi-clock-history"></i> Stale
                           </span>
-                        <% else %>
-                          <span class="badge bg-secondary ms-1" title="Synced to QuickBooks">
-                            <i class="bi bi-check-circle"></i> Synced
-                          </span>
                         <% end %>
-                      <% elsif invoice.sync_failed? %>
+                      <% elsif invoice.sync_status == 'failed' %>
                         <span class="badge bg-danger ms-1" title="QuickBooks sync failed">
                           <i class="bi bi-x-circle"></i> Failed
                         </span>
-                      <% elsif invoice.sync_error? %>
+                      <% elsif invoice.sync_status == 'error' %>
                         <span class="badge bg-danger ms-1" title="QuickBooks sync error">
                           <i class="bi bi-exclamation-triangle-fill"></i> Error
+                        </span>
+                      <% else %>
+                        <span class="badge bg-secondary ms-1" title="Synced to QuickBooks">
+                          <i class="bi bi-check-circle"></i> Synced
                         </span>
                       <% end %>
                     <% else %>
@@ -345,9 +346,9 @@
                         <i class="bi bi-eye"></i>
                       <% end %>
                       
-                      <%= link_to invoice_path(invoice, format: :pdf), 
+                      <%= link_to download_invoice_path(invoice), 
                                   class: "btn btn-outline-secondary px-2 py-1", 
-                                  title: "Download PDF",
+                                  title: "Download Text",
                                   data: { turbo: false } do %>
                         <i class="bi bi-download"></i>
                       <% end %>
@@ -398,7 +399,7 @@
                               data: { confirm: "Sync this invoice with QuickBooks?" } do %>
                           <i class="bi bi-cloud-arrow-up"></i>
                         <% end %>
-                      <% elsif invoice.sync_stale? && current_user.can_sync_quickbooks? %>
+                      <% elsif invoice.last_sync_at && invoice.last_sync_at < 7.days.ago && current_user.can_sync_quickbooks? %>
                         <%= button_to sync_to_quickbooks_invoice_path(invoice), 
                               method: :post,
                               class: "btn btn-outline-warning px-2 py-1",
@@ -475,7 +476,7 @@
   </div>
 </div>
 
-<%# CSS for sync badges %>
+<%# CSS for sync badges and dropdown fix %>
 <style>
   .sync-badge {
     font-size: 0.75rem;
@@ -491,4 +492,21 @@
   .sync-failed { background-color: #f8d7da; color: #842029; }
   .sync-success { background-color: #d1e7dd; color: #0f5132; }
   .sync-not-synced { background-color: #e2e3e5; color: #41464b; border: 1px solid #d3d6d8; }
+  
+  /* Fix for dropdown z-index issues */
+  .dropdown-menu {
+    z-index: 1050 !important;
+  }
+  
+  /* Ensure dropdown button container has proper z-index */
+  .d-flex.align-items-center.gap-2 {
+    position: relative;
+    z-index: 1000;
+  }
+  
+  /* Ensure dropdowns appear above table */
+  .table-responsive {
+    position: relative;
+    z-index: 1;
+  }
 </style>
