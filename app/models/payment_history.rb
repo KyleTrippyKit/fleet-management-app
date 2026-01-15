@@ -1,4 +1,4 @@
-# app/models/payment_history.rb
+# app/models/payment_history.rb - FIXED VERSION
 class PaymentHistory < ApplicationRecord
   belongs_to :invoice
   belongs_to :payment_transaction, class_name: "Transaction", foreign_key: "payment_transaction_id"
@@ -21,34 +21,10 @@ class PaymentHistory < ApplicationRecord
     refunded: 'refunded'
   }, default: :completed
   
-  # Agency isolation scopes
+  # Agency isolation scope - takes agency as parameter
   scope :for_agency, ->(agency) { 
     joins(invoice: :vehicle).where(vehicles: { agency_id: agency.id }) 
   }
-  
-  scope :for_current_agency, -> {
-    if User.current && User.current.agency_id
-      for_agency(User.current.agency)
-    else
-      none
-    end
-  }
-  
-  # Default scope for agency isolation
-  default_scope -> { 
-    if User.current && User.current.agency_id
-      joins(invoice: :vehicle).where(vehicles: { agency_id: User.current.agency_id })
-    end
-  }
-  
-  # Class method to bypass scoping for admin users
-  def self.unscoped_for_admin
-    if User.current&.is_admin?
-      unscoped
-    else
-      all
-    end
-  end
   
   # Helper methods
   def agency_name

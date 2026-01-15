@@ -233,9 +233,11 @@ class QuotationsController < ApplicationController
   def print
     @vehicle = @quotation.vehicle
     @agency = @vehicle&.agency || set_default_agency
+    @agency_name = @agency&.name || 'Agency'
     
     respond_to do |format|
-      format.html { render layout: 'print' }
+      # FIX: Use layout: false since print.html.erb is a standalone HTML document
+      format.html { render :print, layout: false }
       format.pdf do
         render pdf: "quotation-#{@quotation.quote_number}",
                template: 'quotations/print',

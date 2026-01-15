@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -148,6 +148,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
     t.date "due_date", null: false
     t.date "invoice_date", null: false
     t.string "invoice_number", null: false
+    t.datetime "last_sync_at"
     t.bigint "maintenance_id"
     t.text "notes"
     t.datetime "paid_at"
@@ -161,6 +162,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
     t.integer "reviewed_by_id"
     t.string "status", default: "pending"
     t.decimal "subtotal", precision: 10, scale: 2
+    t.text "sync_error"
+    t.string "sync_status"
     t.decimal "tax", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
@@ -332,6 +335,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
 
   create_table "quickbooks_integrations", force: :cascade do |t|
     t.string "access_token"
+    t.string "agency_code"
     t.boolean "auto_sync", default: false
     t.string "company_id"
     t.boolean "connected", default: false
@@ -429,10 +433,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
     t.datetime "created_at", null: false
     t.string "description"
     t.bigint "invoice_id"
+    t.datetime "last_sync_at"
     t.text "notes"
     t.string "payment_method"
+    t.string "quickbooks_id"
     t.string "reference_number"
     t.integer "status", default: 0
+    t.text "sync_error"
+    t.string "sync_status", default: "pending"
     t.integer "transaction_type", default: 0
     t.datetime "updated_at", null: false
     t.bigint "user_id"
@@ -443,6 +451,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_051112) do
     t.index ["transaction_type"], name: "index_transactions_on_transaction_type"
     t.index ["user_id"], name: "index_transactions_on_user_id"
     t.index ["vehicle_id"], name: "index_transactions_on_vehicle_id"
+    t.check_constraint "sync_status::text = ANY (ARRAY['pending'::character varying, 'syncing'::character varying, 'success'::character varying, 'failed'::character varying, 'error'::character varying]::text[])", name: "check_sync_status"
   end
 
   create_table "trips", force: :cascade do |t|

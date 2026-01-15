@@ -1,13 +1,18 @@
-# app/controllers/invoices_controller.rb
+# app/controllers/invoices_controller.rb - COMPLETE FIXED VERSION WITH DOWNLOAD
+require 'csv'
+
 class InvoicesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :mark_as_reviewed, :mark_as_paid, :dispute, :download, :sync_to_quickbooks, :print, :payment_history, :create_transaction, :create_pos_transaction]
+  before_action :set_invoice, only: [:show, :edit, :update, :destroy, :mark_as_reviewed, 
+                                     :mark_as_paid, :dispute, :print, :sync_to_quickbooks, 
+                                     :payment_history, :create_transaction, :create_pos_transaction,
+                                     :download, :payment_timeline, :record_payment]
 
   def index
     # Initialize QuickBooks if needed (safe check)
     safe_initialize_quickbooks
     
-    # Scope invoices based on user role - FIXED: Use received_by instead of reviewed_by
+    # Scope invoices based on user role
     @invoices = if current_user.admin? || current_user.finance? || current_user.fleet_manager?
       # Admin/Finance/Fleet managers can see all invoices
       Invoice.all.includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
@@ -54,12 +59,72 @@ class InvoicesController < ApplicationController
   end
 
   def show
-    # @invoice is already set by set_invoice
+    puts "=== DEBUG SHOW ACTION ==="
+    puts "Params: #{params.inspect}"
+    puts "Format: #{request.format}"
+    puts "Template path: #{Rails.root.join('app', 'views', 'invoices', 'pdf.html.erb')}"
+    puts "File exists? #{File.exist?(Rails.root.join('app', 'views', 'invoices', 'pdf.html.erb'))}"
+    
+    @invoice = Invoice.find(params[:id])
     @transactions = @invoice.transactions.order(created_at: :desc)
-    # FIXED: Use pos_transaction (singular) instead of pos_transactions (plural)
     @pos_transaction = @invoice.pos_transaction
-    # REMOVED: @payment_history = @invoice.payment_history - This method doesn't exist
-    # Instead, we'll use @transactions for payment history
+    
+    respond_to do |format|
+      format.html
+      format.pdf do
+        puts "=== RENDERING PDF ==="
+        puts "Using template: invoices/pdf"
+        
+        # CORRECT SYNTAX FOR WICKEDPDF
+        render pdf: "invoice-#{@invoice.invoice_number}",
+               template: 'invoices/pdf',
+               layout: 'pdf',
+               formats: [:html],
+               disposition: 'attachment',
+               margin: { top: 15, bottom: 15, left: 15, right: 15 },
+               show_as_html: params[:debug].present?
+      end
+    end
+  end
+
+  # DEBUG ACTION - Add this for testing
+  def test_pdf
+    puts "=== DEBUG TEST PDF ACTION ==="
+    @invoice = Invoice.first || Invoice.create(
+      invoice_number: "TEST-INV-001",
+      vendor: "Test Vendor",
+      amount: 1000.00,
+      invoice_date: Date.today,
+      due_date: Date.today + 30.days,
+      status: "pending"
+    )
+    
+    puts "Invoice: #{@invoice.invoice_number}"
+    
+    respond_to do |format|
+      format.pdf do
+        puts "=== RENDERING TEST PDF ==="
+        
+        # Test with debug mode first
+        if params[:debug]
+          puts "Debug mode enabled - showing HTML"
+          render template: 'invoices/pdf',
+                 layout: 'pdf',
+                 formats: [:html]
+        else
+          puts "Generating actual PDF"
+          render pdf: "test-invoice-#{@invoice.invoice_number}",
+                 template: 'invoices/pdf',
+                 layout: 'pdf',
+                 formats: [:html],
+                 disposition: 'inline'
+        end
+      end
+    end
+  rescue => e
+    puts "=== TEST PDF ERROR: #{e.message} ==="
+    puts e.backtrace
+    raise
   end
 
   def new
@@ -204,7 +269,6 @@ class InvoicesController < ApplicationController
 
   def mark_as_reviewed
     if current_user.can_review_invoices? && @invoice.pending?
-      # Use mark_as_reviewed method on Invoice model (which should use received_by)
       @invoice.mark_as_reviewed(current_user)
       redirect_to @invoice, notice: 'Invoice marked as reviewed.'
     else
@@ -242,23 +306,39 @@ class InvoicesController < ApplicationController
     end
   end
 
-  def download
-    send_data generate_invoice_pdf(@invoice), 
-              filename: "#{@invoice.service_owner&.downcase || 'invoice'}-#{@invoice.invoice_number}.pdf",
-              type: 'application/pdf',
-              disposition: 'attachment'
-  end
-  
   def print
     respond_to do |format|
-      format.html { render layout: 'print' }
       format.pdf do
         render pdf: "invoice-#{@invoice.invoice_number}",
-               template: 'invoices/print.html.erb',
-               layout: 'pdf.html',
-               margin: { top: 10, bottom: 10, left: 10, right: 10 }
+               template: 'invoices/pdf',
+               layout: 'pdf',
+               formats: [:html],
+               margin: { top: 15, bottom: 15, left: 15, right: 15 }
+      end
+      format.html do
+        # HTML print preview
+        render :print, layout: false
       end
     end
+  rescue => e
+    Rails.logger.error "PDF print failed: #{e.message}"
+    redirect_to @invoice, alert: "Failed to generate print version: #{e.message}"
+  end
+
+  def download
+    # Check if user can access invoices
+    unless current_user.can_access_invoices?
+      redirect_to invoices_path, alert: 'You are not authorized to download invoices.'
+      return
+    end
+    
+    # Create a text file with invoice details
+    filename = "invoice-#{@invoice.invoice_number}-#{Date.today}.txt"
+    
+    send_data @invoice.to_text,
+              filename: filename,
+              type: 'text/plain',
+              disposition: 'attachment'
   end
   
   def payment_history
@@ -276,7 +356,7 @@ class InvoicesController < ApplicationController
     @start_date = params[:start_date] || 30.days.ago.to_date
     @end_date = params[:end_date] || Date.today
     
-    # FIXED: Create separate query for report stats (no ORDER BY)
+    # Create separate query for report stats (no ORDER BY)
     report_invoices = current_user.agency_invoices
                                   .where(invoice_date: @start_date..@end_date)
     
@@ -295,7 +375,9 @@ class InvoicesController < ApplicationController
       format.pdf do
         render pdf: "invoice-report-#{@start_date}-#{@end_date}",
                template: 'invoices/reports.pdf.erb',
-               layout: 'pdf.html'
+               layout: 'pdf.html',
+               formats: [:html],
+               margin: { top: 15, bottom: 15, left: 15, right: 15 }
       end
     end
   end
@@ -399,6 +481,29 @@ class InvoicesController < ApplicationController
     end
   end
 
+  def payment_timeline
+    # This action will show payment timeline for the invoice
+    @timeline_entries = @invoice.payment_timeline
+  end
+
+  def record_payment
+    if current_user.can_pay_invoices?
+      amount = params[:amount].to_f
+      payment_method = params[:payment_method] || 'cash'
+      payment_date = params[:payment_date] || Date.current
+      notes = params[:notes]
+      
+      if amount > 0
+        @invoice.record_payment(amount, payment_method, payment_date, current_user, notes)
+        redirect_to @invoice, notice: 'Payment recorded successfully.'
+      else
+        redirect_to @invoice, alert: 'Invalid payment amount.'
+      end
+    else
+      redirect_to @invoice, alert: 'You are not authorized to record payments.'
+    end
+  end
+
   private
 
   def set_invoice
@@ -426,7 +531,6 @@ class InvoicesController < ApplicationController
     when 'quickbooks_synced'
       invoices.where.not(quickbooks_id: nil)
     when 'pos_payment'
-      # FIXED: Use singular pos_transaction association
       invoices.joins(:pos_transaction).distinct
     when 'has_po'
       invoices.where.not(purchase_order_id: nil)
@@ -464,20 +568,13 @@ class InvoicesController < ApplicationController
   end
 
   def calculate_report_stats(invoices)
-    # FIXED: PostgreSQL grouping error - using Arel.sql for ORDER BY
-    
     stats = {
-      # Group by status - simple count (no ordering issues here)
       by_status: invoices.group(:status).count,
-      
-      # Group by vendor with sum
       by_vendor: invoices.group(:vendor).sum(:amount),
-      
-      # Group by category with sum
       by_category: invoices.group(:category).sum(:amount),
     }
     
-    # Monthly totals - using Arel.sql for explicit SQL
+    # Monthly totals
     monthly_totals_query = invoices
       .select("DATE_TRUNC('month', invoice_date) as month, SUM(amount) as total_amount")
       .group("DATE_TRUNC('month', invoice_date)")
@@ -523,15 +620,6 @@ class InvoicesController < ApplicationController
     # Top vendors by volume (first 5)
     stats[:top_vendors] = stats[:by_vendor].sort_by { |_, amount| -amount }.first(5).to_h
     
-    # Acceptance rate
-    if invoices.where(status: 'sent').any?
-      total_sent = invoices.where(status: 'sent').count
-      total_accepted = invoices.where(status: 'accepted').count
-      stats[:acceptance_rate] = total_sent > 0 ? ((total_accepted.to_f / total_sent) * 100).round(2) : 0
-    else
-      stats[:acceptance_rate] = 0
-    end
-    
     # Daily breakdown (optional)
     daily_totals = invoices
       .select("invoice_date, SUM(amount) as daily_total, COUNT(*) as daily_count")
@@ -548,36 +636,6 @@ class InvoicesController < ApplicationController
     end
     
     stats
-  end
-
-  def generate_invoice_pdf(invoice)
-    # Simple PDF generation
-    content = "INVOICE\n"
-    content += "=" * 50 + "\n"
-    content += "Invoice #: #{invoice.invoice_number}\n"
-    content += "Date: #{invoice.invoice_date}\n"
-    content += "Due Date: #{invoice.due_date}\n"
-    content += "Vendor: #{invoice.vendor}\n"
-    content += "Agency: #{invoice.agency_name}\n"
-    content += "Vehicle: #{invoice.vehicle_display}\n"
-    content += "Amount: $#{invoice.amount}\n"
-    content += "Status: #{invoice.status.humanize}\n"
-    content += "=" * 50 + "\n"
-    content += "Notes: #{invoice.notes}\n" if invoice.notes.present?
-    
-    # Add integration info
-    if invoice.quickbooks_id.present?
-      content += "\nQuickBooks ID: #{invoice.quickbooks_id}\n"
-    end
-    
-    if invoice.transactions.any?
-      content += "\nPayment History:\n"
-      invoice.transactions.each do |transaction|
-        content += "- $#{transaction.amount} on #{transaction.created_at.strftime('%Y-%m-%d')} via #{transaction.payment_method}\n"
-      end
-    end
-    
-    content
   end
 
   def generate_csv_report(invoices)
