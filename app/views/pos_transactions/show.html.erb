@@ -1,0 +1,138 @@
+<%# app/views/pos_transactions/show.html.erb %>
+<%= pos_transaction_summary(@pos_transaction) %>
+
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="d-flex justify-content-between mb-4">
+        <h2>Transaction Details</h2>
+        <div class="btn-group">
+          <%= link_to 'Back to List', pos_transactions_path, class: 'btn btn-secondary' %>
+          <%= link_to 'Print Receipt', receipt_pos_transaction_path(@pos_transaction, format: :pdf), 
+                      class: 'btn btn-primary', target: '_blank' %>
+          <% if @pos_transaction.completed? %>
+            <%= button_to 'Void Transaction', void_pos_transaction_path(@pos_transaction), 
+                          method: :post, 
+                          data: { confirm: 'Are you sure you want to void this transaction? This action cannot be undone and is recorded for audit purposes.' },
+                          class: 'btn btn-warning' %>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Audit Trail Notice %>
+      <div class="alert alert-info">
+        <i class="fas fa-clipboard-check me-2"></i>
+        <strong>Audit Trail:</strong> This transaction is part of your permanent financial records. 
+        Instead of deleting, transactions should be voided or refunded to maintain a complete audit trail.
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Transaction Information</h5>
+              <table class="table table-sm">
+                <tr>
+                  <th width="40%">Transaction ID:</th>
+                  <td><%= @pos_transaction.transaction_id %></td>
+                </tr>
+                <tr>
+                  <th>Created:</th>
+                  <td><%= format_date(@pos_transaction.created_at, format: :datetime) %></td>
+                </tr>
+                <tr>
+                  <th>Agency:</th>
+                  <td><%= @pos_transaction.agency_name %></td>
+                </tr>
+                <tr>
+                  <th>Processed By:</th>
+                  <td><%= @pos_transaction.user&.name || 'Unknown' %></td>
+                </tr>
+                <tr>
+                  <th>Audit Status:</th>
+                  <td>
+                    <span class="badge bg-success">
+                      <i class="fas fa-shield-alt me-1"></i>
+                      Preserved for Audit
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <h5>Financial Details</h5>
+              <table class="table table-sm">
+                <tr>
+                  <th width="40%">Amount:</th>
+                  <td><%= format_currency(@pos_transaction.amount) %></td>
+                </tr>
+                <tr>
+                  <th>Payment Type:</th>
+                  <td><%= pos_payment_type_badge(@pos_transaction.payment_type) %></td>
+                </tr>
+                <tr>
+                  <th>Status:</th>
+                  <td><%= pos_status_badge(@pos_transaction.status) %></td>
+                </tr>
+                <% if @pos_transaction.voided? && @pos_transaction.voided_at %>
+                  <tr>
+                    <th>Voided At:</th>
+                    <td><%= format_date(@pos_transaction.voided_at, format: :datetime) %></td>
+                  </tr>
+                <% end %>
+                <% if @pos_transaction.refunded? && @pos_transaction.refunded_at %>
+                  <tr>
+                    <th>Refunded At:</th>
+                    <td><%= format_date(@pos_transaction.refunded_at, format: :datetime) %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </div>
+          </div>
+
+          <% if @pos_transaction.vehicle %>
+            <div class="mt-4">
+              <h5>Vehicle Information</h5>
+              <table class="table table-sm">
+                <tr>
+                  <th width="30%">License Plate:</th>
+                  <td><%= @pos_transaction.vehicle.license_plate %></td>
+                </tr>
+                <tr>
+                  <th>Make/Model:</th>
+                  <td><%= @pos_transaction.vehicle.make %> <%= @pos_transaction.vehicle.model %></td>
+                </tr>
+                <tr>
+                  <th>Year:</th>
+                  <td><%= @pos_transaction.vehicle.year_of_manufacture %></td>
+                </tr>
+              </table>
+            </div>
+          <% end %>
+
+          <% if @pos_transaction.notes.present? %>
+            <div class="mt-4">
+              <h5>Transaction Notes</h5>
+              <div class="card bg-light">
+                <div class="card-body">
+                  <%= simple_format(@pos_transaction.notes) %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+
+          <% if @pos_transaction.invoice %>
+            <div class="mt-4">
+              <h5>Linked Invoice</h5>
+              <div class="alert alert-info">
+                <i class="fas fa-file-invoice me-2"></i>
+                This transaction is linked to invoice: 
+                <%= link_to @pos_transaction.invoice.invoice_number, invoice_path(@pos_transaction.invoice) %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

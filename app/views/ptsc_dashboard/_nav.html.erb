@@ -1,62 +1,75 @@
 <%# app/views/shared/_navigation.html.erb %>
+
 <div class="mb-4">
   <div class="card border-0 shadow-sm nav-card">
     <div class="card-body p-3">
       <div class="d-flex flex-wrap align-items-center justify-content-between">
         <div class="d-flex flex-wrap gap-2">
+
           <% nav_items = [] %>
-          
-          <!-- Dashboard -->
-          <% if current_user.agency&.code == 'PTSC' %>
+
+          <!-- ============================= -->
+          <!-- Dashboard (Agency-based) -->
+          <!-- ============================= -->
+          <% case current_user.agency&.code %>
+          <% when 'PTSC' %>
             <% nav_items << ["📊 Dashboard", ptsc_dashboard_path] %>
-          <% elsif current_user.agency&.code == 'TTPS' %>
+          <% when 'TTPS' %>
             <% nav_items << ["📊 Dashboard", ttps_dashboard_path] %>
-          <% elsif current_user.agency&.code == 'TTDF' %>
+          <% when 'TTDF' %>
             <% nav_items << ["📊 Dashboard", ttdf_dashboard_path] %>
-          <% elsif current_user.agency&.code == 'VMCOTT' %>
+          <% when 'VMCOTT' %>
             <% nav_items << ["📊 Dashboard", vmcott_dashboard_path] %>
           <% else %>
             <% nav_items << ["📊 Dashboard", main_dashboard_path] %>
           <% end %>
-          
-          <!-- Fleet Management -->
-          <% unless current_user.finance? %>
-            <% if current_user.agency_id.present? %>
-              <% nav_items << ["🚗 Fleet", agency_vehicles_path(current_user.agency)] %>
-            <% end %>
+
+          <!-- ============================= -->
+          <!-- Fleet (non-finance users) -->
+          <!-- ============================= -->
+          <% if current_user.agency_id.present? && !current_user.finance? %>
+            <% nav_items << ["🚗 Fleet", agency_vehicles_path(current_user.agency)] %>
           <% end %>
-          
+
+          <!-- ============================= -->
           <!-- Analytics -->
-          <% if current_user.fleet_manager? || current_user.admin? %>
-            <% if current_user.agency_id.present? %>
-              <% nav_items << ["📈 Analytics", agency_analytics_path(current_user.agency)] %>
-            <% end %>
+          <!-- ============================= -->
+          <% if (current_user.fleet_manager? || current_user.admin?) && current_user.agency_id.present? %>
+            <% nav_items << ["📈 Analytics", agency_analytics_path(current_user.agency)] %>
           <% end %>
-          
+
+          <!-- ============================= -->
           <!-- Financial Modules -->
+          <!-- ============================= -->
           <% if current_user.finance? || current_user.admin? %>
             <% nav_items << ["💰 Invoices", invoices_path] %>
             <% nav_items << ["💳 Transactions", transactions_path] %>
             <% nav_items << ["📋 Purchase Orders", purchase_orders_path] %>
             <% nav_items << ["📄 Quotations", quotations_path] %>
             <% nav_items << ["🧾 POS", pos_transactions_path] %>
+
             <% if current_user.agency_id.present? %>
               <% nav_items << ["📊 QuickBooks", quickbooks_dashboard_path] %>
             <% end %>
           <% end %>
-          
-          <!-- Fleet Manager Modules -->
+
+          <!-- ============================= -->
+          <!-- Fleet Manager / Admin Modules -->
+          <!-- ============================= -->
           <% if current_user.fleet_manager? || current_user.admin? %>
             <% nav_items << ["👥 Drivers", drivers_path] %>
             <% nav_items << ["⚙️ Maintenance", maintenances_path] %>
             <% nav_items << ["🚨 Alerts", alerts_path] %>
           <% end %>
-          
-          <!-- Display Navigation Items -->
+
+          <!-- ============================= -->
+          <!-- Render Navigation -->
+          <!-- ============================= -->
           <% nav_items.each do |label, path| %>
             <%= link_to label, path,
-              class: "nav-option btn btn-sm #{'btn-primary' if current_page?(path)} #{'btn-outline-primary' unless current_page?(path)} rounded-pill px-3 py-2 fw-medium" %>
+              class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-medium #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" %>
           <% end %>
+
         </div>
       </div>
     </div>

@@ -1,0 +1,442 @@
+<%# app/views/pos_transactions/dashboard.html.erb %>
+<%
+  # Add emergency fixes for POS Dashboard page
+  content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta name="turbo-cache-control" content="no-cache">
+    <style>
+      /* EMERGENCY FIX FOR POS DASHBOARD PAGE */
+      body.pos-transactions-page,
+      body.dashboard-page {
+        background-color: #f8f9fa !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      .pos-transactions-page .container-fluid,
+      .dashboard-page .container-fluid,
+      .pos-transactions-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .dashboard-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .pos-transactions-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .dashboard-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .pos-transactions-page .table,
+      .dashboard-page .table,
+      .pos-transactions-page .table th,
+      .dashboard-page .table th,
+      .pos-transactions-page .table td,
+      .dashboard-page .table td,
+      .pos-transactions-page .table tbody tr,
+      .dashboard-page .table tbody tr {
+        background-color: white !important;
+        color: #212529 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      /* Force all text to be visible immediately */
+      .pos-transactions-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger),
+      .dashboard-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
+        color: #212529 !important;
+      }
+      
+      /* Keep colored elements readable */
+      .pos-transactions-page .card.bg-primary *,
+      .dashboard-page .card.bg-primary *,
+      .pos-transactions-page .card.bg-success *,
+      .dashboard-page .card.bg-success *,
+      .pos-transactions-page .card.bg-info *,
+      .dashboard-page .card.bg-info *,
+      .pos-transactions-page .card.bg-danger *,
+      .dashboard-page .card.bg-danger *,
+      .pos-transactions-page .card.bg-dark *,
+      .dashboard-page .card.bg-dark *,
+      .pos-transactions-page .card.bg-secondary *,
+      .dashboard-page .card.bg-secondary * {
+        color: white !important;
+      }
+      
+      .pos-transactions-page .card.bg-warning *,
+      .dashboard-page .card.bg-warning * {
+        color: #212529 !important;
+      }
+      
+      /* Prevent Turbo from interfering */
+      [data-turbo-preview] * {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Disable ALL animations and transitions */
+      .pos-transactions-page *,
+      .dashboard-page * {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>
+      // IMMEDIATE FIX FOR POS DASHBOARD PAGE
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('POS Dashboard Page - Applying emergency fix for blinking');
+        
+        // Add classes immediately
+        document.body.classList.add('pos-transactions-page');
+        document.body.classList.add('dashboard-page');
+        
+        // Force immediate visibility
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Force text colors
+        setTimeout(function() {
+          const allElements = document.querySelectorAll('*');
+          allElements.forEach(el => {
+            const bgColor = window.getComputedStyle(el).backgroundColor;
+            const textColor = window.getComputedStyle(el).color;
+            
+            // If background is light and text is white/transparent, make text dark
+            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
+                 bgColor === 'rgb(255, 255, 255)' || 
+                 bgColor === 'rgb(248, 249, 250)' ||
+                 bgColor === '#ffffff' ||
+                 bgColor === '#f8f9fa') &&
+                (textColor === 'rgba(0, 0, 0, 0)' || 
+                 textColor === 'rgb(255, 255, 255)' ||
+                 textColor === '#ffffff')) {
+              el.style.color = '#212529';
+            }
+          });
+        }, 10);
+        
+        // Disable Turbo completely for POS dashboard
+        if (typeof Turbo !== 'undefined' && window.location.pathname.includes('/pos_transactions/dashboard')) {
+          console.log('POS Dashboard page detected, disabling Turbo');
+          
+          // Disable all Turbo links and forms
+          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
+            link.setAttribute('data-turbo', 'false');
+          });
+          
+          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
+            form.setAttribute('data-turbo', 'false');
+          });
+          
+          // Disable Turbo caching
+          Turbo.cache.exemptPageFromPreview();
+          Turbo.cache.exemptPageFromCache();
+        }
+      });
+      
+      // Also handle Turbo page loads
+      document.addEventListener('turbo:load', function() {
+        if (window.location.pathname.includes('/pos_transactions/dashboard')) {
+          document.body.classList.add('pos-transactions-page');
+          document.body.classList.add('dashboard-page');
+          
+          // Final check after everything loads
+          setTimeout(() => {
+            console.log('Final check for POS Dashboard - ensuring all text is visible');
+            const allTextElements = document.querySelectorAll('p, span, td, th, div, h1, h2, h3, h4, h5, h6');
+            allTextElements.forEach(el => {
+              if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
+                  window.getComputedStyle(el).color === '#ffffff') {
+                el.style.color = '#212529';
+              }
+            });
+          }, 500);
+        }
+      });
+    </script>
+<% end %>
+
+<div class="container-fluid pos-transactions-container">
+  <div class="row">
+    <div class="col-md-12">
+      <!-- Agency Header - Fixed button colors -->
+      <div class="card mb-4 <%= pos_agency_theme[:bg] %> text-white">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h1 class="h3 mb-0">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                POS Dashboard - <%= current_agency.name %>
+              </h1>
+              <p class="mb-0">Welcome back, <%= current_user.name %>!</p>
+            </div>
+            <div>
+              <%= link_to 'New Transaction', new_pos_transaction_path, class: 'btn btn-light', data: { turbo: false } %>
+              <%= link_to 'Cashier Session', cashier_session_pos_transactions_path, class: 'btn btn-outline-warning ms-2', data: { turbo: false } %>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Today's Summary - CHANGED: Fixed text colors -->
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="card <%= pos_agency_theme[:bg] %> text-white">
+            <div class="card-body">
+              <h6 class="card-title">Today's Sales</h6>
+              <h2 class="mb-0"><%= format_currency(@today_total) %></h2>
+              <small><%= @today_transactions.completed.count %> completed transactions</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-success text-white">
+            <div class="card-body">
+              <h6 class="card-title">This Week</h6>
+              <h2 class="mb-0"><%= format_currency(@weekly_total) %></h2>
+              <small><%= @weekly_transactions.count %> transactions</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-warning text-dark">
+            <div class="card-body">
+              <h6 class="card-title">Voided Today</h6>
+              <h2 class="mb-0"><%= @voided_count %></h2>
+              <small>Transactions voided</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-info text-white">
+            <div class="card-body">
+              <h6 class="card-title">Refunded</h6>
+              <h2 class="mb-0"><%= @refunded_count %></h2>
+              <small>Total refunded transactions</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="row mb-4">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header bg-light">
+              <h5 class="mb-0">Hourly Sales Today</h5>
+            </div>
+            <div class="card-body">
+              <canvas id="hourlySalesChart" height="250"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header bg-light">
+              <h5 class="mb-0">Payment Methods</h5>
+            </div>
+            <div class="card-body">
+              <canvas id="paymentMethodsChart" height="250"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Items - CHANGED: Fixed card styling -->
+      <div class="row mb-4">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header bg-light">
+              <h5 class="mb-0">Top Selling Items</h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <% @top_items.each do |item| %>
+                  <div class="col-md-4 mb-3">
+                    <div class="card">
+                      <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h6 class="mb-0"><%= item[:name] %></h6>
+                          <span class="badge bg-<%= item[:color] %>"><%= format_currency(item[:sales]) %></span>
+                        </div>
+                        <div class="progress mt-2" style="height: 10px;">
+                          <div class="progress-bar bg-<%= item[:color] %>" 
+                               style="width: <%= (item[:sales] / @top_items.map { |i| i[:sales] }.max * 100) %>%">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions - CHANGED: Fixed card styling -->
+      <div class="row">
+        <div class="col-md-3">
+          <div class="card text-center border-primary">
+            <div class="card-body">
+              <i class="fas fa-plus-circle fa-3x text-primary mb-3"></i>
+              <h5>New Transaction</h5>
+              <p class="text-muted">Create a new POS transaction</p>
+              <%= link_to 'Start Transaction', new_pos_transaction_path, class: 'btn btn-primary w-100', data: { turbo: false } %>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center border-success">
+            <div class="card-body">
+              <i class="fas fa-list fa-3x text-success mb-3"></i>
+              <h5>View All</h5>
+              <p class="text-muted">Browse all transactions</p>
+              <%= link_to 'View Transactions', pos_transactions_path, class: 'btn btn-success w-100', data: { turbo: false } %>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center border-info">
+            <div class="card-body">
+              <i class="fas fa-chart-bar fa-3x text-info mb-3"></i>
+              <h5>Reports</h5>
+              <p class="text-muted">Generate sales reports</p>
+              <%= link_to 'View Reports', reports_pos_transactions_path, class: 'btn btn-info w-100', data: { turbo: false } %>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card text-center border-warning">
+            <div class="card-body">
+              <i class="fas fa-cash-register fa-3x text-warning mb-3"></i>
+              <h5>Cashier Session</h5>
+              <p class="text-muted">Manage cash register</p>
+              <%= link_to 'Manage Session', cashier_session_pos_transactions_path, class: 'btn btn-warning w-100', data: { turbo: false } %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Additional JavaScript for POS Dashboard page %>
+<script>
+  // Force POS Dashboard page styling
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add the class if not already added
+    if (!document.body.classList.contains('pos-transactions-page')) {
+      document.body.classList.add('pos-transactions-page');
+    }
+    if (!document.body.classList.contains('dashboard-page')) {
+      document.body.classList.add('dashboard-page');
+    }
+    
+    // Force card backgrounds immediately
+    setTimeout(function() {
+      // Force colored cards to keep their colors
+      document.querySelectorAll('.card.bg-primary, .card.bg-success, .card.bg-info, .card.bg-warning, .card.bg-danger, .card.bg-dark, .card.bg-secondary').forEach(card => {
+        if (card.classList.contains('bg-warning')) {
+          card.style.backgroundColor = '#ffc107';
+          card.style.color = '#212529';
+        } else if (card.classList.contains('bg-primary')) {
+          card.style.backgroundColor = '#0d6efd';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-success')) {
+          card.style.backgroundColor = '#198754';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-info')) {
+          card.style.backgroundColor = '#0dcaf0';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-danger')) {
+          card.style.backgroundColor = '#dc3545';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-dark')) {
+          card.style.backgroundColor = '#212529';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-secondary')) {
+          card.style.backgroundColor = '#6c757d';
+          card.style.color = 'white';
+        }
+      });
+      
+      // Force regular cards to be white
+      document.querySelectorAll('.card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary)').forEach(card => {
+        card.style.backgroundColor = 'white';
+        card.style.color = '#212529';
+      });
+      
+      // Force border cards to be white
+      document.querySelectorAll('.card.border-primary, .card.border-success, .card.border-info, .card.border-warning').forEach(card => {
+        card.style.backgroundColor = 'white';
+        card.style.color = '#212529';
+      });
+    }, 50);
+    
+    // Add data-turbo="false" to all links
+    setTimeout(function() {
+      document.querySelectorAll('a:not([data-turbo])').forEach(link => {
+        if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
+          link.setAttribute('data-turbo', 'false');
+        }
+      });
+    }, 100);
+  });
+</script>
+
+<%# JavaScript for Charts - MODIFIED to ensure it works with emergency fixes %>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Wait for emergency fixes to apply first
+  setTimeout(function() {
+    // Hourly Sales Chart
+    const hourlyCtx = document.getElementById('hourlySalesChart');
+    if (hourlyCtx) {
+      const hourlyChart = new Chart(hourlyCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: <%= raw @hourly_sales.map { |h| h[:hour] }.to_json %>,
+          datasets: [{
+            label: 'Sales Amount (TTD)',
+            data: <%= raw @hourly_sales.map { |h| h[:amount] }.to_json %>,
+            backgroundColor: '#0d6efd', // Fixed color
+            borderColor: '#0a58ca',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return 'TTD ' + value;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Payment Methods Chart
+    const paymentCtx = document.getElementById('paymentMethodsChart');
+    if (paymentCtx) {
+      const paymentChart = new Chart(paymentCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: <%= raw @payment_methods.keys.to_json %>,
+          datasets: [{
+            data: <%= raw @payment_methods.values.to_json %>,
+            backgroundColor: [
+              '#28a745', // Cash - green
+              '#007bff', // Card - blue
+              '#17a2b8', // Mobile Money - teal
+              '#ffc107'  // Bank Transfer - yellow
+            ]
+          }]
+        },
+        options: {
+          responsive: true
+        }
+      });
+    }
+  }, 200); // Wait 200ms for emergency fixes to apply
+});
+</script>

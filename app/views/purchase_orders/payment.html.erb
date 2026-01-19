@@ -1,0 +1,270 @@
+<%# app/views/purchase_orders/payment.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0 py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0">
+                <i class="fas fa-credit-card me-2"></i>
+                Trinidad Card Payment
+              </h5>
+              <p class="text-muted mb-0">
+                PO: <%= @purchase_order.po_number %> | 
+                Vendor: <%= @purchase_order.vendor %> | 
+                Amount: <strong>TTD <%= number_to_currency(@purchase_order.amount, unit: '') %></strong>
+              </p>
+            </div>
+            <div>
+              <%= link_to purchase_order_path(@purchase_order), class: "btn btn-sm btn-outline-secondary" do %>
+                <i class="fas fa-arrow-left me-1"></i> Back to PO
+              <% end %>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <%= form_with url: process_payment_purchase_order_path(@purchase_order), method: :post, local: true do |f| %>
+            <div class="row">
+              <div class="col-lg-6">
+                <div class="mb-4">
+                  <h6 class="mb-3">Card Details</h6>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Card Type</label>
+                    <div class="btn-group w-100" role="group">
+                      <input type="radio" class="btn-check" name="card_type" id="card_type_debit" value="debit" checked>
+                      <label class="btn btn-outline-primary" for="card_type_debit">
+                        <i class="fas fa-credit-card me-2"></i> Debit Card
+                      </label>
+                      
+                      <input type="radio" class="btn-check" name="card_type" id="card_type_credit" value="credit">
+                      <label class="btn btn-outline-primary" for="card_type_credit">
+                        <i class="fas fa-credit-card me-2"></i> Credit Card
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Card Brand</label>
+                    <div class="row g-2">
+                      <div class="col-3">
+                        <input type="radio" class="btn-check" name="card_brand" id="card_visa" value="visa" checked>
+                        <label class="btn btn-outline-secondary w-100" for="card_visa">
+                          <i class="fab fa-cc-visa fa-2x"></i>
+                        </label>
+                      </div>
+                      <div class="col-3">
+                        <input type="radio" class="btn-check" name="card_brand" id="card_mastercard" value="mastercard">
+                        <label class="btn btn-outline-secondary w-100" for="card_mastercard">
+                          <i class="fab fa-cc-mastercard fa-2x"></i>
+                        </label>
+                      </div>
+                      <div class="col-3">
+                        <input type="radio" class="btn-check" name="card_brand" id="card_amex" value="amex">
+                        <label class="btn btn-outline-secondary w-100" for="card_amex">
+                          <i class="fab fa-cc-amex fa-2x"></i>
+                        </label>
+                      </div>
+                      <div class="col-3">
+                        <input type="radio" class="btn-check" name="card_brand" id="card_discover" value="discover">
+                        <label class="btn btn-outline-secondary w-100" for="card_discover">
+                          <i class="fab fa-cc-discover fa-2x"></i>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Card Number</label>
+                    <input type="text" 
+                           name="card_number" 
+                           class="form-control card-number" 
+                           placeholder="1234 5678 9012 3456"
+                           required
+                           data-action="input->payment#formatCardNumber">
+                    <div class="form-text">Enter your 16-digit Trinidad card number</div>
+                  </div>
+                  
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label class="form-label">Expiry Month</label>
+                        <select name="expiry_month" class="form-select" required>
+                          <option value="">MM</option>
+                          <% (1..12).each do |month| %>
+                            <option value="<%= sprintf('%02d', month) %>"><%= sprintf('%02d', month) %></option>
+                          <% end %>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label class="form-label">Expiry Year</label>
+                        <select name="expiry_year" class="form-select" required>
+                          <option value="">YYYY</option>
+                          <% (Date.today.year..Date.today.year + 10).each do |year| %>
+                            <option value="<%= year %>"><%= year %></option>
+                          <% end %>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">CVV</label>
+                    <input type="text" 
+                           name="cvv" 
+                           class="form-control" 
+                           placeholder="123"
+                           maxlength="4"
+                           required>
+                    <div class="form-text">3 or 4-digit security code</div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Cardholder Name</label>
+                    <input type="text" 
+                           name="card_holder" 
+                           class="form-control" 
+                           placeholder="As shown on card"
+                           required>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-lg-6">
+                <div class="mb-4">
+                  <h6 class="mb-3">Billing Address</h6>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Address Line 1</label>
+                    <input type="text" 
+                           name="billing_address_line1" 
+                           class="form-control" 
+                           placeholder="Street address"
+                           required>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Address Line 2</label>
+                    <input type="text" 
+                           name="billing_address_line2" 
+                           class="form-control" 
+                           placeholder="Apartment, suite, unit, etc.">
+                  </div>
+                  
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label class="form-label">City/Town</label>
+                        <input type="text" 
+                               name="billing_city" 
+                               class="form-control" 
+                               value="<%= current_user.agency&.name&.split(',')&.first || 'Port of Spain' %>"
+                               required>
+                      </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <label class="form-label">State/Parish</label>
+                        <select name="billing_state" class="form-select" required>
+                          <option value="">Select...</option>
+                          <option value="Port of Spain">Port of Spain</option>
+                          <option value="San Fernando">San Fernando</option>
+                          <option value="Chaguanas">Chaguanas</option>
+                          <option value="Arima">Arima</option>
+                          <option value="Point Fortin">Point Fortin</option>
+                          <option value="Tobago">Tobago</option>
+                          <option value="Diego Martin">Diego Martin</option>
+                          <option value="San Juan">San Juan</option>
+                          <option value="Tunapuna">Tunapuna</option>
+                          <option value="Couva">Couva</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="mb-3">
+                    <label class="form-label">Postal Code</label>
+                    <input type="text" 
+                           name="billing_postal_code" 
+                           class="form-control" 
+                           placeholder="e.g., 000000"
+                           pattern="[0-9]{6}"
+                           required>
+                  </div>
+                  
+                  <div class="alert alert-info">
+                    <div class="d-flex">
+                      <div class="me-3">
+                        <i class="fas fa-shield-alt fa-lg"></i>
+                      </div>
+                      <div>
+                        <h6 class="alert-heading">Secure Payment Processing</h6>
+                        <p class="mb-2">Your payment is processed securely through encrypted channels. We do not store your full card details.</p>
+                        <p class="mb-0">Compatible with all Trinidad-issued debit and credit cards.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="alert alert-warning">
+                    <h6 class="alert-heading">Supported Trinidad Banks</h6>
+                    <div class="row small">
+                      <div class="col-6">
+                        <ul class="mb-0">
+                          <li>First Citizens Bank</li>
+                          <li>Republic Bank</li>
+                          <li>Scotiabank Trinidad</li>
+                        </ul>
+                      </div>
+                      <div class="col-6">
+                        <ul class="mb-0">
+                          <li>JMMB Bank</li>
+                          <li>RBC Trinidad</li>
+                          <li>All local debit cards</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="text-center mt-4 pt-3 border-top">
+              <button type="submit" class="btn btn-primary btn-lg px-5">
+                <i class="fas fa-lock me-2"></i> Process Payment of TTD <%= number_to_currency(@purchase_order.amount, unit: '') %>
+              </button>
+              
+              <div class="mt-3">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" height="30" class="me-2">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" height="30" class="me-2">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg" height="30" class="me-2">
+                <small class="text-muted d-block mt-2">
+                  By proceeding, you authorize this charge to your card
+                </small>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Format card number with spaces
+  const cardNumberInput = document.querySelector('input[name="card_number"]');
+  if (cardNumberInput) {
+    cardNumberInput.addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+      let formatted = value.replace(/(\d{4})/g, '$1 ').trim();
+      e.target.value = formatted.substring(0, 19);
+    });
+  }
+});
+</script>

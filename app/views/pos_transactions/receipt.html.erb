@@ -1,0 +1,94 @@
+<%# app/views/pos_transactions/receipt.html.erb %>
+<div class="container receipt-container">
+  <div class="text-center mb-4">
+    <h3 class="<%= pos_agency_theme[:text] %>">
+      <%= current_agency.name %>
+    </h3>
+    <p class="text-muted">Point of Sale Receipt</p>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <%# Receipt Header %>
+      <div class="text-center mb-4">
+        <h5>RECEIPT</h5>
+        <p class="text-muted mb-0">Transaction #<%= @pos_transaction.transaction_id %></p>
+        <small class="text-muted"><%= format_date(@pos_transaction.created_at, format: :datetime) %></small>
+      </div>
+
+      <hr>
+
+      <%# Transaction Details %>
+      <div class="mb-4">
+        <div class="row mb-2">
+          <div class="col-6">Amount:</div>
+          <div class="col-6 text-end">
+            <strong><%= number_to_currency(@pos_transaction.amount, unit: "$") %></strong>
+          </div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-6">Payment Method:</div>
+          <div class="col-6 text-end">
+            <%= @pos_transaction.display_payment_type %>
+          </div>
+        </div>
+        <div class="row mb-2">
+          <div class="col-6">Status:</div>
+          <div class="col-6 text-end">
+            <%= @pos_transaction.display_status %>
+          </div>
+        </div>
+        <% if @pos_transaction.vehicle %>
+          <div class="row mb-2">
+            <div class="col-6">Vehicle:</div>
+            <div class="col-6 text-end">
+              <%= @pos_transaction.vehicle.license_plate %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <hr>
+
+      <%# Agency Info %>
+      <div class="text-center mt-4">
+        <p class="text-muted small mb-0">
+          <%= current_agency.name %><br>
+          <%= current_agency.code %> • POS System<br>
+          Processed by: <%= @pos_transaction.user&.name || 'System' %><br>
+          <%= Time.current.strftime("%Y-%m-%d %H:%M:%S") %>
+        </p>
+      </div>
+
+      <%# Thank You Message %>
+      <div class="text-center mt-4">
+        <p class="<%= pos_agency_theme[:text] %>">
+          <strong>Thank you for your business!</strong>
+        </p>
+        <p class="text-muted small">
+          Please keep this receipt for your records.<br>
+          For inquiries, contact your agency administrator.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <%# Print/Download Options %>
+  <div class="text-center mt-4">
+    <%= link_to 'Print Receipt', receipt_pos_transaction_path(@pos_transaction, format: :pdf), 
+                class: 'btn btn-primary me-2', target: '_blank' %>
+    <%= link_to 'Back to Transaction', pos_transaction_path(@pos_transaction), 
+                class: 'btn btn-secondary' %>
+  </div>
+</div>
+
+<style>
+.receipt-container {
+  max-width: 400px;
+  margin: 0 auto;
+}
+@media print {
+  .btn { display: none !important; }
+  .receipt-container { max-width: 100%; }
+}
+</style>

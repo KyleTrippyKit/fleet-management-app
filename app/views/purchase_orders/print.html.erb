@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purchase Order: <%= @purchase_order.po_number %></title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    
+    .print-header {
+      text-align: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #333;
+      padding-bottom: 20px;
+    }
+    
+    .company-info {
+      float: left;
+      width: 50%;
+    }
+    
+    .po-info {
+      float: right;
+      width: 50%;
+      text-align: right;
+    }
+    
+    .clearfix::after {
+      content: "";
+      clear: both;
+      display: table;
+    }
+    
+    .section {
+      margin-bottom: 20px;
+    }
+    
+    .section-title {
+      background-color: #f5f5f5;
+      padding: 8px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    
+    th {
+      background-color: #f5f5f5;
+      text-align: left;
+      padding: 8px;
+      border: 1px solid #ddd;
+    }
+    
+    td {
+      padding: 8px;
+      border: 1px solid #ddd;
+    }
+    
+    .total-row {
+      font-weight: bold;
+      background-color: #f5f5f5;
+    }
+    
+    .footer {
+      margin-top: 50px;
+      border-top: 1px solid #333;
+      padding-top: 20px;
+    }
+    
+    .signature-section {
+      margin-top: 40px;
+    }
+    
+    .signature-line {
+      width: 300px;
+      border-top: 1px solid #333;
+      margin-top: 20px;
+      padding-top: 5px;
+    }
+    
+    @media print {
+      .no-print {
+        display: none;
+      }
+      body {
+        padding: 0;
+      }
+      .print-header {
+        page-break-after: avoid;
+      }
+      table {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Section -->
+  <div class="print-header">
+    <h1>PURCHASE ORDER</h1>
+    <h2>Trinidad Fleet Management System</h2>
+  </div>
+  
+  <!-- Company and PO Info -->
+  <div class="clearfix">
+    <div class="company-info">
+      <h3><%= @purchase_order.agency&.name || "Agency" %></h3>
+      <% if @purchase_order.agency %>
+        <p><%= @purchase_order.agency.description %></p>
+      <% end %>
+      <p>Date: <%= Date.current.strftime('%B %d, %Y') %></p>
+    </div>
+    
+    <div class="po-info">
+      <h3>PO #: <%= @purchase_order.po_number %></h3>
+      <p>Status: <%= @purchase_order.status.humanize %></p>
+      <p>Created: <%= @purchase_order.created_at.strftime('%B %d, %Y') %></p>
+    </div>
+  </div>
+  
+  <!-- Vendor and Vehicle Info -->
+  <div class="section">
+    <div class="section-title">Vendor Information</div>
+    <p><strong>Vendor:</strong> <%= @purchase_order.vendor %></p>
+    <% if @purchase_order.vehicle %>
+      <p><strong>Vehicle:</strong> <%= @purchase_order.vehicle.display_name %></p>
+      <p><strong>Registration:</strong> <%= @purchase_order.vehicle.registration_number %></p>
+      <p><strong>Make/Model:</strong> <%= @purchase_order.vehicle.make %> <%= @purchase_order.vehicle.model %></p>
+    <% end %>
+  </div>
+  
+  <!-- Line Items -->
+  <div class="section">
+    <div class="section-title">Items Ordered</div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Description</th>
+          <th>Quantity</th>
+          <th>Unit Price (TTD)</th>
+          <th>Total (TTD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @purchase_order_items.each_with_index do |item, index| %>
+          <tr>
+            <td><%= index + 1 %></td>
+            <td><%= item.description %></td>
+            <td><%= item.quantity %></td>
+            <td style="text-align: right;"><%= number_to_currency(item.unit_price, unit: '') %></td>
+            <td style="text-align: right;"><%= number_to_currency(item.total_price, unit: '') %></td>
+          </tr>
+        <% end %>
+        <tr class="total-row">
+          <td colspan="4" style="text-align: right;"><strong>Total:</strong></td>
+          <td style="text-align: right;"><strong>TTD <%= number_to_currency(@purchase_order.amount, unit: '') %></strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <!-- Payment Information -->
+  <div class="section">
+    <div class="section-title">Payment Information</div>
+    <p><strong>Payment Status:</strong> <%= @purchase_order.payment_status.humanize %></p>
+    <% if @purchase_order.payment_method %>
+      <p><strong>Payment Method:</strong> <%= @purchase_order.payment_method.humanize %></p>
+    <% end %>
+    <% if @purchase_order.payment_reference %>
+      <p><strong>Reference:</strong> <%= @purchase_order.payment_reference %></p>
+    <% end %>
+    <% if @purchase_order.paid_at %>
+      <p><strong>Paid On:</strong> <%= @purchase_order.paid_at.strftime('%B %d, %Y') %></p>
+    <% end %>
+  </div>
+  
+  <!-- Notes -->
+  <% if @purchase_order.notes.present? %>
+    <div class="section">
+      <div class="section-title">Notes</div>
+      <p><%= @purchase_order.notes %></p>
+    </div>
+  <% end %>
+  
+  <!-- Approvals -->
+  <div class="section signature-section">
+    <div class="section-title">Authorizations</div>
+    
+    <div style="display: flex; justify-content: space-between; margin-top: 40px;">
+      <div style="text-align: center;">
+        <div class="signature-line"></div>
+        <p>Prepared By<br>
+        <%= @purchase_order.created_by&.name || 'N/A' %><br>
+        <%= @purchase_order.created_at.strftime('%B %d, %Y') %></p>
+      </div>
+      
+      <% if @purchase_order.approved_by %>
+        <div style="text-align: center;">
+          <div class="signature-line"></div>
+          <p>Approved By<br>
+          <%= @purchase_order.approved_by.name %><br>
+          <%= @purchase_order.approved_at&.strftime('%B %d, %Y') %></p>
+        </div>
+      <% end %>
+      
+      <% if @purchase_order.payment_authorized_by %>
+        <div style="text-align: center;">
+          <div class="signature-line"></div>
+          <p>Payment Authorized By<br>
+          <%= @purchase_order.payment_authorized_by.name %><br>
+          <%= @purchase_order.payment_authorized_at&.strftime('%B %d, %Y') %></p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+  <!-- Footer -->
+  <div class="footer">
+    <p><strong>Terms & Conditions:</strong></p>
+    <p>1. All items must be delivered in accordance with the specifications above.</p>
+    <p>2. Payment terms: Net 30 days from date of invoice.</p>
+    <p>3. Goods must be in new condition unless otherwise specified.</p>
+    <p>4. This purchase order is subject to Trinidad and Tobago laws.</p>
+  </div>
+  
+  <script>
+    // Auto-print when loaded
+    window.onload = function() {
+      window.print();
+      // After printing, close the window after a delay
+      setTimeout(function() {
+        window.close();
+      }, 1000);
+    };
+    
+    // Alternative: allow manual printing
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        window.print();
+      }
+    });
+  </script>
+</body>
+</html>

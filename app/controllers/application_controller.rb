@@ -1,4 +1,3 @@
-# app/controllers/application_controller.rb
 class ApplicationController < ActionController::Base
   # Remove Pundit::Authorization
   
@@ -18,9 +17,16 @@ class ApplicationController < ActionController::Base
   # Callbacks
   # =====================================================
   before_action :set_current_user
+  before_action :set_current_request
   before_action :set_timezone
   before_action :check_for_turbo_frame
   before_action :set_agency_theme
+  before_action :prevent_real_payments_in_dev
+  
+  # ✅ ADDED: Set Current context for POS transactions
+  around_action :set_current_context
+  # ✅ ADDED: POS transaction current user setup
+  around_action :set_pos_transaction_current_user
 
   # =====================================================
   # AFTER SIGN IN REDIRECT - THE FIX!
@@ -60,7 +66,13 @@ class ApplicationController < ActionController::Base
                 :urgency_badge_class,
                 :status_badge_class,
                 :format_date,
-                :format_currency
+                :can_access_pos?,
+                :can_open_register?,
+                :can_void_transactions?,
+                :can_refund_transactions?,
+                :is_ptsc?,
+                :can_view_reports?,
+                :can_close_register?
 
   # =====================================================
   # Public Methods
@@ -89,9 +101,39 @@ class ApplicationController < ActionController::Base
   end
   alias_method :is_vmcott?, :vmcott?
 
+  # Check if user belongs to PTSC agency
+  def is_ptsc?
+    current_agency&.code == 'PTSC'
+  end
+
   # Get current user role
   def current_user_role
     current_user&.role || 'guest'
+  end
+
+  # POS permissions
+  def can_access_pos?
+    current_user&.can_access_pos? || false
+  end
+
+  def can_open_register?
+    current_user&.can_open_register? || false
+  end
+
+  def can_close_register?
+    current_user&.can_close_register? || false
+  end
+
+  def can_void_transactions?
+    current_user&.can_void_transactions? || false
+  end
+
+  def can_refund_transactions?
+    current_user&.can_refund_transactions? || false
+  end
+
+  def can_view_reports?
+    current_user&.can_view_reports? || false
   end
 
   # Color coding for service owners
@@ -144,10 +186,49 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # Format currency
-  def format_currency(amount, currency: "TTD")
-    return "N/A" if amount.blank?
-    number_to_currency(amount, unit: "$", separator: ".", delimiter: ",")
+  # =====================================================
+  # POS Authorization Methods
+  # =====================================================
+  
+  def require_pos_access
+    unless can_access_pos?
+      redirect_to root_path, alert: 'You do not have permission to access the POS system'
+    end
+  end
+
+  def authorize_pos_void!
+    unless can_void_transactions?
+      redirect_to root_path, alert: 'You do not have permission to void transactions'
+    end
+  end
+
+  def authorize_pos_refund!
+    unless can_refund_transactions?
+      redirect_to root_path, alert: 'You do not have permission to refund transactions'
+    end
+  end
+
+  def authorize_open_register!
+    unless can_open_register?
+      redirect_to root_path, alert: 'You do not have permission to open the cash register'
+    end
+  end
+
+  def authorize_close_register!
+    unless can_close_register?
+      redirect_to root_path, alert: 'You do not have permission to close the cash register'
+    end
+  end
+
+  def authorize_view_reports!
+    unless can_view_reports?
+      redirect_to root_path, alert: 'You do not have permission to view reports'
+    end
+  end
+
+  def authorize_ptsc_pos!
+    return if is_ptsc?
+    redirect_to root_path, alert: 'PTSC POS features are only available to PTSC staff'
   end
 
   # =====================================================
@@ -241,9 +322,32 @@ class ApplicationController < ActionController::Base
   # =====================================================
   private
 
-  # Set Current.user for global access
+  # Set Current context
+  def set_current_context
+    Current.with(current_user, request) do
+      yield
+    end
+  end
+
+  # Set current user
   def set_current_user
-    Current.user = current_user if defined?(Current)
+    Current.user = current_user
+  end
+
+  # Set current request
+  def set_current_request
+    Current.set_request(request)
+  end
+  
+  # ✅ ADDED: Set current user for POS transactions
+  def set_pos_transaction_current_user
+    if defined?(PosTransaction)
+      PosTransaction.with_current_user(current_user) do
+        yield
+      end
+    else
+      yield
+    end
   end
 
   # Set timezone based on user preference
@@ -269,6 +373,16 @@ class ApplicationController < ActionController::Base
   # Check for Turbo frame requests
   def check_for_turbo_frame
     @turbo_frame_request = request.headers["Turbo-Frame"].present?
+  end
+  
+  # Prevent real payments in development environment
+  def prevent_real_payments_in_dev
+    if Rails.env.development? && params[:controller] == 'purchase_orders' && 
+       ['process_payment', 'authorize_payment'].include?(params[:action])
+      # Log but don't process real payments
+      Rails.logger.info "MOCK PAYMENT: #{params.inspect}"
+      @mock_result = { success: true, transaction_id: "MOCK-#{SecureRandom.hex(8)}" }
+    end
   end
 
   # Handle record not found errors

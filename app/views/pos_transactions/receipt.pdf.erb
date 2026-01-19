@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Receipt <%= @pos_transaction.receipt_number %></title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      width: 80mm;
+      margin: 0 auto;
+      padding: 10px;
+    }
+    .receipt-header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 1px dashed #000;
+      padding-bottom: 10px;
+    }
+    .receipt-body {
+      margin-bottom: 15px;
+    }
+    .receipt-footer {
+      text-align: center;
+      border-top: 1px dashed #000;
+      padding-top: 10px;
+      font-size: 10px;
+    }
+    .line-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .label {
+      font-weight: bold;
+    }
+    .total {
+      font-weight: bold;
+      font-size: 14px;
+      margin-top: 10px;
+      border-top: 2px solid #000;
+      padding-top: 5px;
+    }
+    .thank-you {
+      text-align: center;
+      margin: 15px 0;
+      font-weight: bold;
+    }
+    .qr-placeholder {
+      text-align: center;
+      margin: 10px 0;
+      border: 1px dashed #ccc;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-header">
+    <h3><%= @pos_transaction.agency_name %></h3>
+    <p>Point of Sale Receipt</p>
+  </div>
+  
+  <div class="receipt-body">
+    <div class="line-item">
+      <span class="label">Receipt #:</span>
+      <span><%= @pos_transaction.receipt_number %></span>
+    </div>
+    
+    <div class="line-item">
+      <span class="label">Date:</span>
+      <span><%= @pos_transaction.created_at.strftime('%Y-%m-%d %H:%M:%S') %></span>
+    </div>
+    
+    <div class="line-item">
+      <span class="label">Transaction ID:</span>
+      <span><%= @pos_transaction.transaction_id %></span>
+    </div>
+    
+    <% if @pos_transaction.route_code.present? %>
+      <div class="line-item">
+        <span class="label">Route:</span>
+        <span><%= @pos_transaction.route_code %></span>
+      </div>
+    <% end %>
+    
+    <% if @pos_transaction.fare_class.present? %>
+      <div class="line-item">
+        <span class="label">Fare Class:</span>
+        <span><%= @pos_transaction.display_fare_class %></span>
+      </div>
+    <% end %>
+    
+    <% if @pos_transaction.passenger_count.present? && @pos_transaction.unit_fare.present? %>
+      <div class="line-item">
+        <span class="label">Passengers:</span>
+        <span><%= @pos_transaction.passenger_count %> x TT$<%= '%.2f' % @pos_transaction.unit_fare %></span>
+      </div>
+    <% end %>
+    
+    <div class="line-item total">
+      <span>TOTAL:</span>
+      <span>TT$<%= '%.2f' % @pos_transaction.amount %></span>
+    </div>
+    
+    <div class="line-item">
+      <span class="label">Payment Method:</span>
+      <span><%= @pos_transaction.display_payment_type %></span>
+    </div>
+    
+    <div class="line-item">
+      <span class="label">Status:</span>
+      <span><%= @pos_transaction.display_status %></span>
+    </div>
+    
+    <% if @pos_transaction.vehicle.present? %>
+      <div class="line-item">
+        <span class="label">Vehicle:</span>
+        <span><%= @pos_transaction.vehicle_display %></span>
+      </div>
+    <% end %>
+    
+    <% if @pos_transaction.cashier_session.present? && @pos_transaction.cashier_session.user.present? %>
+      <div class="line-item">
+        <span class="label">Cashier:</span>
+        <span><%= @pos_transaction.cashier_session.user.name %></span>
+      </div>
+    <% end %>
+  </div>
+  
+  <div class="qr-placeholder">
+    <p>Receipt Verification</p>
+    <p>Checksum: <%= @pos_transaction.receipt_checksum %></p>
+    <p>Scan to verify</p>
+  </div>
+  
+  <div class="thank-you">
+    <p>THANK YOU FOR YOUR BUSINESS!</p>
+  </div>
+  
+  <div class="receipt-footer">
+    <p><%= @pos_transaction.agency_name %></p>
+    <p>This is a computer-generated receipt.</p>
+    <p>Valid without signature.</p>
+  </div>
+</body>
+</html>

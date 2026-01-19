@@ -327,7 +327,7 @@ class Vehicle < ApplicationRecord
   # Display helpers
   # ------------------------------------------------------------
   def display_name
-    "#{make} #{model} - #{license_plate}"
+    "#{license_plate} - #{make} #{model}"
   end
 
   def full_display_name

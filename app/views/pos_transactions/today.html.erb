@@ -1,0 +1,496 @@
+<%# app/views/pos_transactions/today.html.erb %>
+<%
+  # Add emergency fixes for POS Today page
+  content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta name="turbo-cache-control" content="no-cache">
+    <style>
+      /* EMERGENCY FIX FOR POS TODAY PAGE */
+      body.pos-transactions-page,
+      body.today-page {
+        background-color: #f8f9fa !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      .pos-transactions-page .container-fluid,
+      .today-page .container-fluid,
+      .pos-transactions-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .today-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .pos-transactions-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .today-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .pos-transactions-page .table,
+      .today-page .table,
+      .pos-transactions-page .table th,
+      .today-page .table th,
+      .pos-transactions-page .table td,
+      .today-page .table td,
+      .pos-transactions-page .table tbody tr,
+      .today-page .table tbody tr {
+        background-color: white !important;
+        color: #212529 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      /* Force all text to be visible immediately */
+      .pos-transactions-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger),
+      .today-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
+        color: #212529 !important;
+      }
+      
+      /* Keep colored elements readable */
+      .pos-transactions-page .card.bg-primary *,
+      .today-page .card.bg-primary *,
+      .pos-transactions-page .card.bg-success *,
+      .today-page .card.bg-success *,
+      .pos-transactions-page .card.bg-info *,
+      .today-page .card.bg-info *,
+      .pos-transactions-page .card.bg-danger *,
+      .today-page .card.bg-danger *,
+      .pos-transactions-page .card.bg-dark *,
+      .today-page .card.bg-dark * {
+        color: white !important;
+      }
+      
+      .pos-transactions-page .card.bg-warning *,
+      .today-page .card.bg-warning * {
+        color: #212529 !important;
+      }
+      
+      /* Prevent Turbo from interfering */
+      [data-turbo-preview] * {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Disable ALL animations and transitions */
+      .pos-transactions-page *,
+      .today-page * {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>
+      // IMMEDIATE FIX FOR POS TODAY PAGE
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('POS Today Page - Applying emergency fix for blinking');
+        
+        // Add classes immediately
+        document.body.classList.add('pos-transactions-page');
+        document.body.classList.add('today-page');
+        
+        // Force immediate visibility
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Force text colors
+        setTimeout(function() {
+          const allElements = document.querySelectorAll('*');
+          allElements.forEach(el => {
+            const bgColor = window.getComputedStyle(el).backgroundColor;
+            const textColor = window.getComputedStyle(el).color;
+            
+            // If background is light and text is white/transparent, make text dark
+            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
+                 bgColor === 'rgb(255, 255, 255)' || 
+                 bgColor === 'rgb(248, 249, 250)' ||
+                 bgColor === '#ffffff' ||
+                 bgColor === '#f8f9fa') &&
+                (textColor === 'rgba(0, 0, 0, 0)' || 
+                 textColor === 'rgb(255, 255, 255)' ||
+                 textColor === '#ffffff')) {
+              el.style.color = '#212529';
+            }
+          });
+        }, 10);
+        
+        // Disable Turbo completely for POS today page
+        if (typeof Turbo !== 'undefined' && window.location.pathname.includes('/pos_transactions/today')) {
+          console.log('POS Today page detected, disabling Turbo');
+          
+          // Disable all Turbo links and forms
+          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
+            link.setAttribute('data-turbo', 'false');
+          });
+          
+          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
+            form.setAttribute('data-turbo', 'false');
+          });
+          
+          // Disable Turbo caching
+          Turbo.cache.exemptPageFromPreview();
+          Turbo.cache.exemptPageFromCache();
+        }
+      });
+      
+      // Also handle Turbo page loads
+      document.addEventListener('turbo:load', function() {
+        if (window.location.pathname.includes('/pos_transactions/today')) {
+          document.body.classList.add('pos-transactions-page');
+          document.body.classList.add('today-page');
+          
+          // Final check after everything loads
+          setTimeout(() => {
+            console.log('Final check for POS Today - ensuring all text is visible');
+            const allTextElements = document.querySelectorAll('p, span, td, th, div, h1, h2, h3, h4, h5, h6');
+            allTextElements.forEach(el => {
+              if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
+                  window.getComputedStyle(el).color === '#ffffff') {
+                el.style.color = '#212529';
+              }
+            });
+          }, 500);
+        }
+      });
+    </script>
+<% end %>
+
+<%= pos_agency_header %>
+
+<div class="container-fluid pos-transactions-container">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-0">
+            <i class="fas fa-calendar-day text-primary me-2"></i>
+            Today's POS Transactions
+          </h1>
+          <p class="text-muted mb-0">
+            <%= Date.today.strftime("%A, %B %d, %Y") %> • 
+            <%= current_agency.name %> • 
+            <span class="badge bg-secondary"><%= current_agency.code %></span>
+          </p>
+        </div>
+        <div>
+          <%= link_to 'All Transactions', pos_transactions_path, class: 'btn btn-secondary me-2', data: { turbo: false } %>
+          <%= link_to 'New Transaction', new_pos_transaction_path, class: 'btn btn-primary', data: { turbo: false } %>
+        </div>
+      </div>
+
+      <%# Today's Summary Card %>
+      <div class="card mb-4 <%= pos_agency_theme[:border] %> border-2">
+        <div class="card-header <%= pos_agency_theme[:bg] %> text-white">
+          <h5 class="mb-0">Today's Summary</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3">
+              <div class="text-center">
+                <h6 class="text-muted">Total Sales</h6>
+                <h3 class="<%= pos_agency_theme[:text] %>">
+                  <%= number_to_currency(@today_total, unit: "$") %>
+                </h3>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h6 class="text-muted">Transactions</h6>
+                <h3 class="text-success">
+                  <%= @today_transactions.completed.count %>
+                </h3>
+                <small>Completed</small>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h6 class="text-muted">Voided</h6>
+                <h3 class="text-warning">
+                  <%= @today_transactions.voided.count %>
+                </h3>
+                <small>Transactions</small>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="text-center">
+                <h6 class="text-muted">Average Sale</h6>
+                <h3 class="text-info">
+                  <% if @today_transactions.completed.count > 0 %>
+                    <%= number_to_currency(@today_total / @today_transactions.completed.count, unit: "$") %>
+                  <% else %>
+                    $0.00
+                  <% end %>
+                </h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Hourly Breakdown %>
+      <div class="row mb-4">
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Hourly Sales Breakdown</h5>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Hour</th>
+                      <th>Transactions</th>
+                      <th>Total Sales</th>
+                      <th>Average Sale</th>
+                      <th>Trend</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% current_hour = Time.current.hour %>
+                    <% (0..23).each do |hour| %>
+                      <% hour_data = @hourly_sales.find { |h| h[:hour].to_i == hour } || { count: 0, amount: 0 } %>
+                      <tr class="<%= hour == current_hour ? 'table-active' : '' %>">
+                        <td>
+                          <%= "#{hour}:00" %>
+                          <% if hour == current_hour %>
+                            <span class="badge bg-primary">Now</span>
+                          <% end %>
+                        </td>
+                        <td><%= hour_data[:count] %></td>
+                        <td><%= number_to_currency(hour_data[:amount], unit: "$") %></td>
+                        <td>
+                          <% if hour_data[:count] > 0 %>
+                            <%= number_to_currency(hour_data[:amount] / hour_data[:count], unit: "$") %>
+                          <% else %>
+                            $0.00
+                          <% end %>
+                        </td>
+                        <td>
+                          <% if hour_data[:count] > 0 %>
+                            <div class="progress" style="height: 10px;">
+                              <div class="progress-bar <%= pos_agency_theme[:bg].gsub('bg-', 'bg-') %>" 
+                                   style="width: <%= [(hour_data[:count].to_f / [@hourly_sales.map { |h| h[:count] }.max, 1].max * 100), 5].max %>%">
+                              </div>
+                            </div>
+                          <% else %>
+                            <span class="text-muted">-</span>
+                          <% end %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">Payment Methods Today</h5>
+            </div>
+            <div class="card-body">
+              <% if @payment_methods.any? %>
+                <% @payment_methods.each do |method, data| %>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                      <span><%= method %></span>
+                      <span><%= number_to_currency(data[:total], unit: "$") %></span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                      <div class="progress-bar <%= data[:color] %>" 
+                           style="width: <%= (data[:total] / [@payment_methods.sum { |_, d| d[:total] }, 1].max * 100) %>%">
+                      </div>
+                    </div>
+                    <small class="text-muted"><%= data[:count] %> transactions</small>
+                  </div>
+                <% end %>
+              <% else %>
+                <div class="text-center py-4">
+                  <i class="fas fa-credit-card fa-2x text-muted mb-2"></i>
+                  <p class="text-muted">No payment data available</p>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Today's Transactions Table %>
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Today's Transactions</h5>
+          <span class="badge bg-secondary">
+            <%= @transactions.count %> transactions today
+          </span>
+        </div>
+        <div class="card-body">
+          <% if @transactions.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Transaction ID</th>
+                    <th>Amount</th>
+                    <th>Payment Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @transactions.each do |transaction| %>
+                    <tr>
+                      <td>
+                        <%= transaction.created_at.strftime("%I:%M %p") %>
+                        <br>
+                        <small class="text-muted">
+                          <%= time_ago_in_words(transaction.created_at) %> ago
+                        </small>
+                      </td>
+                      <td>
+                        <strong><%= transaction.transaction_id %></strong>
+                        <% if transaction.vehicle_id %>
+                          <br>
+                          <small class="text-muted">
+                            <i class="fas fa-car me-1"></i>
+                            <%= transaction.vehicle.license_plate %>
+                          </small>
+                        <% end %>
+                      </td>
+                      <td><strong><%= number_to_currency(transaction.amount, unit: "$") %></strong></td>
+                      <td><%= pos_payment_type_badge(transaction.payment_type) %></td>
+                      <td><%= pos_status_badge(transaction.status) %></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to 'View', pos_transaction_path(transaction), class: 'btn btn-outline-info btn-sm', data: { turbo: false } %>
+                          <%= link_to 'Receipt', receipt_pos_transaction_path(transaction), class: 'btn btn-outline-secondary btn-sm', data: { turbo: false } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="fas fa-cash-register fa-4x text-muted mb-3"></i>
+              <h4>No Transactions Today</h4>
+              <p class="text-muted">No POS transactions have been recorded for today.</p>
+              <%= link_to 'Create First Transaction', new_pos_transaction_path, class: 'btn btn-primary', data: { turbo: false } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Quick Stats Footer %>
+      <div class="mt-4">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <i class="fas fa-chart-bar fa-2x text-primary mb-2"></i>
+                <h5>Busiest Hour</h5>
+                <% if @hourly_sales.any? %>
+                  <% busiest = @hourly_sales.max_by { |h| h[:amount] } %>
+                  <p class="mb-1"><strong><%= busiest[:hour] %></strong></p>
+                  <p class="text-muted mb-0"><%= number_to_currency(busiest[:amount], unit: "$") %></p>
+                <% else %>
+                  <p class="text-muted mb-0">No data</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <i class="fas fa-money-bill-wave fa-2x text-success mb-2"></i>
+                <h5>Largest Sale</h5>
+                <% if @transactions.completed.any? %>
+                  <% largest = @transactions.completed.max_by(&:amount) %>
+                  <p class="mb-1"><strong><%= number_to_currency(largest.amount, unit: "$") %></strong></p>
+                  <p class="text-muted mb-0"><%= largest.transaction_id %></p>
+                <% else %>
+                  <p class="text-muted mb-0">No data</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card bg-light">
+              <div class="card-body text-center">
+                <i class="fas fa-history fa-2x text-info mb-2"></i>
+                <h5>Last Transaction</h5>
+                <% if @transactions.any? %>
+                  <% last = @transactions.first %>
+                  <p class="mb-1"><strong><%= last.created_at.strftime("%I:%M %p") %></strong></p>
+                  <p class="text-muted mb-0"><%= number_to_currency(last.amount, unit: "$") %></p>
+                <% else %>
+                  <p class="text-muted mb-0">No data</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Additional JavaScript for POS Today page %>
+<script>
+  // Force POS Today page styling
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add the class if not already added
+    if (!document.body.classList.contains('pos-transactions-page')) {
+      document.body.classList.add('pos-transactions-page');
+    }
+    if (!document.body.classList.contains('today-page')) {
+      document.body.classList.add('today-page');
+    }
+    
+    // Force card backgrounds immediately
+    setTimeout(function() {
+      // Force colored cards to keep their colors
+      document.querySelectorAll('.card.bg-primary, .card.bg-success, .card.bg-info, .card.bg-warning, .card.bg-danger, .card.bg-dark, .card.bg-light').forEach(card => {
+        if (card.classList.contains('bg-warning')) {
+          card.style.backgroundColor = '#ffc107';
+          card.style.color = '#212529';
+        } else if (card.classList.contains('bg-primary')) {
+          card.style.backgroundColor = '#0d6efd';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-success')) {
+          card.style.backgroundColor = '#198754';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-info')) {
+          card.style.backgroundColor = '#0dcaf0';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-danger')) {
+          card.style.backgroundColor = '#dc3545';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-dark')) {
+          card.style.backgroundColor = '#212529';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-light')) {
+          card.style.backgroundColor = '#f8f9fa';
+          card.style.color = '#212529';
+        }
+      });
+      
+      // Force regular cards to be white
+      document.querySelectorAll('.card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-light)').forEach(card => {
+        card.style.backgroundColor = 'white';
+        card.style.color = '#212529';
+      });
+      
+      // Force table backgrounds
+      document.querySelectorAll('.table').forEach(table => {
+        table.style.backgroundColor = 'white';
+      });
+    }, 50);
+    
+    // Add data-turbo="false" to all links
+    setTimeout(function() {
+      document.querySelectorAll('a:not([data-turbo])').forEach(link => {
+        if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
+          link.setAttribute('data-turbo', 'false');
+        }
+      });
+    }, 100);
+  });
+</script>

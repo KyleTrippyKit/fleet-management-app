@@ -138,4 +138,265 @@ module ApplicationHelper
       "#{utilization.round(1)}%"
     end
   end
+  
+  # NEW: Helper for payment audit action icons
+  def audit_action_icon(action)
+    case action.to_s
+    when 'initiated'
+      'fa-play-circle'
+    when 'authorized'
+      'fa-shield-alt'
+    when 'processed'
+      'fa-cogs'
+    when 'completed'
+      'fa-check-circle'
+    when 'failed'
+      'fa-exclamation-circle'
+    when 'retried'
+      'fa-redo'
+    when 'refunded'
+      'fa-undo'
+    when 'disputed'
+      'fa-exclamation-triangle'
+    else
+      'fa-info-circle'
+    end
+  end
+
+  # ========================
+  # POS SYSTEM HELPERS - NEW
+  # ========================
+
+  # Get current agency (cached for performance)
+  def current_agency
+    @current_agency ||= current_user&.agency
+  end
+
+  # Agency-specific POS path helper
+  def agency_pos_path(agency_code = nil)
+    agency_code ||= current_agency&.code&.downcase
+    return unless agency_code
+    
+    case agency_code.downcase
+    when 'ptsc'
+      ptsc_pos_transactions_path
+    when 'ttps'
+      ttps_pos_transactions_path
+    when 'ttdf'
+      ttdf_pos_transactions_path
+    when 'vmcott'
+      vmcott_pos_transactions_path
+    else
+      pos_transactions_path
+    end
+  end
+
+  # Agency-specific POS dashboard path
+  def agency_pos_dashboard_path(agency_code = nil)
+    agency_code ||= current_agency&.code&.downcase
+    return unless agency_code
+    
+    case agency_code.downcase
+    when 'ptsc'
+      dashboard_pos_transactions_path(agency: 'ptsc')
+    when 'ttps'
+      dashboard_pos_transactions_path(agency: 'ttps')
+    when 'ttdf'
+      dashboard_pos_transactions_path(agency: 'ttdf')
+    when 'vmcott'
+      dashboard_pos_transactions_path(agency: 'vmcott')
+    else
+      dashboard_pos_transactions_path
+    end
+  end
+
+  # POS status badge with color coding
+  def pos_status_badge(status)
+    color_class = case status.to_sym
+                  when :completed then 'success'
+                  when :pending then 'warning'
+                  when :voided then 'danger'
+                  when :refunded then 'info'
+                  else 'secondary'
+                  end
+    
+    content_tag(:span, status.to_s.humanize, class: "badge bg-#{color_class}")
+  end
+
+  # POS payment type badge with icon
+  def pos_payment_type_badge(payment_type)
+    icon_class = case payment_type.to_sym
+                 when :card then 'fa-credit-card'
+                 when :cash then 'fa-money-bill'
+                 when :mobile_money then 'fa-mobile-alt'
+                 when :bank_transfer then 'fa-university'
+                 else 'fa-wallet'
+                 end
+    
+    content_tag(:span, class: "badge bg-light text-dark") do
+      content_tag(:i, '', class: "fas #{icon_class} me-1") + payment_type.to_s.humanize
+    end
+  end
+
+  # Generate agency-specific POS transaction ID
+  def generate_pos_transaction_id(agency_code = nil)
+    agency_code ||= current_agency&.code || 'GEN'
+    timestamp = Time.now.strftime('%Y%m%d%H%M%S')
+    random = SecureRandom.hex(4).upcase
+    "POS-#{agency_code}-#{timestamp}-#{random}"
+  end
+
+  # Agency-specific POS color themes
+  def pos_agency_theme(agency_code = nil)
+    agency_code ||= current_agency&.code&.downcase
+    
+    case agency_code.to_s.downcase
+    when 'ptsc'
+      { bg: 'bg-primary', text: 'text-primary', border: 'border-primary' }
+    when 'ttps'
+      { bg: 'bg-danger', text: 'text-danger', border: 'border-danger' }
+    when 'ttdf'
+      { bg: 'bg-success', text: 'text-success', border: 'border-success' }
+    when 'vmcott'
+      { bg: 'bg-warning', text: 'text-warning', border: 'border-warning' }
+    else
+      { bg: 'bg-secondary', text: 'text-secondary', border: 'border-secondary' }
+    end
+  end
+
+  # Agency-specific POS header
+  def pos_agency_header(agency_code = nil)
+    agency_code ||= current_agency&.code&.downcase
+    
+    theme = pos_agency_theme(agency_code)
+    
+    content_tag(:div, class: "card mb-4 #{theme[:border]} border-2") do
+      content_tag(:div, class: "card-header #{theme[:bg]} text-white d-flex justify-content-between align-items-center") do
+        content_tag(:h5, class: "mb-0") do
+          agency_name = case agency_code.to_s.downcase
+                       when 'ptsc' then 'Public Transport Service Corporation (PTSC)'
+                       when 'ttps' then 'Trinidad and Tobago Police Service (TTPS)'
+                       when 'ttdf' then 'Trinidad and Tobago Defence Force (TTDF)'
+                       when 'vmcott' then 'Fire Service (VMCOTT)'
+                       else 'General POS'
+                       end
+          "#{agency_name} Point of Sale"
+        end + content_tag(:span, agency_code.to_s.upcase, class: "badge bg-light text-dark fs-6")
+      end
+    end
+  end
+
+  # Agency-specific POS items/products
+  def agency_pos_items(agency_code = nil)
+    agency_code ||= current_agency&.code&.downcase
+    
+    case agency_code.to_s.downcase
+    when 'ptsc'
+      [
+        { name: 'Bus Ticket (Single Ride)', price: 7.00, category: 'Transport' },
+        { name: 'Day Pass', price: 25.00, category: 'Transport' },
+        { name: 'Weekly Pass', price: 120.00, category: 'Transport' },
+        { name: 'Monthly Pass', price: 450.00, category: 'Transport' },
+        { name: 'Senior Citizen Pass', price: 200.00, category: 'Transport' },
+        { name: 'Student Pass', price: 300.00, category: 'Transport' }
+      ]
+    when 'ttps'
+      [
+        { name: 'Traffic Fine - Speeding', price: 500.00, category: 'Fines' },
+        { name: 'Traffic Fine - Parking', price: 200.00, category: 'Fines' },
+        { name: 'Driver\'s License Renewal', price: 300.00, category: 'Permits' },
+        { name: 'Vehicle Registration', price: 150.00, category: 'Permits' },
+        { name: 'Police Clearance', price: 100.00, category: 'Services' },
+        { name: 'Firearm Permit Fee', price: 1000.00, category: 'Permits' }
+      ]
+    when 'ttdf'
+      [
+        { name: 'Port Entry Fee', price: 250.00, category: 'Port Fees' },
+        { name: 'Shipping Documentation', price: 150.00, category: 'Services' },
+        { name: 'Customs Clearance', price: 500.00, category: 'Services' },
+        { name: 'Security Clearance', price: 300.00, category: 'Services' },
+        { name: 'Military ID Renewal', price: 50.00, category: 'Permits' },
+        { name: 'Base Access Pass', price: 100.00, category: 'Permits' }
+      ]
+    when 'vmcott'
+      [
+        { name: 'Fire Inspection Fee', price: 500.00, category: 'Inspections' },
+        { name: 'Fire Safety Certificate', price: 300.00, category: 'Certificates' },
+        { name: 'Fire Extinguisher Refill', price: 150.00, category: 'Services' },
+        { name: 'Fire Drill Certification', price: 800.00, category: 'Services' },
+        { name: 'Emergency Response Fee', price: 1000.00, category: 'Services' },
+        { name: 'Fire Permit Renewal', price: 200.00, category: 'Permits' }
+      ]
+    else
+      [
+        { name: 'General Service Fee', price: 100.00, category: 'Services' },
+        { name: 'Processing Fee', price: 50.00, category: 'Fees' },
+        { name: 'Administration Fee', price: 75.00, category: 'Fees' }
+      ]
+    end
+  end
+
+  # Check if user has access to specific agency POS
+  def can_access_agency_pos?(agency_code)
+    return false unless current_user
+    return true if current_user.admin? # Admins can access all
+    
+    current_agency&.code&.downcase == agency_code.to_s.downcase
+  end
+
+  # Agency POS navigation tabs
+  def agency_pos_tabs
+    agencies = [
+      { code: 'ptsc', name: 'PTSC', path: ptsc_pos_transactions_path },
+      { code: 'ttps', name: 'TTPS', path: ttps_pos_transactions_path },
+      { code: 'ttdf', name: 'TTDF', path: ttdf_pos_transactions_path },
+      { code: 'vmcott', name: 'Fire Service', path: vmcott_pos_transactions_path }
+    ]
+    
+    content_tag(:div, class: 'd-flex mb-4') do
+      agencies.map do |agency|
+        active = current_agency&.code&.downcase == agency[:code]
+        theme = pos_agency_theme(agency[:code])
+        
+        if can_access_agency_pos?(agency[:code])
+          link_to agency[:path], class: "btn #{active ? theme[:bg] + ' text-white' : 'btn-outline-' + theme[:text].gsub('text-', '')} me-2" do
+            agency[:name]
+          end
+        end
+      end.compact.join.html_safe
+    end
+  end
+
+  # Quick POS transaction summary - FIXED: Now calls transaction.agency_name which exists
+  def pos_transaction_summary(transaction)
+    content_tag(:div, class: 'card') do
+      content_tag(:div, class: 'card-body') do
+        content_tag(:div, class: 'row') do
+          content_tag(:div, class: 'col-md-6') do
+            content_tag(:p) do
+              content_tag(:strong, 'Transaction ID: ') + transaction.transaction_id
+            end +
+            content_tag(:p) do
+              content_tag(:strong, 'Date: ') + format_date(transaction.created_at, format: :datetime)
+            end +
+            content_tag(:p) do
+              content_tag(:strong, 'Amount: ') + format_currency(transaction.amount)
+            end
+          end +
+          content_tag(:div, class: 'col-md-6') do
+            content_tag(:p) do
+              content_tag(:strong, 'Status: ') + pos_status_badge(transaction.status)
+            end +
+            content_tag(:p) do
+              content_tag(:strong, 'Payment Type: ') + pos_payment_type_badge(transaction.payment_type)
+            end +
+            content_tag(:p) do
+              # FIXED: transaction.agency_name now exists after adding the method to the model
+              content_tag(:strong, 'Agency: ') + transaction.agency_name
+            end
+          end
+        end
+      end
+    end
+  end
 end

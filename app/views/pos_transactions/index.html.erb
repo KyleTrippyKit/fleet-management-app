@@ -1,0 +1,443 @@
+<%# app/views/pos_transactions/index.html.erb %>
+<%
+  # Add emergency fixes for POS Transactions page
+  content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta name="turbo-cache-control" content="no-cache">
+    <style>
+      /* EMERGENCY BLINKING FIX FOR POS TRANSACTIONS */
+      body.pos-transactions-page {
+        background-color: #f8f9fa !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      .pos-transactions-page .container-fluid,
+      .pos-transactions-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .pos-transactions-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .pos-transactions-page .table,
+      .pos-transactions-page .table th,
+      .pos-transactions-page .table td,
+      .pos-transactions-page .table tbody tr {
+        background-color: white !important;
+        color: #212529 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      /* Force all text to be visible immediately */
+      .pos-transactions-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
+        color: #212529 !important;
+      }
+      
+      /* Keep colored elements readable */
+      .pos-transactions-page .card.bg-primary *,
+      .pos-transactions-page .card.bg-success *,
+      .pos-transactions-page .card.bg-info *,
+      .pos-transactions-page .card.bg-danger *,
+      .pos-transactions-page .card.bg-dark * {
+        color: white !important;
+      }
+      
+      .pos-transactions-page .card.bg-warning * {
+        color: #212529 !important;
+      }
+      
+      /* Prevent Turbo from interfering */
+      [data-turbo-preview] * {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Disable ALL animations and transitions */
+      .pos-transactions-page * {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>
+      // IMMEDIATE FIX FOR POS TRANSACTIONS
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('POS Transactions Page - Applying emergency fix for blinking');
+        
+        // Add class immediately
+        document.body.classList.add('pos-transactions-page');
+        
+        // Force immediate visibility
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Force text colors
+        setTimeout(function() {
+          const allElements = document.querySelectorAll('.pos-transactions-page *');
+          allElements.forEach(el => {
+            const bgColor = window.getComputedStyle(el).backgroundColor;
+            const textColor = window.getComputedStyle(el).color;
+            
+            // If background is light and text is white/transparent, make text dark
+            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
+                 bgColor === 'rgb(255, 255, 255)' || 
+                 bgColor === 'rgb(248, 249, 250)' ||
+                 bgColor === '#ffffff' ||
+                 bgColor === '#f8f9fa') &&
+                (textColor === 'rgba(0, 0, 0, 0)' || 
+                 textColor === 'rgb(255, 255, 255)' ||
+                 textColor === '#ffffff')) {
+              el.style.color = '#212529';
+            }
+          });
+        }, 10);
+        
+        // Disable Turbo completely for POS transactions
+        if (typeof Turbo !== 'undefined' && window.location.pathname.includes('/pos_transactions')) {
+          console.log('POS Transactions page detected, disabling Turbo');
+          
+          // Disable all Turbo links and forms
+          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
+            link.setAttribute('data-turbo', 'false');
+          });
+          
+          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
+            form.setAttribute('data-turbo', 'false');
+          });
+          
+          // Disable Turbo caching
+          Turbo.cache.exemptPageFromPreview();
+          Turbo.cache.exemptPageFromCache();
+        }
+      });
+      
+      // Also handle Turbo page loads
+      document.addEventListener('turbo:load', function() {
+        if (window.location.pathname.includes('/pos_transactions')) {
+          document.body.classList.add('pos-transactions-page');
+          
+          // Final check after everything loads
+          setTimeout(() => {
+            console.log('Final check for POS Transactions - ensuring all text is visible');
+            const allTextElements = document.querySelectorAll('.pos-transactions-page p, .pos-transactions-page span, .pos-transactions-page td, .pos-transactions-page th, .pos-transactions-page div, .pos-transactions-page h1, .pos-transactions-page h2, .pos-transactions-page h3, .pos-transactions-page h4, .pos-transactions-page h5, .pos-transactions-page h6');
+            allTextElements.forEach(el => {
+              if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
+                  window.getComputedStyle(el).color === '#ffffff') {
+                el.style.color = '#212529';
+              }
+            });
+          }, 500);
+        }
+      });
+    </script>
+<% end %>
+
+<%= pos_agency_header %>
+
+<div class="container-fluid pos-transactions-container">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-0">
+            <%= current_agency.name %> POS Transactions
+            <span class="badge bg-dark fs-6"><%= current_agency.code %></span>
+          </h1>
+          <p class="text-muted mb-0">View and manage your agency's point of sale transactions</p>
+        </div>
+        <div>
+          <%= link_to 'New POS Transaction', new_pos_transaction_path, class: 'btn btn-primary me-2', data: { turbo: false } %>
+          <%= link_to 'POS Dashboard', dashboard_pos_transactions_path, class: 'btn btn-info', data: { turbo: false } %>
+        </div>
+      </div>
+
+      <%# Agency Banner - CHANGED: Removed text-white for better visibility %>
+      <div class="card mb-4 <%= pos_agency_theme[:border] %> border-2">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h5 class="mb-1">
+                <i class="fas fa-building me-2 <%= pos_agency_theme[:text] %>"></i>
+                <%= current_agency.name %>
+              </h5>
+              <p class="text-muted mb-0">
+                <i class="fas fa-id-badge me-1"></i>
+                Agency Code: <strong><%= current_agency.code %></strong>
+                <span class="mx-2">•</span>
+                <i class="fas fa-user me-1"></i>
+                User: <strong><%= current_user.name %></strong>
+              </p>
+            </div>
+            <div class="col-md-4 text-end">
+              <div class="badge <%= pos_agency_theme[:bg] %> text-white fs-6 px-3 py-2">
+                <i class="fas fa-cash-register me-1"></i>
+                POS System
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Quick Stats - CHANGED: Added proper text color classes %>
+      <div class="row mb-4">
+        <div class="col-md-3">
+          <div class="card <%= pos_agency_theme[:bg] %> text-white">
+            <div class="card-body">
+              <h6 class="card-title">Today's Sales</h6>
+              <h4 class="mb-0"><%= number_to_currency(PosTransaction.by_agency(current_agency.id).today.completed.sum(:amount), unit: "$") %></h4>
+              <small><%= PosTransaction.by_agency(current_agency.id).today.completed.count %> transactions</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-success text-white">
+            <div class="card-body">
+              <h6 class="card-title">This Month</h6>
+              <h4 class="mb-0"><%= number_to_currency(PosTransaction.by_agency(current_agency.id).this_month.completed.sum(:amount), unit: "$") %></h4>
+              <small><%= PosTransaction.by_agency(current_agency.id).this_month.completed.count %> transactions</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-warning text-dark">
+            <div class="card-body">
+              <h6 class="card-title">Voided Today</h6>
+              <h4 class="mb-0"><%= PosTransaction.by_agency(current_agency.id).today.voided.count %></h4>
+              <small>Transactions voided</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card bg-info text-white">
+            <div class="card-body">
+              <h6 class="card-title">Refunded</h6>
+              <h4 class="mb-0"><%= PosTransaction.by_agency(current_agency.id).refunded.count %></h4>
+              <small>Total refunds</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Search and Filter %>
+      <div class="card mb-4">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">Filter Transactions</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with url: pos_transactions_path, method: :get, local: true, class: "row g-3", data: { turbo: false } do |f| %>
+            <div class="col-md-3">
+              <%= label_tag :start_date, "Start Date", class: "form-label" %>
+              <%= date_field_tag :start_date, params[:start_date], class: "form-control" %>
+            </div>
+            <div class="col-md-3">
+              <%= label_tag :end_date, "End Date", class: "form-label" %>
+              <%= date_field_tag :end_date, params[:end_date], class: "form-control" %>
+            </div>
+            <div class="col-md-3">
+              <%= label_tag :status, "Status", class: "form-label" %>
+              <%= select_tag :status, 
+                  options_for_select([['All', ''], ['Completed', 'completed'], ['Pending', 'pending'], ['Voided', 'voided'], ['Refunded', 'refunded']], params[:status]),
+                  class: "form-control" %>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">&nbsp;</label>
+              <div>
+                <%= submit_tag "Filter", class: "btn btn-primary me-2" %>
+                <%= link_to "Clear", pos_transactions_path, class: "btn btn-secondary", data: { turbo: false } %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Transactions Table %>
+      <div class="card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Recent Transactions</h5>
+          <span class="badge bg-dark">
+            <%= @pos_transactions.total_count %> total transactions
+          </span>
+        </div>
+        <div class="card-body">
+          <% if @pos_transactions.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Transaction ID</th>
+                    <th>Date & Time</th>
+                    <th>Amount</th>
+                    <th>Payment Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @pos_transactions.each do |transaction| %>
+                    <tr>
+                      <td>
+                        <strong><%= transaction.transaction_id %></strong>
+                        <% if transaction.vehicle_id %>
+                          <br>
+                          <small class="text-muted">
+                            <i class="fas fa-car me-1"></i>
+                            <%= transaction.vehicle.license_plate %>
+                          </small>
+                        <% end %>
+                      </td>
+                      <td><%= format_date(transaction.created_at, format: :datetime) %></td>
+                      <td><strong><%= number_to_currency(transaction.amount, unit: "$") %></strong></td>
+                      <td><%= pos_payment_type_badge(transaction.payment_type) %></td>
+                      <td><%= pos_status_badge(transaction.status) %></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to 'View', pos_transaction_path(transaction), class: 'btn btn-outline-info', data: { turbo: false } %>
+                          <%= link_to 'Receipt', receipt_pos_transaction_path(transaction), class: 'btn btn-outline-secondary', data: { turbo: false } %>
+                          <% if transaction.completed? %>
+                            <%= button_to 'Void', void_pos_transaction_path(transaction), 
+                                          method: :post, 
+                                          data: { confirm: 'Are you sure you want to void this transaction? This action cannot be undone.' },
+                                          class: 'btn btn-outline-warning btn-sm',
+                                          form: { data: { turbo: false } } %>
+                          <% elsif transaction.voided? %>
+                            <span class="badge bg-danger">Voided</span>
+                          <% elsif transaction.refunded? %>
+                            <span class="badge bg-info">Refunded</span>
+                          <% end %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+
+            <%# Pagination %>
+            <div class="d-flex justify-content-center mt-4">
+              <%= paginate @pos_transactions %>
+            </div>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="fas fa-cash-register fa-4x text-muted mb-3"></i>
+              <h4>No POS Transactions Found</h4>
+              <p class="text-muted">Get started by creating your first POS transaction.</p>
+              <%= link_to 'New POS Transaction', new_pos_transaction_path, class: 'btn btn-primary', data: { turbo: false } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Quick Links %>
+      <div class="mt-4">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card border-primary">
+              <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x text-primary mb-2"></i>
+                <h5>Reports</h5>
+                <p class="text-muted">Generate detailed sales reports</p>
+                <%= link_to 'View Reports', reports_pos_transactions_path, class: 'btn btn-outline-primary btn-sm', data: { turbo: false } %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-success">
+              <div class="card-body text-center">
+                <i class="fas fa-calendar-day fa-2x text-success mb-2"></i>
+                <h5>Today's Transactions</h5>
+                <p class="text-muted">View today's sales activity</p>
+                <%= link_to 'View Today', today_pos_transactions_path, class: 'btn btn-outline-success btn-sm', data: { turbo: false } %>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-warning">
+              <div class="card-body text-center">
+                <i class="fas fa-ban fa-2x text-warning mb-2"></i>
+                <h5>Voided Transactions</h5>
+                <p class="text-muted">Review voided transactions</p>
+                <%= link_to 'View Voided', voided_pos_transactions_path, class: 'btn btn-outline-warning btn-sm', data: { turbo: false } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Additional JavaScript for POS Transactions page %>
+<script>
+  // Force POS Transactions page styling
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add the class if not already added
+    if (!document.body.classList.contains('pos-transactions-page')) {
+      document.body.classList.add('pos-transactions-page');
+    }
+    
+    // Force card backgrounds immediately
+    setTimeout(function() {
+      // Force agency theme cards to keep their colors
+      document.querySelectorAll('.card.<%= pos_agency_theme[:bg] %>, .card.bg-primary, .card.bg-success, .card.bg-info, .card.bg-warning, .card.bg-danger, .card.bg-dark').forEach(card => {
+        if (card.classList.contains('bg-warning')) {
+          card.style.backgroundColor = '#ffc107';
+          card.style.color = '#212529';
+        } else if (card.classList.contains('<%= pos_agency_theme[:bg] %>') || card.classList.contains('bg-primary')) {
+          card.style.backgroundColor = '#0d6efd';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-success')) {
+          card.style.backgroundColor = '#198754';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-info')) {
+          card.style.backgroundColor = '#0dcaf0';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-danger')) {
+          card.style.backgroundColor = '#dc3545';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-dark')) {
+          card.style.backgroundColor = '#212529';
+          card.style.color = 'white';
+        }
+      });
+      
+      // Force regular cards to be white
+      document.querySelectorAll('.card:not(.<%= pos_agency_theme[:bg] %>):not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark)').forEach(card => {
+        card.style.backgroundColor = 'white';
+        card.style.color = '#212529';
+      });
+      
+      // Force table backgrounds
+      document.querySelectorAll('.table').forEach(table => {
+        table.style.backgroundColor = 'white';
+      });
+      
+      // Force all text in table to be visible
+      document.querySelectorAll('table *').forEach(el => {
+        const computedColor = window.getComputedStyle(el).color;
+        if (computedColor === 'rgb(255, 255, 255)' || computedColor === '#ffffff') {
+          el.style.color = '#212529';
+        }
+      });
+    }, 50);
+    
+    // Add data-turbo="false" to all pagination links
+    setTimeout(function() {
+      document.querySelectorAll('.pagination a').forEach(link => {
+        link.setAttribute('data-turbo', 'false');
+      });
+    }, 100);
+  });
+  
+  // Handle Turbo navigation
+  document.addEventListener('turbo:load', function() {
+    if (window.location.pathname.includes('/pos_transactions')) {
+      // Re-apply fixes on Turbo navigation
+      document.body.classList.add('pos-transactions-page');
+      
+      // Force fixes again
+      setTimeout(function() {
+        document.querySelectorAll('.card').forEach(card => {
+          card.style.backgroundColor = card.style.backgroundColor || '';
+        });
+      }, 100);
+    }
+  });
+</script>

@@ -8,12 +8,57 @@ class User < ApplicationRecord
   belongs_to :agency
   validates :agency, presence: true
   
+  # Add association for cashier sessions
+  has_many :cashier_sessions
+  
+  # ========================
+  # ROLE ENUM - FIXED FOR RAILS 8
+  # ========================
+  # Rails 8 requires a different syntax
+  attribute :role, :string, default: 'clerk'
+  
+  # Define role constants
+  ROLE_CLERK = 'clerk'
+  ROLE_SUPERVISOR = 'supervisor'
+  ROLE_FINANCE = 'finance'
+  ROLE_ADMIN = 'admin'
+  
+  # Define valid roles
+  ROLES = [ROLE_CLERK, ROLE_SUPERVISOR, ROLE_FINANCE, ROLE_ADMIN].freeze
+  
+  # Role query methods
+  def clerk?
+    role == ROLE_CLERK
+  end
+  
+  def supervisor?
+    role == ROLE_SUPERVISOR || admin?
+  end
+
+  def finance?
+    role == ROLE_FINANCE || admin?
+  end
+
+  def admin?
+    role == ROLE_ADMIN || role == 'super_admin' || is_system_admin? || false
+  end
+  
+  # For compatibility with old code that expects enum methods
+  def self.roles
+    {
+      clerk: ROLE_CLERK,
+      supervisor: ROLE_SUPERVISOR,
+      finance: ROLE_FINANCE,
+      admin: ROLE_ADMIN
+    }
+  end
+  
   # Add time_zone attribute with default
   attribute :time_zone, :string, default: "UTC"
   
   # Store available roles for validation if needed
   # Updated roles to include all agencies and VMCOTT
-  ROLES = %w[
+  ALL_ROLES = %w[
     admin 
     fleet_manager 
     maintenance_supervisor 
@@ -33,6 +78,18 @@ class User < ApplicationRecord
   def time_zone
     # Return the stored time_zone or default to UTC
     self[:time_zone].presence || "UTC"
+  end
+  
+  # ========================
+  # SYSTEM USER METHOD (Added for PaymentAudit)
+  # ========================
+  def self.system_user
+    # Try to find a system user, or use the first admin as fallback
+    find_by(email: 'system@example.com') || 
+      admin.first || 
+      where.not(role: 'driver').first || 
+      first || 
+      new(name: 'System', email: 'system@example.com')
   end
   
   # Role methods - simplified for your dashboard
@@ -55,9 +112,7 @@ class User < ApplicationRecord
   # ========================
   # BASIC ROLE CHECKS
   # ========================
-  def admin?
-    role == 'admin' || role == 'super_admin' || is_system_admin? || false
-  end
+  # admin? method is already defined above
   
   def manager?
     role == 'manager' || admin? || false
@@ -71,9 +126,7 @@ class User < ApplicationRecord
     role == 'maintenance_supervisor' || role == 'maintenance' || fleet_manager?
   end
   
-  def finance?
-    role == 'finance' || role == 'accountant' || admin?
-  end
+  # finance? method is already defined above
   
   def driver?
     role == 'driver' || role == 'operator'
@@ -134,6 +187,76 @@ class User < ApplicationRecord
   
   def fire?
     fire_staff?
+  end
+  
+  # ========================
+  # POS PERMISSIONS
+  # ========================
+  # Note: In your codebase, 'cashier' role doesn't exist in the ROLES constant
+  # so we need to adapt the methods to use existing roles
+  
+  def can_access_pos?
+    # Using existing roles: clerk acts as cashier, supervisor exists, finance and admin exist
+    clerk? || supervisor? || finance? || admin? || fleet_manager? || ptsc_staff?
+  end
+  
+  def can_open_register?
+    clerk? || finance? || admin? || supervisor? || fleet_manager?
+  end
+  
+  def can_close_register?
+    clerk? || finance? || admin? || supervisor? || fleet_manager?
+  end
+  
+  def can_void_transactions?
+    supervisor? || finance? || admin? || fleet_manager?
+  end
+  
+  def can_refund_transactions?
+    supervisor? || finance? || admin? || fleet_manager?
+  end
+  
+  def can_view_reports?
+    finance? || supervisor? || admin? || fleet_manager?
+  end
+  
+  def can_manage_quickbooks?
+    finance? || admin?
+  end
+  
+  def can_manage_invoices?
+    finance? || admin?
+  end
+  
+  # Enhanced POS permissions with role-based fallback
+  def can_void_pos?
+    return true if can_void_transactions?
+    
+    if defined?(RolePermission) && respond_to?(:role_permissions)
+      role_permissions.any? { |rp| rp.permission.key == 'pos_void' }
+    else
+      can_void_transactions?
+    end
+  end
+  
+  def can_refund_pos?
+    return true if can_refund_transactions?
+    
+    if defined?(RolePermission) && respond_to?(:role_permissions)
+      role_permissions.any? { |rp| rp.permission.key == 'pos_refund' }
+    else
+      can_refund_transactions?
+    end
+  end
+  
+  def can_view_pos_reports?
+    return true if can_view_reports?
+    
+    if defined?(RolePermission) && respond_to?(:role_permissions)
+      role_permissions.any? { |rp| rp.permission.key == 'pos_reports' }
+    else
+      can_view_reports?
+    end
   end
   
   # ========================
@@ -333,10 +456,6 @@ class User < ApplicationRecord
     fleet_manager? || admin?
   end
   
-  def can_view_reports?
-    fleet_manager? || finance? || admin?
-  end
-  
   def can_add_vehicles?
     fleet_manager? || admin?
   end
@@ -481,12 +600,21 @@ class User < ApplicationRecord
     can_view_quotation_reports? && !driver?
   end
   
-  def show_quotation_send_button?
-    can_send_quotations? && !driver?
+  # POS view helpers
+  def show_pos_access_button?
+    can_access_pos? && !driver?
   end
-
-  def can_send_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff?
+  
+  def show_pos_void_button?
+    can_void_transactions? && !driver?
+  end
+  
+  def show_pos_refund_button?
+    can_refund_transactions? && !driver?
+  end
+  
+  def show_pos_reports_button?
+    can_view_reports? && !driver?
   end
   
   # ========================
@@ -535,6 +663,19 @@ class User < ApplicationRecord
     }
   end
   
+  def pos_permissions
+    {
+      can_access_pos: can_access_pos?,
+      can_open_register: can_open_register?,
+      can_close_register: can_close_register?,
+      can_void_transactions: can_void_transactions?,
+      can_refund_transactions: can_refund_transactions?,
+      can_view_reports: can_view_reports?,
+      can_manage_quickbooks: can_manage_quickbooks?,
+      can_manage_invoices: can_manage_invoices?
+    }
+  end
+  
   # ========================
   # ROLE SUMMARY FOR DISPLAY
   # ========================
@@ -559,6 +700,67 @@ class User < ApplicationRecord
   end
   
   # ========================
+  # CASHIER SESSION METHODS
+  # ========================
+  def active_cashier_session
+    cashier_sessions.open.order(opened_at: :desc).first
+  end
+
+  def active_cashier_session?
+    active_cashier_session.present?
+  end
+
+  # PTSC-specific POS methods
+  def can_process_ptsc_transactions?
+    ptsc_staff? || finance? || admin? || fleet_manager?
+  end
+
+  def can_manage_fare_rules?
+    fleet_manager? || finance? || admin? || ptsc_staff?
+  end
+
+  def can_view_route_reports?
+    ptsc_staff? || fleet_manager? || finance? || admin?
+  end
+
+  # Display name for receipts
+  def display_name
+    name.presence || email.split('@').first.titleize
+  end
+
+  # Current user context for callbacks
+  def self.current
+    Thread.current[:current_user] || Current.user
+  end
+
+  def self.current=(user)
+    Thread.current[:current_user] = user
+  end
+
+  # PTSC-specific permissions for views
+  def show_ptsc_pos_button?
+    ptsc_staff? && can_access_pos?
+  end
+
+  def show_cashier_session_button?
+    can_open_register? || active_cashier_session?
+  end
+
+  # Audit trail methods
+  def create_audit_log(action, resource, details = {})
+    return unless defined?(AuditLog)
+    
+    AuditLog.create(
+      user: self,
+      action: action.to_s,
+      resource: resource,
+      details: details,
+      ip_address: Current.ip_address,
+      user_agent: Current.user_agent
+    )
+  end
+  
+  # ========================
   # JSON/API SERIALIZATION
   # ========================
   def as_json(options = {})
@@ -570,7 +772,8 @@ class User < ApplicationRecord
         :role_name,
         :role_summary,
         :financial_permissions,
-        :fleet_permissions
+        :fleet_permissions,
+        :pos_permissions
       ],
       only: [:id, :email, :name, :created_at]
     ))

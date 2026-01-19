@@ -8,20 +8,42 @@ class Maintenance < ApplicationRecord
   has_many :maintenance_tasks, dependent: :destroy
 
   # =====================================================
-  # Constants
+  # Constants - REMOVE URGENCIES constant since we're using enum differently
   # =====================================================
   ASSIGNMENT_TYPES = %w[stores purchasing].freeze
   STATUSES = %w[Pending Completed In\ Progress].freeze
-  URGENCIES = %w[routine scheduled emergency high medium low].freeze
+  
+  # REMOVE THIS: URGENCIES constant
+  # URGENCIES = {
+  #   routine: 0,
+  #   scheduled: 1, 
+  #   emergency: 2,
+  #   high: 3,
+  #   medium: 4,
+  #   low: 5
+  # }.freeze
+  
   CATEGORIES = %w[OilChange TireRotation BrakeService EngineCheck Transmission 
                   Electrical BodyWork AirConditioning Suspension General].freeze
 
   # =====================================================
-  # Validations - UPDATED
+  # Enums - CORRECT SYNTAX (Simplified)
+  # =====================================================
+  # Option A: Simple enum (Rails will auto-assign 0, 1, 2, etc.)
+  enum :urgency, {
+    routine: 0,
+    scheduled: 1,
+    emergency: 2,
+    high: 3,
+    medium: 4,
+    low: 5
+  }, default: :routine
+
+  # =====================================================
+  # Validations - REMOVE urgency validation (enum handles it)
   # =====================================================
   validates :status, inclusion: { in: STATUSES }
   validates :assignment_type, inclusion: { in: ASSIGNMENT_TYPES }, allow_nil: true
-  validates :urgency, inclusion: { in: URGENCIES }, allow_nil: true
   validates :category, inclusion: { in: CATEGORIES }, allow_nil: true
   validates :service_type, presence: true
   validates :date, presence: true
@@ -38,7 +60,7 @@ class Maintenance < ApplicationRecord
   before_validation :set_defaults
 
   # =====================================================
-  # Scopes
+  # Scopes - UPDATE by_urgency to use integer values
   # =====================================================
   scope :pending, -> { where(status: "Pending") }
   scope :in_progress, -> { where(status: "In Progress") }
@@ -59,6 +81,7 @@ class Maintenance < ApplicationRecord
     where("start_date <= ? AND end_date >= ?", end_date, start_date)
   }
   
+  # UPDATE: by_urgency scope to work with enum
   scope :by_urgency, ->(urgency_level) { 
     where(urgency: urgency_level) if urgency_level.present? 
   }
@@ -68,7 +91,7 @@ class Maintenance < ApplicationRecord
   }
 
   # =====================================================
-  # Status Helpers - ADD SAFE VERSION
+  # Status Helpers
   # =====================================================
   def completed?
     status == "Completed"
@@ -100,7 +123,7 @@ class Maintenance < ApplicationRecord
   end
 
   # =====================================================
-  # Safe Date Methods - NEW: For handling nil dates
+  # Safe Date Methods
   # =====================================================
   def safe_date
     date || Date.today
@@ -115,17 +138,16 @@ class Maintenance < ApplicationRecord
   end
 
   # =====================================================
-  # Timeline Methods - UPDATED FOR GANTT CHART
+  # Timeline Methods - USE enum predicate methods
   # =====================================================
   def gantt_bar_color
-    # FIXED: Return hex colors for DHTMLX Gantt compatibility
     if overdue?
       "#dc3545" # Red for overdue
     elsif completed?
       "#198754" # Green for completed
-    elsif urgency == "emergency" || urgency == "high"
+    elsif emergency? || high?
       "#fd7e14" # Orange for emergency/high
-    elsif urgency == "scheduled" || urgency == "medium"
+    elsif scheduled? || medium?
       "#0dcaf0" # Teal for scheduled/medium
     else
       "#0d6efd" # Blue for routine/low
@@ -138,9 +160,9 @@ class Maintenance < ApplicationRecord
       "rgba(220, 53, 69, 0.8)" # Red
     elsif completed?
       "rgba(40, 167, 69, 0.8)" # Green
-    elsif urgency == "emergency" || urgency == "high"
+    elsif emergency? || high?
       "rgba(253, 126, 20, 0.8)" # Orange
-    elsif urgency == "scheduled" || urgency == "medium"
+    elsif scheduled? || medium?
       "rgba(13, 202, 240, 0.8)" # Teal
     else
       "rgba(13, 110, 253, 0.8)" # Blue
@@ -179,12 +201,12 @@ class Maintenance < ApplicationRecord
   end
 
   def urgency_badge_class
-    case urgency
-    when "emergency", "high"
+    # Use enum predicate methods
+    if emergency? || high?
       "bg-danger"
-    when "scheduled", "medium"
+    elsif scheduled? || medium?
       "bg-warning text-dark"
-    when "routine", "low"
+    elsif routine? || low?
       "bg-primary"
     else
       "bg-secondary"
@@ -211,7 +233,7 @@ class Maintenance < ApplicationRecord
   end
 
   # =====================================================
-  # Gantt Chart Methods - FIXED
+  # Gantt Chart Methods
   # =====================================================
   def gantt_datasets
     {
@@ -254,7 +276,7 @@ class Maintenance < ApplicationRecord
       safe_end_date.strftime("%Y-%m-%d"),
       duration_days,
       status,
-      urgency || "",
+      urgency_display,
       cost || 0,
       notes || ""
     ]
@@ -283,7 +305,7 @@ class Maintenance < ApplicationRecord
       date: next_start,
       next_due_date: next_end,
       mileage: next_mileage,
-      urgency: "scheduled",
+      urgency: :scheduled,
       notes: "Automatically scheduled - Next service"
     )
   end
@@ -302,7 +324,7 @@ class Maintenance < ApplicationRecord
       color: gantt_bar_color,
       details: {
         status: status || 'Pending',
-        urgency: urgency || 'routine',
+        urgency: urgency_display,
         cost: cost.to_f || 0,
         notes: notes.to_s,
         vehicle_id: vehicle_id,
@@ -324,11 +346,11 @@ class Maintenance < ApplicationRecord
       open: true,
       color: gantt_bar_color,
       status: status || 'Pending',
-      urgency: urgency || 'routine',
+      urgency: urgency_display,
       overdue: overdue?,
       details: {
         status: status || 'Pending',
-        urgency: urgency || 'routine',
+        urgency: urgency_display,
         cost: cost.to_f || 0,
         notes: notes.to_s,
         vehicle_id: vehicle_id,
@@ -355,15 +377,14 @@ class Maintenance < ApplicationRecord
   # Urgency Helper for Views
   # =====================================================
   def urgency_display
-    urgency&.titleize || "Normal"
+    # This will automatically use the humanized enum value
+    urgency&.humanize || "Normal"
   end
 
   # =====================================================
   # Owner field (for filtering)
   # =====================================================
-  # This is a virtual attribute or delegate method
   def owner
-    # You can either store this directly on Maintenance or get it from Vehicle
     self[:owner] || vehicle&.service_owner
   end
 
@@ -381,7 +402,7 @@ class Maintenance < ApplicationRecord
     self.start_date ||= Date.today if start_date.nil?
     self.end_date ||= (Date.today + 7.days) if end_date.nil?
     self.status ||= 'Pending' if status.nil?
-    self.urgency ||= 'routine' if urgency.nil?
+    self.urgency ||= :routine if self[:urgency].nil?  # Use symbol for enum
     self.assignment_type ||= 'stores' if assignment_type.nil?
     self.category ||= 'General' if category.nil?
     self.owner ||= vehicle&.service_owner if owner.nil?

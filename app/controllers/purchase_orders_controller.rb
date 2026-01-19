@@ -1,0 +1,675 @@
+# app/controllers/purchase_orders_controller.rb
+class PurchaseOrdersController < ApplicationController
+  before_action :authenticate_user!
+  before_action :set_purchase_order, except: [:index, :new, :create]
+  before_action :check_edit_permission, only: [:edit, :update]
+  before_action :require_supervisor, only: [:approve, :reject]
+  before_action :require_finance, only: [:mark_paid, :payment, :process_payment, :authorize_payment, :complete_payment, :record_payment]
+
+  def index
+    @purchase_orders = fetch_purchase_orders
+    @agencies = Agency.all if current_user.admin?
+    
+    # Fix any nil statuses in the collection (temporary fix)
+    @purchase_orders.each do |po|
+      if po.status.nil? || po.payment_status.nil?
+        po.update_columns(
+          status: 'draft', 
+          payment_status: 'unpaid'
+        ) if po.persisted?
+      end
+    end
+  end
+
+  def show
+    @purchase_order_items = @purchase_order.purchase_order_items
+    @invoices = @purchase_order.invoices
+    
+    # SAFELY load payable - check if association exists
+    if @purchase_order.respond_to?(:payable)
+      @payable = @purchase_order.payable
+    else
+      @payable = Payable.find_by(purchase_order_id: @purchase_order.id) if defined?(Payable)
+    end
+    
+    # FIX: Use safe approach for payment histories
+    # Try association first, fallback to direct query if it fails
+    begin
+      @payment_histories = @purchase_order.payment_histories.order(created_at: :desc)
+    rescue ActiveRecord::StatementInvalid => e
+      # If association fails due to missing column, use direct query
+      Rails.logger.warn "Payment histories association failed: #{e.message}"
+      @payment_histories = []
+    end
+  end
+
+  def new
+    @purchase_order = PurchaseOrder.new
+    @purchase_order.purchase_order_items.build
+    
+    if params[:vehicle_id].present?
+      @vehicle = Vehicle.find_by(id: params[:vehicle_id])
+      @purchase_order.vehicle = @vehicle if @vehicle
+    end
+  end
+
+  def create
+    @purchase_order = PurchaseOrder.new(purchase_order_params)
+    @purchase_order.created_by = current_user
+
+    if @purchase_order.save
+      redirect_to @purchase_order, notice: 'Purchase Order created successfully.'
+    else
+      flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  def edit
+    @purchase_order.purchase_order_items.build if @purchase_order.purchase_order_items.empty?
+  end
+
+  def update
+    if @purchase_order.update(purchase_order_params)
+      redirect_to @purchase_order, notice: 'Purchase order updated successfully.'
+    else
+      flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
+  def submit
+    if @purchase_order.submit_for_approval!
+      redirect_to @purchase_order, notice: 'Submitted for approval successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not submit for approval.'
+    end
+  end
+
+  def approve
+    if @purchase_order.approve!(current_user)
+      # Try to create payable using model method
+      if @purchase_order.respond_to?(:create_payable!)
+        @purchase_order.create_payable!
+      elsif defined?(Payable)
+        # Fallback: create payable directly
+        payable = Payable.create_from_purchase_order(@purchase_order)
+        @purchase_order.update(payable_id: payable.id) if payable.persisted?
+      end
+      
+      redirect_to @purchase_order, notice: 'Approved successfully and payable created.'
+    else
+      redirect_to @purchase_order, alert: 'Could not approve purchase order.'
+    end
+  end
+
+  def reject
+    if @purchase_order.reject!(current_user, params[:reason])
+      redirect_to @purchase_order, notice: 'Rejected successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not reject purchase order.'
+    end
+  end
+  
+  def cancel
+    if @purchase_order.cancel!(params[:reason])
+      # Cancel associated payable if exists
+      if defined?(Payable) && @purchase_order.payable_id
+        payable = Payable.find_by(id: @purchase_order.payable_id)
+        payable&.update(status: 'cancelled')
+      end
+      
+      redirect_to @purchase_order, notice: 'Cancelled successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not cancel purchase order.'
+    end
+  end
+
+  def mark_ordered
+    if @purchase_order.mark_ordered!
+      redirect_to @purchase_order, notice: 'Marked as ordered successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark as ordered.'
+    end
+  end
+
+  def mark_received
+    if @purchase_order.mark_received!
+      redirect_to @purchase_order, notice: 'Marked as received successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark as received.'
+    end
+  end
+
+  def mark_paid
+    begin
+      # Extract card details if provided
+      card_type = params[:card_type]
+      last_four_digits = params[:last_four_digits]
+      
+      if @purchase_order.mark_as_paid!(
+        reference: params[:payment_reference],
+        method: params[:payment_method],
+        user: current_user,
+        notes: params[:payment_notes],
+        last_four_digits: last_four_digits,
+        card_type: card_type
+      )
+        # Record payment in payable if exists
+        if defined?(Payable)
+          payable = if @purchase_order.respond_to?(:payable)
+                      @purchase_order.payable
+                    else
+                      Payable.find_by(purchase_order_id: @purchase_order.id)
+                    end
+          
+          if payable
+            payable.record_payment(
+              @purchase_order.amount,
+              params[:payment_method],
+              params[:payment_reference]
+            )
+          end
+        end
+        
+        redirect_to @purchase_order, notice: 'Marked as paid successfully.'
+      else
+        redirect_to @purchase_order, alert: 'Could not mark as paid.'
+      end
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to @purchase_order, alert: "Could not mark as paid: #{e.message}"
+    rescue StandardError => e
+      redirect_to @purchase_order, alert: "Error: #{e.message}"
+    end
+  end
+  
+  def record_payment
+    # Check if Payable model is defined
+    unless defined?(Payable)
+      redirect_to @purchase_order, alert: 'Accounting system not yet configured.'
+      return
+    end
+    
+    # Find payable
+    payable = if @purchase_order.respond_to?(:payable)
+                @purchase_order.payable
+              else
+                Payable.find_by(purchase_order_id: @purchase_order.id)
+              end
+    
+    unless payable
+      redirect_to @purchase_order, alert: 'No payable record found for this purchase order.'
+      return
+    end
+    
+    payment_params = params.require(:payment).permit(
+      :amount, :payment_method, :reference_number, :payment_date, :notes
+    )
+    
+    if payable.record_payment(
+      payment_params[:amount].to_d,
+      payment_params[:payment_method],
+      payment_params[:reference_number],
+      Date.parse(payment_params[:payment_date] || Date.current.to_s)
+    )
+      # Update purchase order payment status if fully paid
+      if payable.amount_due <= 0
+        @purchase_order.update(payment_status: 'completed', paid_at: Time.current)
+      end
+      
+      redirect_to @purchase_order, notice: 'Payment recorded successfully.'
+    else
+      flash.now[:alert] = 'Failed to record payment.'
+      render :show, status: :unprocessable_entity
+    end
+  end
+
+  # Trinidad Payment Methods
+  def payment
+    # Show payment page
+    unless @purchase_order.can_initiate_payment?
+      redirect_to @purchase_order, alert: 'This purchase order cannot be paid at this time.'
+    end
+  end
+
+  def process_payment
+    # Process Trinidad card payment
+    card_details = {
+      number: params[:card_number],
+      expiry_month: params[:expiry_month],
+      expiry_year: params[:expiry_year],
+      cvv: params[:cvv],
+      card_holder: params[:card_holder],
+      card_type: params[:card_type],
+      card_brand: params[:card_brand],
+      last_four: params[:card_number]&.gsub(/\s+/, '')&.last(4)
+    }
+
+    billing_address = {
+      line1: params[:billing_address_line1],
+      line2: params[:billing_address_line2],
+      city: params[:billing_city],
+      state: params[:billing_state],
+      postal_code: params[:billing_postal_code],
+      country: 'Trinidad and Tobago'
+    }
+
+    if @purchase_order.initiate_trinidad_card_payment!(current_user, card_details, billing_address)
+      redirect_to @purchase_order, notice: 'Payment initiated successfully. Waiting for authorization.'
+    else
+      flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
+      render :payment
+    end
+  end
+
+  def authorize_payment
+    if @purchase_order.authorize_trinidad_payment!(current_user)
+      redirect_to @purchase_order, notice: 'Payment authorized successfully. Processing payment.'
+    else
+      redirect_to @purchase_order, alert: 'Could not authorize payment.'
+    end
+  end
+
+  def complete_payment
+    if @purchase_order.complete_trinidad_payment!
+      # Record payment in payable if exists
+      if defined?(Payable)
+        payable = if @purchase_order.respond_to?(:payable)
+                    @purchase_order.payable
+                  else
+                    Payable.find_by(purchase_order_id: @purchase_order.id)
+                  end
+        
+        if payable
+          payable.record_payment(
+            @purchase_order.amount,
+            @purchase_order.payment_method,
+            @purchase_order.payment_reference
+          )
+        end
+      end
+      
+      redirect_to @purchase_order, notice: 'Payment completed successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not complete payment.'
+    end
+  end
+
+  def payment_summary
+    # Show payment summary
+    if defined?(Payable)
+      @payable = if @purchase_order.respond_to?(:payable)
+                   @purchase_order.payable
+                 else
+                   Payable.find_by(purchase_order_id: @purchase_order.id)
+                 end
+      @account_transactions = @payable&.account_transactions || []
+    else
+      @payable = nil
+      @account_transactions = []
+    end
+  end
+
+  # NEW: Payment audits method
+  def payment_audits
+    @payment_audits = @purchase_order.payment_audits.order(created_at: :desc)
+    render partial: 'payment_audits' if request.xhr?
+  end
+
+  # NEW: Analytics methods
+  def analytics
+    @time_range = params[:time_range] || '30_days'
+    @agency_id = params[:agency_id]
+    
+    case @time_range
+    when '7_days'
+      @start_date = 7.days.ago
+    when '30_days'
+      @start_date = 30.days.ago
+    when '90_days'
+      @start_date = 90.days.ago
+    when 'custom'
+      @start_date = Date.parse(params[:start_date]) if params[:start_date].present?
+      @end_date = Date.parse(params[:end_date]) if params[:end_date].present?
+    end
+    
+    @start_date ||= 30.days.ago
+    @end_date ||= Time.current
+    
+    @stats = PurchaseOrder.trinidad_payment_stats(
+      time_range: @start_date..@end_date,
+      agency_id: @agency_id
+    )
+    
+    @agencies = Agency.all if current_user.admin?
+  end
+
+  def reconciliation
+    @start_date = params[:start_date] || Date.current.beginning_of_month
+    @end_date = params[:end_date] || Date.current
+    @agency_id = params[:agency_id]
+    
+    # This would call the PaymentReconciliation service
+    # @report = PaymentReconciliation.generate_reconciliation_report(
+    #   start_date: @start_date,
+    #   end_date: @end_date,
+    #   agency_id: @agency_id
+    # )
+    
+    @agencies = Agency.all if current_user.admin?
+  end
+
+  def compliance_reports
+    @purchase_orders = PurchaseOrder
+      .trinidad_card_payments
+      .order(created_at: :desc)
+      .page(params[:page]).per(20)
+    
+    if params[:agency_id].present?
+      @purchase_orders = @purchase_orders.for_agency(params[:agency_id])
+    end
+    
+    @agencies = Agency.all if current_user.admin?
+  end
+
+  def vendor_analysis
+    @vendor = params[:vendor]
+    
+    if @vendor.present?
+      @purchase_orders = PurchaseOrder
+        .trinidad_card_payments
+        .where(vendor: @vendor)
+        .order(created_at: :desc)
+        .page(params[:page]).per(20)
+    end
+    
+    # Top vendors
+    @top_vendors = PurchaseOrder
+      .trinidad_card_payments
+      .group(:vendor)
+      .order('sum_amount desc')
+      .limit(10)
+      .sum(:amount)
+  end
+
+  def export_reconciliation
+    start_date = Date.parse(params[:start_date])
+    end_date = Date.parse(params[:end_date])
+    
+    # This would generate a CSV report
+    # csv_data = generate_reconciliation_csv(start_date, end_date, params[:agency_id])
+    
+    # respond_to do |format|
+    #   format.csv do
+    #     send_data csv_data, filename: "reconciliation-#{start_date}-to-#{end_date}.csv"
+    #   end
+    # end
+    
+    redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon'
+  end
+
+  def needs_payment
+    @purchase_orders = PurchaseOrder.needs_payment
+                                    .for_agency(current_user.agency_id)
+                                    .recent
+                                    .page(params[:page]).per(20)
+    render :index
+  end
+
+  def convert_to_invoice
+    # Check if invoice already exists
+    if @purchase_order.invoices.exists?
+      redirect_to @purchase_order, alert: 'An invoice already exists for this purchase order.'
+      return
+    end
+
+    @invoice = @purchase_order.invoices.create!(
+      invoice_number: "INV-#{@purchase_order.po_number}",
+      vendor: @purchase_order.vendor,
+      amount: @purchase_order.amount,
+      status: 'paid',
+      invoice_date: Date.current,
+      due_date: Date.current,
+      vehicle_id: @purchase_order.vehicle_id,
+      created_by: current_user,
+      notes: "Converted from Purchase Order #{@purchase_order.po_number}"
+    )
+    
+    # Create payable for invoice if PO had one
+    if defined?(Payable)
+      if @purchase_order.respond_to?(:payable) && @purchase_order.payable
+        payable = Payable.create_from_invoice(@invoice)
+        @invoice.update(payable_id: payable.id) if payable.persisted?
+      else
+        # Try to find payable by purchase order ID
+        payable = Payable.find_by(purchase_order_id: @purchase_order.id)
+        if payable
+          payable.update(invoice_id: @invoice.id)
+          @invoice.update(payable_id: payable.id)
+        else
+          # Create new payable
+          payable = Payable.create_from_invoice(@invoice)
+          @invoice.update(payable_id: payable.id) if payable.persisted?
+        end
+      end
+    end
+    
+    redirect_to @invoice, notice: 'Purchase order converted to invoice successfully.'
+  rescue => e
+    redirect_to @purchase_order, alert: "Could not convert to invoice: #{e.message}"
+  end
+
+  def print
+    # Set up data for the print view
+    @purchase_order_items = @purchase_order.purchase_order_items
+    
+    respond_to do |format|
+      format.html do
+        # Render HTML version for browser preview
+        render :print
+      end
+      format.pdf do
+        # Use the model's PDF generation method with fallback
+        begin
+          # First try to use the model's to_pdf method
+          if @purchase_order.respond_to?(:to_pdf)
+            pdf = @purchase_order.to_pdf
+            send_data pdf,
+                      filename: @purchase_order.pdf_filename,
+                      type: 'application/pdf',
+                      disposition: 'inline'
+          else
+            # Fallback to the old WickedPDF render method
+            render pdf: "PO-#{@purchase_order.po_number}",
+                   template: 'purchase_orders/print',
+                   layout: 'pdf',
+                   formats: [:html],
+                   encoding: 'UTF-8',
+                   show_as_html: params[:debug].present?
+          end
+        rescue => e
+          # If PDF generation fails, show error and fall back to HTML
+          Rails.logger.error "PDF generation failed: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          
+          if request.format.pdf?
+            # If PDF was requested but failed, redirect to HTML version
+            redirect_to print_purchase_order_path(@purchase_order, format: :html), 
+                        alert: "PDF generation failed: #{e.message}. Showing HTML version instead."
+          else
+            # Just render HTML
+            render :print
+          end
+        end
+      end
+    end
+  end
+
+  # Reports
+  def reports
+    @start_date = params[:start_date] || 30.days.ago.to_date
+    @end_date = params[:end_date] || Date.today
+    @agency_id = params[:agency_id]
+    @vendor = params[:vendor]
+    @status = params[:status]
+
+    @purchase_orders = PurchaseOrder.joins(:vehicle)
+                                    .where(created_at: @start_date.beginning_of_day..@end_date.end_of_day)
+    
+    if @agency_id.present?
+      @purchase_orders = @purchase_orders.where(vehicles: { agency_id: @agency_id })
+    end
+    
+    if @vendor.present?
+      @purchase_orders = @purchase_orders.where('vendor ILIKE ?', "%#{@vendor}%")
+    end
+    
+    if @status.present?
+      @purchase_orders = @purchase_orders.where(status: @status)
+    end
+
+    @summary = {
+      total_orders: @purchase_orders.count,
+      total_amount: @purchase_orders.sum(:amount),
+      by_status: @purchase_orders.group(:status).count,
+      by_payment_status: @purchase_orders.group(:payment_status).count,
+      unpaid_amount: @purchase_orders.where(payment_status: ['unpaid', 'failed']).sum(:amount),
+      vendors: @purchase_orders.group(:vendor).count
+    }
+  end
+
+  def export
+    @purchase_orders = fetch_purchase_orders
+    respond_to do |format|
+      format.csv do
+        send_data @purchase_orders.to_csv, filename: "purchase_orders-#{Date.today}.csv"
+      end
+    end
+  end
+
+  def pending_approval
+    @purchase_orders = PurchaseOrder.pending_approval
+                                    .for_agency(current_user.agency_id)
+                                    .recent
+                                    .page(params[:page]).per(20)
+    render :index
+  end
+
+  def bulk_approve
+    purchase_order_ids = params[:purchase_order_ids]
+    
+    if purchase_order_ids.blank?
+      redirect_to pending_approval_purchase_orders_path, alert: 'No purchase orders selected.'
+      return
+    end
+
+    approved_count = 0
+    failed_count = 0
+    
+    purchase_order_ids.each do |id|
+      purchase_order = PurchaseOrder.find_by(id: id)
+      next unless purchase_order && purchase_order.pending_approval?
+      
+      if purchase_order.approve!(current_user)
+        # Create payable for each approved PO if Payable model exists
+        if defined?(Payable)
+          if purchase_order.respond_to?(:create_payable!)
+            purchase_order.create_payable!
+          else
+            payable = Payable.create_from_purchase_order(purchase_order)
+            purchase_order.update(payable_id: payable.id) if payable.persisted?
+          end
+        end
+        
+        approved_count += 1
+      else
+        failed_count += 1
+      end
+    end
+
+    if approved_count > 0
+      notice = "Successfully approved #{approved_count} purchase order(s)."
+      notice += " #{failed_count} failed." if failed_count > 0
+      redirect_to pending_approval_purchase_orders_path, notice: notice
+    else
+      redirect_to pending_approval_purchase_orders_path, alert: 'No purchase orders were approved.'
+    end
+  end
+
+  private
+
+  def set_purchase_order
+    @purchase_order = PurchaseOrder.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to purchase_orders_path, alert: 'Purchase order not found.'
+  end
+
+  def fetch_purchase_orders
+    base_scope = PurchaseOrder.recent.includes(:vehicle, :created_by, :approved_by)
+    
+    # Safely include payable if association exists
+    if PurchaseOrder.reflect_on_association(:payable)
+      base_scope = base_scope.includes(:payable)
+    end
+    
+    if current_user.admin?
+      base_scope = base_scope.all
+    else
+      base_scope = base_scope.for_agency(current_user.agency_id)
+    end
+    
+    # Apply filters
+    if params[:status].present?
+      base_scope = base_scope.where(status: params[:status])
+    end
+    
+    if params[:payment_status].present?
+      base_scope = base_scope.where(payment_status: params[:payment_status])
+    end
+    
+    if params[:payment_method].present?
+      base_scope = base_scope.where(payment_method: params[:payment_method])
+    end
+    
+    if params[:date_from].present?
+      base_scope = base_scope.where('created_at >= ?', params[:date_from])
+    end
+    
+    if params[:date_to].present?
+      base_scope = base_scope.where('created_at <= ?', params[:date_to])
+    end
+    
+    if params[:vendor].present?
+      base_scope = base_scope.where('vendor ILIKE ?', "%#{params[:vendor]}%")
+    end
+    
+    base_scope.page(params[:page]).per(20)
+  end
+
+  def purchase_order_params
+    params.require(:purchase_order).permit(
+      :vehicle_id, :vendor, :amount, :notes, :payment_terms,
+      purchase_order_items_attributes: [
+        :id, :part_id, :description, :quantity, :unit_price, :total_price, :_destroy
+      ]
+    )
+  end
+
+  def check_edit_permission
+    unless @purchase_order.editable?
+      redirect_to @purchase_order, alert: 'This purchase order cannot be edited.'
+    end
+  end
+
+  def require_supervisor
+    unless current_user.supervisor? || current_user.admin?
+      redirect_to root_path, alert: 'Unauthorized - Supervisor access required'
+    end
+  end
+
+  def require_finance
+    unless current_user.finance? || current_user.admin?
+      redirect_to root_path, alert: 'Unauthorized - Finance access required'
+    end
+  end
+end

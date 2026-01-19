@@ -1,0 +1,418 @@
+<%# app/views/pos_transactions/voided.html.erb %>
+<%
+  # Add emergency fixes for POS Voided page
+  content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta name="turbo-cache-control" content="no-cache">
+    <style>
+      /* EMERGENCY FIX FOR POS VOIDED PAGE */
+      body.pos-transactions-page,
+      body.voided-page {
+        background-color: #f8f9fa !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      .pos-transactions-page .container-fluid,
+      .voided-page .container-fluid,
+      .pos-transactions-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .voided-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .pos-transactions-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .voided-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary),
+      .pos-transactions-page .table,
+      .voided-page .table,
+      .pos-transactions-page .table th,
+      .voided-page .table th,
+      .pos-transactions-page .table td,
+      .voided-page .table td,
+      .pos-transactions-page .table tbody tr,
+      .voided-page .table tbody tr {
+        background-color: white !important;
+        color: #212529 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      /* Force all text to be visible immediately */
+      .pos-transactions-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger),
+      .voided-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
+        color: #212529 !important;
+      }
+      
+      /* Keep colored elements readable */
+      .pos-transactions-page .card.bg-primary *,
+      .voided-page .card.bg-primary *,
+      .pos-transactions-page .card.bg-success *,
+      .voided-page .card.bg-success *,
+      .pos-transactions-page .card.bg-info *,
+      .voided-page .card.bg-info *,
+      .pos-transactions-page .card.bg-danger *,
+      .voided-page .card.bg-danger *,
+      .pos-transactions-page .card.bg-dark *,
+      .voided-page .card.bg-dark *,
+      .pos-transactions-page .card.bg-secondary *,
+      .voided-page .card.bg-secondary * {
+        color: white !important;
+      }
+      
+      .pos-transactions-page .card.bg-warning *,
+      .voided-page .card.bg-warning * {
+        color: #212529 !important;
+      }
+      
+      /* Prevent Turbo from interfering */
+      [data-turbo-preview] * {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Disable ALL animations and transitions */
+      .pos-transactions-page *,
+      .voided-page * {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>
+      // IMMEDIATE FIX FOR POS VOIDED PAGE
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('POS Voided Page - Applying emergency fix for blinking');
+        
+        // Add classes immediately
+        document.body.classList.add('pos-transactions-page');
+        document.body.classList.add('voided-page');
+        
+        // Force immediate visibility
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Force text colors
+        setTimeout(function() {
+          const allElements = document.querySelectorAll('*');
+          allElements.forEach(el => {
+            const bgColor = window.getComputedStyle(el).backgroundColor;
+            const textColor = window.getComputedStyle(el).color;
+            
+            // If background is light and text is white/transparent, make text dark
+            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
+                 bgColor === 'rgb(255, 255, 255)' || 
+                 bgColor === 'rgb(248, 249, 250)' ||
+                 bgColor === '#ffffff' ||
+                 bgColor === '#f8f9fa') &&
+                (textColor === 'rgba(0, 0, 0, 0)' || 
+                 textColor === 'rgb(255, 255, 255)' ||
+                 textColor === '#ffffff')) {
+              el.style.color = '#212529';
+            }
+          });
+        }, 10);
+        
+        // Disable Turbo completely for POS voided page
+        if (typeof Turbo !== 'undefined' && window.location.pathname.includes('/pos_transactions/voided')) {
+          console.log('POS Voided page detected, disabling Turbo');
+          
+          // Disable all Turbo links and forms
+          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
+            link.setAttribute('data-turbo', 'false');
+          });
+          
+          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
+            form.setAttribute('data-turbo', 'false');
+          });
+          
+          // Disable Turbo caching
+          Turbo.cache.exemptPageFromPreview();
+          Turbo.cache.exemptPageFromCache();
+        }
+      });
+      
+      // Also handle Turbo page loads
+      document.addEventListener('turbo:load', function() {
+        if (window.location.pathname.includes('/pos_transactions/voided')) {
+          document.body.classList.add('pos-transactions-page');
+          document.body.classList.add('voided-page');
+          
+          // Final check after everything loads
+          setTimeout(() => {
+            console.log('Final check for POS Voided - ensuring all text is visible');
+            const allTextElements = document.querySelectorAll('p, span, td, th, div, h1, h2, h3, h4, h5, h6');
+            allTextElements.forEach(el => {
+              if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
+                  window.getComputedStyle(el).color === '#ffffff') {
+                el.style.color = '#212529';
+              }
+            });
+          }, 500);
+        }
+      });
+    </script>
+<% end %>
+
+<%= pos_agency_header %>
+
+<div class="container-fluid pos-transactions-container">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-0">
+            <i class="fas fa-ban text-warning me-2"></i>
+            Voided Transactions
+          </h1>
+          <p class="text-muted mb-0">
+            <%= current_agency.name %> • 
+            <span class="badge bg-dark"><%= current_agency.code %></span>
+          </p>
+        </div>
+        <div>
+          <%= link_to 'Back to POS', pos_transactions_path, class: 'btn btn-secondary me-2', data: { turbo: false } %>
+          <%= link_to 'Today\'s View', today_pos_transactions_path, class: 'btn btn-outline-primary', data: { turbo: false } %>
+        </div>
+      </div>
+
+      <%# Voided Summary - CHANGED: Fixed text colors %>
+      <div class="row mb-4">
+        <div class="col-md-4">
+          <div class="card bg-warning text-dark">
+            <div class="card-body">
+              <h6 class="card-title">Total Voided Amount</h6>
+              <h3 class="mb-0"><%= number_to_currency(@voided_total_amount, unit: "$") %></h3>
+              <small><%= @transactions.count %> transactions</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-danger text-white">
+            <div class="card-body">
+              <h6 class="card-title">Voided Today</h6>
+              <h3 class="mb-0"><%= @voided_today_count %></h3>
+              <small>Transactions voided today</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card bg-secondary text-white">
+            <div class="card-body">
+              <h6 class="card-title">This Week</h6>
+              <h3 class="mb-0"><%= @voided_this_week_count %></h3>
+              <small>Transactions voided this week</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <%# Void Reasons Analysis %>
+      <% if @void_reasons.any? %>
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">Void Reasons Analysis</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <% @void_reasons.each do |reason, count| %>
+                <div class="col-md-4 mb-3">
+                  <div class="card">
+                    <div class="card-body">
+                      <h6 class="card-title"><%= reason %></h6>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0"><%= count %></h3>
+                        <span class="badge bg-warning">
+                          <%= ((count.to_f / @transactions.count) * 100).round(1) %>%
+                        </span>
+                      </div>
+                      <div class="progress mt-2" style="height: 10px;">
+                        <div class="progress-bar bg-warning" 
+                             style="width: <%= ((count.to_f / @transactions.count) * 100).round(1) %>%">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%# Voided Transactions Table %>
+      <div class="card">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Voided Transactions</h5>
+          <span class="badge bg-warning">
+            <%= @transactions.count %> voided transactions
+          </span>
+        </div>
+        <div class="card-body">
+          <% if @transactions.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Voided Date</th>
+                    <th>Transaction ID</th>
+                    <th>Original Amount</th>
+                    <th>Original Payment</th>
+                    <th>Voided By</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @transactions.each do |transaction| %>
+                    <tr>
+                      <td>
+                        <%= format_date(transaction.voided_at, format: :datetime) %>
+                        <br>
+                        <small class="text-muted">
+                          Created: <%= format_date(transaction.created_at, format: :short) %>
+                        </small>
+                      </td>
+                      <td>
+                        <strong><%= transaction.transaction_id %></strong>
+                        <% if transaction.vehicle_id %>
+                          <br>
+                          <small class="text-muted">
+                            <i class="fas fa-car me-1"></i>
+                            <%= transaction.vehicle.license_plate %>
+                          </small>
+                        <% end %>
+                      </td>
+                      <td><strong><%= number_to_currency(transaction.amount, unit: "$") %></strong></td>
+                      <td><%= pos_payment_type_badge(transaction.payment_type) %></td>
+                      <td><%= transaction.user&.name || 'Unknown' %></td>
+                      <td>
+                        <% if transaction.notes.present? %>
+                          <small class="text-muted">
+                            <%= truncate(transaction.notes, length: 50) %>
+                          </small>
+                        <% else %>
+                          <span class="text-muted">-</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to 'View', pos_transaction_path(transaction), class: 'btn btn-outline-info btn-sm', data: { turbo: false } %>
+                          <%= link_to 'Receipt', receipt_pos_transaction_path(transaction), class: 'btn btn-outline-secondary btn-sm', data: { turbo: false } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="fas fa-ban fa-4x text-muted mb-3"></i>
+              <h4>No Voided Transactions</h4>
+              <p class="text-muted">Great! No transactions have been voided.</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Prevention Tips %>
+      <div class="card mt-4 bg-light">
+        <div class="card-body">
+          <h5 class="mb-3">
+            <i class="fas fa-lightbulb text-warning me-2"></i>
+            Tips to Reduce Voided Transactions
+          </h5>
+          <div class="row">
+            <div class="col-md-4">
+              <div class="d-flex">
+                <i class="fas fa-check-circle text-success mt-1 me-2"></i>
+                <div>
+                  <h6>Verify Amounts</h6>
+                  <p class="text-muted small">Double-check amounts before processing payments</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex">
+                <i class="fas fa-check-circle text-success mt-1 me-2"></i>
+                <div>
+                  <h6>Confirm Payment</h6>
+                  <p class="text-muted small">Wait for payment confirmation before completing</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex">
+                <i class="fas fa-check-circle text-success mt-1 me-2"></i>
+                <div>
+                  <h6>Training</h6>
+                  <p class="text-muted small">Ensure staff are properly trained on POS system</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Additional JavaScript for POS Voided page %>
+<script>
+  // Force POS Voided page styling
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add the class if not already added
+    if (!document.body.classList.contains('pos-transactions-page')) {
+      document.body.classList.add('pos-transactions-page');
+    }
+    if (!document.body.classList.contains('voided-page')) {
+      document.body.classList.add('voided-page');
+    }
+    
+    // Force card backgrounds immediately
+    setTimeout(function() {
+      // Force colored cards to keep their colors
+      document.querySelectorAll('.card.bg-primary, .card.bg-success, .card.bg-info, .card.bg-warning, .card.bg-danger, .card.bg-dark, .card.bg-secondary').forEach(card => {
+        if (card.classList.contains('bg-warning')) {
+          card.style.backgroundColor = '#ffc107';
+          card.style.color = '#212529';
+        } else if (card.classList.contains('bg-primary')) {
+          card.style.backgroundColor = '#0d6efd';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-success')) {
+          card.style.backgroundColor = '#198754';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-info')) {
+          card.style.backgroundColor = '#0dcaf0';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-danger')) {
+          card.style.backgroundColor = '#dc3545';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-dark')) {
+          card.style.backgroundColor = '#212529';
+          card.style.color = 'white';
+        } else if (card.classList.contains('bg-secondary')) {
+          card.style.backgroundColor = '#6c757d';
+          card.style.color = 'white';
+        }
+      });
+      
+      // Force regular cards to be white
+      document.querySelectorAll('.card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.bg-secondary)').forEach(card => {
+        card.style.backgroundColor = 'white';
+        card.style.color = '#212529';
+      });
+      
+      // Force table backgrounds
+      document.querySelectorAll('.table').forEach(table => {
+        table.style.backgroundColor = 'white';
+      });
+    }, 50);
+    
+    // Add data-turbo="false" to all links
+    setTimeout(function() {
+      document.querySelectorAll('a:not([data-turbo])').forEach(link => {
+        if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
+          link.setAttribute('data-turbo', 'false');
+        }
+      });
+    }, 100);
+  });
+</script>

@@ -1,0 +1,136 @@
+<%# app/views/pos_transactions/new.html.erb %>
+<%= pos_agency_header %>
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-8 offset-md-3">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">
+            <i class="fas fa-cash-register me-2"></i>
+            New POS Transaction
+          </h5>
+        </div>
+        <div class="card-body">
+          <%# Audit Notice %>
+          <div class="alert alert-info mb-4">
+            <i class="fas fa-shield-alt me-2"></i>
+            <strong>Audit Trail:</strong> All POS transactions are automatically set to "completed" status 
+            and cannot be deleted. To correct errors, use the "Void" or "Refund" actions after creation.
+          </div>
+
+          <%= form_with model: @pos_transaction, local: true do |f| %>
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <%= f.label :amount, class: "form-label" %>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <%= f.number_field :amount, class: "form-control", step: "0.01", min: "0.01", required: true, 
+                        placeholder: "0.00", id: "pos_transaction_amount" %>
+                </div>
+                <small class="text-muted">Enter the total transaction amount</small>
+              </div>
+              
+              <div class="col-md-6">
+                <%= f.label :payment_type, class: "form-label" %>
+                <%= f.select :payment_type, 
+                    PosTransaction.payment_types.keys.map { |type| [type.humanize, type] },
+                    { include_blank: "Select payment type" },
+                    class: "form-control", required: true %>
+                <small class="text-muted">Select the payment method used</small>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-12">
+                <%= f.label :vehicle_id, "Vehicle (Optional)", class: "form-label" %>
+                <%= f.select :vehicle_id,
+                    options_from_collection_for_select(@vehicles, :id, :license_plate, @pos_transaction.vehicle_id),
+                    { include_blank: "Select vehicle (optional)" },
+                    class: "form-control" %>
+                <small class="text-muted">Link this transaction to a vehicle if applicable</small>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <%= f.label :notes, "Notes (Optional)", class: "form-label" %>
+              <%= f.text_area :notes, class: "form-control", rows: 3, 
+                    placeholder: "Add any notes about this transaction (e.g., customer name, special instructions)..." %>
+            </div>
+
+            <%# Hidden status field - always completed for new transactions %>
+            <%= f.hidden_field :status, value: 'completed' %>
+
+            <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+              <%= link_to 'Cancel', pos_transactions_path, class: 'btn btn-secondary' %>
+              <%= f.submit 'Process Transaction', 
+                    class: 'btn btn-success btn-lg px-5',
+                    data: { confirm: 'Are you sure you want to process this transaction? This will create a permanent record.' } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <%# Quick Items (Agency-specific) %>
+      <div class="card mt-4">
+        <div class="card-header">
+          <h5 class="mb-0">Quick Items</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <% agency_pos_items.each do |item| %>
+              <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h6 class="card-title"><%= item[:name] %></h6>
+                    <p class="card-text text-muted"><small><%= item[:category] %></small></p>
+                    <p class="card-text"><strong><%= number_to_currency(item[:price], unit: "$") %></strong></p>
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100" 
+                            onclick="document.getElementById('pos_transaction_amount').value = '<%= item[:price] %>';
+                                     document.getElementById('pos_transaction_amount').focus();">
+                      <i class="fas fa-plus me-1"></i>Add to Amount
+                    </button>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <%# Quick Calculator %>
+      <div class="card mt-4">
+        <div class="card-header">
+          <h5 class="mb-0">Quick Calculator</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-2">
+            <% [1, 5, 10, 20, 50, 100].each do |amount| %>
+              <div class="col-4 col-md-2">
+                <button type="button" class="btn btn-outline-secondary w-100"
+                        onclick="addAmount(<%= amount %>)">
+                  $<%= amount %>
+                </button>
+              </div>
+            <% end %>
+            <div class="col-12 mt-2">
+              <button type="button" class="btn btn-outline-danger w-100"
+                      onclick="document.getElementById('pos_transaction_amount').value = ''">
+                Clear Amount
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function addAmount(amount) {
+  const amountField = document.getElementById('pos_transaction_amount');
+  const current = parseFloat(amountField.value) || 0;
+  amountField.value = (current + amount).toFixed(2);
+  amountField.focus();
+}
+</script>

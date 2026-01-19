@@ -22,5 +22,8 @@ module ActivePlusDemo
 
     # Active Storage default service
     config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "local").to_sym
+    
+    # Demo mode toggle
+    config.x.demo_mode = Rails.env.development?
   end
 end

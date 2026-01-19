@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -33,6 +33,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["resource_type", "resource_id", "accessed_at"], name: "idx_on_resource_type_resource_id_accessed_at_e90a959e80"
     t.index ["user_id", "accessed_at"], name: "index_access_logs_on_user_id_and_accessed_at"
     t.index ["user_id"], name: "index_access_logs_on_user_id"
+  end
+
+  create_table "account_transactions", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.bigint "credit_account_id"
+    t.bigint "debit_account_id"
+    t.text "description"
+    t.jsonb "metadata", default: {}
+    t.text "notes"
+    t.bigint "payable_id"
+    t.boolean "reconciled", default: false
+    t.date "reconciled_date"
+    t.bigint "reference_id"
+    t.string "reference_type"
+    t.date "transaction_date", null: false
+    t.string "transaction_number", null: false
+    t.string "transaction_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["agency_id"], name: "index_account_transactions_on_agency_id"
+    t.index ["debit_account_id", "credit_account_id"], name: "idx_on_debit_account_id_credit_account_id_c74a76766e"
+    t.index ["payable_id"], name: "index_account_transactions_on_payable_id"
+    t.index ["reconciled"], name: "index_account_transactions_on_reconciled"
+    t.index ["reference_type", "reference_id"], name: "index_account_transactions_on_reference_type_and_reference_id"
+    t.index ["transaction_date"], name: "index_account_transactions_on_transaction_date"
+    t.index ["transaction_number"], name: "index_account_transactions_on_transaction_number", unique: true
+  end
+
+  create_table "accounts", force: :cascade do |t|
+    t.string "account_number", null: false
+    t.string "account_type", null: false
+    t.bigint "agency_id"
+    t.decimal "balance", precision: 15, scale: 2, default: "0.0"
+    t.datetime "created_at", null: false
+    t.string "currency", default: "TTD"
+    t.text "description"
+    t.boolean "is_active", default: true
+    t.string "name", null: false
+    t.string "sub_type"
+    t.datetime "updated_at", null: false
+    t.index ["account_type"], name: "index_accounts_on_account_type"
+    t.index ["agency_id", "account_number"], name: "index_accounts_on_agency_id_and_account_number", unique: true
+    t.index ["sub_type"], name: "index_accounts_on_sub_type"
   end
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -104,6 +148,37 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["vehicle_id"], name: "index_alerts_on_vehicle_id"
   end
 
+  create_table "cashier_sessions", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.decimal "bank_transfer_total", precision: 10, scale: 2, default: "0.0"
+    t.decimal "card_total", precision: 10, scale: 2, default: "0.0"
+    t.decimal "cash_total", precision: 10, scale: 2, default: "0.0"
+    t.datetime "closed_at"
+    t.bigint "closed_by_id"
+    t.datetime "created_at", null: false
+    t.decimal "discrepancy", precision: 10, scale: 2
+    t.decimal "ending_cash", precision: 10, scale: 2
+    t.decimal "mobile_money_total", precision: 10, scale: 2, default: "0.0"
+    t.text "notes"
+    t.datetime "opened_at"
+    t.integer "refunded_count", default: 0
+    t.decimal "refunded_total", precision: 10, scale: 2, default: "0.0"
+    t.decimal "starting_cash", precision: 10, scale: 2, default: "0.0"
+    t.integer "status", default: 0, null: false
+    t.decimal "total_sales", precision: 10, scale: 2, default: "0.0"
+    t.integer "transaction_count", default: 0
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.integer "voided_count", default: 0
+    t.decimal "voided_total", precision: 10, scale: 2, default: "0.0"
+    t.index ["agency_id", "status"], name: "index_cashier_sessions_on_agency_id_and_status"
+    t.index ["agency_id"], name: "index_cashier_sessions_on_agency_id"
+    t.index ["closed_by_id"], name: "index_cashier_sessions_on_closed_by_id"
+    t.index ["opened_at", "closed_at"], name: "index_cashier_sessions_on_opened_at_and_closed_at"
+    t.index ["user_id", "status"], name: "index_cashier_sessions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_cashier_sessions_on_user_id"
+  end
+
   create_table "damage_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -138,7 +213,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["vehicle_id"], name: "index_drivers_vehicles_on_vehicle_id"
   end
 
+  create_table "fare_rules", force: :cascade do |t|
+    t.bigint "agency_id", null: false
+    t.decimal "amount", precision: 10, scale: 2, null: false
+    t.decimal "child_amount", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.date "effective_from"
+    t.date "effective_to"
+    t.string "fare_class", null: false
+    t.boolean "is_active", default: true
+    t.text "notes"
+    t.string "route_code", null: false
+    t.decimal "senior_amount", precision: 10, scale: 2
+    t.decimal "student_amount", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["agency_id", "route_code", "fare_class"], name: "index_fare_rules_on_agency_route_class", unique: true
+    t.index ["agency_id"], name: "index_fare_rules_on_agency_id"
+  end
+
   create_table "invoices", force: :cascade do |t|
+    t.bigint "account_id"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.string "category"
     t.datetime "created_at", null: false
@@ -153,6 +247,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.text "notes"
     t.datetime "paid_at"
     t.integer "paid_by_id"
+    t.bigint "payable_id"
+    t.string "payment_terms", default: "net_30"
     t.integer "pos_transaction_id"
     t.integer "purchase_order_id"
     t.string "quickbooks_id"
@@ -168,9 +264,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
     t.string "vendor", null: false
+    t.index ["account_id"], name: "index_invoices_on_account_id"
     t.index ["category"], name: "index_invoices_on_category"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number", unique: true
     t.index ["maintenance_id"], name: "index_invoices_on_maintenance_id"
+    t.index ["payable_id"], name: "index_invoices_on_payable_id"
     t.index ["pos_transaction_id"], name: "index_invoices_on_pos_transaction_id"
     t.index ["purchase_order_id"], name: "index_invoices_on_purchase_order_id"
     t.index ["quickbooks_id"], name: "index_invoices_on_quickbooks_id"
@@ -251,6 +349,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["vehicle_id"], name: "index_maintenances_on_vehicle_id"
   end
 
+  create_table "monthly_statements", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.decimal "closing_balance", precision: 15, scale: 2, default: "0.0"
+    t.datetime "created_at", null: false
+    t.jsonb "line_items", default: []
+    t.text "notes"
+    t.decimal "opening_balance", precision: 15, scale: 2, default: "0.0"
+    t.date "period_end", null: false
+    t.date "period_start", null: false
+    t.date "statement_date", null: false
+    t.string "statement_number", null: false
+    t.string "status", default: "draft"
+    t.decimal "total_invoices", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_payments", precision: 15, scale: 2, default: "0.0"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_id"
+    t.string "vendor_name", null: false
+    t.index ["agency_id"], name: "index_monthly_statements_on_agency_id"
+    t.index ["statement_date"], name: "index_monthly_statements_on_statement_date"
+    t.index ["statement_number"], name: "index_monthly_statements_on_statement_number", unique: true
+    t.index ["status"], name: "index_monthly_statements_on_status"
+    t.index ["vendor_id"], name: "index_monthly_statements_on_vendor_id"
+  end
+
   create_table "parts", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -262,6 +384,49 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.bigint "store_id", null: false
   end
 
+  create_table "payables", force: :cascade do |t|
+    t.bigint "account_id"
+    t.bigint "agency_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.decimal "amount_due", precision: 15, scale: 2, null: false
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.date "due_date", null: false
+    t.bigint "invoice_id"
+    t.jsonb "payment_schedule", default: {}
+    t.bigint "purchase_order_id"
+    t.string "reference_number", null: false
+    t.date "statement_date"
+    t.string "status", default: "open"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_id"
+    t.string "vendor_name", null: false
+    t.index ["account_id"], name: "index_payables_on_account_id"
+    t.index ["agency_id"], name: "index_payables_on_agency_id"
+    t.index ["due_date"], name: "index_payables_on_due_date"
+    t.index ["invoice_id"], name: "index_payables_on_invoice_id"
+    t.index ["purchase_order_id"], name: "index_payables_on_purchase_order_id"
+    t.index ["reference_number"], name: "index_payables_on_reference_number", unique: true
+    t.index ["status"], name: "index_payables_on_status"
+    t.index ["vendor_id"], name: "index_payables_on_vendor_id"
+  end
+
+  create_table "payment_audits", force: :cascade do |t|
+    t.string "action"
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.json "metadata"
+    t.bigint "purchase_order_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["action"], name: "index_payment_audits_on_action"
+    t.index ["created_at"], name: "index_payment_audits_on_created_at"
+    t.index ["purchase_order_id"], name: "index_payment_audits_on_purchase_order_id"
+    t.index ["user_id"], name: "index_payment_audits_on_user_id"
+  end
+
   create_table "payment_histories", force: :cascade do |t|
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "created_at", null: false
@@ -270,6 +435,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.date "payment_date", null: false
     t.string "payment_method"
     t.bigint "payment_transaction_id", null: false
+    t.string "payment_transaction_type"
     t.string "reference_number"
     t.string "status", default: "completed"
     t.datetime "updated_at", null: false
@@ -280,6 +446,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["status"], name: "index_payment_histories_on_status"
   end
 
+  create_table "payment_schedules", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.date "end_date"
+    t.string "frequency", null: false
+    t.bigint "payable_id"
+    t.jsonb "schedule_dates", default: []
+    t.string "schedule_number", null: false
+    t.date "start_date", null: false
+    t.string "status", default: "active"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_id"
+    t.index ["agency_id"], name: "index_payment_schedules_on_agency_id"
+    t.index ["payable_id"], name: "index_payment_schedules_on_payable_id"
+    t.index ["schedule_number"], name: "index_payment_schedules_on_schedule_number", unique: true
+    t.index ["status"], name: "index_payment_schedules_on_status"
+    t.index ["vendor_id"], name: "index_payment_schedules_on_vendor_id"
+  end
+
   create_table "permissions", force: :cascade do |t|
     t.string "category"
     t.datetime "created_at", null: false
@@ -288,36 +475,106 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
   end
 
   create_table "pos_transactions", force: :cascade do |t|
+    t.bigint "agency_id", null: false
     t.decimal "amount", precision: 10, scale: 2, null: false
+    t.decimal "bank_transfer_total", precision: 10, scale: 2, default: "0.0"
+    t.bigint "cashier_session_id"
     t.datetime "created_at", null: false
+    t.string "destination_stop"
+    t.string "fare_class", default: "adult"
     t.bigint "invoice_id"
+    t.boolean "is_return_trip", default: false
+    t.decimal "mobile_money_total", precision: 10, scale: 2, default: "0.0"
     t.text "notes"
+    t.string "origin_stop"
+    t.integer "passenger_count", default: 1
     t.integer "payment_type", default: 0
+    t.string "receipt_number"
+    t.datetime "refunded_at"
+    t.integer "refunded_by"
+    t.string "route_code"
     t.integer "status", default: 0
+    t.string "ticket_type"
     t.string "transaction_id", null: false
+    t.decimal "unit_fare", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.bigint "vehicle_id"
+    t.datetime "voided_at"
+    t.integer "voided_by"
+    t.index ["agency_id", "receipt_number"], name: "index_pos_transactions_on_agency_id_and_receipt_number", unique: true
+    t.index ["agency_id"], name: "index_pos_transactions_on_agency_id"
+    t.index ["cashier_session_id"], name: "index_pos_transactions_on_cashier_session_id"
+    t.index ["fare_class"], name: "index_pos_transactions_on_fare_class"
     t.index ["invoice_id"], name: "index_pos_transactions_on_invoice_id"
+    t.index ["receipt_number"], name: "index_pos_transactions_on_receipt_number"
+    t.index ["route_code"], name: "index_pos_transactions_on_route_code"
+    t.index ["ticket_type"], name: "index_pos_transactions_on_ticket_type"
     t.index ["transaction_id"], name: "index_pos_transactions_on_transaction_id", unique: true
     t.index ["user_id"], name: "index_pos_transactions_on_user_id"
     t.index ["vehicle_id"], name: "index_pos_transactions_on_vehicle_id"
+  end
+
+  create_table "purchase_order_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "description", null: false
+    t.text "notes"
+    t.bigint "part_id"
+    t.bigint "purchase_order_id", null: false
+    t.integer "quantity", default: 1, null: false
+    t.decimal "total_price", precision: 10, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2, null: false
+    t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_purchase_order_items_on_part_id"
+    t.index ["purchase_order_id"], name: "index_purchase_order_items_on_purchase_order_id"
+    t.check_constraint "quantity > 0", name: "positive_quantity"
   end
 
   create_table "purchase_orders", force: :cascade do |t|
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "approved_at"
     t.bigint "approved_by_id"
+    t.jsonb "billing_address", default: {}
+    t.string "card_type"
+    t.boolean "compliance_checked", default: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
+    t.date "due_date"
+    t.string "last_four_digits"
     t.text "notes"
+    t.datetime "ordered_at"
+    t.datetime "paid_at"
+    t.bigint "payable_id"
+    t.datetime "payment_authorized_at"
+    t.bigint "payment_authorized_by_id"
+    t.date "payment_date"
+    t.datetime "payment_failed_at"
+    t.datetime "payment_initiated_at"
+    t.string "payment_method"
+    t.text "payment_notes"
+    t.bigint "payment_processed_by_id"
+    t.string "payment_reference"
+    t.string "payment_status", default: "unpaid", null: false
+    t.string "payment_terms", default: "net_30"
+    t.string "pdf_s3_url"
     t.string "po_number", null: false
-    t.integer "status", default: 0
+    t.string "rails_code"
+    t.datetime "received_at"
+    t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
+    t.text "rejection_reason"
+    t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id"
     t.string "vendor", null: false
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
+    t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"
+    t.index ["payment_authorized_by_id"], name: "index_purchase_orders_on_payment_authorized_by_id"
+    t.index ["payment_date"], name: "index_purchase_orders_on_payment_date"
+    t.index ["payment_processed_by_id"], name: "index_purchase_orders_on_payment_processed_by_id"
+    t.index ["payment_reference"], name: "index_purchase_orders_on_payment_reference"
+    t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
   end
@@ -415,6 +672,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "routes", force: :cascade do |t|
+    t.bigint "agency_id", null: false
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.decimal "distance_km", precision: 10, scale: 2
+    t.string "end_point"
+    t.integer "estimated_duration_minutes"
+    t.boolean "is_active", default: true
+    t.string "name", null: false
+    t.string "route_code", null: false
+    t.string "start_point"
+    t.jsonb "stops"
+    t.datetime "updated_at", null: false
+    t.index ["agency_id", "route_code"], name: "index_routes_on_agency_id_and_route_code", unique: true
+    t.index ["agency_id"], name: "index_routes_on_agency_id"
+  end
+
   create_table "service_providers", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
@@ -429,12 +703,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
   end
 
   create_table "transactions", force: :cascade do |t|
+    t.bigint "account_transaction_id"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "created_at", null: false
     t.string "description"
     t.bigint "invoice_id"
     t.datetime "last_sync_at"
     t.text "notes"
+    t.bigint "payable_id"
     t.string "payment_method"
     t.string "quickbooks_id"
     t.string "reference_number"
@@ -445,13 +721,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.bigint "vehicle_id"
+    t.index ["account_transaction_id"], name: "index_transactions_on_account_transaction_id"
     t.index ["invoice_id"], name: "index_transactions_on_invoice_id"
+    t.index ["payable_id"], name: "index_transactions_on_payable_id"
     t.index ["reference_number"], name: "index_transactions_on_reference_number", unique: true
     t.index ["status"], name: "index_transactions_on_status"
     t.index ["transaction_type"], name: "index_transactions_on_transaction_type"
     t.index ["user_id"], name: "index_transactions_on_user_id"
     t.index ["vehicle_id"], name: "index_transactions_on_vehicle_id"
-    t.check_constraint "sync_status::text = ANY (ARRAY['pending'::character varying, 'syncing'::character varying, 'success'::character varying, 'failed'::character varying, 'error'::character varying]::text[])", name: "check_sync_status"
+    t.check_constraint "sync_status::text = ANY (ARRAY['pending'::character varying::text, 'syncing'::character varying::text, 'success'::character varying::text, 'failed'::character varying::text, 'error'::character varying::text])", name: "check_sync_status"
   end
 
   create_table "trips", force: :cascade do |t|
@@ -554,12 +832,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
+  create_table "z_reports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   add_foreign_key "access_logs", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "alerts", "agencies"
   add_foreign_key "alerts", "drivers"
   add_foreign_key "alerts", "vehicles"
+  add_foreign_key "cashier_sessions", "agencies"
+  add_foreign_key "cashier_sessions", "users"
+  add_foreign_key "cashier_sessions", "users", column: "closed_by_id"
   add_foreign_key "damage_reports", "drivers"
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "drivers_vehicles", "drivers"
@@ -575,11 +861,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_15_170125) do
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "payment_audits", "purchase_orders"
+  add_foreign_key "payment_audits", "users"
   add_foreign_key "payment_histories", "invoices"
   add_foreign_key "payment_histories", "transactions", column: "payment_transaction_id"
+  add_foreign_key "pos_transactions", "agencies"
+  add_foreign_key "pos_transactions", "cashier_sessions"
   add_foreign_key "pos_transactions", "invoices"
   add_foreign_key "pos_transactions", "users"
   add_foreign_key "pos_transactions", "vehicles"
+  add_foreign_key "purchase_order_items", "parts"
+  add_foreign_key "purchase_order_items", "purchase_orders"
   add_foreign_key "purchase_orders", "users", column: "approved_by_id"
   add_foreign_key "purchase_orders", "users", column: "created_by_id"
   add_foreign_key "purchase_orders", "vehicles"

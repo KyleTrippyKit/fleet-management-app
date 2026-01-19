@@ -1,0 +1,352 @@
+<%# app/views/pos_transactions/cashier_session.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-lg-8">
+      <!-- Session Status Card -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="fas fa-cash-register me-2"></i>
+            Cashier Session Management
+          </h5>
+        </div>
+        <div class="card-body">
+          <% if @cashier_session.persisted? && @cashier_session.open? %>
+            <!-- Active Session -->
+            <div class="alert alert-success">
+              <div class="d-flex align-items-center">
+                <i class="fas fa-check-circle fa-2x me-3"></i>
+                <div>
+                  <h5 class="alert-heading mb-1">Session Active</h5>
+                  <p class="mb-0">
+                    Session opened at: <strong><%= @cashier_session.opened_at.strftime('%I:%M %p') %></strong> |
+                    Duration: <strong><%= distance_of_time_in_words(@cashier_session.opened_at, Time.current) %></strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6">
+                <div class="card border-success mb-3">
+                  <div class="card-body">
+                    <h6 class="card-title text-success">
+                      <i class="fas fa-money-bill-wave me-2"></i>
+                      Cash Summary
+                    </h6>
+                    <div class="mb-2">
+                      <small class="text-muted">Starting Cash</small>
+                      <h4 class="text-dark">TTD <%= number_to_currency(@cashier_session.starting_cash, unit: '') %></h4>
+                    </div>
+                    <div class="mb-2">
+                      <small class="text-muted">Cash Sales</small>
+                      <h4 class="text-success">TTD <%= number_to_currency(@cashier_session.cash_total, unit: '') %></h4>
+                    </div>
+                    <div class="mb-2">
+                      <small class="text-muted">Expected Cash</small>
+                      <h4 class="text-primary">TTD <%= number_to_currency(@cashier_session.starting_cash + @cashier_session.cash_total, unit: '') %></h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="card border-primary mb-3">
+                  <div class="card-body">
+                    <h6 class="card-title text-primary">
+                      <i class="fas fa-chart-bar me-2"></i>
+                      Session Totals
+                    </h6>
+                    <div class="mb-2">
+                      <small class="text-muted">Total Sales</small>
+                      <h4 class="text-dark">TTD <%= number_to_currency(@cashier_session.total_sales, unit: '') %></h4>
+                    </div>
+                    <div class="mb-2">
+                      <small class="text-muted">Transactions</small>
+                      <h4><%= @cashier_session.transaction_count %></h4>
+                    </div>
+                    <div class="mb-2">
+                      <small class="text-muted">Voided Amount</small>
+                      <h4 class="text-danger">TTD <%= number_to_currency(@cashier_session.voided_total, unit: '') %></h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Close Session Form -->
+            <div class="card border-warning">
+              <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0">
+                  <i class="fas fa-door-closed me-2"></i>
+                  Close Session
+                </h6>
+              </div>
+              <div class="card-body">
+                <%= form_with url: close_register_pos_transactions_path, method: :post do |f| %>
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <%= label_tag :ending_cash, 'Actual Cash Counted', class: 'form-label' %>
+                        <%= number_field_tag :ending_cash, nil, 
+                              class: 'form-control',
+                              step: '0.01',
+                              min: '0',
+                              required: true,
+                              placeholder: 'Enter actual cash in drawer' %>
+                        <small class="form-text text-muted">
+                          Count all physical cash in the register
+                        </small>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <%= label_tag :notes, 'Closing Notes (Optional)', class: 'form-label' %>
+                                        <%= text_area_tag :notes, nil, 
+                              class: 'form-control',
+                              rows: '2',
+                              placeholder: 'Any notes about the session...' %>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Discrepancy Warning -->
+                  <% expected = @cashier_session.starting_cash + @cashier_session.cash_total - @cashier_session.refunded_total %>
+                  <div class="alert alert-info">
+                    <i class="fas fa-calculator me-2"></i>
+                    <strong>Expected Cash:</strong> TTD <%= number_to_currency(expected, unit: '') %><br>
+                    <small>
+                      Starting Cash (TTD <%= number_to_currency(@cashier_session.starting_cash, unit: '') %>) 
+                      + Cash Sales (TTD <%= number_to_currency(@cashier_session.cash_total, unit: '') %>)
+                      - Refunds (TTD <%= number_to_currency(@cashier_session.refunded_total, unit: '') %>)
+                    </small>
+                  </div>
+                  
+                  <div class="d-grid">
+                    <%= submit_tag 'Close Session & Generate Z Report', 
+                          class: 'btn btn-warning btn-lg',
+                          data: { confirm: 'Are you sure you want to close the session? This will generate a Z report.' } %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            
+          <% else %>
+            <!-- No Active Session -->
+            <div class="alert alert-warning">
+              <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                <div>
+                  <h5 class="alert-heading mb-1">No Active Session</h5>
+                  <p class="mb-0">You need to open a cashier session to start processing transactions.</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Open Session Form -->
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white">
+                <h6 class="mb-0">
+                  <i class="fas fa-door-open me-2"></i>
+                  Open New Session
+                </h6>
+              </div>
+              <div class="card-body">
+                <%= form_with url: open_register_pos_transactions_path, method: :post do |f| %>
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <%= label_tag :starting_cash, 'Starting Cash', class: 'form-label' %>
+                        <%= number_field_tag :starting_cash, 0.00, 
+                              class: 'form-control',
+                              step: '0.01',
+                              min: '0',
+                              required: true,
+                              placeholder: '0.00' %>
+                        <small class="form-text text-muted">
+                          Enter the amount of cash you're starting with in the register
+                        </small>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="mb-3">
+                        <%= label_tag :cashier_name, 'Cashier', class: 'form-label' %>
+                                        <%= text_field_tag :cashier_name, current_user.name, 
+                              class: 'form-control',
+                              disabled: true %>
+                        <small class="form-text text-muted">
+                          Agency: <strong><%= current_agency.name %></strong>
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="d-grid gap-2">
+                    <%= submit_tag 'Open Cash Register & Start Session', 
+                          class: 'btn btn-primary btn-lg' %>
+                    
+                    <%= link_to 'View Previous Sessions', daily_report_pos_transactions_path, 
+                          class: 'btn btn-outline-secondary' %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4">
+      <!-- Quick Actions -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">
+            <i class="fas fa-bolt me-2"></i>
+            Quick Actions
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <% if @cashier_session.persisted? && @cashier_session.open? %>
+              <%= link_to new_pos_transaction_path, 
+                    class: 'btn btn-success btn-lg' do %>
+                <i class="fas fa-plus-circle me-2"></i>
+                New Transaction
+              <% end %>
+              
+              <%= link_to pos_transactions_path, 
+                    class: 'btn btn-outline-primary' do %>
+                <i class="fas fa-list me-2"></i>
+                View All Transactions
+              <% end %>
+              
+              <%= link_to today_pos_transactions_path, 
+                    class: 'btn btn-outline-info' do %>
+                <i class="fas fa-calendar-day me-2"></i>
+                Today's Summary
+              <% end %>
+            <% else %>
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                Open a session to access transaction features
+              </div>
+            <% end %>
+            
+            <%= link_to dashboard_pos_transactions_path, 
+                  class: 'btn btn-outline-secondary' do %>
+              <i class="fas fa-tachometer-alt me-2"></i>
+              POS Dashboard
+            <% end %>
+            
+            <%= link_to reports_pos_transactions_path, 
+                  class: 'btn btn-outline-dark' do %>
+              <i class="fas fa-chart-pie me-2"></i>
+              View Reports
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recent Transactions -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="mb-0">
+            <i class="fas fa-history me-2"></i>
+            Recent Activity
+          </h6>
+        </div>
+        <div class="card-body p-0">
+          <% if @today_transactions.any? %>
+            <div class="list-group list-group-flush">
+              <% @today_transactions.limit(5).each do |transaction| %>
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <small class="text-muted"><%= transaction.created_at.strftime('%I:%M %p') %></small>
+                      <div class="fw-bold">TTD <%= number_to_currency(transaction.amount, unit: '') %></div>
+                      <small class="badge bg-<%= transaction_status_color(transaction.status) %>">
+                        <%= transaction.display_payment_type %>
+                      </small>
+                    </div>
+                    <div class="text-end">
+                      <small class="text-muted"><%= transaction.receipt_number.last(6) %></small>
+                      <div>
+                        <%= link_to receipt_pos_transaction_path(transaction), 
+                              class: 'btn btn-sm btn-outline-primary',
+                              title: 'View Receipt' do %>
+                          <i class="fas fa-receipt"></i>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+            <div class="card-footer text-center">
+              <%= link_to 'View All Today\'s Transactions', today_pos_transactions_path, 
+                    class: 'btn btn-sm btn-outline-secondary' %>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-receipt fa-2x text-muted mb-3"></i>
+              <p class="text-muted mb-0">No transactions today</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-focus on ending cash field when closing session
+  const endingCashField = document.getElementById('ending_cash');
+  if (endingCashField) {
+    endingCashField.focus();
+  }
+  
+  // Calculate discrepancy in real-time
+  if (endingCashField) {
+    endingCashField.addEventListener('input', function() {
+      const endingCash = parseFloat(this.value) || 0;
+      const expectedCash = parseFloat('<%= @cashier_session.starting_cash + @cashier_session.cash_total - @cashier_session.refunded_total %>');
+      const discrepancy = endingCash - expectedCash;
+      
+      // Show discrepancy warning
+      const form = this.closest('form');
+      let warning = form.querySelector('.discrepancy-warning');
+      
+      if (!warning) {
+        warning = document.createElement('div');
+        warning.className = 'discrepancy-warning alert mt-2';
+        form.querySelector('.alert-info').after(warning);
+      }
+      
+      if (Math.abs(discrepancy) > 0.01) {
+        warning.className = 'discrepancy-warning alert alert-danger mt-2';
+        warning.innerHTML = `
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Discrepancy Detected:</strong> TTD ${Math.abs(discrepancy).toFixed(2)} 
+          (${discrepancy > 0 ? 'Over' : 'Under'})
+        `;
+      } else {
+        warning.className = 'discrepancy-warning alert alert-success mt-2';
+        warning.innerHTML = `
+          <i class="fas fa-check-circle me-2"></i>
+          <strong>Cash Balanced:</strong> No discrepancy detected
+        `;
+      }
+    });
+  }
+});
+
+function transaction_status_color(status) {
+  switch(status) {
+    case 'completed': return 'success';
+    case 'voided': return 'danger';
+    case 'refunded': return 'warning';
+    default: return 'secondary';
+  }
+}
+</script>
