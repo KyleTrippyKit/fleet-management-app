@@ -1,0 +1,48 @@
+<%# app/views/job_templates/_job_card.html.erb %>
+<% template = local_assigns[:job_template] %>
+<div class="card job-card mb-3" data-id="<%= template.id %>">
+  <div class="card-header">
+    <div class="d-flex justify-content-between align-items-center">
+      <h6 class="mb-0"><%= template.name %></h6>
+      <span class="badge bg-secondary"><%= template.category %></span>
+    </div>
+  </div>
+  <div class="card-body">
+    <p class="card-text"><%= template.description %></p>
+    <div class="row">
+      <div class="col-md-6">
+        <small class="text-muted">
+          <strong>Standard Hours:</strong> <%= template.standard_hours || 'N/A' %>
+        </small>
+      </div>
+      <div class="col-md-6">
+        <small class="text-muted">
+          <strong>Labor Rate:</strong> $<%= number_with_precision(template.labor_rate_per_hour, precision: 2) %>/hr
+        </small>
+      </div>
+    </div>
+    
+    <% if template.job_template_parts.any? %>
+      <hr class="my-2">
+      <p class="mb-1"><strong>Default Parts:</strong></p>
+      <ul class="list-unstyled mb-0">
+        <% template.job_template_parts.includes(:part).limit(3).each do |job_part| %>
+          <li>
+            <small>
+              <%= job_part.part.name %> x <%= job_part.quantity %>
+            </small>
+          </li>
+        <% end %>
+        <% if template.job_template_parts.count > 3 %>
+          <li><small>...and <%= template.job_template_parts.count - 3 %> more</small></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+  <div class="card-footer text-end">
+    <button type="button" class="btn btn-sm btn-outline-primary add-template-btn"
+            data-template-id="<%= template.id %>">
+      Add to Quotation
+    </button>
+  </div>
+</div>

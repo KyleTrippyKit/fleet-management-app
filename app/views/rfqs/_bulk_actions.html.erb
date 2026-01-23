@@ -1,0 +1,99 @@
+<div class="bulk-actions-bar mb-3" id="bulk-actions-bar" style="display: none;">
+  <div class="d-flex justify-content-between align-items-center">
+    <div>
+      <span id="selected-count" class="fw-bold">0</span> RFQs selected
+    </div>
+    <div class="d-flex gap-2">
+      <%= form_with url: bulk_submit_rfqs_path, method: :post, class: "d-inline" do |f| %>
+        <div id="bulk-rfq-ids-container"></div>
+        <%= f.submit "Submit Selected", 
+              class: "btn btn-success btn-sm", 
+              id: "bulk-submit-btn", 
+              disabled: true,
+              data: { confirm: "Submit selected RFQs to VMCOTT?" } %>
+      <% end %>
+      
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="bulk-deselect-btn">
+        Deselect All
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const bulkActionsBar = document.getElementById('bulk-actions-bar');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const bulkSubmitBtn = document.getElementById('bulk-submit-btn');
+    const bulkDeselectBtn = document.getElementById('bulk-deselect-btn');
+    const bulkRfqIdsContainer = document.getElementById('bulk-rfq-ids-container');
+    const selectAllCheckbox = document.getElementById('select-all-rfqs');
+    
+    function updateBulkActions() {
+      const checkedCheckboxes = document.querySelectorAll('.rfq-checkbox:checked');
+      const checkedCount = checkedCheckboxes.length;
+      const hasChecked = checkedCount > 0;
+      
+      // Show/hide bulk actions bar
+      if (bulkActionsBar) {
+        bulkActionsBar.style.display = hasChecked ? 'block' : 'none';
+      }
+      
+      // Update selected count
+      if (selectedCountSpan) {
+        selectedCountSpan.textContent = checkedCount;
+      }
+      
+      // Update submit button
+      if (bulkSubmitBtn) {
+        bulkSubmitBtn.disabled = !hasChecked;
+        bulkSubmitBtn.textContent = `Submit Selected (${checkedCount})`;
+      }
+      
+      // Update hidden fields
+      if (bulkRfqIdsContainer) {
+        bulkRfqIdsContainer.innerHTML = '';
+        checkedCheckboxes.forEach(function(checkbox) {
+          const hiddenField = document.createElement('input');
+          hiddenField.type = 'hidden';
+          hiddenField.name = 'rfq_ids[]';
+          hiddenField.value = checkbox.value;
+          bulkRfqIdsContainer.appendChild(hiddenField);
+        });
+      }
+      
+      // Update select all checkbox
+      if (selectAllCheckbox) {
+        const allCheckboxes = document.querySelectorAll('.rfq-checkbox');
+        const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+        const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+        
+        selectAllCheckbox.checked = allChecked;
+        selectAllCheckbox.indeterminate = someChecked && !allChecked;
+      }
+    }
+    
+    // Initialize event listeners
+    document.querySelectorAll('.rfq-checkbox').forEach(function(checkbox) {
+      checkbox.addEventListener('change', updateBulkActions);
+    });
+    
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', function() {
+        document.querySelectorAll('.rfq-checkbox').forEach(cb => cb.checked = this.checked);
+        updateBulkActions();
+      });
+    }
+    
+    if (bulkDeselectBtn) {
+      bulkDeselectBtn.addEventListener('click', function() {
+        document.querySelectorAll('.rfq-checkbox').forEach(cb => cb.checked = false);
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+        updateBulkActions();
+      });
+    }
+    
+    // Initial update
+    updateBulkActions();
+  });
+</script>

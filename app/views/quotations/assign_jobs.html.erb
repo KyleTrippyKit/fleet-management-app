@@ -1,0 +1,468 @@
+<%# app/views/quotations/assign_jobs.html.erb %>
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+              <i class="bi bi-wrench"></i> Assign Jobs to Quotation
+            </h4>
+            <span class="badge bg-light text-dark">
+              Quote: <%= @quotation.quote_number || 'New Quotation' %>
+            </span>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Job Templates Section -->
+          <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0">
+                <i class="bi bi-clipboard-check"></i> Available Job Templates
+                <span class="badge bg-light text-dark float-end">
+                  <%= @job_templates.count %> available
+                </span>
+              </h5>
+            </div>
+            <div class="card-body">
+              <% if @job_templates.any? %>
+                <div class="row" id="job-templates-container">
+                  <% @job_templates.each do |template| %>
+                    <div class="col-md-4 mb-3">
+                      <div class="card job-template-card h-100">
+                        <div class="card-body">
+                          <div class="form-check">
+                            <%= check_box_tag "job_template_#{template.id}", 
+                                  template.id, 
+                                  false, 
+                                  class: 'form-check-input job-template-checkbox',
+                                  data: {
+                                    name: template.name,
+                                    description: template.description,
+                                    hours: template.estimated_hours,
+                                    rate: template.labor_rate_per_hour
+                                  } %>
+                            <%= label_tag "job_template_#{template.id}", 
+                                  template.name, 
+                                  class: 'form-check-label fw-bold' %>
+                          </div>
+                          <p class="card-text mt-2">
+                            <%= template.description.presence || 'No description' %>
+                          </p>
+                          <div class="row small text-muted">
+                            <div class="col-6">
+                              <i class="bi bi-clock"></i> <%= template.estimated_hours %> hrs
+                            </div>
+                            <div class="col-6 text-end">
+                              <i class="bi bi-currency-dollar"></i> <%= template.labor_rate_per_hour %>/hr
+                            </div>
+                          </div>
+                          <% if template.job_template_parts.any? %>
+                            <div class="mt-2">
+                              <small class="text-success">
+                                <i class="bi bi-box"></i> Includes <%= template.job_template_parts.count %> parts
+                              </small>
+                            </div>
+                          <% end %>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="alert alert-warning">
+                  <i class="bi bi-exclamation-triangle"></i> No job templates found. 
+                  Please create job templates in the Job Templates section first.
+                </div>
+              <% end %>
+            </div>
+          </div>
+
+          <!-- Selected Jobs Section -->
+          <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">
+                <i class="bi bi-list-check"></i> Selected Jobs
+                <span class="badge bg-light text-dark float-end" id="selected-jobs-count">
+                  0 jobs
+                </span>
+              </h5>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm" id="assigned-jobs-table">
+                  <thead>
+                    <tr>
+                      <th>Job Name</th>
+                      <th>Hours</th>
+                      <th>Rate/Hour</th>
+                      <th>Labor Cost</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="assigned-jobs-body">
+                    <!-- Jobs will be populated dynamically -->
+                  </tbody>
+                  <tfoot>
+                    <tr class="table-secondary">
+                      <td colspan="3" class="text-end fw-bold">Total Labor Cost:</td>
+                      <td class="fw-bold" id="total-labor-cost">$0.00</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Line Items Assignment Section -->
+          <% if @quotation.quotation_line_items.any? %>
+            <div class="card mb-4">
+              <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                  <i class="bi bi-card-checklist"></i> Assign Line Items to Jobs
+                  <span class="badge bg-light text-dark float-end">
+                    <%= @quotation.quotation_line_items.count %> items
+                  </span>
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead>
+                      <tr>
+                        <th width="40%">Item Description</th>
+                        <th width="10%">Qty</th>
+                        <th width="30%">Assigned Job</th>
+                        <th width="20%">Specifications</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% @quotation.quotation_line_items.each do |item| %>
+                        <tr>
+                          <td>
+                            <strong><%= item.description %></strong>
+                            <% if item.specifications.present? %>
+                              <br>
+                              <small class="text-muted"><%= item.specifications.truncate(50) %></small>
+                            <% end %>
+                          </td>
+                          <td><%= item.quantity %></td>
+                          <td>
+                            <%= select_tag "item_job_#{item.id}", 
+                                  options_for_select(
+                                    [['Standalone (No Job)', 'standalone']], 
+                                    item.job_id || 'standalone'
+                                  ), 
+                                  class: 'form-control form-control-sm item-job-select',
+                                  data: { item_id: item.id },
+                                  disabled: true %>
+                            <div class="form-text">
+                              <small>Select jobs above to enable</small>
+                            </div>
+                          </td>
+                          <td>
+                            <% if item.specifications.present? %>
+                              <button type="button" class="btn btn-sm btn-outline-info" 
+                                      data-bs-toggle="modal" 
+                                      data-bs-target="#specModal<%= item.id %>">
+                                View
+                              </button>
+                              
+                              <!-- Modal for specifications -->
+                              <div class="modal fade" id="specModal<%= item.id %>" tabindex="-1">
+                                <div class="modal-dialog">
+                                  <div class="modal-content">
+                                    <div class="modal-header">
+                                      <h5 class="modal-title">Specifications</h5>
+                                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                      <%= simple_format(item.specifications) %>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            <% else %>
+                              <span class="text-muted">None</span>
+                            <% end %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle"></i> No line items found. 
+              Line items from the RFQ will appear here after they are converted.
+            </div>
+          <% end %>
+
+          <!-- Summary Section -->
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header bg-secondary text-white">
+                  <h6 class="mb-0">RFQ Information</h6>
+                </div>
+                <div class="card-body">
+                  <p><strong>RFQ Number:</strong> <%= @rfq&.rfq_number || 'N/A' %></p>
+                  <p><strong>Agency:</strong> <%= @rfq&.requesting_agency&.name || 'N/A' %></p>
+                  <p><strong>Vehicle:</strong> <%= @rfq&.vehicle&.license_plate || 'N/A' %></p>
+                  <p><strong>Description:</strong> <%= @rfq&.description&.truncate(100) || 'N/A' %></p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header bg-dark text-white">
+                  <h6 class="mb-0">Assignment Summary</h6>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-6">
+                      <p class="mb-1"><strong>Selected Jobs:</strong></p>
+                      <p class="mb-1"><strong>Total Labor Cost:</strong></p>
+                      <p class="mb-1"><strong>RFQ Items:</strong></p>
+                      <p class="mb-1"><strong>Items Assigned:</strong></p>
+                    </div>
+                    <div class="col-6 text-end">
+                      <p class="mb-1" id="summary-jobs-count">0</p>
+                      <p class="mb-1" id="summary-labor-cost">$0.00</p>
+                      <p class="mb-1"><%= @quotation.quotation_line_items.count %></p>
+                      <p class="mb-1" id="summary-assigned-items">0</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between">
+            <%= link_to 'Cancel', vmcott_rfq_inbox_path, 
+                  class: 'btn btn-secondary' %>
+            <%= form_with url: update_jobs_quotation_path(@quotation), method: :patch, id: 'job-assignment-form' do |f| %>
+              <%= hidden_field_tag :job_assignments, '', id: 'hidden-job-assignments' %>
+              <%= hidden_field_tag :item_assignments, '', id: 'hidden-item-assignments' %>
+              <%= f.submit 'Continue to Pricing', 
+                    class: 'btn btn-primary', 
+                    id: 'continue-to-pricing-btn',
+                    disabled: true %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%= javascript_tag do %>
+  document.addEventListener('DOMContentLoaded', function() {
+    const assignedJobs = [];
+    const itemAssignments = {};
+    
+    // Initialize item assignments from existing line items
+    <% @quotation.quotation_line_items.each do |item| %>
+      itemAssignments[<%= item.id %>] = '<%= item.job_id.present? ? "template_#{@quotation.quotation_jobs.find_by(id: item.job_id)&.job_template_id}" : 'standalone' %>';
+    <% end %>
+    
+    // Update all summary counters
+    function updateSummary() {
+      const jobsCount = assignedJobs.length;
+      const assignedItemsCount = Object.keys(itemAssignments).filter(id => 
+        itemAssignments[id] && itemAssignments[id] !== 'standalone'
+      ).length;
+      const totalLaborCost = assignedJobs.reduce((sum, job) => sum + (job.hours * job.rate), 0);
+      
+      // Update counts
+      document.getElementById('selected-jobs-count').textContent = jobsCount + ' jobs';
+      document.getElementById('summary-jobs-count').textContent = jobsCount;
+      document.getElementById('summary-assigned-items').textContent = assignedItemsCount;
+      document.getElementById('summary-labor-cost').textContent = '$' + totalLaborCost.toFixed(2);
+      
+      // Enable/disable continue button
+      const continueBtn = document.getElementById('continue-to-pricing-btn');
+      continueBtn.disabled = jobsCount === 0;
+      
+      // Update hidden fields
+      document.getElementById('hidden-job-assignments').value = JSON.stringify(assignedJobs);
+      document.getElementById('hidden-item-assignments').value = JSON.stringify(itemAssignments);
+    }
+    
+    // Handle job template selection
+    document.querySelectorAll('.job-template-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const jobId = this.value;
+        const jobData = {
+          template_id: jobId,
+          name: this.dataset.name,
+          description: this.dataset.description,
+          hours: parseFloat(this.dataset.hours) || 0,
+          rate: parseFloat(this.dataset.rate) || 0
+        };
+        
+        if (this.checked) {
+          // Check if already added
+          if (!assignedJobs.find(job => job.template_id === jobId)) {
+            assignedJobs.push(jobData);
+          }
+        } else {
+          // Remove from assigned jobs
+          const index = assignedJobs.findIndex(job => job.template_id === jobId);
+          if (index > -1) {
+            assignedJobs.splice(index, 1);
+          }
+        }
+        
+        updateSummary();
+        updateAssignedJobsTable();
+        updateItemAssignmentDropdowns();
+      });
+    });
+    
+    // Update assigned jobs table
+    function updateAssignedJobsTable() {
+      const tbody = document.getElementById('assigned-jobs-body');
+      tbody.innerHTML = '';
+      
+      let totalLaborCost = 0;
+      
+      assignedJobs.forEach((job, index) => {
+        const laborCost = job.hours * job.rate;
+        totalLaborCost += laborCost;
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>
+            <strong>${job.name}</strong>
+            <br><small class="text-muted">${job.description}</small>
+          </td>
+          <td>${job.hours.toFixed(1)}</td>
+          <td>$${job.rate.toFixed(2)}</td>
+          <td>$${laborCost.toFixed(2)}</td>
+          <td>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-job-btn" data-index="${index}">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+      
+      // Update total
+      document.getElementById('total-labor-cost').textContent = '$' + totalLaborCost.toFixed(2);
+      
+      // Add remove job functionality
+      tbody.querySelectorAll('.remove-job-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const index = parseInt(this.dataset.index);
+          const jobId = assignedJobs[index]?.template_id;
+          
+          // Remove from assigned jobs
+          assignedJobs.splice(index, 1);
+          
+          // Uncheck the checkbox
+          const checkbox = document.querySelector(`.job-template-checkbox[value="${jobId}"]`);
+          if (checkbox) checkbox.checked = false;
+          
+          updateSummary();
+          updateAssignedJobsTable();
+          updateItemAssignmentDropdowns();
+        });
+      });
+    }
+    
+    // Update item assignment dropdowns with current jobs
+    function updateItemAssignmentDropdowns() {
+      const dropdowns = document.querySelectorAll('.item-job-select');
+      
+      dropdowns.forEach(dropdown => {
+        // Save current selection
+        const currentValue = dropdown.value;
+        const itemId = dropdown.dataset.itemId;
+        
+        // Clear and rebuild options
+        dropdown.innerHTML = '';
+        
+        // Add standalone option
+        const standaloneOption = document.createElement('option');
+        standaloneOption.value = 'standalone';
+        standaloneOption.textContent = 'Standalone (No Job)';
+        dropdown.appendChild(standaloneOption);
+        
+        // Add job options
+        assignedJobs.forEach((job, index) => {
+          const option = document.createElement('option');
+          option.value = job.template_id;
+          option.textContent = job.name;
+          dropdown.appendChild(option);
+        });
+        
+        // Enable dropdown if there are jobs
+        dropdown.disabled = assignedJobs.length === 0;
+        
+        // Restore previous selection or set to default
+        if (itemAssignments[itemId] && assignedJobs.find(job => job.template_id === itemAssignments[itemId])) {
+          dropdown.value = itemAssignments[itemId];
+        } else {
+          dropdown.value = 'standalone';
+          itemAssignments[itemId] = 'standalone';
+        }
+        
+        // Add change event
+        dropdown.onchange = function() {
+          itemAssignments[itemId] = this.value;
+          updateSummary();
+        };
+      });
+      
+      updateSummary();
+    }
+    
+    // Handle form submission
+    document.getElementById('job-assignment-form').addEventListener('submit', function(e) {
+      // Validate that we have at least one job
+      if (assignedJobs.length === 0) {
+        e.preventDefault();
+        alert('Please select at least one job template before continuing.');
+        return false;
+      }
+    });
+    
+    // Initialize
+    updateSummary();
+    updateAssignedJobsTable();
+    updateItemAssignmentDropdowns();
+  });
+<% end %>
+
+<style>
+.job-template-card {
+  border: 2px solid #dee2e6;
+  transition: all 0.3s ease;
+}
+
+.job-template-card:hover {
+  border-color: #0d6efd;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+
+.job-template-card .form-check-input {
+  transform: scale(1.2);
+}
+
+.job-template-card .form-check-label {
+  cursor: pointer;
+}
+
+#assigned-jobs-table th {
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+}
+</style>

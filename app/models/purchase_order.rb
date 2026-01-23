@@ -8,16 +8,19 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :approved_by, class_name: 'User', optional: true
   belongs_to :rejected_by, class_name: 'User', optional: true
   belongs_to :payment_authorized_by, class_name: 'User', optional: true
+  belongs_to :quotation, optional: true  # Link to quotation
+  belongs_to :payable, optional: true
 
   has_many :purchase_order_items, dependent: :destroy
   has_many :invoices, dependent: :nullify
   has_many :payment_histories, as: :payment_transaction
-  has_many :payment_audits, dependent: :destroy  # NEW: Payment audit trail
+  has_many :payment_audits, dependent: :destroy
+  has_many :acceptance_audits, class_name: 'PurchaseOrderAcceptanceAudit', dependent: :destroy
   
-  # ADD THESE ASSOCIATIONS:
-  belongs_to :payable, optional: true
-  
-  # CRITICAL FOR LINE ITEMS FORM
+  # NEW: Link to internal POS (VMCOTT internal work orders)
+  has_many :internal_pos, dependent: :nullify
+
+  # Accept nested attributes for line items
   accepts_nested_attributes_for :purchase_order_items,
                                 allow_destroy: true,
                                 reject_if: proc { |attributes| 
@@ -29,9 +32,12 @@ class PurchaseOrder < ApplicationRecord
   delegate :agency_id, to: :vehicle, allow_nil: true
 
   # -------------------------
-  # Enums - FIXED: Removed duplicate values and payment statuses from main status
+  # Enums
   # -------------------------
-  # STATUS ENUM - Order status only (no payment statuses mixed in)
+  attribute :acceptance_status, :string, default: 'pending_acceptance'
+  attribute :vmcott_status, :string, default: 'pending_internal_work'
+  
+  # STATUS ENUM - Order status only
   enum :status, {
     draft: 'draft',
     pending_approval: 'pending_approval',
@@ -40,35 +46,297 @@ class PurchaseOrder < ApplicationRecord
     ordered: 'ordered',
     received: 'received',
     cancelled: 'cancelled',
-    paid: 'paid'  # Keep only 'paid' as a main status
+    paid: 'paid'
   }, default: 'draft'
 
-  # PAYMENT STATUS ENUM - Payment status only (no duplicates with status enum)
+  # PAYMENT STATUS ENUM - Payment status only
   enum :payment_status, {
     unpaid: 'unpaid',
-    pending: 'pending',           # Renamed from payment_pending
-    processing: 'processing',     # Renamed from payment_processing
-    authorized: 'authorized',     # Renamed from payment_authorized
-    completed: 'completed',       # Renamed from payment_completed
-    failed: 'failed',             # Renamed from payment_failed
-    refunded: 'refunded'          # Renamed from payment_refunded
+    pending: 'pending',
+    processing: 'processing',
+    authorized: 'authorized',
+    completed: 'completed',
+    failed: 'failed',
+    refunded: 'refunded'
   }, default: 'unpaid'
 
   enum :payment_method, {
     cash: 'cash',
     cheque: 'cheque',
     bank_transfer: 'bank_transfer',
-    # TRINIDAD CARDS
     trinidad_debit_card: 'trinidad_debit_card',
     trinidad_credit_card: 'trinidad_credit_card',
-    # GENERAL CARDS (fallback)
     debit_card: 'debit_card',
     credit_card: 'credit_card',
     other: 'other'
   }
 
   # -------------------------
-  # State machine methods needed by controller
+  # NEW: Acceptance Status Enum
+  # -------------------------
+  enum :acceptance_status, {
+    pending_acceptance: 'pending_acceptance',
+    partially_accepted: 'partially_accepted',
+    fully_accepted: 'fully_accepted',
+    partially_rejected: 'partially_rejected',
+    fully_rejected: 'fully_rejected'
+  }, default: 'pending_acceptance'
+
+  # -------------------------
+  # NEW: VMCOTT Internal Status Enum (for VMCOTT users)
+  # -------------------------
+  enum :vmcott_status, {
+    pending_internal_work: 'pending_internal_work',
+    work_in_progress: 'work_in_progress',
+    internal_work_completed: 'internal_work_completed',
+    ready_for_delivery: 'ready_for_delivery',
+    delivered: 'delivered'
+  }, default: 'pending_internal_work'
+
+  # -------------------------
+  # NEW: ADDED RFQ WORKFLOW METHODS
+  # -------------------------
+  
+  # RFQ Workflow Methods
+  def accepted_items_total
+    purchase_order_items.where(is_accepted: true).sum(&:total_price)
+  end
+  
+  def rejected_items_total
+    purchase_order_items.where(is_accepted: false).sum(&:total_price)
+  end
+  
+  def recalculate_amount!
+    update(amount: accepted_items_total)
+  end
+  
+  # Status helpers
+  def can_create_internal_pos?
+    status == 'approved' && acceptance_status == 'fully_accepted'
+  end
+  
+  # Quotation to PO Workflow Methods
+  def self.create_from_quotation(quotation, accepted_items_data, user)
+    ActiveRecord::Base.transaction do
+      # Create PO
+      po = create!(
+        quotation_id: quotation.id,
+        vehicle_id: quotation.vehicle_id,
+        vendor: quotation.vendor,
+        amount: calculate_total_from_accepted_items(quotation, accepted_items_data),
+        created_by: user,
+        status: 'draft',
+        acceptance_status: 'partially_accepted',
+        notes: "Created from Quotation #{quotation.quote_number}"
+      )
+      
+      # Create PO items from accepted quotation items
+      accepted_items_data.each do |item_data|
+        if item_data[:accepted] && item_data[:item_type] == 'job'
+          # Handle job items
+          job = quotation.quotation_jobs.find(item_data[:item_id])
+          po.purchase_order_items.create!(
+            description: job.name,
+            quantity: 1,
+            unit_price: job.total_labor_cost,
+            notes: "Job: #{job.description}"
+          )
+        elsif item_data[:accepted] && item_data[:item_type] == 'part'
+          # Handle part items
+          part_item = quotation.quotation_job_parts.find(item_data[:item_id])
+          po.purchase_order_items.create!(
+            part_id: part_item.part_id,
+            description: part_item.part&.name || "Part from job",
+            quantity: part_item.quantity,
+            unit_price: part_item.unit_price,
+            notes: part_item.part&.description
+          )
+        end
+      end
+      
+      po.update_acceptance_status
+      po
+    end
+  end
+  
+  # Calculate total from accepted items
+  def self.calculate_total_from_accepted_items(quotation, accepted_items_data)
+    total = 0
+    
+    accepted_items_data.each do |item_data|
+      if item_data[:accepted] && item_data[:item_type] == 'job'
+        job = quotation.quotation_jobs.find(item_data[:item_id])
+        total += job.total_labor_cost
+      elsif item_data[:accepted] && item_data[:item_type] == 'part'
+        part_item = quotation.quotation_job_parts.find(item_data[:item_id])
+        total += part_item.total_price
+      end
+    end
+    
+    total
+  end
+  
+  # Create PO from accepted items (simplified interface)
+  def self.create_purchase_order_from_accepted_items(quotation, accepted_items, user)
+    # Transform accepted_items format to match create_from_quotation
+    accepted_items_data = accepted_items.map do |item|
+      {
+        accepted: true,
+        item_type: item[:item_type],
+        item_id: item[:item_id]
+      }
+    end
+    
+    create_from_quotation(quotation, accepted_items_data, user)
+  end
+
+  # -------------------------
+  # VMCOTT Internal POS Creation
+  # -------------------------
+  def create_internal_pos(assigned_to_id, estimated_completion_date, notes, user)
+    return unless defined?(InternalPos)
+    
+    ActiveRecord::Base.transaction do
+      # Create internal POS record
+      internal_po = InternalPos.create!(
+        purchase_order_id: id,
+        assigned_to_id: assigned_to_id,
+        estimated_completion_date: estimated_completion_date,
+        status: 'pending',
+        priority: 'medium',
+        notes: notes,
+        created_by: user
+      )
+      
+      # Copy PO items to internal POS items (if needed)
+      # Note: Internal POS may have its own items model
+      
+      # Update VMCOTT status
+      update!(vmcott_status: 'work_in_progress')
+      
+      # Create audit log
+      create_vmcott_audit(:internal_pos_created, user, {
+        assigned_to_id: assigned_to_id,
+        estimated_completion_date: estimated_completion_date,
+        internal_pos_id: internal_po.id
+      })
+      
+      internal_po
+    end
+  end
+  
+  # -------------------------
+  # VMCOTT Status Management
+  # -------------------------
+  def mark_work_in_progress!(user)
+    update!(vmcott_status: 'work_in_progress')
+    create_vmcott_audit(:work_started, user)
+  end
+  
+  def mark_internal_work_completed!(user)
+    update!(vmcott_status: 'internal_work_completed')
+    create_vmcott_audit(:work_completed, user)
+  end
+  
+  def mark_ready_for_delivery!(user)
+    update!(vmcott_status: 'ready_for_delivery')
+    create_vmcott_audit(:ready_for_delivery, user)
+  end
+  
+  def mark_delivered!(user)
+    update!(vmcott_status: 'delivered')
+    create_vmcott_audit(:delivered, user)
+  end
+  
+  # -------------------------
+  # Acceptance Workflow Methods
+  # -------------------------
+  
+  # Update acceptance status based on items
+  def update_acceptance_status
+    total_items = purchase_order_items.count
+    accepted_items = purchase_order_items.accepted.count
+    rejected_items = purchase_order_items.rejected.count
+    
+    if total_items == 0
+      self.acceptance_status = 'pending_acceptance'
+    elsif accepted_items == total_items
+      self.acceptance_status = 'fully_accepted'
+    elsif rejected_items == total_items
+      self.acceptance_status = 'fully_rejected'
+    elsif accepted_items > 0 && rejected_items > 0
+      self.acceptance_status = 'partially_accepted'
+    elsif accepted_items > 0
+      self.acceptance_status = 'partially_accepted'
+    else
+      self.acceptance_status = 'pending_acceptance'
+    end
+    
+    save if changed?
+    
+    # Notify vendor if fully accepted
+    notify_vendor_of_acceptance if fully_accepted? && saved_change_to_acceptance_status?
+  end
+  
+  # Get rejected items with reasons
+  def rejected_items_with_reasons
+    purchase_order_items.rejected.map do |item|
+      {
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        rejection_reason: item.rejection_reason,
+        total: item.total_price
+      }
+    end
+  end
+  
+  # Accept individual item
+  def accept_item(item_id, user = nil)
+    item = purchase_order_items.find(item_id)
+    item.update!(
+      is_accepted: true,
+      rejection_reason: nil
+    )
+    update_acceptance_status
+    log_acceptance_audit(:item_accepted, item, user)
+  end
+  
+  # Reject individual item
+  def reject_item(item_id, reason, user = nil)
+    item = purchase_order_items.find(item_id)
+    item.update!(
+      is_accepted: false,
+      rejection_reason: reason
+    )
+    update_acceptance_status
+    log_acceptance_audit(:item_rejected, item, user, reason)
+  end
+  
+  # Send acceptance notification to vendor (VMCOTT)
+  def notify_vendor_of_acceptance
+    return unless quotation.present?
+    
+    # Send email notification
+    PurchaseOrderMailer.acceptance_notification(self).deliver_later if defined?(PurchaseOrderMailer)
+    
+    # Update quotation status
+    quotation.update(accepted_at: Time.current) if fully_accepted?
+    
+    # Create internal notification for VMCOTT
+    if quotation.processing_agency.present?
+      Notification.create!(
+        agency_id: quotation.processing_agency_id,
+        title: "PO #{po_number} Accepted",
+        message: "Purchase Order #{po_number} has been accepted by #{agency&.name}",
+        link: Rails.application.routes.url_helpers.purchase_order_path(self),
+        priority: 'medium'
+      )
+    end
+  end
+
+  # -------------------------
+  # State machine methods
   # -------------------------
   
   def submit_for_approval!
@@ -118,8 +386,11 @@ class PurchaseOrder < ApplicationRecord
       received_at: Time.current
     )
   end
-
-  # UPDATED: Trinidad Card Payment Methods with Mock Service for Development
+  
+  # -------------------------
+  # Payment Methods
+  # -------------------------
+  
   def initiate_trinidad_card_payment!(user, card_details, billing_address)
     return false unless can_initiate_payment?
     
@@ -208,7 +479,7 @@ class PurchaseOrder < ApplicationRecord
     )
     
     # Start payment processing job
-    TrinidadPaymentProcessingJob.perform_later(id)
+    TrinidadPaymentProcessingJob.perform_later(id) if defined?(TrinidadPaymentProcessingJob)
     
     true
   end
@@ -294,7 +565,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # -------------------------
-  # NEW: Methods for new timestamp columns
+  # Payment Status Methods
   # -------------------------
   def payment_initiated?
     payment_initiated_at.present?
@@ -308,26 +579,11 @@ class PurchaseOrder < ApplicationRecord
     payment_failed_at.present?
   end
 
-  def compliance_checked?
-    compliance_checked.present? && compliance_checked
-  end
-
-  # Trinidad payment status methods
-  def trinidad_payment_pending_authorization?
-    is_trinidad_payment? && payment_status == 'pending'
-  end
-
-  def trinidad_payment_authorized?
-    is_trinidad_payment? && payment_status == 'authorized'
-  end
-
-  # Override the existing method to use new column
   def payment_initiated!
     update(payment_initiated_at: Time.current)
     log_payment_audit(:initiated) if respond_to?(:log_payment_audit)
   end
 
-  # Add this method if not present
   def log_payment_audit(action, metadata = {})
     PaymentAudit.log(self, Current.user || User.system_user, action, metadata)
   end
@@ -336,7 +592,7 @@ class PurchaseOrder < ApplicationRecord
   # Business Logic Methods
   # -------------------------
   def can_initiate_payment?
-    status == 'approved' && unpaid?
+    status == 'approved' && unpaid? && fully_accepted?
   end
   
   def can_authorize_payment?
@@ -351,7 +607,7 @@ class PurchaseOrder < ApplicationRecord
     payment_method == 'trinidad_debit_card' || payment_method == 'trinidad_credit_card'
   end
   
-  # FIX: Alias for backward compatibility with views that use is_trinidad_card_payment?
+  # Alias for backward compatibility
   alias_method :is_trinidad_card_payment?, :is_trinidad_payment?
   
   def payment_card_summary
@@ -369,7 +625,7 @@ class PurchaseOrder < ApplicationRecord
   end
   
   def can_be_paid?
-    approved? && unpaid?
+    approved? && unpaid? && fully_accepted?
   end
   
   def can_be_approved?
@@ -388,44 +644,40 @@ class PurchaseOrder < ApplicationRecord
     {}
   end
 
-  # -------------------------
-  # Convenience methods for backward compatibility
-  # -------------------------
-  
-  # These methods are needed for your view that calls payment_unpaid?
-  def payment_unpaid?
-    unpaid?
+  # Check if all items accepted (for compatibility)
+  def all_items_accepted?
+    fully_accepted?
   end
   
-  def payment_pending?
-    pending?
+  def any_items_rejected?
+    purchase_order_items.rejected.any?
   end
   
-  def payment_processing?
-    processing?
+  def rejected_items
+    purchase_order_items.rejected
   end
   
-  def payment_authorized?
-    authorized?
+  def fully_accepted?
+    acceptance_status == 'fully_accepted' || purchase_order_items.accepted.count == purchase_order_items.count
   end
   
-  def payment_completed?
-    completed?
+  # VMCOTT status checks
+  def has_internal_pos?
+    internal_pos.any?
   end
   
-  def payment_failed?
-    failed?
+  def internal_work_in_progress?
+    vmcott_status == 'work_in_progress'
   end
   
-  def payment_refunded?
-    refunded?
+  def internal_work_completed?
+    vmcott_status == 'internal_work_completed'
   end
 
   # -------------------------
-  # NEW: Payable-related methods
+  # Payable-related methods
   # -------------------------
   
-  # Add method to calculate due date
   def calculate_due_date
     return due_date if due_date.present?
     
@@ -445,12 +697,9 @@ class PurchaseOrder < ApplicationRecord
     end.to_date
   end
   
-  # Add method to create payable
   def create_payable!
-    # Check if Payable model exists
     return unless defined?(Payable)
     
-    # Find or create accounts payable account
     payable_account = Account.payable_accounts.for_agency(agency_id).first_or_create(
       account_number: '2000',
       name: 'Accounts Payable',
@@ -459,7 +708,6 @@ class PurchaseOrder < ApplicationRecord
       agency_id: agency_id
     )
     
-    # Create payable
     payable = Payable.create!(
       purchase_order_id: id,
       vendor_name: vendor,
@@ -478,7 +726,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # -------------------------
-  # Print/PDF methods using existing WickedPDF setup
+  # Print/PDF methods
   # -------------------------
   def print_data
     {
@@ -488,16 +736,21 @@ class PurchaseOrder < ApplicationRecord
       date: created_at.strftime('%B %d, %Y'),
       status: display_status,
       payment_status: display_payment_status,
+      acceptance_status: display_acceptance_status,
+      vmcott_status: display_vmcott_status,
       vehicle: display_vehicle,
       items: purchase_order_items.map do |item|
         {
           description: item.description,
           quantity: item.quantity,
           unit_price: sprintf('$%.2f', item.unit_price),
-          total: sprintf('$%.2f', item.quantity * item.unit_price)
+          total: sprintf('$%.2f', item.quantity * item.unit_price),
+          accepted: item.is_accepted? ? 'Yes' : 'No',
+          rejection_reason: item.rejection_reason
         }
       end,
       line_items_total: sprintf('$%.2f', line_items_total),
+      accepted_items_total: sprintf('$%.2f', accepted_items_total),
       created_by_name: created_by&.name || 'System',
       approved_by_name: approved_by&.name,
       notes: notes
@@ -505,14 +758,12 @@ class PurchaseOrder < ApplicationRecord
   end
   
   def to_pdf
-    # Use your existing print template with the PDF layout
     html = ApplicationController.render(
       template: 'purchase_orders/print',
       layout: 'pdf',
       assigns: { purchase_order: self }
     )
     
-    # Generate PDF using WickedPDF
     WickedPdf.new.pdf_from_string(
       html,
       margin: { top: 15, bottom: 15, left: 10, right: 10 },
@@ -557,9 +808,7 @@ class PurchaseOrder < ApplicationRecord
       }
     )
     
-    # Store the S3 URL
     update(pdf_s3_url: obj.public_url)
-    
     obj.public_url
   rescue => e
     Rails.logger.error "Failed to save PDF to S3: #{e.message}"
@@ -567,78 +816,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # -------------------------
-  # Validations
-  # -------------------------
-  validates :po_number, presence: true, uniqueness: true
-  validates :vendor, presence: true
-  validates :amount, numericality: { greater_than: 0 }
-  validates :status, presence: true
-  validates :payment_status, presence: true
-
-  # -------------------------
-  # Scopes
-  # -------------------------
-  scope :recent, -> { order(created_at: :desc) }
-  scope :for_agency, ->(agency_id) {
-    joins(:vehicle).where(vehicles: { agency_id: agency_id })
-  }
-  
-  # Status scopes (use Rails enum-generated scopes)
-  scope :pending_approval, -> { where(status: 'pending_approval') }
-  scope :needs_payment, -> { where(status: 'approved', payment_status: 'unpaid') }
-  scope :unpaid, -> { where(payment_status: ['unpaid', 'failed']) }
-  scope :paid, -> { where(payment_status: 'completed') }
-  scope :ordered, -> { where(status: 'ordered') }
-  scope :received, -> { where(status: 'received') }
-  
-  # NEW: Active purchase orders (not cancelled or fully paid)
-  scope :active, -> { 
-    where.not(status: ['cancelled', 'paid']).where.not(payment_status: 'completed')
-  }
-  
-  # Payment status scopes
-  scope :payment_pending, -> { where(payment_status: ['pending', 'processing', 'authorized']) }
-  
-  # Trinidad card payments
-  scope :trinidad_card_payments, -> { where(payment_method: ['trinidad_debit_card', 'trinidad_credit_card']) }
-  scope :successful_trinidad_payments, -> { trinidad_card_payments.where(payment_status: 'completed') }
-  scope :failed_trinidad_payments, -> { trinidad_card_payments.where(payment_status: 'failed') }
-  
-  # -------------------------
-  # Analytics Methods
-  # -------------------------
-  def self.trinidad_payment_stats(time_range: 30.days.ago..Time.current, agency_id: nil)
-    payments = trinidad_card_payments
-      .where(created_at: time_range)
-      .order(created_at: :asc)
-    
-    payments = payments.for_agency(agency_id) if agency_id.present?
-    
-    successful = payments.successful_trinidad_payments
-    failed = payments.failed_trinidad_payments
-    
-    {
-      total_transactions: payments.count,
-      total_amount: payments.sum(:amount),
-      successful_count: successful.count,
-      failed_count: failed.count,
-      success_rate: payments.count > 0 ? (successful.count.to_f / payments.count * 100).round(2) : 0
-    }
-  end
-
-  # -------------------------
-  # Callbacks
-  # -------------------------
-  before_validation :generate_po_number, on: :create
-  before_validation :set_default_statuses, on: :create
-  before_validation :calculate_amount_from_items, if: -> { purchase_order_items.present? }
-  after_update :auto_create_invoice_if_paid
-  
-  # NEW: Payment audit trail callback
-  after_commit :create_payment_audit_trail, if: :saved_change_to_payment_status?
-
-  # -------------------------
-  # View Helpers
+  # View Helpers & Badges
   # -------------------------
   def status_badge_color
     case status
@@ -663,6 +841,28 @@ class PurchaseOrder < ApplicationRecord
     when 'completed' then 'success'
     when 'failed' then 'dark'
     when 'refunded' then 'secondary'
+    else 'secondary'
+    end
+  end
+  
+  def acceptance_badge_color
+    case acceptance_status
+    when 'fully_accepted' then 'success'
+    when 'partially_accepted' then 'warning'
+    when 'fully_rejected' then 'danger'
+    when 'partially_rejected' then 'danger'
+    when 'pending_acceptance' then 'secondary'
+    else 'secondary'
+    end
+  end
+  
+  def vmcott_status_badge_color
+    case vmcott_status
+    when 'pending_internal_work' then 'secondary'
+    when 'work_in_progress' then 'warning'
+    when 'internal_work_completed' then 'info'
+    when 'ready_for_delivery' then 'primary'
+    when 'delivered' then 'success'
     else 'secondary'
     end
   end
@@ -698,6 +898,14 @@ class PurchaseOrder < ApplicationRecord
     payment_status&.humanize&.titleize || 'Unpaid'
   end
   
+  def display_acceptance_status
+    acceptance_status.humanize.titleize
+  end
+  
+  def display_vmcott_status
+    vmcott_status.humanize.titleize
+  end
+  
   def display_payment_method
     if payment_method.present?
       payment_method.humanize.titleize.gsub('Trinidad ', '🇹🇹 ')
@@ -730,12 +938,72 @@ class PurchaseOrder < ApplicationRecord
     purchase_order_items.sum { |item| item.quantity * item.unit_price }
   end
   
+  def acceptance_summary
+    total = purchase_order_items.count
+    accepted = purchase_order_items.accepted.count
+    rejected = purchase_order_items.rejected.count
+    
+    "Accepted: #{accepted}/#{total} • Rejected: #{rejected}/#{total}"
+  end
+  
+  def internal_work_summary
+    return "No internal POS" unless has_internal_pos?
+    
+    completed = internal_pos.completed.count
+    total = internal_pos.count
+    
+    "POS: #{completed}/#{total} completed"
+  end
+  
   def has_pdf?
     pdf_s3_url.present?
   end
   
   def pdf_filename
     "Purchase_Order_#{po_number}.pdf"
+  end
+  
+  def compliance_checked?
+    compliance_checked.present? && compliance_checked
+  end
+  
+  def trinidad_payment_pending_authorization?
+    is_trinidad_payment? && payment_status == 'pending'
+  end
+  
+  def trinidad_payment_authorized?
+    is_trinidad_payment? && payment_status == 'authorized'
+  end
+
+  # -------------------------
+  # Convenience methods for backward compatibility
+  # -------------------------
+  def payment_unpaid?
+    unpaid?
+  end
+  
+  def payment_pending?
+    pending?
+  end
+  
+  def payment_processing?
+    processing?
+  end
+  
+  def payment_authorized?
+    authorized?
+  end
+  
+  def payment_completed?
+    completed?
+  end
+  
+  def payment_failed?
+    failed?
+  end
+  
+  def payment_refunded?
+    refunded?
   end
 
   # -------------------------
@@ -744,6 +1012,90 @@ class PurchaseOrder < ApplicationRecord
   def check_compliance
     TrinidadComplianceChecker.check_compliance(self)
   end
+
+  # -------------------------
+  # Validations
+  # -------------------------
+  validates :po_number, presence: true, uniqueness: true
+  validates :vendor, presence: true
+  validates :amount, numericality: { greater_than: 0 }
+  validates :status, presence: true
+  validates :payment_status, presence: true
+
+  # -------------------------
+  # Scopes
+  # -------------------------
+  scope :recent, -> { order(created_at: :desc) }
+  scope :for_agency, ->(agency_id) {
+    joins(:vehicle).where(vehicles: { agency_id: agency_id })
+  }
+  
+  # Acceptance scopes
+  scope :awaiting_acceptance, -> { where(acceptance_status: ['pending_acceptance', 'partially_accepted']) }
+  scope :fully_accepted, -> { where(acceptance_status: 'fully_accepted') }
+  scope :with_rejected_items, -> { where(acceptance_status: ['partially_rejected', 'fully_rejected']) }
+  
+  # VMCOTT scopes
+  scope :pending_internal_work, -> { where(vmcott_status: 'pending_internal_work') }
+  scope :work_in_progress, -> { where(vmcott_status: 'work_in_progress') }
+  scope :ready_for_delivery, -> { where(vmcott_status: 'ready_for_delivery') }
+  scope :has_internal_pos, -> { where.not(vmcott_status: 'pending_internal_work') }
+  
+  # Status scopes
+  scope :pending_approval, -> { where(status: 'pending_approval') }
+  scope :needs_payment, -> { where(status: 'approved', payment_status: 'unpaid') }
+  scope :unpaid, -> { where(payment_status: ['unpaid', 'failed']) }
+  scope :paid, -> { where(payment_status: 'completed') }
+  scope :ordered, -> { where(status: 'ordered') }
+  scope :received, -> { where(status: 'received') }
+  
+  # Active purchase orders (not cancelled or fully paid)
+  scope :active, -> { 
+    where.not(status: ['cancelled', 'paid']).where.not(payment_status: 'completed')
+  }
+  
+  # Payment status scopes
+  scope :payment_pending, -> { where(payment_status: ['pending', 'processing', 'authorized']) }
+  
+  # Trinidad card payments
+  scope :trinidad_card_payments, -> { where(payment_method: ['trinidad_debit_card', 'trinidad_credit_card']) }
+  scope :successful_trinidad_payments, -> { trinidad_card_payments.where(payment_status: 'completed') }
+  scope :failed_trinidad_payments, -> { trinidad_card_payments.where(payment_status: 'failed') }
+  
+  # From quotation scope
+  scope :from_quotation, ->(quotation_id) { where(quotation_id: quotation_id) }
+
+  # -------------------------
+  # Analytics Methods
+  # -------------------------
+  def self.trinidad_payment_stats(time_range: 30.days.ago..Time.current, agency_id: nil)
+    payments = trinidad_card_payments
+      .where(created_at: time_range)
+      .order(created_at: :asc)
+    
+    payments = payments.for_agency(agency_id) if agency_id.present?
+    
+    successful = payments.successful_trinidad_payments
+    failed = payments.failed_trinidad_payments
+    
+    {
+      total_transactions: payments.count,
+      total_amount: payments.sum(:amount),
+      successful_count: successful.count,
+      failed_count: failed.count,
+      success_rate: payments.count > 0 ? (successful.count.to_f / payments.count * 100).round(2) : 0
+    }
+  end
+
+  # -------------------------
+  # Callbacks
+  # -------------------------
+  before_validation :generate_po_number, on: :create
+  before_validation :set_default_statuses, on: :create
+  before_validation :calculate_amount_from_items, if: -> { purchase_order_items.present? }
+  after_update :auto_create_invoice_if_paid
+  after_update :create_payment_audit_trail, if: :saved_change_to_payment_status?
+  after_save :update_acceptance_status, if: :saved_change_to_purchase_order_items?
 
   # -------------------------
   # Private Methods
@@ -769,6 +1121,8 @@ class PurchaseOrder < ApplicationRecord
   def set_default_statuses
     self.status = 'draft' if status.blank?
     self.payment_status = 'unpaid' if payment_status.blank?
+    self.acceptance_status = 'pending_acceptance' if acceptance_status.blank?
+    self.vmcott_status = 'pending_internal_work' if vmcott_status.blank?
   end
   
   def calculate_amount_from_items
@@ -797,12 +1151,40 @@ class PurchaseOrder < ApplicationRecord
   end
   
   def create_payment_audit_trail
-    # Create audit entry for payment status changes
     return unless payment_initiated_at.present?
-    
-    # Only create audit trail for Trinidad card payments
     return unless is_trinidad_payment?
-    
     PaymentAudit.create_audit_trail(self)
+  end
+  
+  def saved_change_to_purchase_order_items?
+    purchase_order_items.any?(&:saved_changes?)
+  end
+  
+  def log_acceptance_audit(action, item, user = nil, reason = nil)
+    metadata = {
+      item_id: item.id,
+      item_description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price
+    }
+    metadata[:rejection_reason] = reason if reason
+    
+    PurchaseOrderAcceptanceAudit.create!(
+      purchase_order: self,
+      user: user,
+      action: action,
+      metadata: metadata
+    )
+  end
+  
+  def create_vmcott_audit(action, user = nil, metadata = {})
+    return unless defined?(VMCOTTAudit)
+    
+    VMCOTTAudit.create!(
+      purchase_order: self,
+      user: user,
+      action: action,
+      metadata: metadata
+    )
   end
 end

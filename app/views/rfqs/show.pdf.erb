@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RFQ: <%= @rfq.rfq_number %></title>
+  
+  <style type="text/css">
+    /* ============================================
+       PROFESSIONAL GOVERNMENT DOCUMENT STYLES
+    ============================================ */
+    body {
+      font-family: "Calibri", "Arial", sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000;
+      margin: 2cm;
+    }
+    
+    /* Government Document Header */
+    .document-header {
+      text-align: center;
+      border-bottom: 3px solid #DA291C;
+      padding-bottom: 15px;
+      margin-bottom: 25px;
+    }
+    
+    .document-header h1 {
+      color: #DA291C;
+      font-size: 24pt;
+      margin: 0 0 5px 0;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    
+    .document-header h2 {
+      color: #333;
+      font-size: 16pt;
+      margin: 0;
+      font-weight: normal;
+    }
+    
+    /* Information Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    .info-card {
+      border: 1px solid #ddd;
+      border-left: 4px solid #DA291C;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    
+    .info-label {
+      font-size: 9pt;
+      font-weight: bold;
+      color: #666;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .info-value {
+      font-size: 11pt;
+      color: #000;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 9pt;
+      font-weight: bold;
+      border-radius: 3px;
+      text-transform: uppercase;
+      color: white;
+    }
+    
+    /* Status Colors */
+    .status-draft { background-color: #6c757d; }
+    .status-submitted { background-color: #17a2b8; }
+    .status-under_review { background-color: #ffc107; color: #000; }
+    .status-quoted { background-color: #6f42c1; }
+    .status-converted { background-color: #28a745; }
+    .status-accepted { background-color: #20c997; }
+    .status-rejected { background-color: #dc3545; }
+    .status-urgent { background-color: #dc3545; }
+    
+    /* Section Headers */
+    .section {
+      margin: 25px 0;
+      page-break-inside: avoid;
+    }
+    
+    .section h3 {
+      color: #333;
+      font-size: 14pt;
+      border-bottom: 2px solid #DA291C;
+      padding-bottom: 8px;
+      margin: 0 0 15px 0;
+    }
+    
+    /* Vehicle Information */
+    .vehicle-info {
+      background: #f0f7ff;
+      border: 1px solid #b6d4fe;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    .vehicle-plate {
+      font-size: 14pt;
+      font-weight: bold;
+      color: #DA291C;
+      margin-bottom: 5px;
+    }
+    
+    /* Items Table */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 10pt;
+    }
+    
+    .items-table thead {
+      background-color: #2c3e50;
+      color: white;
+    }
+    
+    .items-table th {
+      padding: 10px;
+      text-align: left;
+      font-weight: bold;
+      text-transform: uppercase;
+      font-size: 9pt;
+    }
+    
+    .items-table td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .items-table tbody tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    
+    /* Description & Instructions */
+    .content-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    .special-instructions {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    
+    /* Document Footer */
+    .document-footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #DA291C;
+      font-size: 9pt;
+      color: #666;
+      text-align: center;
+    }
+    
+    /* Utility Classes */
+    .text-muted { color: #6c757d; }
+    .small { font-size: 85%; }
+    .mb-0 { margin-bottom: 0; }
+    .mb-1 { margin-bottom: 5px; }
+    .mb-2 { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <!-- Document Header -->
+  <div class="document-header">
+    <h1>REQUEST FOR QUOTATION</h1>
+    <h2>RFQ: <%= @rfq.rfq_number %></h2>
+    <p style="color: #666; font-size: 10pt;">Trinidad & Tobago Government Official Document</p>
+  </div>
+  
+  <!-- RFQ Details -->
+  <div class="section">
+    <h3>RFQ Details</h3>
+    <div class="info-grid">
+      <div class="info-card">
+        <span class="info-label">RFQ Number</span>
+        <div class="info-value"><strong><%= @rfq.rfq_number %></strong></div>
+      </div>
+      
+      <div class="info-card">
+        <span class="info-label">Status</span>
+        <div class="info-value">
+          <span class="status-badge status-<%= @rfq.status.downcase %>">
+            <%= @rfq.status.humanize.upcase %>
+          </span>
+        </div>
+      </div>
+      
+      <div class="info-card">
+        <span class="info-label">Requesting Agency</span>
+        <div class="info-value"><%= @rfq.requesting_agency.name %></div>
+      </div>
+      
+      <div class="info-card">
+        <span class="info-label">Processing Agency</span>
+        <div class="info-value"><%= @rfq.processing_agency&.name || 'VMCOTT' %></div>
+      </div>
+      
+      <div class="info-card">
+        <span class="info-label">Request Date</span>
+        <div class="info-value"><%= @rfq.request_date.strftime('%B %d, %Y') %></div>
+      </div>
+      
+      <div class="info-card">
+        <span class="info-label">Response Due Date</span>
+        <div class="info-value">
+          <% if @rfq.response_due_date.present? %>
+            <%= @rfq.response_due_date.strftime('%B %d, %Y') %>
+          <% else %>
+            <span class="text-muted">Not specified</span>
+          <% end %>
+        </div>
+      </div>
+      
+      <% if @rfq.urgency.present? && @rfq.urgency != 'normal' %>
+      <div class="info-card">
+        <span class="info-label">Urgency</span>
+        <div class="info-value">
+          <span class="status-badge status-<%= @rfq.urgency %>">
+            <%= @rfq.urgency.humanize.upcase %>
+          </span>
+        </div>
+      </div>
+      <% end %>
+    </div>
+  </div>
+  
+  <!-- Vehicle Information -->
+  <% if @vehicle.present? %>
+  <div class="section">
+    <h3>Vehicle Information</h3>
+    <div class="vehicle-info">
+      <div class="vehicle-plate"><%= @vehicle.license_plate %></div>
+      <div class="mb-1"><strong><%= @vehicle.make %> <%= @vehicle.model %></strong> (<%= @vehicle.year_of_manufacture %>)</div>
+      <div class="small text-muted">VIN: <%= @vehicle.chassis_number || 'N/A' %></div>
+    </div>
+  </div>
+  <% end %>
+  
+  <!-- Description -->
+  <div class="section">
+    <h3>Description</h3>
+    <div class="content-box">
+      <%= simple_format(@rfq.description) %>
+    </div>
+  </div>
+  
+  <!-- Special Instructions -->
+  <% if @rfq.special_instructions.present? %>
+  <div class="section">
+    <h3>Special Instructions</h3>
+    <div class="special-instructions">
+      <%= simple_format(@rfq.special_instructions) %>
+    </div>
+  </div>
+  <% end %>
+  
+  <!-- Requested Items -->
+  <div class="section">
+    <h3>Requested Items</h3>
+    <% if @rfq_line_items.any? %>
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th width="35%">Description</th>
+            <th width="10%">Quantity</th>
+            <th width="10%">Unit</th>
+            <th width="15%">Category</th>
+            <th width="15%">Part Number</th>
+            <th width="15%">Specifications</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfq_line_items.each do |item| %>
+            <tr>
+              <td><%= item.description %></td>
+              <td><strong><%= item.quantity %></strong></td>
+              <td><%= item.unit_of_measure || 'Each' %></td>
+              <td><%= item.category.present? ? item.category.humanize : '—' %></td>
+              <td><%= item.part_number || '—' %></td>
+              <td class="small"><%= item.specifications || '—' %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <div class="content-box text-muted">
+        No items requested
+      </div>
+    <% end %>
+  </div>
+  
+  <!-- Additional Information -->
+  <div class="section">
+    <h3>Additional Information</h3>
+    <div class="content-box">
+      <table style="width: 100%;">
+        <tr>
+          <td width="30%" style="font-weight: bold;">Document Created:</td>
+          <td><%= @rfq.created_at.strftime('%B %d, %Y at %I:%M %p') %></td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Last Updated:</td>
+          <td><%= @rfq.updated_at.strftime('%B %d, %Y at %I:%M %p') %></td>
+        </tr>
+        <% if @rfq.maintenance_request.present? %>
+        <tr>
+          <td style="font-weight: bold;">Linked Maintenance Request:</td>
+          <td>MR#<%= @rfq.maintenance_request.id %></td>
+        </tr>
+        <% end %>
+        <% if @existing_quotation.present? %>
+        <tr>
+          <td style="font-weight: bold; color: #28a745;">Converted to Quotation:</td>
+          <td><strong><%= @existing_quotation.quote_number %></strong></td>
+        </tr>
+        <% end %>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Document Footer -->
+  <div class="document-footer">
+    <p style="font-weight: bold; color: #333;">ActivePlus Fleet Management System</p>
+    <p>Trinidad & Tobago Government • Ministry of Works and Transport</p>
+    <p class="small text-muted">Document generated: <%= Time.now.strftime('%B %d, %Y at %I:%M %p') %></p>
+    <p class="small text-muted" style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+      This is an official government document. Unauthorized duplication or distribution is prohibited.
+    </p>
+  </div>
+</body>
+</html>

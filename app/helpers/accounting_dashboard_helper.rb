@@ -1,0 +1,2 @@
+module AccountingDashboardHelper
+end

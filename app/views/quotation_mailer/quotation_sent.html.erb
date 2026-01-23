@@ -1,0 +1,66 @@
+<%# app/views/quotation_mailer/quotation_sent.html.erb %>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #DA291C; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+    .content { background: #f8f9fa; padding: 20px; border: 1px solid #ddd; border-top: none; }
+    .footer { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+    .button { display: inline-block; background: #DA291C; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; }
+    .details { background: white; border: 1px solid #dee2e6; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>New Quotation from VMCOTT</h2>
+    </div>
+    
+    <div class="content">
+      <p>Dear <%= @recipient.name || @recipient.email %>,</p>
+      
+      <p>A new quotation has been prepared by VMCOTT for your review and acceptance.</p>
+      
+      <div class="details">
+        <h3>Quotation Details</h3>
+        <p><strong>Quotation Number:</strong> <%= @quotation.quote_number %></p>
+        <p><strong>RFQ Reference:</strong> <%= @rfq&.rfq_number || 'N/A' %></p>
+        <p><strong>Vehicle:</strong> <%= @quotation.vehicle&.license_plate || @quotation.vehicle&.make_model || 'N/A' %></p>
+        <p><strong>Total Amount:</strong> <%= number_to_currency(@quotation.amount) %></p>
+        <p><strong>Valid Until:</strong> <%= @quotation.valid_to.strftime('%d %B, %Y') %></p>
+        <p><strong>Prepared By:</strong> <%= @quotation.created_by&.name || 'VMCOTT' %></p>
+      </div>
+      
+      <p>You can review this quotation by clicking the button below:</p>
+      
+      <p style="text-align: center; margin: 25px 0;">
+        <a href="<%= quotation_url(@quotation) %>" class="button">
+          Review Quotation
+        </a>
+      </p>
+      
+      <p><strong>Important Notes:</strong></p>
+      <ul>
+        <li>This quotation is valid until <%= @quotation.valid_to.strftime('%d %B, %Y') %></li>
+        <li>All prices are in TTD and exclude VAT 12.5%</li>
+        <li>To accept this quotation, please log in to the system and use the "Accept" button</li>
+        <li>For any questions, contact VMCOTT at quotations@vmcott.gov.tt</li>
+      </ul>
+    </div>
+    
+    <div class="footer">
+      <p>
+        <strong>Vehicle Management Company of Trinidad and Tobago (VMCOTT)</strong><br>
+        Wrightson Road, Port of Spain, Trinidad and Tobago<br>
+        Tel: (868) 625-VMCT (8628) | Email: quotations@vmcott.gov.tt
+      </p>
+      <p style="font-size: 0.9em; color: #999;">
+        This is an automated message. Please do not reply to this email.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

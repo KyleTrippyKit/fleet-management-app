@@ -1,0 +1,2 @@
+module AccountsPayableHelper
+end

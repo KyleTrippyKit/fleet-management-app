@@ -1,0 +1,377 @@
+<%
+  # Disable Turbo for this entire page to prevent blinking/flash
+  content_for :head do %>
+    <meta name="turbo-visit-control" content="reload">
+    <meta name="turbo-cache-control" content="no-cache">
+    <style>
+      /* EMERGENCY BLINKING FIX - INLINE FOR IMMEDIATE EFFECT */
+      body.purchase-orders-page {
+        background-color: #f8f9fa !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      .purchase-orders-page .container-fluid.py-4,
+      .purchase-orders-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .purchase-orders-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
+      .purchase-orders-page .table,
+      .purchase-orders-page .table th,
+      .purchase-orders-page .table td,
+      .purchase-orders-page .table tbody tr {
+        background-color: white !important;
+        color: #212529 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        animation: none !important;
+        transition: none !important;
+      }
+      
+      /* Force all text to be visible immediately */
+      .purchase-orders-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
+        color: #212529 !important;
+      }
+      
+      /* Keep colored elements readable */
+      .purchase-orders-page .card.bg-primary *,
+      .purchase-orders-page .card.bg-success *,
+      .purchase-orders-page .card.bg-info *,
+      .purchase-orders-page .card.bg-danger *,
+      .purchase-orders-page .card.bg-dark * {
+        color: white !important;
+      }
+      
+      .purchase-orders-page .card.bg-warning * {
+        color: #212529 !important;
+      }
+      
+      /* Prevent Turbo from interfering */
+      [data-turbo-preview] * {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      
+      /* Disable ALL animations and transitions */
+      .purchase-orders-page * {
+        animation: none !important;
+        transition: none !important;
+      }
+    </style>
+    <script>
+      // IMMEDIATE FIX FOR BLINKING ISSUE
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('RFQ Inbox Page - Applying emergency fix for blinking');
+        
+        // Add class immediately
+        document.body.classList.add('purchase-orders-page');
+        
+        // Force immediate visibility
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Force a reflow to fix rendering
+        setTimeout(function() {
+          const containers = document.querySelectorAll('.container-fluid, .card, .table, .row');
+          containers.forEach(container => {
+            container.style.display = 'none';
+            void container.offsetHeight; // Trigger reflow
+            container.style.display = '';
+          });
+          
+          // Force text colors
+          const allElements = document.querySelectorAll('.purchase-orders-page *');
+          allElements.forEach(el => {
+            const bgColor = window.getComputedStyle(el).backgroundColor;
+            const textColor = window.getComputedStyle(el).color;
+            
+            // If background is light and text is white/transparent, make text dark
+            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
+                 bgColor === 'rgb(255, 255, 255)' || 
+                 bgColor === 'rgb(248, 249, 250)' ||
+                 bgColor === '#ffffff' ||
+                 bgColor === '#f8f9fa') &&
+                (textColor === 'rgba(0, 0, 0, 0)' || 
+                 textColor === 'rgb(255, 255, 255)' ||
+                 textColor === '#ffffff')) {
+              el.style.color = '#212529';
+            }
+          });
+        }, 10);
+      });
+      
+      // Disable Turbo completely for rfq inbox
+      document.addEventListener('turbo:load', function() {
+        if (window.location.pathname.includes('/rfqs')) {
+          console.log('RFQ Inbox page detected, disabling Turbo');
+          
+          // Disable all Turbo links and forms
+          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
+            link.setAttribute('data-turbo', 'false');
+          });
+          
+          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
+            form.setAttribute('data-turbo', 'false');
+          });
+          
+          // Disable Turbo caching
+          if (typeof Turbo !== 'undefined') {
+            Turbo.cache.exemptPageFromPreview();
+            Turbo.cache.exemptPageFromCache();
+          }
+        }
+      });
+    </script>
+<% end %>
+
+<div class="container mt-4 purchase-orders-container" data-controller="purchase-orders">
+  <h1>
+    <i class="bi bi-inbox"></i>
+    VMCOTT RFQ Inbox
+  </h1>
+  
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title"><%= @stats[:submitted] %></h5>
+          <p class="card-text">New RFQs</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-white">
+        <div class="card-body">
+          <h5 class="card-title"><%= @stats[:under_review] %></h5>
+          <p class="card-text">Under Review</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title"><%= @stats[:quoted] %></h5>
+          <p class="card-text">Converted</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title"><%= @stats[:total_pending] %></h5>
+          <p class="card-text">Total Pending</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <% if @rfqs.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>RFQ #</th>
+            <th>Agency</th>
+            <th>Vehicle</th>
+            <th>Description</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <tr>
+              <td><strong><%= rfq.rfq_number %></strong></td>
+              <td>
+                <span class="badge bg-secondary">
+                  <%= rfq.requesting_agency.code %>
+                </span>
+                <%= rfq.requesting_agency.name %>
+              </td>
+              <td>
+                <% if rfq.vehicle %>
+                  <%= rfq.vehicle.license_plate %>
+                  <br>
+                  <small class="text-muted">
+                    <%= rfq.vehicle.make %> <%= rfq.vehicle.model %>
+                  </small>
+                <% else %>
+                  <span class="text-muted">N/A</span>
+                <% end %>
+              </td>
+              <td>
+                <%= truncate(rfq.description, length: 50) %>
+                <% if rfq.rfq_line_items.any? %>
+                  <br>
+                  <small class="text-muted">
+                    <%= rfq.rfq_line_items.count %> item(s)
+                  </small>
+                <% end %>
+              </td>
+              <td><%= time_ago_in_words(rfq.created_at) %> ago</td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <%= link_to 'View', rfq_path(rfq), class: 'btn btn-outline-primary', data: { turbo: false } %>
+                  <%= link_to 'Convert to Quotation', 
+                    convert_to_quotation_page_rfq_path(rfq), 
+                    class: 'btn btn-success',
+                    data: { turbo: false } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="d-flex justify-content-center">
+      <%= paginate @rfqs %>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i>
+      No RFQs in your inbox
+    </div>
+  <% end %>
+</div>
+
+<script>
+// FIX FOR BLINKING/WHITE TEXT ISSUE
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('RFQ Inbox - DOM Loaded, applying fixes');
+  
+  // Add class to body for CSS targeting - MUST MATCH CSS CLASS
+  document.body.classList.add('purchase-orders-page');
+  
+  // Force immediate visibility with NO transitions
+  document.body.style.transition = 'none';
+  document.body.style.animation = 'none';
+  
+  // Force all transitions to be disabled immediately
+  const disableAllTransitions = () => {
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      el.style.transition = 'none';
+      el.style.animation = 'none';
+      el.style.opacity = '1';
+      el.style.visibility = 'visible';
+    });
+  };
+  
+  disableAllTransitions();
+  
+  // Force proper text colors immediately
+  setTimeout(() => {
+    const forceTextColor = () => {
+      // Force all text in purchase orders container to be visible
+      const container = document.querySelector('.purchase-orders-container');
+      if (container) {
+        const allElements = container.querySelectorAll('*');
+        allElements.forEach(el => {
+          const computedStyle = window.getComputedStyle(el);
+          const bgColor = computedStyle.backgroundColor;
+          const textColor = computedStyle.color;
+          
+          // If text color is white/transparent and background is light, make text dark
+          if ((textColor === 'rgba(0, 0, 0, 0)' || 
+               textColor === 'transparent' || 
+               textColor === 'rgb(255, 255, 255)' || 
+               textColor === '#ffffff') &&
+              (bgColor === 'rgba(0, 0, 0, 0)' ||
+               bgColor === 'transparent' ||
+               bgColor === 'rgb(255, 255, 255)' ||
+               bgColor === '#ffffff' ||
+               bgColor === 'rgb(248, 249, 250)' ||
+               bgColor === '#f8f9fa')) {
+            el.style.color = '#212529';
+            el.style.setProperty('color', '#212529', 'important');
+          }
+          
+          // Force background colors for cards and tables
+          if (el.classList.contains('card') && 
+              !el.classList.contains('bg-primary') &&
+              !el.classList.contains('bg-success') &&
+              !el.classList.contains('bg-info') &&
+              !el.classList.contains('bg-warning') &&
+              !el.classList.contains('bg-danger') &&
+              !el.classList.contains('bg-dark')) {
+            el.style.backgroundColor = 'white';
+            el.style.setProperty('background-color', 'white', 'important');
+          }
+          
+          if (el.tagName === 'TABLE' || el.classList.contains('table')) {
+            el.style.backgroundColor = 'white';
+            el.style.setProperty('background-color', 'white', 'important');
+          }
+        });
+      }
+    };
+    
+    forceTextColor();
+    
+    // Run again after a short delay to catch any dynamically loaded content
+    setTimeout(forceTextColor, 50);
+    setTimeout(forceTextColor, 100);
+    setTimeout(forceTextColor, 200);
+  }, 20);
+  
+  // Completely disable Turbo for this page
+  if (typeof Turbo !== 'undefined') {
+    console.log('Disabling Turbo for RFQ inbox page');
+    
+    // Prevent Turbo from caching this page
+    Turbo.cache.exemptPageFromCache();
+    Turbo.cache.exemptPageFromPreview();
+    
+    document.addEventListener('turbo:before-cache', function(event) {
+      if (window.location.pathname.includes('/rfqs')) {
+        console.log('Preventing Turbo cache for RFQs');
+        event.preventDefault();
+        Turbo.cache.clear();
+      }
+    });
+    
+    // Override Turbo.visit to force full page reloads for RFQ pages
+    const originalVisit = Turbo.visit;
+    Turbo.visit = function(url, options = {}) {
+      if (url.toString().includes('/rfqs')) {
+        console.log('Preventing Turbo visit to RFQ page');
+        window.location.href = url;
+        return;
+      }
+      return originalVisit.call(this, url, options);
+    };
+  }
+  
+  // Force disable Turbo for all links and forms
+  setTimeout(() => {
+    document.querySelectorAll('a').forEach(link => {
+      if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
+        link.setAttribute('data-turbo', 'false');
+      }
+    });
+    
+    document.querySelectorAll('form').forEach(form => {
+      if (!form.hasAttribute('data-turbo')) {
+        form.setAttribute('data-turbo', 'false');
+      }
+    });
+  }, 100);
+  
+  // Fix for pagination links
+  const paginationLinks = document.querySelectorAll('.pagination a');
+  paginationLinks.forEach(link => {
+    link.setAttribute('data-turbo', 'false');
+  });
+  
+  // Final check after everything loads
+  setTimeout(() => {
+    console.log('Final check - ensuring all text is visible');
+    const allTextElements = document.querySelectorAll('.purchase-orders-page p, .purchase-orders-page span, .purchase-orders-page td, .purchase-orders-page th, .purchase-orders-page div, .purchase-orders-page h1, .purchase-orders-page h2, .purchase-orders-page h3, .purchase-orders-page h4, .purchase-orders-page h5, .purchase-orders-page h6');
+    allTextElements.forEach(el => {
+      if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
+          window.getComputedStyle(el).color === '#ffffff') {
+        el.style.color = '#212529';
+      }
+    });
+  }, 500);
+});
+</script>

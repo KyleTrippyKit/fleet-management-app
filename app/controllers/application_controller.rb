@@ -1,5 +1,5 @@
 class ApplicationController < ActionController::Base
-  # Remove Pundit::Authorization
+  include Pundit::Authorization
   
   # Only allow modern browsers supporting essential features
   allow_browser versions: :modern
@@ -31,22 +31,42 @@ class ApplicationController < ActionController::Base
   # =====================================================
   # AFTER SIGN IN REDIRECT - THE FIX!
   # =====================================================
-  def after_sign_in_path_for(resource)
+ def after_sign_in_path_for(resource)
     # Debug logging
     Rails.logger.info "=== AFTER SIGN IN REDIRECT ==="
-    Rails.logger.info "User: #{resource.email}"
-    Rails.logger.info "Agency Code: #{resource.agency&.code}"
-    Rails.logger.info "Role: #{resource.role}"
+    
+    # Handle case where resource might be an array
+    user = if resource.is_a?(Array)
+            Rails.logger.info "Resource is an array: #{resource.inspect}"
+            # Try to find the user in the array
+            resource.find { |r| r.respond_to?(:email) }
+          else
+            resource
+          end
+    
+    # Check if we have a valid user object
+    if user.nil? || !user.respond_to?(:email)
+      Rails.logger.error "No valid user object found. Resource: #{resource.inspect}"
+      return '/main-dashboard' # Default fallback
+    end
+    
+    Rails.logger.info "User: #{user.email}"
+    Rails.logger.info "Agency: #{user.agency.inspect}"
+    Rails.logger.info "Agency Code: #{user.agency&.code}"
+    Rails.logger.info "Role: #{user.role}"
     Rails.logger.info "=============================="
     
     # Use string paths instead of route helpers to avoid NameError
-    if resource.agency&.code == 'PTSC'
+    agency_code = user.agency&.code
+    
+    case agency_code
+    when 'PTSC'
       '/ptsc-dashboard'
-    elsif resource.agency&.code == 'VMCOTT'
+    when 'VMCOTT'
       '/vmcott-dashboard'
-    elsif resource.agency&.code == 'TTPS'
+    when 'TTPS'
       '/ttps-dashboard'
-    elsif resource.agency&.code == 'TTDF'
+    when 'TTDF'
       '/ttdf-dashboard'
     else
       # Default to main dashboard

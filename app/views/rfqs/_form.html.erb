@@ -1,0 +1,102 @@
+<%= form_with(model: [@agency, @rfq], local: true) do |f| %>
+  <% if @rfq.errors.any? %>
+    <div class="alert alert-danger">
+      <h5><%= pluralize(@rfq.errors.count, "error") %> prevented this RFQ from being saved:</h5>
+      <ul>
+        <% @rfq.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  
+  <div class="row">
+    <div class="col-md-6">
+      <div class="mb-3">
+        <%= f.label :title, "Title/Description" %>
+        <%= f.text_field :title, class: 'form-control', required: true,
+              placeholder: "e.g., Engine Oil Change Service" %>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="mb-3">
+        <%= f.label :vehicle_id, "Vehicle" %>
+        <%= f.collection_select :vehicle_id, @vehicles, :id, :display_name_with_plate,
+              { include_blank: "Select a vehicle..." }, 
+              { class: 'form-control', required: true } %>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-md-4">
+      <div class="mb-3">
+        <%= f.label :request_date, "Request Date" %>
+        <%= f.date_field :request_date, class: 'form-control', required: true,
+              value: @rfq.request_date || Date.today %>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="mb-3">
+        <%= f.label :response_due_date, "Response Due Date (Optional)" %>
+        <%= f.date_field :response_due_date, class: 'form-control',
+              value: @rfq.response_due_date || Date.today + 7.days %>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="mb-3">
+        <%= f.label :urgency, "Urgency" %>
+        <%= f.select :urgency, 
+              [['Normal', 'normal'], ['High', 'high'], ['Urgent', 'urgent']],
+              { selected: @rfq.urgency || 'normal' }, 
+              class: 'form-control' %>
+      </div>
+    </div>
+  </div>
+  
+  <div class="mb-3">
+    <%= f.label :description, "Detailed Description" %>
+    <%= f.text_area :description, class: 'form-control', rows: 4,
+          placeholder: "Detailed description of the maintenance or repair work needed..." %>
+  </div>
+  
+  <div class="mb-3">
+    <%= f.label :special_instructions, "Special Instructions (Optional)" %>
+    <%= f.text_area :special_instructions, class: 'form-control', rows: 2,
+          placeholder: "Any special requirements or instructions..." %>
+  </div>
+  
+  <!-- Line Items -->
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5>Required Parts (NO PRICES - to be quoted by VMCOTT)</h5>
+      <div>
+        <%= link_to_add_association 'Add Part', f, :rfq_line_items, 
+              class: 'btn btn-outline-primary btn-sm',
+              data: {
+                association_insertion_node: '#rfq-line-items',
+                association_insertion_method: 'append'
+              } %>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="rfq-line-items">
+        <%= f.fields_for :rfq_line_items do |line_item| %>
+          <%= render 'rfq_line_item_fields', f: line_item %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  
+  <div class="d-flex justify-content-between">
+    <%= link_to 'Cancel', sent_rfqs_path, class: 'btn btn-secondary' %>
+    
+    <div>
+      <%= f.submit 'Save as Draft', name: 'save_draft', class: 'btn btn-outline-primary me-2' %>
+      <%= f.submit 'Submit to VMCOTT', name: 'submit_to_vmcott', class: 'btn btn-success' %>
+    </div>
+  </div>
+<% end %>

@@ -1,0 +1,76 @@
+<%# app/views/vmcott/rfq_inbox/index.html.erb %>
+<div class="container mt-4">
+  <h1>RFQ Inbox</h1>
+  <p class="text-muted">Requests for Quotation from agencies</p>
+  
+  <% if @rfqs.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>RFQ #</th>
+            <th>Agency</th>
+            <th>Vehicle</th>
+            <th>Description</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <tr>
+              <td><strong><%= rfq.rfq_number %></strong></td>
+              <td><%= rfq.requesting_agency.name %></td>
+              <td>
+                <%= rfq.vehicle&.license_plate %>
+                <br>
+                <small class="text-muted">
+                  <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
+                </small>
+              </td>
+              <td>
+                <%= truncate(rfq.description, length: 50) %>
+                <% if rfq.special_instructions.present? %>
+                  <br>
+                  <small class="text-muted">
+                    <i class="bi bi-info-circle"></i> Special instructions
+                  </small>
+                <% end %>
+              </td>
+              <td><%= rfq.request_date.strftime('%b %d, %Y') %></td>
+              <td>
+                <span class="badge bg-<%= rfq_status_badge(rfq.status) %>">
+                  <%= rfq.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <%= link_to 'View', rfq_path(rfq), class: 'btn btn-outline-primary' %>
+                  <%= link_to 'Convert to Quote', convert_to_quotation_rfq_path(rfq), 
+                      class: 'btn btn-success',
+                      data: { confirm: 'Convert this RFQ to a quotation?' } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-inbox"></i> No RFQs received yet.
+    </div>
+  <% end %>
+</div>
+
+<%# Helper method for status badges %>
+<% def rfq_status_badge(status) 
+  case status
+  when 'submitted' then 'warning'
+  when 'under_review' then 'info'
+  when 'converted' then 'success'
+  when 'cancelled' then 'danger'
+  else 'secondary'
+  end
+end %>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RFQ: <%= @rfq&.rfq_number || 'RFQ Report' %></title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      font-size: 12px;
+      color: #333;
+      margin: 20px;
+    }
+    
+    .header {
+      border-bottom: 3px solid #DA291C;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .tt-header { 
+      background-color: #DA291C; /* Trinidad red */
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    
+    h1 { 
+      color: #333;
+      margin-bottom: 5px;
+      font-size: 24px;
+    }
+    
+    h2 {
+      color: #555;
+      margin-top: 0;
+      font-size: 18px;
+    }
+    
+    h3 {
+      color: #333;
+      font-size: 16px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 11px;
+    }
+    
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    
+    th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #ddd;
+      font-size: 10px;
+      color: #666;
+      text-align: center;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: white;
+    }
+    
+    .status-draft { background-color: #6c757d; }
+    .status-submitted { background-color: #17a2b8; }
+    .status-under_review { background-color: #ffc107; color: #000; }
+    .status-quoted { background-color: #6f42c1; }
+    .status-converted { background-color: #28a745; }
+    .status-accepted { background-color: #20c997; }
+    .status-rejected { background-color: #dc3545; }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .info-item {
+      border: 1px solid #ddd;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    
+    .info-label {
+      font-weight: bold;
+      color: #DA291C;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="tt-header">
+      <h1>REQUEST FOR QUOTATION</h1>
+      <h2><%= @rfq&.rfq_number || 'RFQ Report' %></h2>
+    </div>
+  </div>
+
+  <% if @rfq %>
+    <!-- Individual RFQ View -->
+    <h3>RFQ Details</h3>
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">RFQ Number:</span><br>
+        <%= @rfq.rfq_number %>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Status:</span><br>
+        <span class="status-badge status-<%= @rfq.status %>">
+          <%= @rfq.status.humanize %>
+        </span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Requesting Agency:</span><br>
+        <%= @rfq.requesting_agency.name %>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Request Date:</span><br>
+        <%= @rfq.request_date.strftime("%d/%m/%Y") %>
+      </div>
+    </div>
+
+    <% if @rfq.description.present? %>
+      <h3>Description</h3>
+      <div style="padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+        <%= @rfq.description %>
+      </div>
+    <% end %>
+
+    <% if @rfq_line_items&.any? %>
+      <h3>Requested Items</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th>Quantity</th>
+            <th>Unit</th>
+            <th>Specifications</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfq_line_items.each do |item| %>
+            <tr>
+              <td><%= item.description %></td>
+              <td><%= item.quantity %></td>
+              <td><%= item.unit_of_measure.presence || 'Each' %></td>
+              <td><%= item.specifications.presence || '-' %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+
+  <% elsif @rfqs %>
+    <!-- Sent RFQs Report View -->
+    <h3>RFQ Report - <%= @report_title || 'All RFQs' %></h3>
+    <p><strong>Generated:</strong> <%= Time.now.strftime("%d/%m/%Y at %I:%M %p") %></p>
+    <p><strong>Total RFQs:</strong> <%= @rfqs.total_count %></p>
+
+    <% if @rfqs.any? %>
+      <table>
+        <thead>
+          <tr>
+            <th>RFQ #</th>
+            <th>Agency</th>
+            <th>Vehicle</th>
+            <th>Description</th>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <tr>
+              <td><%= rfq.rfq_number %></td>
+              <td><%= rfq.requesting_agency.code %></td>
+              <td><%= rfq.vehicle&.license_plate || 'N/A' %></td>
+              <td><%= truncate(rfq.description, length: 40) %></td>
+              <td><%= rfq.request_date.strftime('%d/%m/%y') %></td>
+              <td>
+                <span class="status-badge status-<%= rfq.status %>">
+                  <%= rfq.status.first(3).upcase %>
+                </span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+
+  <% end %>
+
+  <div class="footer">
+    <p><strong>ActivePlus Fleet Management System</strong> - Trinidad & Tobago Government</p>
+    <p>Report generated on <%= Time.now.strftime("%d/%m/%Y at %I:%M %p") %></p>
+  </div>
+</body>
+</html>

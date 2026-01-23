@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -115,6 +115,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.string "theme"
     t.datetime "updated_at", null: false
     t.index ["code"], name: "index_agencies_on_code", unique: true
+  end
+
+  create_table "agency_settings", force: :cascade do |t|
+    t.bigint "agency_id", null: false
+    t.datetime "created_at", null: false
+    t.string "data_type", default: "string"
+    t.text "description"
+    t.string "setting_key", null: false
+    t.text "setting_value"
+    t.datetime "updated_at", null: false
+    t.index ["agency_id", "setting_key"], name: "index_agency_settings_on_agency_id_and_setting_key", unique: true
+    t.index ["agency_id"], name: "index_agency_settings_on_agency_id"
   end
 
   create_table "alerts", force: :cascade do |t|
@@ -231,12 +243,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.index ["agency_id"], name: "index_fare_rules_on_agency_id"
   end
 
+  create_table "internal_pos", force: :cascade do |t|
+    t.bigint "assigned_to_id"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.date "estimated_completion_date"
+    t.text "notes"
+    t.string "priority", default: "normal"
+    t.bigint "purchase_order_id"
+    t.datetime "started_at"
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id"
+    t.string "work_order_number"
+    t.index ["assigned_to_id"], name: "index_internal_pos_on_assigned_to_id"
+    t.index ["created_by_id"], name: "index_internal_pos_on_created_by_id"
+    t.index ["purchase_order_id"], name: "index_internal_pos_on_purchase_order_id"
+    t.index ["vehicle_id"], name: "index_internal_pos_on_vehicle_id"
+    t.index ["work_order_number"], name: "index_internal_pos_on_work_order_number", unique: true
+  end
+
   create_table "invoices", force: :cascade do |t|
     t.bigint "account_id"
+    t.string "aging_bucket", default: "current"
+    t.string "aging_category"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.string "category"
     t.datetime "created_at", null: false
     t.integer "created_by_id"
+    t.integer "days_overdue", default: 0
     t.datetime "disputed_at"
     t.integer "disputed_by_id"
     t.date "due_date", null: false
@@ -250,6 +286,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.bigint "payable_id"
     t.string "payment_terms", default: "net_30"
     t.integer "pos_transaction_id"
+    t.string "priority", default: "medium"
     t.integer "purchase_order_id"
     t.string "quickbooks_id"
     t.datetime "received_at"
@@ -265,17 +302,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.bigint "vehicle_id", null: false
     t.string "vendor", null: false
     t.index ["account_id"], name: "index_invoices_on_account_id"
+    t.index ["aging_bucket"], name: "index_invoices_on_aging_bucket"
+    t.index ["aging_category"], name: "index_invoices_on_aging_category"
     t.index ["category"], name: "index_invoices_on_category"
+    t.index ["days_overdue"], name: "index_invoices_on_days_overdue"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number", unique: true
     t.index ["maintenance_id"], name: "index_invoices_on_maintenance_id"
     t.index ["payable_id"], name: "index_invoices_on_payable_id"
     t.index ["pos_transaction_id"], name: "index_invoices_on_pos_transaction_id"
+    t.index ["priority"], name: "index_invoices_on_priority"
     t.index ["purchase_order_id"], name: "index_invoices_on_purchase_order_id"
     t.index ["quickbooks_id"], name: "index_invoices_on_quickbooks_id"
     t.index ["reviewed_by_id"], name: "index_invoices_on_reviewed_by_id"
     t.index ["status"], name: "index_invoices_on_status"
+    t.index ["sync_status"], name: "index_invoices_on_sync_status"
     t.index ["vehicle_id"], name: "index_invoices_on_vehicle_id"
     t.index ["vendor"], name: "index_invoices_on_vendor"
+  end
+
+  create_table "job_template_parts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_template_id", null: false
+    t.text "notes"
+    t.bigint "part_id", null: false
+    t.integer "quantity", default: 1
+    t.datetime "updated_at", null: false
+    t.index ["job_template_id", "part_id"], name: "index_job_template_parts_on_job_template_id_and_part_id", unique: true
+    t.index ["job_template_id"], name: "index_job_template_parts_on_job_template_id"
+    t.index ["part_id"], name: "index_job_template_parts_on_part_id"
+  end
+
+  create_table "job_templates", force: :cascade do |t|
+    t.bigint "agency_id", null: false
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.jsonb "default_parts", default: []
+    t.text "description"
+    t.boolean "is_active", default: true
+    t.decimal "labor_rate_per_hour", precision: 10, scale: 2, default: "0.0"
+    t.string "name", null: false
+    t.jsonb "procedures", default: []
+    t.decimal "standard_hours", precision: 5, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["agency_id", "name"], name: "index_job_templates_on_agency_id_and_name", unique: true
+    t.index ["category"], name: "index_job_templates_on_category"
   end
 
   create_table "maintenance_parts", force: :cascade do |t|
@@ -518,19 +588,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
   create_table "purchase_order_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", null: false
+    t.boolean "is_accepted", default: true
     t.text "notes"
     t.bigint "part_id"
     t.bigint "purchase_order_id", null: false
     t.integer "quantity", default: 1, null: false
+    t.text "rejection_reason"
     t.decimal "total_price", precision: 10, scale: 2
     t.decimal "unit_price", precision: 10, scale: 2, null: false
     t.datetime "updated_at", null: false
+    t.index ["is_accepted"], name: "index_purchase_order_items_on_is_accepted"
     t.index ["part_id"], name: "index_purchase_order_items_on_part_id"
     t.index ["purchase_order_id"], name: "index_purchase_order_items_on_purchase_order_id"
     t.check_constraint "quantity > 0", name: "positive_quantity"
   end
 
   create_table "purchase_orders", force: :cascade do |t|
+    t.integer "acceptance_status", default: 0
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "approved_at"
     t.bigint "approved_by_id"
@@ -558,6 +632,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.string "payment_terms", default: "net_30"
     t.string "pdf_s3_url"
     t.string "po_number", null: false
+    t.bigint "quotation_id"
     t.string "rails_code"
     t.datetime "received_at"
     t.datetime "rejected_at"
@@ -567,6 +642,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id"
     t.string "vendor", null: false
+    t.integer "vmcott_status", default: 0, null: false
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"
@@ -576,6 +652,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.index ["payment_reference"], name: "index_purchase_orders_on_payment_reference"
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
+    t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id"
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
   end
 
@@ -623,6 +700,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.index ["user_id"], name: "index_quickbooks_settings_on_user_id"
   end
 
+  create_table "quotation_job_parts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "part_id", null: false
+    t.integer "quantity", default: 1
+    t.bigint "quotation_job_id", null: false
+    t.decimal "total_price", precision: 10, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_quotation_job_parts_on_part_id"
+    t.index ["quotation_job_id", "part_id"], name: "index_quotation_job_parts_on_quotation_job_id_and_part_id", unique: true
+    t.index ["quotation_job_id"], name: "index_quotation_job_parts_on_quotation_job_id"
+  end
+
+  create_table "quotation_jobs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.decimal "estimated_hours", precision: 5, scale: 2
+    t.bigint "job_template_id"
+    t.string "job_type", null: false
+    t.decimal "labor_rate_per_hour", precision: 10, scale: 2
+    t.string "name", null: false
+    t.integer "priority"
+    t.bigint "quotation_id", null: false
+    t.decimal "total_labor_cost", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["job_template_id"], name: "index_quotation_jobs_on_job_template_id"
+    t.index ["quotation_id"], name: "index_quotation_jobs_on_quotation_id"
+  end
+
   create_table "quotation_line_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -643,6 +749,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.text "notes"
     t.string "quote_number", null: false
     t.datetime "rejected_at"
+    t.integer "rfq_id"
     t.integer "status", default: 0
     t.datetime "updated_at", null: false
     t.date "valid_from"
@@ -651,7 +758,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
     t.string "vendor", null: false
     t.index ["created_by_id"], name: "index_quotations_on_created_by_id"
     t.index ["quote_number"], name: "index_quotations_on_quote_number", unique: true
+    t.index ["rfq_id"], name: "index_quotations_on_rfq_id"
     t.index ["vehicle_id"], name: "index_quotations_on_vehicle_id"
+  end
+
+  create_table "rfq_line_items", force: :cascade do |t|
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.string "description", null: false
+    t.string "part_number"
+    t.integer "quantity", default: 1, null: false
+    t.bigint "rfq_id", null: false
+    t.text "specifications"
+    t.string "unit_of_measure"
+    t.datetime "updated_at", null: false
+    t.index ["rfq_id"], name: "index_rfq_line_items_on_rfq_id"
+  end
+
+  create_table "rfqs", force: :cascade do |t|
+    t.bigint "converted_to_quotation_id"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "maintenance_request_id"
+    t.jsonb "priority_data", default: {}
+    t.bigint "processing_agency_id"
+    t.date "request_date", null: false
+    t.bigint "requesting_agency_id", null: false
+    t.date "response_due_date"
+    t.string "rfq_number", null: false
+    t.text "special_instructions"
+    t.string "status", default: "draft"
+    t.datetime "updated_at", null: false
+    t.string "urgency"
+    t.bigint "vehicle_id"
+    t.index ["processing_agency_id"], name: "index_rfqs_on_processing_agency_id"
+    t.index ["requesting_agency_id"], name: "index_rfqs_on_requesting_agency_id"
+    t.index ["rfq_number"], name: "index_rfqs_on_rfq_number", unique: true
+    t.index ["status"], name: "index_rfqs_on_status"
+    t.index ["vehicle_id"], name: "index_rfqs_on_vehicle_id"
   end
 
   create_table "role_permissions", force: :cascade do |t|
@@ -840,6 +984,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
   add_foreign_key "access_logs", "users"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agency_settings", "agencies"
   add_foreign_key "alerts", "agencies"
   add_foreign_key "alerts", "drivers"
   add_foreign_key "alerts", "vehicles"
@@ -852,6 +997,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
   add_foreign_key "drivers_vehicles", "vehicles"
   add_foreign_key "invoices", "maintenances"
   add_foreign_key "invoices", "vehicles"
+  add_foreign_key "job_template_parts", "job_templates"
+  add_foreign_key "job_template_parts", "parts"
+  add_foreign_key "job_templates", "agencies"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"
   add_foreign_key "maintenance_requests", "agencies", column: "processing_agency_id"
@@ -872,15 +1020,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_19_175609) do
   add_foreign_key "pos_transactions", "vehicles"
   add_foreign_key "purchase_order_items", "parts"
   add_foreign_key "purchase_order_items", "purchase_orders"
+  add_foreign_key "purchase_orders", "quotations"
   add_foreign_key "purchase_orders", "users", column: "approved_by_id"
   add_foreign_key "purchase_orders", "users", column: "created_by_id"
   add_foreign_key "purchase_orders", "vehicles"
   add_foreign_key "purchases", "parts"
   add_foreign_key "quickbooks_integrations", "users"
   add_foreign_key "quickbooks_settings", "users"
+  add_foreign_key "quotation_job_parts", "parts"
+  add_foreign_key "quotation_job_parts", "quotation_jobs"
+  add_foreign_key "quotation_jobs", "job_templates"
+  add_foreign_key "quotation_jobs", "quotations"
   add_foreign_key "quotation_line_items", "quotations"
+  add_foreign_key "quotations", "rfqs"
   add_foreign_key "quotations", "users", column: "created_by_id"
   add_foreign_key "quotations", "vehicles"
+  add_foreign_key "rfq_line_items", "rfqs"
+  add_foreign_key "rfqs", "agencies", column: "processing_agency_id"
+  add_foreign_key "rfqs", "agencies", column: "requesting_agency_id"
+  add_foreign_key "rfqs", "maintenance_requests"
+  add_foreign_key "rfqs", "vehicles"
   add_foreign_key "transactions", "invoices"
   add_foreign_key "transactions", "users"
   add_foreign_key "transactions", "vehicles"

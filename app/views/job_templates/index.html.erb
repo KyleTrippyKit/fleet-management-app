@@ -1,0 +1,74 @@
+<%# app/views/job_templates/index.html.erb %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Job Templates</h1>
+    <div>
+      <%= link_to 'New Job Template', new_job_template_path, class: 'btn btn-primary' %>
+      <%= link_to 'Import Defaults', import_defaults_job_templates_path, 
+            method: :post, class: 'btn btn-outline-secondary', 
+            data: { confirm: 'Import default job templates?' } %>
+    </div>
+  </div>
+
+  <% if @job_templates.blank? %>
+    <div class="alert alert-info">
+      <p>No job templates found. You can create new ones or import default templates.</p>
+      <%= link_to 'Import Default Templates', import_defaults_job_templates_path, 
+            method: :post, class: 'btn btn-outline-primary' %>
+    </div>
+  <% else %>
+    <!-- Search and Filter -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <%= form_with url: job_templates_path, method: :get, local: true, class: 'd-flex' do %>
+          <%= text_field_tag :search, params[:search], 
+                class: 'form-control me-2', 
+                placeholder: 'Search job templates...' %>
+          <%= submit_tag 'Search', class: 'btn btn-outline-secondary' %>
+        <% end %>
+      </div>
+      <div class="col-md-6 text-end">
+        <div class="btn-group">
+          <%= link_to 'All', job_templates_path, 
+                class: "btn btn-outline-secondary #{'active' unless params[:category]}" %>
+          <% JobTemplate.distinct.pluck(:category).compact.each do |category| %>
+            <%= link_to category, job_templates_path(category: category), 
+                  class: "btn btn-outline-secondary #{'active' if params[:category] == category}" %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Job Templates Grid -->
+    <div class="row">
+      <% @job_templates.each do |template| %>
+        <div class="col-md-4 mb-4">
+          <%= render 'job_card', job_template: template %>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Pagination -->
+    <% if @job_templates.respond_to?(:total_pages) %>
+      <div class="d-flex justify-content-center">
+        <%= paginate @job_templates %>
+      </div>
+    <% end %>
+  <% end %>
+</div>
+
+<style>
+.job-card {
+  height: 100%;
+  transition: transform 0.2s;
+}
+
+.job-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.job-card .card-footer {
+  background-color: #f8f9fa;
+}
+</style>

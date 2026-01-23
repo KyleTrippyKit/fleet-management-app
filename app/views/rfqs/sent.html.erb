@@ -1,0 +1,294 @@
+<%# app/views/rfqs/sent.html.erb %>
+<div class="container mt-4">
+  <h1>Sent RFQs</h1>
+  <p class="text-muted">Requests for Quotation submitted to VMCOTT</p>
+  
+  <%# Stats Widgets %>
+  <%= render 'stats', stats: @stats %>
+  
+  <%# Filter Form %>
+  <%= render 'filters', vehicles: @vehicles, agencies: @agencies %>
+  
+  <%# Bulk Actions %>
+  <%= render 'bulk_actions' if @rfqs.any? %>
+  
+  <% if @rfqs.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th width="40">
+              <%= check_box_tag 'select_all', '1', false, 
+                    class: 'form-check-input select-all-rfqs',
+                    id: 'select-all-rfqs' %>
+            </th>
+            <th>RFQ #</th>
+            <th>Vehicle</th>
+            <th>Description</th>
+            <th>Sent Date</th>
+            <th>Response Due</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <tr class="<%= 'table-warning' if rfq.response_overdue? %>">
+              <td>
+                <%= check_box_tag 'rfq_ids[]', rfq.id, false, 
+                      class: 'rfq-checkbox form-check-input',
+                      data: { rfq_id: rfq.id } %>
+              </td>
+              <td>
+                <strong><%= rfq.rfq_number %></strong>
+                <% if rfq.response_overdue? %>
+                  <br><small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Overdue</small>
+                <% end %>
+              </td>
+              <td>
+                <%= rfq.vehicle&.license_plate %>
+                <br>
+                <small class="text-muted">
+                  <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
+                </small>
+              </td>
+              <td>
+                <%= truncate(rfq.description, length: 50) %>
+                <% if rfq.special_instructions.present? %>
+                  <br>
+                  <small class="text-muted">
+                    <i class="bi bi-info-circle"></i> Special instructions
+                  </small>
+                <% end %>
+              </td>
+              <td><%= rfq.request_date.strftime('%b %d, %Y') %></td>
+              <td>
+                <% if rfq.response_due_date.present? %>
+                  <%= rfq.response_due_date.strftime('%b %d, %Y') %>
+                  <% if rfq.response_overdue? %>
+                    <br><small class="text-danger">(<%= (Date.today - rfq.response_due_date).to_i %> days late)</small>
+                  <% end %>
+                <% else %>
+                  <span class="text-muted">Not set</span>
+                <% end %>
+              </td>
+              <td>
+                <span class="badge bg-<%= rfq_status_badge(rfq.status) %>">
+                  <%= rfq.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="btn-group-vertical btn-group-sm">
+                  <%= link_to 'View', rfq_path(rfq), 
+                      class: 'btn btn-outline-primary btn-sm mb-1',
+                      data: { turbo: false } %>
+                  
+                  <%= link_to 'PDF', download_pdf_rfq_path(rfq, format: :pdf), 
+                      class: 'btn btn-outline-info btn-sm mb-1',
+                      target: '_blank' %>
+                  
+                  <% if rfq.draft? %>
+                    <%= link_to 'Edit', edit_rfq_path(rfq), 
+                        class: 'btn btn-outline-warning btn-sm mb-1',
+                        data: { turbo: false } %>
+                    
+                    <%= link_to 'Submit', submit_to_vmcott_rfq_path(rfq), 
+                        method: :post,
+                        data: { 
+                          confirm: 'Submit this RFQ to VMCOTT?',
+                          turbo: false 
+                        },
+                        class: 'btn btn-outline-success btn-sm mb-1' %>
+                  <% end %>
+                  
+                  <%= link_to 'Clone', clone_rfq_path(rfq), 
+                      class: 'btn btn-outline-secondary btn-sm mb-1',
+                      data: { turbo: false } %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      
+      <%= paginate @rfqs %>
+      
+      <div class="mt-3">
+        <%= link_to 'Export to PDF', sent_rfqs_path(format: :pdf), 
+              class: 'btn btn-outline-dark',
+              target: '_blank' %>
+        <%= link_to 'Export to CSV', sent_rfqs_path(format: :csv), 
+              class: 'btn btn-outline-dark' %>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-inbox"></i> No RFQs sent yet.
+      <%= link_to 'Create your first RFQ', new_agency_rfq_path(current_user.agency), 
+          class: 'alert-link',
+          data: { turbo: false } %>
+    </div>
+  <% end %>
+</div>
+
+<%# CRITICAL CSS FIX - Add this to fix button interaction %>
+<style>
+  /* Fix table cell positioning */
+  .table td {
+    position: relative;
+    overflow: visible !important;
+  }
+  
+  /* Make buttons properly clickable */
+  .table td .btn {
+    position: relative !important;
+    z-index: 100 !important;
+    pointer-events: auto !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+  }
+  
+  /* Remove any potential overlays */
+  .table td:last-child::before,
+  .table td:last-child::after {
+    display: none !important;
+  }
+  
+  /* Ensure table cells don't clip buttons */
+  .table-responsive {
+    overflow: visible !important;
+  }
+  
+  /* Fix hover states */
+  .btn-outline-primary:hover {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: white !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
+  
+  .btn-outline-warning:hover {
+    background-color: #ffc107 !important;
+    border-color: #ffc107 !important;
+    color: black !important;
+  }
+  
+  .btn-outline-success:hover {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+    color: white !important;
+  }
+  
+  /* Bulk actions styling */
+  .bulk-actions-bar {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Overdue row styling */
+  .table-warning {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+  }
+</style>
+
+<%# JavaScript for bulk actions and filters %>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Fix all buttons in table
+    const buttons = document.querySelectorAll('.table .btn');
+    
+    buttons.forEach((btn) => {
+      // Remove any inline styles that might disable the button
+      btn.style.cssText = `
+        position: relative !important;
+        z-index: 1000 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      `;
+      
+      // Force remove disabled attribute
+      btn.removeAttribute('disabled');
+      
+      // Add visual feedback on hover
+      btn.addEventListener('mouseenter', function() {
+        this.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
+        this.style.transform = 'scale(1.05)';
+      });
+      
+      btn.addEventListener('mouseleave', function() {
+        this.style.boxShadow = '';
+        this.style.transform = '';
+      });
+    });
+    
+    // Bulk actions functionality
+    const selectAllCheckbox = document.getElementById('select-all-rfqs');
+    const rfqCheckboxes = document.querySelectorAll('.rfq-checkbox');
+    const bulkSubmitBtn = document.getElementById('bulk-submit-btn');
+    const bulkExportBtn = document.getElementById('bulk-export-btn');
+    
+    if (selectAllCheckbox) {
+      // Select all functionality
+      selectAllCheckbox.addEventListener('change', function() {
+        rfqCheckboxes.forEach(cb => cb.checked = this.checked);
+        updateBulkButtons();
+      });
+      
+      // Individual checkbox changes
+      rfqCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+          // Update select all checkbox state
+          const allChecked = Array.from(rfqCheckboxes).every(cb => cb.checked);
+          const someChecked = Array.from(rfqCheckboxes).some(cb => cb.checked);
+          
+          selectAllCheckbox.checked = allChecked;
+          selectAllCheckbox.indeterminate = someChecked && !allChecked;
+          
+          updateBulkButtons();
+        });
+      });
+      
+      // Update bulk buttons state
+      function updateBulkButtons() {
+        const checkedCount = document.querySelectorAll('.rfq-checkbox:checked').length;
+        const hasChecked = checkedCount > 0;
+        
+        if (bulkSubmitBtn) {
+          bulkSubmitBtn.disabled = !hasChecked;
+          bulkSubmitBtn.textContent = `Submit Selected (${checkedCount})`;
+        }
+        
+        if (bulkExportBtn) {
+          bulkExportBtn.disabled = !hasChecked;
+          bulkExportBtn.textContent = `Export Selected (${checkedCount})`;
+        }
+      }
+      
+      // Initialize
+      updateBulkButtons();
+    }
+    
+    // Date range picker
+    const dateRangeInput = document.querySelector('.date-range-picker');
+    if (dateRangeInput) {
+      // You can initialize a date range picker library here
+      // Example with vanilla JavaScript:
+      dateRangeInput.addEventListener('focus', function() {
+        this.type = 'date';
+      });
+      
+      dateRangeInput.addEventListener('blur', function() {
+        if (!this.value) {
+          this.type = 'text';
+          this.placeholder = 'YYYY-MM-DD - YYYY-MM-DD';
+        }
+      });
+    }
+  });
+</script>

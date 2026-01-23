@@ -1,0 +1,170 @@
+<%# app/views/quotations/accept_items.html.erb %>
+<div class="container mt-4">
+  <h1>Review Quotation: <%= @quotation.quote_number %></h1>
+  
+  <div class="alert alert-info">
+    <h5>Instructions:</h5>
+    <p>Review the quotation items below. Check the boxes for items you want to accept. 
+       Items left unchecked will be excluded from the purchase order.</p>
+  </div>
+  
+  <%= form_with(url: convert_to_po_quotation_path(@quotation), method: :post, class: 'mb-4') do |f| %>
+    
+    <!-- Line Items Section -->
+    <% if @line_items.any? %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5>Parts & Materials</h5>
+        </div>
+        <div class="card-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Accept</th>
+                <th>Description</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+                <th>Specifications</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @line_items.each do |item| %>
+                <tr>
+                  <td>
+                    <%= check_box_tag "accepted_line_items[]", item.id, true, 
+                        class: 'form-check-input item-checkbox' %>
+                  </td>
+                  <td><%= item.description %></td>
+                  <td><%= item.quantity %></td>
+                  <td>$<%= number_with_precision(item.unit_price, precision: 2) %></td>
+                  <td>$<%= number_with_precision(item.total_price, precision: 2) %></td>
+                  <td><small class="text-muted"><%= item.specifications %></small></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+    
+    <!-- Jobs Section -->
+    <% if @quotation_jobs&.any? %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5>Labor & Services</h5>
+        </div>
+        <div class="card-body">
+          <% @quotation_jobs.each do |job| %>
+            <div class="mb-4 border-bottom pb-3">
+              <div class="d-flex align-items-center mb-2">
+                <%= check_box_tag "accepted_jobs[]", job.id, true, 
+                    class: 'form-check-input job-checkbox me-2',
+                    data: { job_id: job.id } %>
+                <h6 class="mb-0"><%= job.name %></h6>
+                <span class="badge bg-info ms-2">$<%= number_with_precision(job.total_labor_cost, precision: 2) %></span>
+              </div>
+              <p class="text-muted"><%= job.description %></p>
+              
+              <!-- Job Parts -->
+              <% if job.quotation_job_parts.any? %>
+                <div class="ms-4">
+                  <h6 class="text-muted mb-2">Required Parts:</h6>
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Accept</th>
+                        <th>Part</th>
+                        <th>Qty</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% job.quotation_job_parts.each do |part| %>
+                        <tr>
+                          <td>
+                            <%= check_box_tag "accepted_job_parts[]", part.id, true, 
+                                class: 'form-check-input part-checkbox',
+                                data: { job_id: job.id } %>
+                          </td>
+                          <td><%= part.part&.name || "Part" %></td>
+                          <td><%= part.quantity %></td>
+                          <td>$<%= number_with_precision(part.unit_price, precision: 2) %></td>
+                          <td>$<%= number_with_precision(part.total_price, precision: 2) %></td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    
+    <!-- Summary -->
+    <div class="card">
+      <div class="card-header">
+        <h5>Summary</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table">
+              <tr>
+                <th>Vendor:</th>
+                <td><%= @quotation.vendor %></td>
+              </tr>
+              <tr>
+                <th>Vehicle:</th>
+                <td>
+                  <%= @quotation.vehicle&.license_plate %>
+                  <%= @quotation.vehicle&.make %> <%= @quotation.vehicle&.model %>
+                </td>
+              </tr>
+              <tr>
+                <th>Valid Until:</th>
+                <td><%= @quotation.valid_to.strftime('%b %d, %Y') %></td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-warning">
+              <h6>Quotation Total: $<%= number_with_precision(@quotation.amount, precision: 2) %></h6>
+              <p class="mb-0">Accepted items total will be calculated when you proceed.</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between">
+          <%= link_to 'Back to Quotation', quotation_path(@quotation), class: 'btn btn-secondary' %>
+          <div>
+            <%= f.submit 'Reject All', name: 'reject_all', class: 'btn btn-danger me-2', 
+                  data: { confirm: 'Are you sure you want to reject this entire quotation?' } %>
+            <%= f.submit 'Create Purchase Order', class: 'btn btn-success',
+                  data: { confirm: 'Create purchase order with selected items only?' } %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  // Add JavaScript to manage checkboxes
+  document.addEventListener('DOMContentLoaded', function() {
+    // When job checkbox is unchecked, uncheck all its parts
+    document.querySelectorAll('.job-checkbox').forEach(function(checkbox) {
+      checkbox.addEventListener('change', function() {
+        const jobId = this.dataset.jobId;
+        const partCheckboxes = document.querySelectorAll(`.part-checkbox[data-job-id="${jobId}"]`);
+        partCheckboxes.forEach(function(partCheckbox) {
+          partCheckbox.checked = this.checked;
+        }.bind(this));
+      });
+    });
+  });
+</script>

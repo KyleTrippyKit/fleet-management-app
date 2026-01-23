@@ -39,10 +39,6 @@
               <div class="d-flex justify-content-end flex-wrap gap-2">
                 <%= link_to 'Print', print_quotation_path(@quotation), 
                     class: 'btn btn-outline-secondary', target: '_blank' %>
-                <%= link_to 'Export CSV', export_quotations_path(format: :csv), 
-                    class: 'btn btn-outline-info' %>
-                <%= link_to 'Email', email_quotation_path(@quotation), 
-                    class: 'btn btn-outline-primary' %>
                 <%= link_to 'Back to List', quotations_path, 
                     class: 'btn btn-outline-dark' %>
               </div>
@@ -72,7 +68,7 @@
                     <table class="table table-sm table-borderless">
                       <tbody>
                         <tr>
-                          <td class="text-muted" style="width: 40%">RFQ Number:</td>
+                          <td class="text-muted" style="width: 40%">Quotation Number:</td>
                           <td class="fw-bold"><%= @quotation.quote_number %></td>
                         </tr>
                         <tr>
@@ -90,12 +86,18 @@
                         <tr>
                           <td class="text-muted">Response Due:</td>
                           <td class="fw-bold <%= @quotation.expired? ? 'text-danger' : 'text-success' %>">
-                            <%= @quotation.valid_to&.strftime("%d %B, %Y") || "14 days from issue" %>
+                            <%= @quotation.valid_to&.strftime("%d %B, %Y") || "30 days from issue" %>
                             <% if @quotation.valid_to %>
                               <br><small class="text-muted">(Closes at 16:00 hrs)</small>
                             <% end %>
                           </td>
                         </tr>
+                        <% if @quotation.sent_at %>
+                          <tr>
+                            <td class="text-muted">Sent to Agency:</td>
+                            <td class="fw-bold"><%= @quotation.sent_at.strftime("%d %B, %Y") %></td>
+                          </tr>
+                        <% end %>
                       </tbody>
                     </table>
                   </div>
@@ -163,6 +165,10 @@
                                       <td class="text-muted">VIN/Chassis:</td>
                                       <td class="fw-bold"><%= @quotation.vehicle.chassis_number || 'N/A' %></td>
                                     </tr>
+                                    <tr>
+                                      <td class="text-muted">Agency:</td>
+                                      <td class="fw-bold"><%= @quotation.agency_name %></td>
+                                    </tr>
                                   </tbody>
                                 </table>
                               </div>
@@ -185,16 +191,31 @@
                           <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i><%= @quotation.vendor %></h6>
                         </div>
                         <div class="card-body">
-                          <p class="mb-2 small">
-                            <i class="bi bi-card-checklist me-1"></i>
-                            <strong>Vendor Requirements:</strong>
-                          </p>
-                          <ul class="mb-0 small">
-                            <li>Valid Certificate of Compliance (BIR)</li>
-                            <li>Company Registration Certificate</li>
-                            <li>VAT Registration Certificate</li>
-                            <li>Valid Insurance Certificate</li>
-                          </ul>
+                          <% if @quotation.vendor == 'VMCOTT' %>
+                            <p class="mb-2 small">
+                              <i class="bi bi-geo-alt me-1"></i>
+                              <strong>Address:</strong> Wrightson Road, Port of Spain, Trinidad and Tobago
+                            </p>
+                            <p class="mb-2 small">
+                              <i class="bi bi-telephone me-1"></i>
+                              <strong>Telephone:</strong> (868) 625-VMCT (8628)
+                            </p>
+                            <p class="mb-0 small">
+                              <i class="bi bi-envelope me-1"></i>
+                              <strong>Email:</strong> quotations@vmcott.gov.tt
+                            </p>
+                          <% else %>
+                            <p class="mb-2 small">
+                              <i class="bi bi-card-checklist me-1"></i>
+                              <strong>Vendor Requirements:</strong>
+                            </p>
+                            <ul class="mb-0 small">
+                              <li>Valid Certificate of Compliance (BIR)</li>
+                              <li>Company Registration Certificate</li>
+                              <li>VAT Registration Certificate</li>
+                              <li>Valid Insurance Certificate</li>
+                            </ul>
+                          <% end %>
                         </div>
                       </div>
                     </div>
@@ -305,7 +326,7 @@
                         <tbody>
                           <tr>
                             <td class="text-muted">Quotation Submission:</td>
-                            <td class="fw-bold"><%= @quotation.valid_to&.strftime("%d %b %Y") || "Within 7 days" %></td>
+                            <td class="fw-bold"><%= @quotation.valid_to&.strftime("%d %b %Y") || "Within 30 days" %></td>
                           </tr>
                           <tr>
                             <td class="text-muted">Work Commencement:</td>
@@ -356,9 +377,11 @@
             </div>
             <div class="card-body">
               <div class="timeline">
-                <% @timeline_events.each do |event| %>
+                <% @quotation.timeline_events.each do |event| %>
                   <div class="timeline-item <%= event[:active] ? 'active' : '' %>">
-                    <div class="timeline-point"></div>
+                    <div class="timeline-point">
+                      <i class="bi bi-<%= event[:icon] %>"></i>
+                    </div>
                     <div class="ms-4">
                       <h6 class="fw-bold mb-1"><%= event[:event] %></h6>
                       <p class="text-muted mb-1 small"><%= event[:date]&.strftime('%d %B, %Y %I:%M %p') %></p>
@@ -386,9 +409,9 @@
                   <i class="bi bi-geo-alt me-1"></i>
                   <%= agency.code == 'PTSC' ? 'PTS House, South Quay' : 
                       agency.code == 'TTPS' ? 'Police Headquarters, St Vincent Street' :
-                      agency.code == 'TTDF' ? 'Fire Headquarters, Wrightson Road' :
-                      agency.code == 'VMCOTT' ? 'Ministry of Works, Port of Spain' :
-                      'Administrative Office' %>, Port of Spain
+                      agency.code == 'TTDF' ? 'Camp Ogden, Long Circular Road' :
+                      agency.code == 'VMCOTT' ? 'Wrightson Road, Port of Spain' :
+                      'Administrative Office' %>, Trinidad and Tobago
                 </p>
               <% end %>
               <p class="mb-1 small"><i class="bi bi-telephone me-1"></i> (868) 623-XXXXXX</p>
@@ -409,7 +432,7 @@
                 <p class="fw-bold mb-2">Submission Methods:</p>
                 <ul class="small mb-3">
                   <li><strong>Email:</strong> procurement@<%= @quotation.vehicle&.agency&.code&.downcase || 'agency' %>.gov.tt</li>
-                  <li><strong>Subject:</strong> RFQ <%= @quotation.quote_number %> - [Your Company]</li>
+                  <li><strong>Subject:</strong> Quotation <%= @quotation.quote_number %> - <%= @quotation.vendor %></li>
                   <li><strong>Format:</strong> PDF documents only</li>
                 </ul>
               </div>
@@ -436,7 +459,7 @@
             </div>
           </div>
 
-          <!-- Action Buttons -->
+          <!-- Quotation Actions -->
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-light py-3">
               <h5 class="mb-0 fw-bold">
@@ -446,36 +469,74 @@
             </div>
             <div class="card-body">
               <div class="d-grid gap-2">
-                <% if @quotation.can_be_edited? && current_user.can_edit_quotations? %>
-                  <%= link_to 'Edit Quotation', edit_quotation_path(@quotation), class: 'btn btn-primary' %>
+                <% if @quotation.can_be_edited? && current_user.agency&.code == 'VMCOTT' %>
+                  <%= link_to edit_quotation_path(@quotation), class: 'btn btn-outline-secondary' do %>
+                    <i class="bi bi-pencil me-1"></i> Edit Quotation
+                  <% end %>
                 <% end %>
                 
-                <%= link_to 'Duplicate', duplicate_quotation_path(@quotation), method: :get, class: 'btn btn-outline-warning' %>
-                
-                <% if @quotation.can_be_sent? && current_user.can_send_quotations? %>
-                  <%= link_to 'Send to Vendor', send_to_vendor_quotation_path(@quotation), method: :post, 
-                      class: 'btn btn-info', data: { confirm: 'Send this quotation to vendor?' } %>
+                <% if @quotation.can_be_sent? && current_user.agency&.code == 'VMCOTT' %>
+                  <%= button_to send_to_vendor_quotation_path(@quotation), 
+                        method: :post,
+                        class: 'btn btn-success',
+                        data: { 
+                          turbo_confirm: 'Are you sure you want to send this quotation to the agency? This will notify them and lock the quotation for editing.' 
+                        } do %>
+                    <i class="bi bi-send me-1"></i> Send to Agency
+                  <% end %>
                 <% end %>
                 
-                <% if @quotation.can_be_accepted? && current_user.can_accept_quotations? %>
-                  <%= link_to 'Accept Quotation', accept_quotation_path(@quotation), method: :post, 
-                      class: 'btn btn-success', data: { confirm: 'Accept this quotation?' } %>
+                <% if current_user.agency&.code == 'VMCOTT' %>
+                  <%= button_to duplicate_quotation_path(@quotation), 
+                        method: :post,
+                        class: 'btn btn-outline-info' do %>
+                    <i class="bi bi-files me-1"></i> Duplicate Quotation
+                  <% end %>
                 <% end %>
                 
-                <% if @quotation.can_be_rejected? && current_user.can_reject_quotations? %>
-                  <%= button_to 'Reject Quotation', reject_quotation_path(@quotation), method: :post, 
-                      class: 'btn btn-danger', data: { confirm: 'Reject this quotation?' } %>
+                <!-- Agency actions (accept/reject) -->
+                <% if current_user.agency&.code != 'VMCOTT' && @quotation.status == 'sent' %>
+                  <%= button_to accept_quotation_path(@quotation), 
+                        method: :post,
+                        class: 'btn btn-success',
+                        data: { 
+                          turbo_confirm: 'Are you sure you want to accept this quotation? This will create a purchase order.' 
+                        } do %>
+                    <i class="bi bi-check-circle me-1"></i> Accept Quotation
+                  <% end %>
+                  
+                  <%= button_to reject_quotation_path(@quotation), 
+                        method: :post,
+                        class: 'btn btn-danger',
+                        data: { 
+                          turbo_confirm: 'Are you sure you want to reject this quotation?' 
+                        } do %>
+                    <i class="bi bi-x-circle me-1"></i> Reject Quotation
+                  <% end %>
+                  
+                  <%= link_to accept_items_quotation_path(@quotation), class: 'btn btn-outline-warning' do %>
+                    <i class="bi bi-check2-all me-1"></i> Accept/Reject Items
+                  <% end %>
                 <% end %>
                 
-                <% if @quotation.can_be_converted_to_po? && current_user.can_convert_quotations_to_po? %>
-                  <%= link_to 'Convert to PO', convert_to_purchase_order_quotation_path(@quotation), method: :post, 
-                      class: 'btn btn-primary', data: { confirm: 'Convert to purchase order?' } %>
+                <% if @quotation.can_be_converted_to_po? && @quotation.status == 'accepted' %>
+                  <%= link_to convert_to_purchase_order_quotation_path(@quotation), method: :post,
+                        class: 'btn btn-primary',
+                        data: { 
+                          turbo_confirm: 'Are you sure you want to convert this quotation to a purchase order?' 
+                        } do %>
+                    <i class="bi bi-cart-check me-1"></i> Convert to PO
+                  <% end %>
                 <% end %>
                 
-                <% if @quotation.can_be_edited? && current_user.can_delete_quotations? %>
-                  <%= link_to 'Delete Quotation', @quotation, method: :delete, 
-                      class: 'btn btn-outline-danger mt-3', 
-                      data: { confirm: 'Are you sure? This action cannot be undone.' } %>
+                <% if @quotation.can_be_edited? && current_user.agency&.code == 'VMCOTT' %>
+                  <%= link_to @quotation, method: :delete, 
+                        class: 'btn btn-outline-danger mt-3', 
+                        data: { 
+                          turbo_confirm: 'Are you sure you want to delete this quotation? This action cannot be undone.' 
+                        } do %>
+                    <i class="bi bi-trash me-1"></i> Delete Quotation
+                  <% end %>
                 <% end %>
               </div>
             </div>
@@ -486,7 +547,6 @@
   </div>
 </div>
 
-<!-- Custom CSS for Quotation View -->
 <style>
   .agency-header-card {
     border-radius: 8px;
@@ -538,7 +598,7 @@
   .timeline::before {
     content: '';
     position: absolute;
-    left: 8px;
+    left: 25px;
     top: 0;
     bottom: 0;
     width: 2px;
@@ -553,17 +613,21 @@
   .timeline-point {
     position: absolute;
     left: -20px;
-    top: 5px;
-    width: 12px;
-    height: 12px;
+    top: 0;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: #dee2e6;
     border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     z-index: 1;
   }
   
   .timeline-item.active .timeline-point {
     background: #0d6efd;
+    color: white;
   }
   
   /* Responsive adjustments */
@@ -574,8 +638,9 @@
     
     .timeline-point {
       left: -15px;
-      width: 10px;
-      height: 10px;
+      width: 25px;
+      height: 25px;
+      font-size: 0.8rem;
     }
   }
   

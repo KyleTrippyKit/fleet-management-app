@@ -1,0 +1,159 @@
+<%# app/views/shared/_navigation.html.erb %>
+<div class="mb-4">
+  <div class="card border-0 shadow-sm nav-card">
+    <div class="card-body p-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between">
+        <div class="d-flex flex-wrap gap-2">
+          <% nav_items = [] %>
+
+          <!-- ============================= -->
+          <!-- DASHBOARD (Agency-specific) -->
+          <!-- ============================= -->
+          <% case current_user.agency&.code %>
+          <% when 'PTSC' %>
+            <% nav_items << ["📊 PTSC Dashboard", ptsc_dashboard_path] if can_access_dashboard? %>
+          <% when 'TTPS' %>
+            <% nav_items << ["📊 TTPS Dashboard", ttps_dashboard_path] if can_access_dashboard? %>
+          <% when 'TTDF' %>
+            <% nav_items << ["📊 TTDF Dashboard", ttdf_dashboard_path] if can_access_dashboard? %>
+          <% when 'VMCOTT' %>
+            <% nav_items << ["📊 VMCOTT Dashboard", vmcott_dashboard_path] if can_access_dashboard? %>
+          <% else %>
+            <% nav_items << ["📊 Main Dashboard", main_dashboard_path] if can_access_dashboard? %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- AGENCY-SPECIFIC RFQ WORKFLOW -->
+          <!-- ============================= -->
+          <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
+            <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
+              <!-- Agency fleet managers/supervisors can create RFQs -->
+              <% nav_items << ["📝 New RFQ", new_agency_rfq_path(current_user.agency)] %>
+              <% nav_items << ["📨 Sent RFQs", sent_rfqs_path] %>
+            <% end %>
+            
+            <% if current_user.finance? || current_user.admin? %>
+              <!-- Agency finance reviews received quotations -->
+              <% nav_items << ["📋 Quotations Received", received_quotations_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- VMCOTT-SPECIFIC WORKFLOW -->
+          <!-- ============================= -->
+          <% if current_user.agency.present? && current_user.agency.code == 'VMCOTT' %>
+            <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
+              <% nav_items << ["📥 RFQ Inbox", vmcott_rfq_inbox_path] %>
+              <% nav_items << ["📊 Quotation Workspace", vmcott_quotation_workspace_path] %>
+              <% nav_items << ["🔧 Job Templates", job_templates_path] %>
+              <% nav_items << ["🧾 Internal POS", vmcott_internal_pos_path] %>
+            <% end %>
+            
+            <% if current_user.finance? || current_user.admin? %>
+              <% nav_items << ["⚙️ Labor Rates", vmcott_labor_rates_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- FLEET MANAGEMENT -->
+          <!-- ============================= -->
+          <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
+            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
+              <!-- Agencies see their own fleet -->
+              <% nav_items << ["🚗 My Fleet", agency_vehicles_path(current_user.agency)] %>
+              <% nav_items << ["👥 Drivers", drivers_path] %>
+              <% nav_items << ["⚙️ Maintenance", maintenances_path] %>
+              <% nav_items << ["🚨 Alerts", alerts_path] %>
+            <% elsif current_user.agency.present? && current_user.agency.code == 'VMCOTT' %>
+              <!-- VMCOTT sees all fleets -->
+              <% nav_items << ["🚗 All Fleets", vehicles_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- ANALYTICS -->
+          <!-- ============================= -->
+          <% if (current_user.fleet_manager? || current_user.supervisor? || current_user.admin?) && current_user.agency_id.present? %>
+            <% if current_user.agency.code != 'VMCOTT' %>
+              <!-- Agencies see their own analytics -->
+              <% nav_items << ["📈 Analytics", agency_analytics_path(current_user.agency)] %>
+            <% else %>
+              <!-- VMCOTT sees all analytics -->
+              <% nav_items << ["📈 All Analytics", analytics_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- FINANCIAL MODULES -->
+          <!-- ============================= -->
+          <% if current_user.finance? || current_user.admin? %>
+            <!-- Shared across all agencies -->
+            <% nav_items << ["🧾 Invoices", invoices_path] %>
+            <% nav_items << ["📋 Purchase Orders", purchase_orders_path] %>
+            <% nav_items << ["📄 Quotations", quotations_path] %>
+            <% nav_items << ["💳 Transactions", transactions_path] %>
+            
+            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
+              <!-- Agency finance sees their POS -->
+              <% nav_items << ["🧾 POS", pos_transactions_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- PAYMENT & AGING MODULES -->
+          <!-- ============================= -->
+          <% if current_user.finance? || current_user.admin? %>
+            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
+              <!-- Agency finance sees payment tools -->
+              <% nav_items << ["💰 Invoice Aging", aging_report_invoices_path] %>
+              <% nav_items << ["💸 Bulk Payments", bulk_payment_interface_path] %>
+              <% nav_items << ["📊 Payment Dashboard", payment_dashboard_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- ACCOUNTING SYSTEM -->
+          <!-- ============================= -->
+          <% if current_user.finance? || current_user.admin? %>
+            <!-- Only accessible to finance users -->
+            <% nav_items << ["📒 Accounting", accounting_dashboard_path] %>
+            <% nav_items << ["📊 Accounts Payable", accounts_payable_index_path] %>
+            <% nav_items << ["💵 Monthly Statements", monthly_statements_path] %>
+            <% nav_items << ["🏦 Bank Reconciliation", bank_reconciliation_path] %>
+            
+            <% if current_user.agency_id.present? %>
+              <% nav_items << ["📊 QuickBooks", quickbooks_dashboard_path] %>
+            <% end %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- ADMIN TOOLS -->
+          <!-- ============================= -->
+          <% if current_user.admin? %>
+            <% nav_items << ["🚀 Quick Reports", quick_reports_path] %>
+            <% nav_items << ["🎨 Themes", themes_vehicles_path] %>
+            <% nav_items << ["👥 User Management", admin_users_path] if respond_to?(:admin_users_path) %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- DRIVER-SPECIFIC VIEW -->
+          <!-- ============================= -->
+          <% if current_user.driver? %>
+            <% nav_items << ["🚗 My Vehicle", driver_vehicle_path] if respond_to?(:driver_vehicle_path) %>
+            <% nav_items << ["📋 My Trips", driver_trips_path] if respond_to?(:driver_trips_path) %>
+            <% nav_items << ["📝 Report Issue", new_driver_issue_path] if respond_to?(:new_driver_issue_path) %>
+          <% end %>
+
+          <!-- ============================= -->
+          <!-- RENDER NAVIGATION -->
+          <!-- ============================= -->
+          <% nav_items.uniq.each do |label, path| %>
+            <%= link_to label, path,
+              class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-medium #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" %>
+          <% end %>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

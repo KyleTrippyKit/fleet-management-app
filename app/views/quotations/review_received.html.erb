@@ -1,0 +1,70 @@
+<div class="container mt-4">
+  <h1><i class="bi bi-clipboard-check"></i> Quotations Received</h1>
+  <p class="text-muted">Review and accept quotations from VMCOTT</p>
+  
+  <% if @quotations.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Quote #</th>
+            <th>RFQ #</th>
+            <th>Vehicle</th>
+            <th>Total Amount</th>
+            <th>Valid Until</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @quotations.each do |quotation| %>
+            <tr>
+              <td><strong><%= quotation.quote_number %></strong></td>
+              <td>
+                <%= quotation.rfq&.rfq_number %>
+                <br>
+                <small class="text-muted"><%= quotation.rfq&.description&.truncate(30) %></small>
+              </td>
+              <td>
+                <%= quotation.vehicle&.license_plate %>
+                <br>
+                <small class="text-muted">
+                  <%= quotation.vehicle&.make %> <%= quotation.vehicle&.model %>
+                </small>
+              </td>
+              <td>$<%= number_with_precision(quotation.amount, precision: 2) %></td>
+              <td><%= quotation.valid_to.strftime('%b %d, %Y') %></td>
+              <td>
+                <span class="badge bg-<%= quotation_status_badge(quotation.status) %>">
+                  <%= quotation.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="btn-group-vertical btn-group-sm">
+                  <%= link_to 'Review', quotation_path(quotation), 
+                      class: 'btn btn-outline-primary btn-sm mb-1' %>
+                  
+                  <% if quotation.status == 'pending' %>
+                    <%= link_to 'Accept Items', accept_items_quotation_path(quotation), 
+                        class: 'btn btn-outline-success btn-sm mb-1' %>
+                    
+                    <%= link_to 'Reject', reject_quotation_path(quotation), 
+                        method: :post,
+                        data: { confirm: 'Reject this quotation?' },
+                        class: 'btn btn-outline-danger btn-sm mb-1' %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      
+      <%= paginate @quotations %>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-clipboard"></i> No quotations received.
+    </div>
+  <% end %>
+</div>

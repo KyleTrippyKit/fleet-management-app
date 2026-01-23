@@ -1,77 +1,207 @@
-<%# app/views/layouts/pdf.html.erb - SIMPLIFIED %>
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
-    <title><%= yield(:title) || "ActivePlus Report" %></title>
+    <title><%= @page_title || "RFQ: #{@rfq.rfq_number}" %></title>
     
-    <!-- Use inline CSS only -->
     <style type="text/css">
-      /* Simple, wkhtmltopdf-friendly CSS */
+      /* Optimized wkhtmltopdf styles */
       body {
         font-family: Arial, Helvetica, sans-serif;
         font-size: 12px;
-        color: #000000;
         line-height: 1.4;
+        color: #000;
         margin: 0;
-        padding: 0;
+        padding: 20px;
       }
       
-      h1 { font-size: 20px; margin: 0 0 10px 0; }
-      h2 { font-size: 16px; margin: 15px 0 8px 0; }
-      h3 { font-size: 14px; margin: 12px 0 6px 0; }
+      /* Header */
+      .document-header {
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 3px solid #DA291C;
+      }
       
-      table {
+      .document-header h1 {
+        font-size: 24px;
+        margin: 0 0 10px 0;
+        color: #DA291C;
+        font-weight: bold;
+      }
+      
+      .document-header h2 {
+        font-size: 18px;
+        margin: 0;
+        color: #333;
+        font-weight: normal;
+      }
+      
+      /* Sections */
+      .section {
+        margin-bottom: 25px;
+        page-break-inside: avoid;
+      }
+      
+      .section-header {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-bottom: none;
+        padding: 10px 15px;
+        margin: 0;
+      }
+      
+      .section-header h3 {
+        font-size: 16px;
+        margin: 0;
+        color: #333;
+      }
+      
+      .section-body {
+        border: 1px solid #dee2e6;
+        padding: 15px;
+      }
+      
+      /* Tables */
+      .info-table {
         width: 100%;
         border-collapse: collapse;
-        margin: 10px 0;
       }
       
-      th {
-        background-color: #f2f2f2;
-        border: 1px solid #cccccc;
-        padding: 6px;
+      .info-table th,
+      .info-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        vertical-align: top;
+      }
+      
+      .info-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+        width: 30%;
+        font-size: 11px;
+      }
+      
+      .info-table td {
+        font-size: 11px;
+      }
+      
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10px;
+      }
+      
+      .items-table th {
+        background-color: #e9ecef;
+        border: 1px solid #dee2e6;
+        padding: 8px;
         text-align: left;
         font-weight: bold;
+      }
+      
+      .items-table td {
+        border: 1px solid #dee2e6;
+        padding: 8px;
+      }
+      
+      /* Badges */
+      .badge {
+        display: inline-block;
+        padding: 4px 8px;
         font-size: 11px;
+        font-weight: bold;
+        border-radius: 4px;
+        color: white;
       }
       
-      td {
-        border: 1px solid #cccccc;
-        padding: 6px;
-        text-align: left;
-        font-size: 11px;
-      }
+      .bg-draft { background-color: #6c757d; }
+      .bg-submitted { background-color: #17a2b8; }
+      .bg-under_review { background-color: #ffc107; color: #000; }
+      .bg-quoted { background-color: #6f42c1; }
+      .bg-converted { background-color: #28a745; }
+      .bg-accepted { background-color: #20c997; }
+      .bg-rejected { background-color: #dc3545; }
+      .bg-warning { background-color: #ffc107; color: #000; }
+      .bg-danger { background-color: #dc3545; }
       
-      .header {
-        text-align: center;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #DA291C;
-      }
-      
-      .footer {
-        margin-top: 30px;
+      /* Footer */
+      .document-footer {
+        margin-top: 50px;
         padding-top: 10px;
-        border-top: 1px solid #cccccc;
+        border-top: 1px solid #ccc;
         font-size: 10px;
-        color: #666666;
+        color: #666;
         text-align: center;
       }
       
-      .currency {
-        text-align: right;
-        font-family: 'Courier New', monospace;
+      /* Utility */
+      .text-muted {
+        color: #6c757d !important;
       }
       
-      /* Page break handling */
-      .page-break {
-        page-break-before: always;
+      .small {
+        font-size: 85%;
       }
       
-      /* Avoid breaking inside tables */
-      table, tr, td, th {
+      .mb-0 { margin-bottom: 0 !important; }
+      .mb-1 { margin-bottom: 5px !important; }
+      .mb-2 { margin-bottom: 10px !important; }
+      
+      /* Avoid page breaks inside important sections */
+      .no-break {
         page-break-inside: avoid;
+      }
+      
+      /* Two-column layout for RFQ details */
+      .details-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      
+      .detail-item {
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        border-radius: 4px;
+        background-color: #f8f9fa;
+      }
+      
+      .detail-label {
+        font-weight: bold;
+        font-size: 10px;
+        color: #495057;
+        margin-bottom: 5px;
+        display: block;
+      }
+      
+      .detail-value {
+        font-size: 11px;
+      }
+      
+      /* Vehicle info box */
+      .vehicle-box {
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+      }
+      
+      /* Special instructions */
+      .special-instructions {
+        background-color: #e7f3fe;
+        border: 1px solid #b6d4fe;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+      
+      /* Print-specific styles */
+      @media print {
+        .no-print {
+          display: none !important;
+        }
       }
     </style>
   </head>

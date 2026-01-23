@@ -63,3 +63,6 @@ gem 'caxlsx'
 # Replace old axlsx with modern caxlsx
 gem 'caxlsx'
 gem 'caxlsx_rails'
+
+gem 'cocoon'
+gem "pundit", "~> 2.5"

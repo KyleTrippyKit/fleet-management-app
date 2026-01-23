@@ -1,0 +1,36 @@
+<%# app/views/quotations/received.html.erb %>
+<h1>Quotations Received</h1>
+
+<% if @quotations.any? %>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Quote #</th>
+        <th>Vendor</th>
+        <th>Amount</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @quotations.each do |quote| %>
+        <tr>
+          <td><%= quote.quote_number %></td>
+          <td><%= quote.vendor %></td>
+          <td>$<%= number_with_precision(quote.amount, precision: 2) %></td>
+          <td><%= quote.created_at.strftime('%b %d, %Y') %></td>
+          <td><span class="badge bg-<%= quote.status == 'accepted' ? 'success' : 'warning' %>"><%= quote.status.humanize %></span></td>
+          <td>
+            <%= link_to 'Review', quotation_path(quote), class: 'btn btn-sm btn-primary' %>
+            <%= link_to 'Accept Items', accept_items_quotation_path(quote), class: 'btn btn-sm btn-success' %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <div class="alert alert-info">
+    No quotations received yet.
+  </div>
+<% end %>

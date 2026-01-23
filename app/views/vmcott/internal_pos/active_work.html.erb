@@ -1,0 +1,108 @@
+<%# app/views/vmcott/internal_pos/active_work.html.erb %>
+<div class="container mt-4">
+  <h1>Active Work</h1>
+  <p class="text-muted">Currently pending and in-progress internal POS</p>
+  
+  <% if @internal_pos_list.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>POS #</th>
+            <th>PO #</th>
+            <th>Vehicle</th>
+            <th>Assigned To</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Est. Completion</th>
+            <th>Days Left</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @internal_pos_list.each do |pos| %>
+            <tr>
+              <td><strong><%= pos.work_order_number %></strong></td>
+              <td>
+                <% if pos.purchase_order %>
+                  <%= link_to pos.purchase_order.po_number, purchase_order_path(pos.purchase_order) %>
+                <% else %>
+                  <span class="text-muted">N/A</span>
+                <% end %>
+              </td>
+              <td>
+                <%= pos.vehicle&.license_plate %>
+                <br>
+                <small class="text-muted">
+                  <%= pos.vehicle&.make %> <%= pos.vehicle&.model %>
+                </small>
+              </td>
+              <td><%= pos.assigned_to&.name || 'Unassigned' %></td>
+              <td>
+                <span class="badge bg-<%= pos_priority_badge(pos.priority) %>">
+                  <%= pos.priority.humanize %>
+                </span>
+              </td>
+              <td>
+                <span class="badge bg-<%= pos_status_badge(pos.status) %>">
+                  <%= pos.status.humanize %>
+                </span>
+              </td>
+              <td><%= pos.estimated_completion_date&.strftime('%b %d, %Y') || 'Not set' %></td>
+              <td>
+                <% if pos.estimated_completion_date %>
+                  <% days_left = (pos.estimated_completion_date - Date.today).to_i %>
+                  <span class="badge bg-<%= days_left <= 0 ? 'danger' : (days_left <= 2 ? 'warning' : 'success') %>">
+                    <%= days_left %> days
+                  </span>
+                <% else %>
+                  <span class="text-muted">N/A</span>
+                <% end %>
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <%= link_to 'View', vmcott_internal_pos_path(pos), class: 'btn btn-outline-primary' %>
+                  <% if pos.pending? %>
+                    <%= link_to 'Start', mark_in_progress_vmcott_internal_pos_path(pos), 
+                        method: :post, class: 'btn btn-outline-success',
+                        data: { confirm: 'Mark as in progress?' } %>
+                  <% elsif pos.in_progress? %>
+                    <%= link_to 'Complete', mark_completed_vmcott_internal_pos_path(pos), 
+                        method: :post, class: 'btn btn-outline-success',
+                        data: { confirm: 'Mark as completed?' } %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <%= paginate @internal_pos_list %>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-clipboard-check"></i> No active work at the moment.
+      <%= link_to 'View All POS', vmcott_internal_pos_index_path, class: 'btn btn-link' %>
+    </div>
+  <% end %>
+</div>
+
+<% def pos_priority_badge(priority) 
+  case priority
+  when 'urgent' then 'danger'
+  when 'high' then 'warning'
+  when 'normal' then 'info'
+  when 'low' then 'secondary'
+  else 'secondary'
+  end
+end %>
+
+<% def pos_status_badge(status)
+  case status
+  when 'pending' then 'warning'
+  when 'in_progress' then 'info'
+  when 'completed' then 'success'
+  when 'cancelled' then 'danger'
+  else 'secondary'
+  end
+end %>

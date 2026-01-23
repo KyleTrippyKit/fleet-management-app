@@ -1,0 +1,566 @@
+<%# app/views/quotations/convert_from_rfq.html.erb - REVISED TWO-PHASE WORKFLOW %>
+<div class="container mt-4">
+  <!-- Two-Phase Workflow Header -->
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary text-white">
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h4 class="mb-0"><i class="bi bi-wrench"></i> Create Quotation from RFQ</h4>
+        </div>
+        <div class="col-md-4 text-end">
+          <div class="badge bg-light text-dark fs-6">
+            <span class="text-primary">Step 1/2</span> | Choose Method
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <p class="mb-2"><strong>RFQ:</strong> <%= @rfq.rfq_number %></p>
+          <p class="mb-2"><strong>Agency:</strong> <%= @rfq.requesting_agency.name %></p>
+          <p class="mb-0"><strong>Vehicle:</strong> <%= @rfq.vehicle&.license_plate %> - <%= @rfq.vehicle&.make %> <%= @rfq.vehicle&.model %></p>
+        </div>
+        <div class="col-md-4 text-end">
+          <div class="alert alert-info mb-0">
+            <small>
+              <i class="bi bi-info-circle"></i> 
+              <strong>NEW:</strong> Enhanced job assignment workflow available
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-Phase Workflow Selection -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100 border-success shadow-sm">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Two-Phase Workflow (Recommended)</h5>
+        </div>
+        <div class="card-body">
+          <div class="text-center mb-3">
+            <div class="display-1 text-success mb-3">
+              <i class="bi bi-1-circle"></i><i class="bi bi-arrow-right mx-2"></i><i class="bi bi-2-circle"></i>
+            </div>
+            <h5>Phase 1: Job Assignment</h5>
+            <p class="text-muted">
+              Assign RFQ items to standard jobs and set labor rates
+            </p>
+            <ul class="list-unstyled text-start">
+              <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Select from predefined job templates</li>
+              <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Assign RFQ items to specific jobs</li>
+              <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Set labor rates and hours</li>
+              <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i> Automatic labor cost calculation</li>
+            </ul>
+            <h5 class="mt-4">Phase 2: Pricing & Formatting</h5>
+            <p class="text-muted">
+              Set detailed prices and create professional quotation
+            </p>
+          </div>
+        </div>
+        <div class="card-footer text-center bg-light">
+          <%# FIXED: Use POST method to create quotation first, then redirect %>
+          <%= form_with url: create_and_assign_quotations_path(rfq_id: @rfq.id), method: :post do |f| %>
+            <%= f.submit "Start with Job Assignment →", 
+                  class: 'btn btn-success btn-lg w-100',
+                  data: { 
+                    disable_with: "Creating quotation and redirecting to job assignment..." 
+                  } %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card h-100 border-secondary">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-pencil"></i> Traditional Method</h5>
+        </div>
+        <div class="card-body">
+          <div class="text-center mb-3">
+            <div class="display-1 text-secondary mb-3">
+              <i class="bi bi-file-text"></i>
+            </div>
+            <p class="text-muted">
+              Single-step quotation creation with basic job support
+            </p>
+            <ul class="list-unstyled text-start">
+              <li class="mb-2"><i class="bi bi-arrow-right text-secondary me-2"></i> Add jobs manually (optional)</li>
+              <li class="mb-2"><i class="bi bi-arrow-right text-secondary me-2"></i> Set prices for RFQ items</li>
+              <li class="mb-2"><i class="bi bi-arrow-right text-secondary me-2"></i> Limited job-item assignment</li>
+              <li class="mb-2"><i class="bi bi-arrow-right text-secondary me-2"></i> Basic formatting</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-footer text-center bg-light">
+          <button type="button" class="btn btn-outline-secondary btn-lg w-100" 
+                  data-bs-toggle="collapse" data-bs-target="#traditionalForm">
+            Use Traditional Method
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Traditional Form (Collapsed by Default) -->
+  <div class="collapse" id="traditionalForm">
+    <div class="card mb-4">
+      <div class="card-header bg-secondary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Traditional Quotation Creation</h5>
+          <span class="badge bg-light text-dark">Basic Mode</span>
+        </div>
+      </div>
+      
+      <%= form_with(model: @quotation, url: quotations_path, local: true, 
+                    html: { class: 'needs-validation', novalidate: true }) do |f| %>
+        
+        <!-- Hidden Fields -->
+        <%= f.hidden_field :vehicle_id, value: @rfq.vehicle_id %>
+        <%= f.hidden_field :vendor, value: 'VMCOTT' %>
+        <%= f.hidden_field :rfq_id, value: @rfq.id %>
+        
+        <div class="row">
+          <!-- Left Column: RFQ Details -->
+          <div class="col-md-6">
+            <div class="card mb-4">
+              <div class="card-header">
+                <h5>RFQ Information</h5>
+              </div>
+              <div class="card-body">
+                <table class="table table-sm">
+                  <tr>
+                    <th>RFQ Number:</th>
+                    <td><%= @rfq.rfq_number %></td>
+                  </tr>
+                  <tr>
+                    <th>Agency:</th>
+                    <td><%= @rfq.requesting_agency.name %></td>
+                  </tr>
+                  <tr>
+                    <th>Vehicle:</th>
+                    <td>
+                      <%= @rfq.vehicle&.license_plate %><br>
+                      <small class="text-muted">
+                        <%= @rfq.vehicle&.make %> <%= @rfq.vehicle&.model %>
+                      </small>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Request Date:</th>
+                    <td><%= @rfq.request_date.strftime('%b %d, %Y') %></td>
+                  </tr>
+                  <tr>
+                    <th>Description:</th>
+                    <td><%= @rfq.description %></td>
+                  </tr>
+                  <% if @rfq.special_instructions.present? %>
+                    <tr>
+                      <th>Special Instructions:</th>
+                      <td><%= @rfq.special_instructions %></td>
+                    </tr>
+                  <% end %>
+                </table>
+                
+                <!-- RFQ Line Items -->
+                <% if @rfq.rfq_line_items.any? %>
+                  <h6 class="mt-3">Requested Items:</h6>
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Qty</th>
+                          <th>Specifications</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% @rfq.rfq_line_items.each do |item| %>
+                          <tr>
+                            <td><%= item.description %></td>
+                            <td><%= item.quantity %></td>
+                            <td><small class="text-muted"><%= item.specifications %></small></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Right Column: Quotation Builder -->
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header">
+                <h5>Build Quotation</h5>
+              </div>
+              <div class="card-body">
+                <!-- Basic Info -->
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <div class="mb-2">
+                      <%= f.label :valid_from, 'Valid From', class: 'form-label' %>
+                      <%= f.date_field :valid_from, class: 'form-control', required: true, 
+                            value: @quotation.valid_from || Date.today %>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="mb-2">
+                      <%= f.label :valid_to, 'Valid Until', class: 'form-label' %>
+                      <%= f.date_field :valid_to, class: 'form-control', required: true, 
+                            value: @quotation.valid_to || Date.today + 30.days %>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Quote Number -->
+                <div class="mb-3">
+                  <%= f.label :quote_number, 'Quote Number', class: 'form-label' %>
+                  <%= f.text_field :quote_number, class: 'form-control', 
+                        value: @quotation.quote_number || "Q-VMC-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}",
+                        required: true %>
+                </div>
+                
+                <!-- Job Templates Section -->
+                <div class="mb-4">
+                  <h6>Add Standard Jobs (Optional)</h6>
+                  <div class="border rounded p-3">
+                    <% if @job_templates.any? %>
+                      <div class="mb-3">
+                        <label class="form-label">Select Job Templates:</label>
+                        <select class="form-select" id="jobTemplateSelect">
+                          <option value="">Select a template...</option>
+                          <% @job_templates.each do |template| %>
+                            <option value="<%= template.id %>" 
+                                    data-name="<%= template.name %>"
+                                    data-hours="<%= template.standard_hours %>"
+                                    data-rate="<%= template.labor_rate_per_hour %>"
+                                    data-description="<%= template.description %>">
+                              <%= template.name %> 
+                              <% if template.standard_hours.present? %>
+                                (<%= template.standard_hours %> hrs)
+                              <% end %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </div>
+                      <button type="button" class="btn btn-outline-primary btn-sm" id="addJobTemplate">
+                        <i class="bi bi-plus"></i> Add Selected Template
+                      </button>
+                    <% else %>
+                      <p class="text-muted">No job templates available</p>
+                    <% end %>
+                  </div>
+                </div>
+                
+                <!-- Items from RFQ with prices -->
+                <div class="mb-4">
+                  <h6>Set Prices for Requested Items</h6>
+                  <% @quotation.quotation_line_items.each_with_index do |line_item, index| %>
+                    <%= f.fields_for :quotation_line_items, line_item do |li_fields| %>
+                      <div class="border rounded p-3 mb-2">
+                        <div class="row">
+                          <div class="col-md-6">
+                            <div class="mb-2">
+                              <strong><%= line_item.description %></strong>
+                            </div>
+                            <div class="text-muted">
+                              <small>
+                                Qty: <%= line_item.quantity %>
+                                <% if line_item.specifications.present? %>
+                                  <br><%= line_item.specifications %>
+                                <% end %>
+                              </small>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="mb-2">
+                              <%= li_fields.label :unit_price, 'Unit Price ($)', class: 'form-label' %>
+                              <%= li_fields.number_field :unit_price, class: 'form-control', 
+                                    step: '0.01', min: '0', required: true, placeholder: '0.00' %>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+                
+                <!-- Custom Jobs (optional) -->
+                <div class="mb-4">
+                  <h6>Add Custom Jobs (Optional)</h6>
+                  <div id="customJobs">
+                    <!-- Will be added via JavaScript -->
+                  </div>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="addCustomJob">
+                    <i class="bi bi-plus"></i> Add Custom Job
+                  </button>
+                </div>
+                
+                <!-- Notes -->
+                <div class="mb-3">
+                  <%= f.label :notes, 'Additional Notes', class: 'form-label' %>
+                  <%= f.text_area :notes, class: 'form-control', rows: 3, 
+                        value: @quotation.notes || "Converted from RFQ #{@rfq.rfq_number}\n#{@rfq.description}",
+                        placeholder: 'Add any notes about this quotation...' %>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="d-flex justify-content-between">
+                  <%= link_to 'Cancel', rfq_path(@rfq), class: 'btn btn-secondary' %>
+                  <div>
+                    <%= f.submit 'Save as Draft', name: 'save_as_draft', class: 'btn btn-outline-primary',
+                          data: { confirm: 'Save quotation as draft?' } %>
+                    <%= f.submit 'Submit to Agency', name: 'submit_to_agency', class: 'btn btn-success',
+                          data: { confirm: 'Submit this quotation to the agency?' } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for Traditional Form -->
+<%= javascript_tag do %>
+document.addEventListener('DOMContentLoaded', function() {
+  let jobCounter = 0;
+  
+  // Add job template
+  document.getElementById('addJobTemplate')?.addEventListener('click', function() {
+    const select = document.getElementById('jobTemplateSelect');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (!selectedOption.value) {
+      alert('Please select a job template first');
+      return;
+    }
+    
+    jobCounter++;
+    
+    const jobDiv = document.createElement('div');
+    jobDiv.className = 'border rounded p-3 mb-2 custom-job';
+    jobDiv.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <strong>${selectedOption.dataset.name}</strong>
+          <p class="text-muted mb-1">${selectedOption.dataset.description || ''}</p>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-job">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+      <div class="row">
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Estimated Hours</label>
+            <input type="number" name="quotation[quotation_jobs_attributes][${jobCounter}][estimated_hours]" 
+                   class="form-control form-control-sm" 
+                   value="${selectedOption.dataset.hours || '2'}" 
+                   step="0.5" min="0" required>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Rate per Hour ($)</label>
+            <input type="number" name="quotation[quotation_jobs_attributes][${jobCounter}][labor_rate_per_hour]" 
+                   class="form-control form-control-sm" 
+                   value="${selectedOption.dataset.rate || '75'}" 
+                   step="0.01" min="0" required>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Job Type</label>
+            <select name="quotation[quotation_jobs_attributes][${jobCounter}][job_type]" class="form-select form-select-sm">
+              <option value="template">Template</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" name="quotation[quotation_jobs_attributes][${jobCounter}][job_template_id]" 
+             value="${selectedOption.value}">
+      <input type="hidden" name="quotation[quotation_jobs_attributes][${jobCounter}][name]" 
+             value="${selectedOption.dataset.name}" required>
+      <input type="hidden" name="quotation[quotation_jobs_attributes][${jobCounter}][description]" 
+             value="${selectedOption.dataset.description || ''}">
+    `;
+    
+    document.getElementById('customJobs').appendChild(jobDiv);
+    
+    // Add remove functionality
+    jobDiv.querySelector('.remove-job').addEventListener('click', function() {
+      jobDiv.remove();
+    });
+    
+    // Clear selection
+    select.value = '';
+  });
+  
+  // Add custom job
+  document.getElementById('addCustomJob')?.addEventListener('click', function() {
+    jobCounter++;
+    
+    const jobDiv = document.createElement('div');
+    jobDiv.className = 'border rounded p-3 mb-2 custom-job';
+    jobDiv.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div class="w-100">
+          <div class="mb-2">
+            <label class="form-label">Job Name *</label>
+            <input type="text" name="quotation[quotation_jobs_attributes][${jobCounter}][name]" 
+                   class="form-control form-control-sm" placeholder="e.g., Brake Service" required>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger remove-job ms-2">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Description</label>
+        <textarea name="quotation[quotation_jobs_attributes][${jobCounter}][description]" 
+                  class="form-control form-control-sm" rows="2" 
+                  placeholder="Describe the work to be done..."></textarea>
+      </div>
+      <div class="row">
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Estimated Hours</label>
+            <input type="number" name="quotation[quotation_jobs_attributes][${jobCounter}][estimated_hours]" 
+                   class="form-control form-control-sm" value="2" step="0.5" min="0" required>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Rate per Hour ($)</label>
+            <input type="number" name="quotation[quotation_jobs_attributes][${jobCounter}][labor_rate_per_hour]" 
+                   class="form-control form-control-sm" value="75" step="0.01" min="0" required>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="mb-2">
+            <label class="form-label">Job Type</label>
+            <select name="quotation[quotation_jobs_attributes][${jobCounter}][job_type]" class="form-select form-select-sm">
+              <option value="custom">Custom</option>
+              <option value="template">Template</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" name="quotation[quotation_jobs_attributes][${jobCounter}][job_template_id]" value="">
+    `;
+    
+    document.getElementById('customJobs').appendChild(jobDiv);
+    
+    // Add remove functionality
+    jobDiv.querySelector('.remove-job').addEventListener('click', function() {
+      jobDiv.remove();
+    });
+  });
+});
+<% end %>
+
+<!-- Styles -->
+<style>
+.card.h-100 {
+  height: 100%;
+  transition: transform 0.3s ease;
+}
+
+.card.h-100:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.display-1 i {
+  font-size: 3rem;
+}
+
+.bi-arrow-right {
+  font-size: 2rem;
+  vertical-align: middle;
+}
+
+.list-unstyled li {
+  padding-left: 0.5rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+#traditionalForm .card-header {
+  border-bottom: 3px solid #6c757d;
+}
+
+#traditionalForm .form-control:focus {
+  border-color: #6c757d;
+  box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25);
+}
+
+.custom-job {
+  background-color: #f8f9fa;
+  border-left: 4px solid #0d6efd !important;
+}
+
+.custom-job .remove-job {
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.custom-job .remove-job:hover {
+  opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .display-1 i {
+    font-size: 2rem;
+  }
+  
+  .bi-arrow-right {
+    font-size: 1.5rem;
+  }
+  
+  .btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+  }
+}
+
+/* Animation for workflow cards */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card.h-100 {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+/* Highlight recommended option */
+.card.border-success {
+  border-width: 2px;
+}
+
+.card.border-success .card-header {
+  background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+}
+</style>

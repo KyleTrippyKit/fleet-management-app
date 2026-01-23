@@ -1,9 +1,9 @@
-<%# app/views/quotations/_form.html.erb %>
-<%= form_with model: @quotation, local: true, class: 'tt-quotation-form' do |f| %>
+<%# app/views/quotations/_form.html.erb - VMCOTT WITH TRINIDAD GOVERNMENT STYLING (WITH JOB TEMPLATE INTEGRATION) %>
+<%= form_with model: @quotation, local: true, class: 'tt-vmcott-quotation-form' do |f| %>
   <% if @quotation.errors.any? %>
-    <div class="alert alert-danger">
-      <h4><%= pluralize(@quotation.errors.count, "error") %> prohibited this quotation from being saved:</h4>
-      <ul>
+    <div class="alert alert-danger gov-alert-danger">
+      <h4><i class="fas fa-exclamation-triangle"></i> <%= pluralize(@quotation.errors.count, "error") %> prohibited this quotation from being saved:</h4>
+      <ul class="mb-0">
         <% @quotation.errors.full_messages.each do |message| %>
           <li><%= message %></li>
         <% end %>
@@ -11,26 +11,54 @@
     </div>
   <% end %>
 
-  <!-- Header Section -->
-  <div class="form-header mb-4" style="background: linear-gradient(135deg, <%= @agency&.gradient_colors[:start] || '#4a148c' %> 0%, <%= @agency&.gradient_colors[:end] || '#6a1b9a' %> 100%);">
+  <!-- Header Section - Trinidad Government & VMCOTT -->
+  <div class="form-header mb-4" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); border: 2px solid #990000;">
     <div class="row align-items-center">
       <div class="col-md-2 text-center">
-        <div class="gov-logo-placeholder">
-          <div class="logo-circle" style="color: <%= @agency&.gradient_colors[:start] || '#4a148c' %>;">
-            <%= @agency&.code || 'TT' %>
+        <div class="trinidad-logo">
+          <div class="logo-circle" style="background: white; color: #DA291C; border: 3px solid #FFCC00;">
+            <i class="fas fa-tools fa-2x"></i>
           </div>
-          <small>Government of Trinidad and Tobago</small>
+          <small style="color: white; font-weight: 500;">Republic of Trinidad and Tobago</small>
+          <div class="ministry-badge">
+            <span style="color: #FFCC00; font-weight: bold;">VMCOTT</span>
+          </div>
         </div>
       </div>
       <div class="col-md-8 text-center">
-        <h1 class="form-title">REQUEST FOR QUOTATION</h1>
-        <h3 class="form-subtitle"><%= @agency&.display_name || 'Judiciary of Trinidad and Tobago' %></h3>
-        <p class="form-code">RFQ Form <%= @agency&.code || 'JOTT' %>-01</p>
+        <div class="national-emblem">
+          <h1 class="form-title" style="color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+            <i class="fas fa-file-invoice-dollar"></i> OFFICIAL QUOTATION
+          </h1>
+          <h3 class="form-subtitle" style="color: #FFCC00; font-weight: 600;">
+            VEHICLE MANAGEMENT COMPANY OF TRINIDAD & TOBAGO
+          </h3>
+          <div class="document-details">
+            <div class="badge-grp">
+              <span class="document-badge" style="background: rgba(255,255,255,0.2);">
+                <i class="fas fa-hashtag"></i> RFQ#: <%= @rfq&.rfq_number || 'N/A' %>
+              </span>
+              <span class="document-badge" style="background: rgba(255,255,255,0.2);">
+                <i class="fas fa-file-alt"></i> QTN#: <%= @quotation.quote_number || 'Auto-generated' %>
+              </span>
+              <span class="document-badge" style="background: rgba(255,204,0,0.3); color: #FFCC00;">
+                <i class="fas fa-building"></i> <%= @rfq&.requesting_agency&.code || 'AGENCY' %>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="col-md-2 text-center">
-        <div class="form-number">
-          <p class="mb-1"><strong>Quote #</strong></p>
-          <p class="quote-number"><%= @quotation.quote_number || 'Auto-generated' %></p>
+        <div class="document-stamp" style="background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%);">
+          <div class="stamp-header" style="background: #DA291C; color: white; padding: 8px; border-radius: 4px 4px 0 0;">
+            <strong><i class="fas fa-calendar-check"></i> VALID UNTIL</strong>
+          </div>
+          <div class="stamp-body" style="padding: 15px;">
+            <div class="date-display" style="color: #DA291C; font-weight: bold; font-size: 1.2em;">
+              <%= @quotation.valid_to&.strftime('%d/%m/%Y') || (Date.today + 30.days).strftime('%d/%m/%Y') %>
+            </div>
+            <small style="color: #666;">(30 days from quote)</small>
+          </div>
         </div>
       </div>
     </div>
@@ -38,502 +66,1286 @@
 
   <!-- Main Form Section -->
   <div class="form-body">
-    <!-- Section 1: Basic Information -->
-    <div class="form-section mb-4">
-      <div class="section-header">
-        <h4>SECTION 1: BASIC INFORMATION</h4>
+    <!-- Section 1: Basic Information - Government Format -->
+    <div class="form-section mb-4 gov-section">
+      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #DA291C; border-bottom: 2px solid #dee2e6;">
+        <h4 style="color: #2c3e50; font-weight: 700;">
+          <i class="fas fa-info-circle me-2" style="color: #DA291C;"></i>SECTION 1: QUOTATION DETAILS
+        </h4>
+        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+          Government of Trinidad and Tobago - Standard Quotation Format
+        </p>
       </div>
       <div class="section-body">
         <div class="row">
-          <div class="col-md-6">
+          <div class="col-md-4">
             <div class="form-group mb-3">
-              <%= f.label :vendor, "VENDOR/SUPPLIER NAME", class: 'form-label required' %>
-              <%= f.text_field :vendor, class: 'form-control gov-input', placeholder: "Enter full vendor/supplier name", required: true,
-                  minlength: 2, maxlength: 100, pattern: '.{2,}' %>
-              <small class="form-text text-muted">Enter the full legal name of the vendor/supplier company</small>
+              <label class="form-label gov-label">
+                <i class="fas fa-building me-1"></i> CONTRACTING PARTY
+              </label>
+              <div class="gov-input-display" style="background: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid #DA291C;">
+                <strong>VMCOTT</strong> - Vehicle Management Company of Trinidad and Tobago
+                <br><small class="text-muted">Official Government Vehicle Services Provider</small>
+              </div>
             </div>
           </div>
-          <div class="col-md-6">
+          
+          <div class="col-md-4">
             <div class="form-group mb-3">
-              <%= f.label :vehicle_id, "VEHICLE ASSIGNED", class: 'form-label' %>
-              <%= f.collection_select :vehicle_id, @vehicles, :id, :license_plate_with_details, 
-                  { include_blank: 'Select Vehicle (if applicable)' }, 
-                  class: 'form-select gov-select' %>
-              <small class="form-text text-muted">Optional: Select a vehicle for vehicle-specific quotations</small>
+              <%= f.label :vehicle_id, "VEHICLE DETAILS", class: 'form-label gov-label' %>
+              <% if @quotation.vehicle.present? %>
+                <div class="gov-input-display" style="background: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
+                  <strong><%= @quotation.vehicle.license_plate %></strong> | 
+                  <%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %>
+                  <br><small class="text-muted">
+                    <% if @quotation.vehicle.year_of_manufacture.present? %>
+                      <%= @quotation.vehicle.year_of_manufacture %> • 
+                    <% end %>
+                    <%= @quotation.vehicle.vehicle_type || 'Vehicle' %>
+                  </small>
+                </div>
+              <% else %>
+                <%= f.collection_select :vehicle_id, @vehicles, :id, :license_plate_with_details, 
+                      { include_blank: 'Select Vehicle' }, 
+                      class: 'form-select gov-select' %>
+              <% end %>
+              <small class="form-text text-muted">
+                <i class="fas fa-car"></i> RFQ Reference: <%= @rfq&.vehicle&.license_plate || 'Not specified' %>
+              </small>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="form-group mb-3">
+              <label class="form-label gov-label">
+                <i class="fas fa-university me-1"></i> REQUESTING AGENCY
+              </label>
+              <div class="gov-input-display" style="background: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid #007bff;">
+                <strong><%= @rfq&.requesting_agency&.code || 'AGENCY' %></strong>
+                <br><%= @rfq&.requesting_agency&.name || 'Government Agency' %>
+              </div>
             </div>
           </div>
         </div>
         
         <div class="row">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <div class="form-group mb-3">
-              <%= f.label :valid_from, "QUOTATION DATE", class: 'form-label required' %>
-              <%= f.date_field :valid_from, class: 'form-control gov-input', required: true,
-                  min: Date.today, max: 1.year.from_now.to_date %>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group mb-3">
-              <%= f.label :valid_to, "VALID UNTIL", class: 'form-label required' %>
-              <%= f.date_field :valid_to, class: 'form-control gov-input', required: true,
-                  min: Date.tomorrow, max: 2.years.from_now.to_date %>
-              <small class="form-text text-muted">Must be after quotation date</small>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-group mb-3">
-              <%= f.label :amount, "QUOTED AMOUNT (TTD)", class: 'form-label required' %>
+              <%= f.label :valid_from, "QUOTATION DATE", class: 'form-label gov-label required' %>
               <div class="input-group">
-                <span class="input-group-text gov-currency">$</span>
-                <%= f.number_field :amount, step: '0.01', min: '0.01', max: '9999999.99',
-                    class: 'form-control gov-input', placeholder: "0.00", required: true,
-                    pattern: '^\d+(\.\d{1,2})?$' %>
+                <span class="input-group-text gov-input-prefix"><i class="fas fa-calendar-alt"></i></span>
+                <%= f.date_field :valid_from, class: 'form-control gov-date-input', required: true, 
+                      value: @quotation.valid_from || Date.today, min: Date.today, max: 1.year.from_now.to_date %>
               </div>
-              <small class="form-text text-muted">Excluding VAT (12.5% will be added automatically)</small>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="form-group mb-3">
+              <%= f.label :valid_to, "VALIDITY PERIOD", class: 'form-label gov-label required' %>
+              <div class="input-group">
+                <span class="input-group-text gov-input-prefix"><i class="fas fa-clock"></i></span>
+                <%= f.date_field :valid_to, class: 'form-control gov-date-input', required: true, 
+                      value: @quotation.valid_to || (Date.today + 30.days), min: Date.tomorrow, max: 2.years.from_now.to_date %>
+              </div>
+              <small class="form-text text-muted">Standard: 30 days from quotation date</small>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="form-group mb-3">
+              <%= f.label :quote_number, "QUOTATION NUMBER", class: 'form-label gov-label required' %>
+              <div class="input-group">
+                <span class="input-group-text gov-input-prefix"><i class="fas fa-hashtag"></i></span>
+                <%= f.text_field :quote_number, class: 'form-control gov-input', required: true,
+                      value: @quotation.quote_number || "VMC-QTN-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(3).upcase}",
+                      pattern: '^[A-Z0-9-]{5,}$', title: 'Format: VMC-QTN-YYYYMMDD-XXX' %>
+              </div>
+              <small class="form-text text-muted">Format: VMC-QTN-YYYYMMDD-XXX</small>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="form-group mb-3">
+              <label class="form-label gov-label">
+                <i class="fas fa-money-bill-wave"></i> TOTAL QUOTED AMOUNT
+              </label>
+              <div class="input-group">
+                <span class="input-group-text gov-currency" style="background: #28a745; color: white; font-weight: bold;">TTD</span>
+                <input type="text" id="total-amount-display" class="form-control gov-total-input" 
+                       value="<%= number_to_currency(@quotation.amount || 0, unit: '$') %>" readonly
+                       style="font-weight: bold; font-size: 1.1em; background: #f8f9fa;">
+              </div>
+              <small class="form-text text-muted">Including VAT 12.5% • Calculated automatically</small>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Section 2: Line Items -->
-    <div class="form-section mb-4">
-      <div class="section-header">
-        <h4>SECTION 2: ITEMS/SERVICES REQUIRED</h4>
-        <p class="section-subtitle">List all items/services for which quotation is being requested</p>
+    <!-- NEW SECTION: Job Template Selection (For VMCOTT only) -->
+    <% if current_user.agency&.code == 'VMCOTT' && @job_templates.present? %>
+      <div class="form-section mb-4 gov-section">
+        <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #ff6b35; border-bottom: 2px solid #dee2e6;">
+          <h4 style="color: #2c3e50; font-weight: 700;">
+            <i class="fas fa-clipboard-list me-2" style="color: #ff6b35;"></i>SECTION 1.2: SELECT JOB TEMPLATES
+          </h4>
+          <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+            Select standard job templates to add to this quotation
+          </p>
+        </div>
+        <div class="section-body">
+          <div class="row">
+            <!-- Job Templates Selection Panel -->
+            <div class="col-md-5">
+              <div class="job-templates-panel gov-terms-box">
+                <h6 style="color: #ff6b35; font-weight: 600;">
+                  <i class="fas fa-tools me-2"></i>AVAILABLE JOB TEMPLATES
+                </h6>
+                <div class="job-templates-list" style="max-height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px;">
+                  <% @job_templates.each do |template| %>
+                    <div class="template-card mb-2 p-2 border rounded" 
+                         data-template-id="<%= template.id %>"
+                         data-template-name="<%= template.name %>"
+                         data-template-description="<%= template.description %>"
+                         data-template-hours="<%= template.standard_hours || 1 %>"
+                         data-template-rate="<%= template.labor_rate_per_hour || 100 %>"
+                         data-template-total="<%= (template.standard_hours || 1) * (template.labor_rate_per_hour || 100) %>"
+                         style="cursor: pointer; transition: background-color 0.2s;">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong><%= template.name %></strong>
+                          <% if template.category.present? %>
+                            <span class="badge bg-secondary ms-2"><%= template.category %></span>
+                          <% end %>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary add-template-btn" data-template-id="<%= template.id %>">
+                          <i class="fas fa-plus"></i> Add
+                        </button>
+                      </div>
+                      <small class="text-muted d-block"><%= truncate(template.description, length: 80) %></small>
+                      <div class="template-details">
+                        <small class="text-muted">
+                          <i class="fas fa-clock"></i> <%= template.standard_hours || 'N/A' %> hours • 
+                          <i class="fas fa-dollar-sign"></i> <%= number_to_currency(template.labor_rate_per_hour || 0) %>/hr
+                        </small>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                  <i class="fas fa-info-circle"></i> Click "Add" to add job to quotation
+                </small>
+              </div>
+            </div>
+            
+           <!-- Selected Jobs Preview -->
+            <div class="col-md-7">
+              <div class="selected-jobs-panel">
+                <h6 style="color: #28a745; font-weight: 600;">
+                  <i class="fas fa-clipboard-check me-2"></i>SELECTED JOBS
+                  <span class="badge bg-primary float-end" id="selected-jobs-count">0</span>
+                </h6>
+                <div id="selected-jobs-list" class="selected-jobs-list" style="min-height: 200px; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; background: #f8f9fa;">
+                  <p class="text-muted text-center mb-0" id="no-jobs-message">
+                    <i class="fas fa-info-circle"></i> No jobs selected yet. Select jobs from the left panel.
+                  </p>
+                </div>
+                
+                <div class="mt-3">
+                  <div class="alert alert-info gov-alert-info">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>How it works:</strong> Selected jobs will be added as labor items to the quotation. 
+                    You can adjust hours and rates for each job as needed.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Section 1.5: Assigned Jobs Information -->
+    <!-- ALWAYS SHOW THIS SECTION -->
+    <div class="form-section mb-4 gov-section" id="jobs-section">
+      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #3949ab; border-bottom: 2px solid #dee2e6;">
+        <h4 style="color: #2c3e50; font-weight: 700;">
+          <i class="fas fa-tasks me-2" style="color: #3949ab;"></i>SECTION 1.5: ASSIGNED JOBS
+        </h4>
+        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+          Labor jobs assigned to this quotation
+        </p>
       </div>
       <div class="section-body">
-        <div id="line-items">
-          <%= f.fields_for :quotation_line_items do |line_item| %>
-            <%= render 'line_item_fields', f: line_item %>
-          <% end %>
+        <div class="table-responsive">
+          <table class="table gov-pricing-table">
+            <thead>
+              <tr class="table-header">
+                <th width="20%" style="background: #3949ab; color: white;">Job Name</th>
+                <th width="35%" style="background: #3949ab; color: white;">Description</th>
+                <th width="10%" class="text-center" style="background: #3949ab; color: white;">Hours</th>
+                <th width="15%" class="text-center" style="background: #3949ab; color: white;">Rate/Hour</th>
+                <th width="15%" class="text-center" style="background: #28a745; color: white;">Labor Cost</th>
+                <th width="5%" class="text-center" style="background: #dc3545; color: white;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="job-table-body">
+              <%= f.fields_for :quotation_jobs do |job| %>
+                <tr class="gov-table-row job-row" data-job-index="<%= job.index %>" data-template-id="<%= job.object.job_template_id %>">
+                  <td style="background: #f8f9fa;">
+                    <div class="job-name-field">
+                      <% if job.object.persisted? %>
+                        <strong><%= job.object.name %></strong>
+                        <%= job.hidden_field :name %>
+                      <% else %>
+                        <%= job.text_field :name, class: 'form-control gov-input', placeholder: "Job Name", required: true %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="job-description-field">
+                      <% if job.object.persisted? %>
+                        <%= job.object.description %>
+                        <%= job.hidden_field :description %>
+                      <% else %>
+                        <%= job.text_area :description, class: 'form-control gov-textarea', rows: 1, placeholder: "Job Description" %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <div class="job-hours-field">
+                      <% if job.object.persisted? %>
+                        <%= job.object.estimated_hours %>
+                        <%= job.hidden_field :estimated_hours %>
+                      <% else %>
+                        <%= job.number_field :estimated_hours, class: 'form-control gov-input', step: '0.25', min: '0.25', value: job.object.estimated_hours || 1 %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <div class="job-rate-field">
+                      <% if job.object.persisted? %>
+                        <%= number_to_currency(job.object.labor_rate_per_hour) %>
+                        <%= job.hidden_field :labor_rate_per_hour %>
+                      <% else %>
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text gov-currency-sm">$</span>
+                          <%= job.number_field :labor_rate_per_hour, class: 'form-control form-control-sm', step: '0.01', min: '0', value: job.object.labor_rate_per_hour || 100 %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-center" style="font-weight: bold; color: #28a745;">
+                    <div class="job-total-field">
+                      <% if job.object.persisted? %>
+                        <%= number_to_currency(job.object.total_labor_cost || 0) %>
+                      <% else %>
+                        <span class="job-total-amount">
+                          $<%= ((job.object.estimated_hours || 1) * (job.object.labor_rate_per_hour || 100)).to_f.round(2) %>
+                        </span>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <% unless job.object.persisted? %>
+                      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="<%= job.index %>">
+                        <span style="font-size: 14px; pointer-events: none;">✕</span>
+                      </button>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+              
+              <!-- Show empty message if no jobs exist -->
+              <% if @quotation.quotation_jobs.empty? %>
+                <tr id="no-jobs-row">
+                  <td colspan="6" class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No jobs added yet. Select jobs from the template panel above.
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot id="job-total-footer" style="<%= @quotation.quotation_jobs.any? ? '' : 'display: none;' %>">
+              <tr class="table-footer-grandtotal">
+                <td colspan="4" class="text-end" style="background: linear-gradient(135deg, #3949ab 0%, #283593 100%); color: white; font-weight: bold; font-size: 1.1em;">
+                  <i class="fas fa-tools me-2"></i>TOTAL LABOR COST:
+                </td>
+                <td id="total-labor-cost" class="text-center" style="background: linear-gradient(135deg, #3949ab 0%, #283593 100%); color: white; font-weight: bold; font-size: 1.2em;">
+                  <%= number_to_currency(@quotation.quotation_jobs.sum(&:total_labor_cost)) %>
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        
+        <div class="calculation-note mt-3">
+          <div class="alert alert-info gov-alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Note:</strong> Labor costs shown above are already included in the total quotation amount.
+            <br>
+            <small class="text-muted">This section provides transparency on labor breakdown for the assigned jobs.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- END OF JOBS SECTION -->
+
+    <!-- Section 2: Line Items with Trinidad Pricing Table - OPTIONAL -->
+    <div class="form-section mb-4 gov-section">
+      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #28a745; border-bottom: 2px solid #dee2e6;">
+        <h4 style="color: #2c3e50; font-weight: 700;">
+          <i class="fas fa-list-alt me-2" style="color: #28a745;"></i>SECTION 2: OPTIONAL ITEMIZED QUOTATION
+        </h4>
+        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+          Optional: Enter unit prices for additional items (excludes VAT 12.5%)
+        </p>
+      </div>
+      <div class="section-body">
+        <div class="table-responsive">
+          <table class="table gov-pricing-table">
+            <thead>
+              <tr class="table-header">
+                <th width="5%" class="text-center" style="background: #DA291C; color: white;">
+                  <i class="fas fa-hashtag"></i>
+                </th>
+                <th width="40%" style="background: #DA291C; color: white;">DESCRIPTION OF GOODS/SERVICES</th>
+                <th width="10%" class="text-center" style="background: #DA291C; color: white;">QUANTITY</th>
+                <th width="15%" class="text-center" style="background: #DA291C; color: white;">UNIT PRICE (TTD)</th>
+                <th width="15%" class="text-center" style="background: #28a745; color: white;">SUBTOTAL (TTD)</th>
+                <th width="15%" class="text-center" style="background: #007bff; color: white;">VAT 12.5%</th>
+              </tr>
+            </thead>
+            <tbody id="line-items">
+              <%= f.fields_for :quotation_line_items do |line_item| %>
+                <tr class="gov-table-row" data-index="<%= line_item.index %>">
+                  <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
+                    <%= line_item.index + 1 %>
+                  </td>
+                  <td>
+                    <div class="item-description">
+                      <% if line_item.object.persisted? %>
+                        <strong><%= line_item.object.description %></strong>
+                        <% if line_item.object.specifications.present? %>
+                          <div class="item-specs text-muted">
+                            <small><i class="fas fa-info-circle"></i> <%= line_item.object.specifications %></small>
+                          </div>
+                        <% end %>
+                        <%= line_item.hidden_field :description %>
+                        <%= line_item.hidden_field :specifications %>
+                      <% else %>
+                        <%= line_item.text_field :description, class: 'form-control gov-input mb-1', placeholder: "Optional item description" %>
+                        <%= line_item.text_area :specifications, class: 'form-control gov-textarea', rows: 1, placeholder: "Specifications (optional)" %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <div class="quantity-display">
+                      <% if line_item.object.persisted? %>
+                        <%= line_item.object.quantity %>
+                        <%= line_item.hidden_field :quantity %>
+                      <% else %>
+                        <%= line_item.number_field :quantity, class: 'form-control gov-input', min: 0, value: 0 %>
+                      <% end %>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text gov-currency-sm">$</span>
+                      <%= line_item.number_field :unit_price, step: '0.01', min: '0', max: '9999999.99',
+                            class: 'form-control form-control-sm unit-price-input',
+                            placeholder: "0.00", 
+                            data: { index: line_item.index } %>
+                    </div>
+                    <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
+                  </td>
+                  <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+                    <span class="subtotal-amount">$0.00</span>
+                  </td>
+                  <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+                    <span class="vat-amount">$0.00</span>
+                  </td>
+                </tr>
+              <% end %>
+              
+              <!-- Add one optional line item by default -->
+              <% if @quotation.quotation_line_items.empty? %>
+                <tr class="gov-table-row optional-line-item" data-index="0">
+                  <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
+                    1
+                  </td>
+                  <td>
+                    <div class="item-description">
+                      <input type="text" name="quotation[quotation_line_items_attributes][0][description]" 
+                             class="form-control gov-input mb-1" placeholder="Optional item description">
+                      <textarea name="quotation[quotation_line_items_attributes][0][specifications]" 
+                                class="form-control gov-textarea" rows="1" placeholder="Specifications (optional)"></textarea>
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <input type="number" name="quotation[quotation_line_items_attributes][0][quantity]" 
+                           class="form-control gov-input" min="0" value="0">
+                  </td>
+                  <td>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text gov-currency-sm">$</span>
+                      <input type="number" step="0.01" min="0" max="9999999.99"
+                             name="quotation[quotation_line_items_attributes][0][unit_price]" 
+                             class="form-control form-control-sm unit-price-input" placeholder="0.00"
+                             data-index="0">
+                    </div>
+                    <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
+                  </td>
+                  <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+                    <span class="subtotal-amount">$0.00</span>
+                  </td>
+                  <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+                    <span class="vat-amount">$0.00</span>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr class="table-footer-subtotal">
+                <td colspan="4" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                  SUBTOTAL (excluding VAT):
+                </td>
+                <td id="subtotal-total" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                  $0.00
+                </td>
+                <td id="vat-total" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                  $0.00
+                </td>
+              </tr>
+              <tr class="table-footer-grandtotal">
+                <td colspan="4" class="text-end" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white; font-weight: bold; font-size: 1.1em;">
+                  <i class="fas fa-calculator me-2"></i>TOTAL QUOTED AMOUNT (including VAT):
+                </td>
+                <td colspan="2" id="grand-total" class="text-end" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white; font-weight: bold; font-size: 1.2em;">
+                  $0.00
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
         
         <div class="text-center mt-3">
           <button type="button" id="add-line-item" class="btn btn-outline-primary gov-btn">
-            <i class="bi bi-plus-circle"></i> ADD ANOTHER ITEM
+            <i class="fas fa-plus-circle me-1"></i> ADD OPTIONAL ITEM
           </button>
+        </div>
+        
+        <div class="calculation-note mt-3">
+          <div class="alert alert-info gov-alert-info">
+            <i class="fas fa-calculator me-2"></i>
+            <strong>VAT Calculation:</strong> All prices exclude VAT 12.5%. VAT is calculated automatically on subtotal.
+            <br>
+            <small class="text-muted">Formula: Subtotal × 0.125 = VAT Amount</small>
+          </div>
+        </div>
+        
+        <div class="optional-note mt-2">
+          <div class="alert alert-warning gov-alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Note:</strong> Line items are optional. You can submit this quotation with only labor jobs.
+            <br>
+            <small class="text-muted">Leave prices as $0.00 if you only want to include labor jobs.</small>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Section 3: Terms & Conditions -->
-    <div class="form-section mb-4">
-      <div class="section-header">
-        <h4>SECTION 3: TERMS & CONDITIONS</h4>
+    <!-- Section 3: Terms & Conditions - Trinidad Government Format -->
+    <div class="form-section mb-4 gov-section">
+      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #ffc107; border-bottom: 2px solid #dee2e6;">
+        <h4 style="color: #2c3e50; font-weight: 700;">
+          <i class="fas fa-gavel me-2" style="color: #ffc107;"></i>SECTION 3: TERMS & CONDITIONS
+        </h4>
+        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+          Standard Government of Trinidad and Tobago Procurement Terms
+        </p>
       </div>
       <div class="section-body">
         <div class="form-group mb-3">
-          <%= f.label :notes, "SPECIAL INSTRUCTIONS / ADDITIONAL TERMS", class: 'form-label' %>
-          <%= f.text_area :notes, rows: 4, class: 'form-control gov-textarea', 
-              placeholder: "Enter any special instructions, delivery terms, payment terms, or additional conditions...",
-              maxlength: 1000 %>
-          <small class="form-text text-muted">Maximum 1000 characters</small>
+          <%= f.label :notes, "SPECIAL TERMS / ADDITIONAL CONDITIONS", class: 'form-label gov-label' %>
+          <div class="input-group">
+            <span class="input-group-text gov-input-prefix"><i class="fas fa-sticky-note"></i></span>
+            <%= f.text_area :notes, rows: 4, class: 'form-control gov-textarea', 
+                  placeholder: "Enter any special terms, delivery conditions, payment terms, warranty information, or additional notes as per Government procurement regulations..." %>
+          </div>
+          <small class="form-text text-muted">
+            <i class="fas fa-info-circle"></i> Maximum 2000 characters. These terms will form part of the contract.
+          </small>
         </div>
         
-        <div class="terms-checklist">
-          <div class="form-check mb-2">
-            <%= f.check_box :terms_accepted, class: 'form-check-input', required: true, id: 'terms1' %>
-            <%= f.label :terms_accepted, "Quotation includes all applicable taxes (VAT 12.5%)", 
-                class: 'form-check-label', for: 'terms1' %>
+        <div class="terms-checklist gov-terms-box">
+          <h6 class="terms-title" style="color: #DA291C; font-weight: 600;">
+            <i class="fas fa-check-circle me-2"></i>STANDARD GOVERNMENT TERMS
+          </h6>
+          <div class="form-check gov-checkbox mb-3">
+            <%= f.check_box :include_vat, class: 'gov-checkbox-input', checked: true, id: 'include_vat' %>
+            <label class="gov-checkbox-label" for="include_vat">
+              <span class="checkbox-text">
+                <strong>VAT Compliance:</strong> All prices exclude VAT 12.5%. VAT will be added as per Government regulations.
+              </span>
+            </label>
           </div>
-          <div class="form-check mb-2">
-            <%= f.check_box :prices_firm, class: 'form-check-input', required: true, id: 'terms2' %>
-            <%= f.label :prices_firm, "Prices quoted are firm and valid until date specified", 
-                class: 'form-check-label', for: 'terms2' %>
+          
+          <div class="form-check gov-checkbox mb-3">
+            <%= f.check_box :prices_valid, class: 'gov-checkbox-input', checked: true, id: 'prices_valid' %>
+            <label class="gov-checkbox-label" for='prices_valid'>
+              <span class="checkbox-text">
+                <strong>Price Validity:</strong> Quoted prices are firm and valid for the period specified above.
+              </span>
+            </label>
           </div>
-          <div class="form-check mb-2">
-            <%= f.check_box :delivery_included, class: 'form-check-input', id: 'terms3' %>
-            <%= f.label :delivery_included, "Delivery included in quoted price (if applicable)", 
-                class: 'form-check-label', for: 'terms3' %>
+          
+          <!-- DELIVERY HELPER CHECKBOX - THIS REPLACES delivery_included -->
+          <div class="form-check gov-checkbox mb-3">
+            <input type="checkbox" class="gov-checkbox-input" id="notes_delivery">
+            <label class="gov-checkbox-label" for="notes_delivery">
+              <span class="checkbox-text">
+                <strong>Delivery/Installation Included:</strong> Check if price includes delivery and installation
+              </span>
+            </label>
+          </div>
+          
+          <div class="form-check gov-checkbox mb-3">
+            <input type="checkbox" class="gov-checkbox-input" id="standard_terms" checked disabled>
+            <label class="gov-checkbox-label" for="standard_terms">
+              <span class="checkbox-text">
+                <strong>Standard Government Terms:</strong> Subject to Government of Trinidad and Tobago procurement regulations.
+              </span>
+            </label>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Section 4: Contact Information -->
-    <div class="form-section mb-4">
-      <div class="section-header">
-        <h4>SECTION 4: CONTACT INFORMATION</h4>
+    <!-- Section 4: Contact Information & Signatures -->
+    <div class="form-section mb-4 gov-section">
+      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #007bff; border-bottom: 2px solid #dee2e6;">
+        <h4 style="color: #2c3e50; font-weight: 700;">
+          <i class="fas fa-address-card me-2" style="color: #007bff;"></i>SECTION 4: CONTACT & AUTHORIZATION
+        </h4>
+        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+          Government of Trinidad and Tobago Official Contacts
+        </p>
       </div>
       <div class="section-body">
         <div class="row">
           <div class="col-md-6">
-            <div class="form-group mb-3">
-              <label class="form-label">PREPARED BY</label>
-              <input type="text" class="form-control gov-input" 
-                     value="<%= current_user.name || current_user.email %>" readonly>
-              <small class="form-text text-muted">System User ID: <%= current_user.id %></small>
+            <div class="contact-card gov-contact-card">
+              <div class="card-header" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white;">
+                <h6 class="mb-0">
+                  <i class="fas fa-university me-2"></i> VMCOTT HEADQUARTERS
+                </h6>
+              </div>
+              <div class="card-body" style="background: #f8f9fa;">
+                <div class="contact-detail">
+                  <i class="fas fa-map-marker-alt text-danger"></i>
+                  <div>
+                    <strong>Address:</strong><br>
+                    Wrightson Road, Port of Spain<br>
+                    Trinidad and Tobago
+                  </div>
+                </div>
+                <div class="contact-detail">
+                  <i class="fas fa-phone text-primary"></i>
+                  <div>
+                    <strong>Telephone:</strong><br>
+                    (868) 625-VMCT (8628)<br>
+                    Main: (868) 625-8475
+                  </div>
+                </div>
+                <div class="contact-detail">
+                  <i class="fas fa-envelope text-success"></i>
+                  <div>
+                    <strong>Email:</strong><br>
+                    quotations@vmcott.gov.tt<br>
+                    procurement@vmcott.gov.tt
+                  </div>
+                </div>
+                <div class="contact-detail">
+                  <i class="fas fa-clock text-warning"></i>
+                  <div>
+                    <strong>Office Hours:</strong><br>
+                    Monday - Friday: 8:00 AM - 4:00 PM<br>
+                    (Closed Public Holidays)
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+          
           <div class="col-md-6">
-            <div class="form-group mb-3">
-              <label class="form-label">DATE PREPARED</label>
-              <input type="text" class="form-control gov-input" 
-                     value="<%= Date.today.strftime('%d %B, %Y') %>" readonly>
-              <small class="form-text text-muted">System Date</small>
+            <div class="authorization-card gov-auth-card">
+              <div class="card-header" style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); color: white;">
+                <h6 class="mb-0">
+                  <i class="fas fa-user-tie me-2"></i> PREPARED BY
+                </h6>
+              </div>
+              <div class="card-body" style="background: #f8f9fa;">
+                <div class="auth-detail">
+                  <div class="auth-icon">
+                    <i class="fas fa-user-circle fa-2x text-success"></i>
+                  </div>
+                  <div class="auth-info">
+                    <h6 class="auth-name mb-1">
+                      <strong><%= current_user.name || current_user.email %></strong>
+                    </h6>
+                    <p class="auth-title mb-1">
+                      <i class="fas fa-id-badge"></i> VMCOTT Quotation Officer
+                    </p>
+                    <p class="auth-id mb-1">
+                      <i class="fas fa-fingerprint"></i> Employee ID: VMC-<%= current_user.id.to_s.rjust(5, '0') %>
+                    </p>
+                    <p class="auth-date mb-0">
+                      <i class="fas fa-calendar-alt"></i> Date: <%= Date.today.strftime('%d %B, %Y') %>
+                    </p>
+                  </div>
+                </div>
+                
+                <!-- Signature Area -->
+                <div class="signature-area mt-3 pt-3 border-top">
+                  <p class="signature-label mb-2">
+                    <i class="fas fa-signature"></i> AUTHORIZED SIGNATURE:
+                  </p>
+                  <div class="signature-line"></div>
+                  <div class="signature-details mt-2">
+                    <span class="signature-text">Authorized VMCOTT Representative</span>
+                    <span class="signature-date float-end">
+                      <i class="fas fa-calendar-check"></i> <%= Date.today.strftime('%d/%m/%Y') %>
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
         
-        <!-- Agency Contact Info -->
-        <% if @agency %>
-          <div class="card border-info mt-3">
-            <div class="card-header bg-info bg-opacity-10 border-info py-2">
-              <h6 class="mb-0 fw-bold"><i class="bi bi-info-circle me-2"></i>AGENCY CONTACT</h6>
+        <!-- Agency Acceptance Area -->
+        <div class="acceptance-area mt-4 pt-4 border-top">
+          <h6 style="color: #DA291C; font-weight: 600;">
+            <i class="fas fa-check-double me-2"></i>FOR AGENCY ACCEPTANCE
+          </h6>
+          <div class="row">
+            <div class="col-md-12">
+              <div class="agency-acceptance-box">
+                <div class="agency-header" style="background: #e9ecef; padding: 10px; border-left: 4px solid #007bff;">
+                  <strong><%= @rfq&.requesting_agency&.name || 'REQUESTING AGENCY' %></strong>
+                  <small class="float-end">Authorized Procurement Officer</small>
+                </div>
+                <div class="agency-body" style="padding: 15px; background: #f8f9fa;">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <p class="mb-2">
+                        <strong>Accepted by:</strong> ___________________________
+                      </p>
+                      <p class="mb-2">
+                        <strong>Designation:</strong> ___________________________
+                      </p>
+                    </div>
+                    <div class="col-md-6">
+                      <p class="mb-2">
+                        <strong>Date Accepted:</strong> ___________________________
+                      </p>
+                      <p class="mb-2">
+                        <strong>Purchase Order #:</strong> ___________________________
+                      </p>
+                    </div>
+                  </div>
+                  <div class="agency-stamp mt-3 text-center">
+                    <div class="stamp" style="border: 2px dashed #007bff; padding: 10px; display: inline-block;">
+                      <i class="fas fa-stamp fa-2x text-muted"></i>
+                      <br>
+                      <small class="text-muted">OFFICIAL ACCEPTANCE STAMP</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="card-body py-2">
-              <p class="mb-1 small">
-                <i class="bi bi-geo-alt me-1"></i>
-                <%= @agency.agency_config[:address] %>
-              </p>
-              <p class="mb-1 small"><i class="bi bi-telephone me-1"></i> <%= @agency.agency_config[:phone] %></p>
-              <p class="mb-0 small"><i class="bi bi-envelope me-1"></i> <%= @agency.agency_config[:procurement_email] %></p>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </div>
-
-    <!-- Footer Section -->
-    <div class="form-footer mt-4">
-      <div class="row">
-        <div class="col-md-6">
-          <div class="signature-box">
-            <p class="signature-label">VENDOR AUTHORIZED SIGNATURE</p>
-            <div class="signature-line"></div>
-            <p class="signature-details">Name: _______________________ Date: _______________</p>
-            <p class="signature-details small">Company Stamp: _______________________</p>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="signature-box">
-            <p class="signature-label"><%= @agency&.short_name || 'JUDICIARY' %> FLEET MANAGEMENT</p>
-            <div class="signature-line"></div>
-            <p class="signature-details">Authorized by: _______________________ Date: _______________</p>
-            <p class="signature-details small">Ref No: <%= @quotation.quote_number || 'Pending' %></p>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Form Actions -->
-  <div class="form-actions mt-4 pt-4 border-top">
+  <!-- Form Actions - Trinidad Government Styled -->
+  <div class="form-actions mt-4 pt-4 border-top" style="border-top: 3px solid #DA291C !important;">
     <div class="row">
-      <div class="col-md-8">
-        <div class="alert alert-info gov-alert">
-          <i class="bi bi-info-circle"></i>
-          <strong>IMPORTANT:</strong> All quotations are subject to <%= @agency&.display_name || 'Judiciary of Trinidad and Tobago' %> procurement regulations. 
-          Submission of quotation constitutes acceptance of terms. VAT 12.5% applies to all transactions.
+      <div class="col-md-7">
+        <div class="gov-submission-notice">
+          <div class="notice-header" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white; padding: 10px; border-radius: 4px 4px 0 0;">
+            <i class="fas fa-exclamation-triangle me-2"></i> IMPORTANT SUBMISSION NOTICE
+          </div>
+          <div class="notice-body" style="background: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-top: none;">
+            <p class="mb-2">
+              <i class="fas fa-check-circle text-success me-2"></i>
+              <strong>Government Procurement Compliance:</strong> This quotation complies with Government of Trinidad and Tobago procurement regulations.
+            </p>
+            <p class="mb-2">
+              <i class="fas fa-file-invoice-dollar text-primary me-2"></i>
+              <strong>VAT Application:</strong> All transactions are subject to VAT 12.5% as per national regulations.
+            </p>
+            <p class="mb-0">
+              <i class="fas fa-handshake text-warning me-2"></i>
+              <strong>Acceptance Process:</strong> Quotation will be sent to <%= @rfq&.requesting_agency&.name || 'the requesting agency' %> for formal acceptance.
+            </p>
+          </div>
         </div>
       </div>
-      <div class="col-md-4 text-end">
-        <div class="d-flex flex-wrap gap-2 justify-content-end">
-          <%= link_to 'Cancel', quotations_path, class: 'btn btn-outline-secondary gov-btn' %>
-          <%= f.submit 'SAVE AS DRAFT', class: 'btn btn-secondary gov-btn', 
-                name: 'commit', data: { disable_with: 'Saving...' } %>
-          <%= f.submit 'SUBMIT QUOTATION', class: 'btn btn-primary gov-btn',
-                name: 'commit', data: { 
+      <div class="col-md-5 text-end">
+        <div class="action-buttons">
+          <%= link_to vmcott_rfq_inbox_path, class: 'btn gov-btn gov-btn-secondary' do %>
+            <i class="fas fa-times-circle me-2"></i> CANCEL
+          <% end %>
+          
+          <%= f.button type: 'submit', name: 'commit', value: 'draft', 
+                class: 'btn gov-btn gov-btn-warning', data: { disable_with: 'Saving Draft...' } do %>
+            <i class="fas fa-save me-2"></i> SAVE DRAFT
+          <% end %>
+          
+          <%= f.button type: 'submit', name: 'commit', value: 'submit', 
+                class: 'btn gov-btn gov-btn-primary', 
+                data: { 
                   disable_with: 'Submitting...',
-                  confirm: 'Are you sure you want to submit this quotation? This action cannot be undone.'
-                } %>
+                  confirm: 'Are you sure you want to submit this quotation to the agency? This action cannot be undone and will notify the agency immediately.' 
+                } do %>
+            <i class="fas fa-paper-plane me-2"></i> SUBMIT TO AGENCY
+          <% end %>
         </div>
+        <small class="text-muted d-block mt-2">
+          <i class="fas fa-shield-alt"></i> Secure Government Submission System
+        </small>
       </div>
     </div>
   </div>
+  
+  <!-- Hidden fields -->
+  <%= f.hidden_field :vendor, value: 'VMCOTT' %>
+  <%= f.hidden_field :rfq_id, value: @rfq&.id %>
+  <%= f.hidden_field :amount, id: 'quotation_amount' %>
+  
+  <!-- Hidden field for job template data -->
+  <input type="hidden" name="job_template_data" id="job_template_data" value="">
 <% end %>
 
-<!-- Template for new line item -->
+<!-- Hidden template for adding new line items -->
 <template id="line-item-template">
-  <div class="line-item-row gov-table-row">
-    <div class="row">
-      <div class="col-md-1">
-        <div class="form-group">
-          <label class="form-label">ITEM NO.</label>
-          <input type="text" class="form-control gov-input item-number" readonly>
-        </div>
+  <tr class="gov-table-row" data-index="__INDEX__">
+    <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
+      __ITEM_NUMBER__
+    </td>
+    <td>
+      <div class="item-description">
+        <input type="text" name="quotation[quotation_line_items_attributes][__INDEX__][description]" 
+               class="form-control gov-input mb-1" placeholder="Optional item description">
+        <textarea name="quotation[quotation_line_items_attributes][__INDEX__][specifications]" 
+                  class="form-control gov-textarea" rows="1" placeholder="Specifications (optional)"></textarea>
       </div>
-      <div class="col-md-5">
-        <div class="form-group">
-          <label class="form-label">DESCRIPTION OF ITEM/SERVICE</label>
-          <input type="text" name="quotation[quotation_line_items_attributes][NEW_RECORD][description]" 
-                 class="form-control gov-input line-item-description" 
-                 placeholder="Describe item/service in detail" required>
-        </div>
+    </td>
+    <td class="text-center">
+      <input type="number" name="quotation[quotation_line_items_attributes][__INDEX__][quantity]" 
+             class="form-control gov-input" min="0" value="0">
+    </td>
+    <td>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text gov-currency-sm">$</span>
+        <input type="number" step="0.01" min="0" max="9999999.99"
+               name="quotation[quotation_line_items_attributes][__INDEX__][unit_price]" 
+               class="form-control form-control-sm unit-price-input" placeholder="0.00"
+               data-index="__INDEX__">
       </div>
-      <div class="col-md-1">
-        <div class="form-group">
-          <label class="form-label">QTY</label>
-          <input type="number" name="quotation[quotation_line_items_attributes][NEW_RECORD][quantity]" 
-                 class="form-control gov-input line-item-quantity" value="1" min="1" 
-                 max="9999" required>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-          <label class="form-label">UNIT PRICE (TTD)</label>
-          <div class="input-group">
-            <span class="input-group-text gov-currency">$</span>
-            <input type="number" step="0.01" min="0.01" max="9999999.99"
-                   name="quotation[quotation_line_items_attributes][NEW_RECORD][unit_price]" 
-                   class="form-control gov-input line-item-unit-price" placeholder="0.00" 
-                   required>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="form-group">
-          <label class="form-label">TOTAL (TTD)</label>
-          <input type="text" class="form-control gov-input line-item-total" readonly placeholder="0.00">
-        </div>
-      </div>
-      <div class="col-md-1">
-        <div class="form-group">
-          <label class="form-label">&nbsp;</label>
-          <button type="button" class="btn btn-sm btn-outline-danger remove-line-item w-100">
-            <i class="bi bi-trash"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-    <div class="row mt-2">
-      <div class="col-md-12">
-        <div class="form-group">
-          <label class="form-label">SPECIFICATIONS / ADDITIONAL DETAILS</label>
-          <textarea name="quotation[quotation_line_items_attributes][NEW_RECORD][specifications]" 
-                    rows="2" class="form-control gov-textarea line-item-specs" 
-                    placeholder="Enter specifications, model numbers, or additional requirements..."></textarea>
-        </div>
-      </div>
-    </div>
-    <input type="hidden" name="quotation[quotation_line_items_attributes][NEW_RECORD][_destroy]" value="0" class="destroy-field">
-    <hr class="gov-divider">
-  </div>
+      <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
+    </td>
+    <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+      <span class="subtotal-amount">$0.00</span>
+    </td>
+    <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+      <span class="vat-amount">$0.00</span>
+    </td>
+  </tr>
 </template>
 
-<!-- Custom Styles for T&T Quotation Form -->
+<!-- Updated Hidden template for adding new job rows with removal button -->
+<template id="job-row-template">
+  <tr class="gov-table-row job-row" data-job-index="__JOB_INDEX__" data-template-id="__TEMPLATE_ID__">
+    <td style="background: #f8f9fa;">
+      <input type="text" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][name]" 
+             class="form-control gov-input" placeholder="Job Name" required value="__JOB_NAME__">
+      <input type="hidden" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][job_template_id]" value="__TEMPLATE_ID__">
+    </td>
+    <td>
+      <textarea name="quotation[quotation_jobs_attributes][__JOB_INDEX__][description]" 
+                class="form-control gov-textarea" rows="1" placeholder="Job Description">__JOB_DESCRIPTION__</textarea>
+    </td>
+    <td class="text-center">
+      <input type="number" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][estimated_hours]" 
+             class="form-control gov-input job-hours-input" step="0.25" min="0.25" value="__JOB_HOURS__">
+    </td>
+    <td class="text-center">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text gov-currency-sm">$</span>
+        <input type="number" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][labor_rate_per_hour]" 
+               class="form-control form-control-sm job-rate-input" step="0.01" min="0" value="__JOB_RATE__">
+      </div>
+    </td>
+    <td class="text-center" style="font-weight: bold; color: #28a745;">
+      <span class="job-total-amount">$__JOB_TOTAL__</span>
+    </td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="__JOB_INDEX__" 
+              style="
+                min-width: 32px; 
+                padding: 6px 10px; 
+                cursor: pointer; 
+                z-index: 100; 
+                position: relative;
+                background: linear-gradient(135deg, #ff0000 0%, #ff3300 25%, #ff6600 50%, #ff9900 75%, #ffcc00 100%);
+                border: 2px solid #ff3300;
+                color: white;
+                border-radius: 6px;
+                font-weight: 800;
+                box-shadow: 
+                  0 0 15px rgba(255, 51, 0, 0.7),
+                  0 0 25px rgba(255, 102, 0, 0.5),
+                  0 0 35px rgba(255, 153, 0, 0.3),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.4),
+                  inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+                text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+                transition: all 0.3s ease;
+              "
+              onmouseover="this.style.background='linear-gradient(135deg, #ff3300 0%, #ff6600 25%, #ff9900 50%, #ffcc00 75%, #ffff00 100%)'; this.style.transform='translateY(-2px) scale(1.1)'; this.style.boxShadow='0 0 20px rgba(255, 51, 0, 0.9), 0 0 35px rgba(255, 102, 0, 0.7), 0 0 50px rgba(255, 153, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 0 rgba(0, 0, 0, 0.3)';"
+              onmouseout="this.style.background='linear-gradient(135deg, #ff0000 0%, #ff3300 25%, #ff6600 50%, #ff9900 75%, #ffcc00 100%)'; this.style.transform=''; this.style.boxShadow='0 0 15px rgba(255, 51, 0, 0.7), 0 0 25px rgba(255, 102, 0, 0.5), 0 0 35px rgba(255, 153, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.2)';"
+              onmousedown="this.style.transform='translateY(1px) scale(0.95)'; this.style.boxShadow='0 0 10px rgba(255, 51, 0, 0.5), 0 0 15px rgba(255, 102, 0, 0.3), 0 2px 5px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)';"
+              onmouseup="this.style.transform='translateY(-2px) scale(1.1)'; this.style.boxShadow='0 0 20px rgba(255, 51, 0, 0.9), 0 0 35px rgba(255, 102, 0, 0.7), 0 0 50px rgba(255, 153, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 0 rgba(0, 0, 0, 0.3)';">
+        <span style="font-size: 14px; pointer-events: none; font-weight: bold; text-shadow: 0 0 5px rgba(255, 255, 255, 0.8), 0 0 10px rgba(255, 255, 255, 0.5), 1px 1px 2px rgba(0, 0, 0, 0.5);">✕</span>
+      </button>
+    </td>
+  </tr>
+</template>
+
+<!-- Trinidad Government Styling -->
 <style>
-.tt-quotation-form {
+.tt-vmcott-quotation-form {
   font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  background-color: #f8f9fa;
-  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  padding: 25px;
   border-radius: 8px;
-  border: 1px solid #dee2e6;
+  border: 2px solid #dee2e6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .form-header {
-  color: white;
-  padding: 20px;
   border-radius: 8px;
+  padding: 20px;
   margin-bottom: 30px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
 }
 
-.gov-logo-placeholder {
-  padding: 10px;
+.form-header::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #FFCC00 0%, #DA291C 50%, #006837 100%);
 }
 
-.logo-circle {
-  width: 60px;
-  height: 60px;
-  background: white;
+.trinidad-logo .logo-circle {
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 24px;
   margin: 0 auto 10px;
-  border: 2px solid rgba(255,255,255,0.3);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
-.form-title {
-  font-weight: 700;
-  font-size: 28px;
+.ministry-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-top: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.national-emblem .form-title {
+  font-weight: 800;
+  font-size: 32px;
+  letter-spacing: 0.5px;
   margin-bottom: 5px;
-  letter-spacing: 1px;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
 }
 
-.form-subtitle {
-  font-weight: 600;
+.national-emblem .form-subtitle {
   font-size: 18px;
-  margin-bottom: 5px;
-  color: rgba(255,255,255,0.9);
+  font-weight: 600;
+  margin-bottom: 15px;
 }
 
-.form-code {
-  font-size: 14px;
-  color: rgba(255,255,255,0.8);
-  font-style: italic;
+.document-details .badge-grp {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.form-number {
-  background: rgba(255,255,255,0.9);
-  color: #1a237e;
-  padding: 10px;
+.document-badge {
+  padding: 6px 12px;
   border-radius: 4px;
-  border: 2px solid rgba(255,255,255,0.3);
+  font-size: 12px;
+  font-weight: 500;
   backdrop-filter: blur(10px);
 }
 
-.quote-number {
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  font-size: 18px;
-  color: #1a237e;
+.document-stamp {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.form-section {
+.gov-section {
   background: white;
   border-radius: 6px;
   border: 1px solid #dee2e6;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 25px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 .section-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  color: #2c3e50;
-  padding: 12px 20px;
-  border-bottom: 2px solid #dee2e6;
-}
-
-.section-header h4 {
-  margin: 0;
-  font-weight: 600;
-  font-size: 18px;
-  color: #2c3e50;
-}
-
-.section-subtitle {
-  font-size: 14px;
-  color: #6c757d;
-  margin: 5px 0 0;
+  padding: 15px 20px;
+  border-bottom: 1px solid #dee2e6;
 }
 
 .section-body {
   padding: 20px;
 }
 
-.form-label {
+.gov-label {
   font-weight: 600;
   font-size: 14px;
   color: #2c3e50;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.form-label.required::after {
+.gov-label.required::after {
   content: " *";
   color: #dc3545;
+  font-weight: bold;
 }
 
-.gov-input, .gov-select, .gov-textarea {
+.gov-input, .gov-select, .gov-textarea, .gov-date-input {
   border: 2px solid #dee2e6;
   border-radius: 4px;
-  padding: 10px;
+  padding: 10px 12px;
   font-size: 14px;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.2s ease;
+  background: white;
 }
 
-.gov-input:focus, .gov-select:focus, .gov-textarea:focus {
-  border-color: #3949ab;
-  box-shadow: 0 0 0 0.2rem rgba(57, 73, 171, 0.15);
-  background-color: #fff;
+.gov-input:focus, .gov-select:focus, .gov-textarea:focus, .gov-date-input:focus {
+  border-color: #DA291C;
+  box-shadow: 0 0 0 0.25rem rgba(218, 41, 28, 0.15);
+  background: #fff;
 }
 
-.gov-input:read-only {
-  background-color: #f8f9fa;
-  border-color: #ced4da;
+.gov-input-display {
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.gov-input-prefix {
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-right: none;
+  color: #495057;
+  font-weight: 500;
 }
 
 .gov-currency {
-  background-color: #f8f9fa;
-  border: 2px solid #dee2e6;
-  border-right: none;
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+  color: white;
   font-weight: bold;
+  border: 2px solid #28a745;
+  border-right: none;
+}
+
+.gov-currency-sm {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-right: none;
   color: #495057;
 }
 
-.terms-checklist {
-  background-color: #f8f9fa;
-  padding: 15px;
+.gov-total-input {
+  background: #f8f9fa !important;
+  border: 2px solid #28a745;
+  font-weight: bold;
+  color: #28a745;
+}
+
+.gov-pricing-table {
+  border: 2px solid #dee2e6;
   border-radius: 4px;
-  border-left: 4px solid #3949ab;
+  overflow: hidden;
 }
 
-.form-check-label {
-  font-size: 14px;
-  color: #495057;
-  cursor: pointer;
+.gov-pricing-table .table-header th {
+  font-weight: 600;
+  padding: 12px;
+  border-bottom: 2px solid #dee2e6;
 }
 
-.form-check-input:checked {
-  background-color: #3949ab;
-  border-color: #3949ab;
+.gov-pricing-table .gov-table-row {
+  transition: all 0.2s ease;
 }
 
-.signature-box {
+.gov-pricing-table .gov-table-row:hover {
   background-color: #f8f9fa;
+}
+
+.gov-pricing-table .gov-table-row.odd {
+  background-color: #f8f9fa;
+}
+
+.gov-pricing-table .gov-table-row.even {
+  background-color: white;
+}
+
+.gov-pricing-table td {
+  padding: 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.unit-price-input {
+  text-align: right;
+  font-weight: 500;
+}
+
+.unit-price-input:focus {
+  border-color: #28a745;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.15);
+}
+
+.subtotal-cell, .vat-cell {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.table-footer-subtotal td {
+  background: #f8f9fa;
+  font-weight: bold;
+  padding: 15px 12px;
+  border-top: 2px solid #dee2e6;
+}
+
+.table-footer-grandtotal td {
+  padding: 18px 12px;
+  font-weight: bold;
+  border-top: 3px solid #dee2e6;
+}
+
+.gov-alert-info {
+  background: #e7f3fe;
+  border-left: 4px solid #007bff;
+  color: #2c3e50;
+  border-radius: 4px;
+}
+
+.gov-alert-danger {
+  background: #f8d7da;
+  border-left: 4px solid #dc3545;
+  color: #721c24;
+  border-radius: 4px;
+}
+
+.gov-terms-box {
+  background: #f8f9fa;
   padding: 20px;
   border-radius: 4px;
-  border: 1px dashed #adb5bd;
-  text-align: center;
-  height: 100%;
+  border-left: 4px solid #ffc107;
 }
 
-.signature-label {
-  font-weight: 600;
-  color: #2c3e50;
+.terms-title {
+  font-size: 16px;
   margin-bottom: 15px;
+  border-bottom: 2px solid #ffc107;
+  padding-bottom: 8px;
+}
+
+.gov-checkbox {
+  padding-left: 2rem;
+  margin-bottom: 12px;
+}
+
+.gov-checkbox-input {
+  width: 20px;
+  height: 20px;
+  margin-left: -2rem;
+  margin-top: 0.3rem;
+  border: 2px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.gov-checkbox-input:checked {
+  background-color: #DA291C;
+  border-color: #DA291C;
+}
+
+.gov-checkbox-label {
+  cursor: pointer;
   font-size: 14px;
-  text-transform: uppercase;
+  color: #495057;
+}
+
+.checkbox-text {
+  display: inline-block;
+  vertical-align: top;
+  margin-left: 8px;
+}
+
+.gov-contact-card, .gov-auth-card {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.contact-detail, .auth-detail {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.contact-detail:last-child, .auth-detail:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.contact-detail i {
+  font-size: 18px;
+  margin-right: 15px;
+  margin-top: 3px;
+  width: 24px;
+  text-align: center;
+}
+
+.auth-icon {
+  margin-right: 15px;
+}
+
+.auth-info {
+  flex: 1;
+}
+
+.signature-area {
+  padding-top: 15px;
 }
 
 .signature-line {
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, #adb5bd 50%, transparent 100%);
-  margin: 20px 0;
+  margin: 10px 0;
 }
 
-.signature-details {
+.signature-label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.signature-text, .signature-date {
   font-size: 13px;
   color: #6c757d;
-  margin-top: 10px;
+}
+
+.agency-acceptance-box {
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.agency-header {
+  padding: 12px 15px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.agency-body {
+  padding: 20px;
+}
+
+.agency-stamp .stamp {
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.gov-submission-notice {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.notice-body p {
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .gov-btn {
-  border-radius: 4px;
-  padding: 10px 20px;
+  padding: 12px 24px;
   font-weight: 600;
   text-transform: uppercase;
   font-size: 14px;
   letter-spacing: 0.5px;
   border: none;
+  border-radius: 4px;
   transition: all 0.2s ease;
   min-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.gov-btn.btn-primary {
-  background: linear-gradient(135deg, #3949ab 0%, #303f9f 100%);
+.gov-btn-primary {
+  background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%);
   color: white;
+  box-shadow: 0 2px 4px rgba(218, 41, 28, 0.3);
 }
 
-.gov-btn.btn-secondary {
+.gov-btn-secondary {
   background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
   color: white;
 }
 
-.gov-btn.btn-outline-secondary {
-  background: white;
-  border: 2px solid #6c757d;
-  color: #6c757d;
+.gov-btn-warning {
+  background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+  color: #212529;
 }
 
 .gov-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .gov-btn:disabled {
@@ -541,309 +1353,945 @@
   cursor: not-allowed;
 }
 
-.gov-alert {
-  background-color: #e3f2fd;
-  border-left: 4px solid #3949ab;
-  color: #2c3e50;
-  font-size: 14px;
-  border-radius: 4px;
-}
-
-.line-item-row {
-  background-color: #f8f9fa;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 4px;
-  border-left: 4px solid #3949ab;
+/* Job Template Card Styles */
+.template-card {
+  cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.line-item-row:hover {
-  background-color: #e9ecef;
-  border-left-color: #283593;
-}
-
-.gov-table-row {
   border: 1px solid #dee2e6;
 }
 
-.gov-divider {
-  margin: 20px 0;
-  border-top: 2px solid #dee2e6;
-  opacity: 0.5;
+.template-card:hover {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* Validation styles */
-.gov-input:invalid:not(:focus):not(:placeholder-shown) {
-  border-color: #dc3545;
+.template-card.selected {
+  background-color: #e7f3fe;
+  border-color: #007bff;
 }
 
-.gov-input:valid:not(:focus):not(:placeholder-shown) {
-  border-color: #28a745;
+.template-card .template-details {
+  font-size: 12px;
+  margin-top: 5px;
 }
 
-/* For smaller screens */
+.selected-jobs-list {
+  min-height: 200px;
+}
+
+.selected-jobs-list .job-item {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
+}
+
+.selected-jobs-list .job-item:hover {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.selected-jobs-list .job-item .job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.selected-jobs-list .job-item .job-header strong {
+  color: #2c3e50;
+}
+
+.selected-jobs-list .job-item .job-details {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.selected-jobs-list .job-item .job-actions {
+  margin-top: 5px;
+}
+
+.selected-jobs-list .job-item .job-actions .btn-sm {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+#selected-jobs-count {
+  font-size: 0.8em;
+}
+
+/* Improved Remove Button Styles */
+.remove-job-from-table-btn {
+  min-width: 32px;
+  padding: 6px 10px;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border: none;
+  color: white;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.remove-job-from-table-btn:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+}
+
+.remove-job-from-table-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.remove-job-from-table-btn:focus-visible {
+  outline: 2px solid #dc3545;
+  outline-offset: 2px;
+}
+
+.remove-job-from-table-btn span {
+  font-size: 14px;
+  pointer-events: none;
+  font-weight: bold;
+  position: relative;
+  z-index: 1;
+}
+
+/* For the panel remove buttons */
+.remove-selected-job-btn {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border: none;
+  color: white;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  padding: 4px 8px;
+  min-width: 28px;
+}
+
+.remove-selected-job-btn:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
+  .tt-vmcott-quotation-form {
+    padding: 15px;
+  }
+  
   .form-title {
-    font-size: 22px;
+    font-size: 24px;
   }
   
   .form-subtitle {
     font-size: 16px;
   }
   
-  .section-body {
-    padding: 15px;
+  .document-badge {
+    font-size: 10px;
+    padding: 4px 8px;
   }
   
   .gov-btn {
-    padding: 8px 16px;
+    padding: 10px 16px;
     font-size: 12px;
     min-width: 120px;
   }
   
-  .logo-circle {
-    width: 50px;
-    height: 50px;
-    font-size: 20px;
-  }
-  
-  .form-actions .d-flex {
+  .action-buttons {
     flex-direction: column;
-    gap: 10px;
   }
   
-  .form-actions .gov-btn {
+  .action-buttons .gov-btn {
     width: 100%;
+  }
+  
+  .job-templates-panel, .selected-jobs-panel {
+    margin-bottom: 15px;
+  }
+  
+  .remove-job-from-table-btn {
+    min-width: 28px;
+    padding: 4px 6px;
   }
 }
 
 /* Print styles */
 @media print {
-  .tt-quotation-form {
+  .tt-vmcott-quotation-form {
     background: white;
     padding: 0;
     border: none;
+    box-shadow: none;
   }
   
   .form-header {
-    background: #4a148c !important;
+    background: #DA291C !important;
     -webkit-print-color-adjust: exact;
     color-adjust: exact;
   }
   
-  .gov-btn, .remove-line-item, #add-line-item {
+  .gov-btn, .action-buttons {
     display: none !important;
   }
   
-  .form-section {
-    border: 1px solid #000;
+  .gov-section {
     break-inside: avoid;
+    border: 1px solid #000;
   }
   
-  .signature-box {
-    border: 1px dashed #000;
-  }
-  
-  .gov-input, .gov-select, .gov-textarea {
+  .gov-input, .gov-select, .gov-textarea, .gov-date-input {
     border: 1px solid #ccc;
     background: white !important;
   }
   
-  .gov-input:read-only {
-    border: none;
-    background: transparent !important;
+  .unit-price-input {
+    border: 1px solid #ccc;
+  }
+  
+  .gov-pricing-table {
+    border: 1px solid #000;
+  }
+  
+  /* Hide template selection in print */
+  .job-templates-panel, .selected-jobs-panel {
+    display: none !important;
+  }
+  
+  /* Hide remove buttons in print */
+  .remove-job-from-table-btn, .remove-selected-job-btn {
+    display: none !important;
   }
 }
 </style>
 
-<!-- JavaScript for line item management -->
+<!-- JavaScript for Trinidad Government Quotation Form with Job Templates - FINAL VERSION -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const lineItemsContainer = document.getElementById('line-items');
-  const addButton = document.getElementById('add-line-item');
-  const template = document.getElementById('line-item-template');
+  console.log("Quotation form JavaScript loaded - FINAL VERSION");
   
-  // Counter for new line items
-  let newLineItemCounter = <%= @quotation.quotation_line_items.size || 0 %>;
+  const vatRate = 0.125; // 12.5% VAT for Trinidad and Tobago
+  const currencySymbol = '$'; // TTD
   
-  // Initialize item numbers
-  updateItemNumbers();
+  // Format currency with Trinidad formatting
+  function formatCurrency(amount) {
+    return currencySymbol + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+  }
   
-  // Add new line item
-  addButton.addEventListener('click', function() {
-    const newItem = template.content.cloneNode(true);
-    const itemRow = newItem.querySelector('.line-item-row');
+  // Store selected jobs
+  const selectedJobs = new Map();
+  let jobCounter = 0;
+  
+  console.log("Initial jobCounter:", jobCounter);
+  
+  // Initialize with existing jobs from the form
+  const existingJobRows = document.querySelectorAll('.job-row');
+  console.log("Existing job rows:", existingJobRows.length);
+  
+  existingJobRows.forEach((row, index) => {
+    const jobIndex = index;
+    const nameInput = row.querySelector('input[name*="name"]');
+    const descInput = row.querySelector('textarea[name*="description"]');
+    const hoursInput = row.querySelector('input[name*="estimated_hours"]');
+    const rateInput = row.querySelector('input[name*="labor_rate_per_hour"]');
+    const templateId = row.getAttribute('data-template-id');
     
-    // Generate a unique identifier for this new line item
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 10000);
-    const newRecordId = 'new_' + timestamp + '_' + random;
-    
-    // Update all input names with the new record ID
-    updateInputNames(itemRow, newRecordId);
-    
-    lineItemsContainer.appendChild(itemRow);
-    updateItemNumbers();
-    attachLineItemListeners(itemRow);
-    
-    // Increment counter
-    newLineItemCounter++;
+    if (nameInput && nameInput.value) {
+      selectedJobs.set(jobIndex, {
+        name: nameInput.value,
+        description: descInput?.value || '',
+        hours: parseFloat(hoursInput?.value || 1),
+        rate: parseFloat(rateInput?.value || 100),
+        templateId: templateId,
+        row: row
+      });
+      jobCounter = Math.max(jobCounter, jobIndex + 1);
+    }
   });
   
-  // Function to update input names with correct record ID
-  function updateInputNames(row, recordId) {
-    // Find all inputs with name attribute containing NEW_RECORD
-    const inputs = row.querySelectorAll('[name]');
-    
-    inputs.forEach(input => {
-      // Replace NEW_RECORD with the actual record ID
-      input.name = input.name.replace(/NEW_RECORD/g, recordId);
-    });
-    
-    // Also update data attributes if needed
-    const destroyField = row.querySelector('.destroy-field');
-    if (destroyField) {
-      destroyField.value = '0'; // Ensure it's not marked for destruction
-    }
-  }
+  console.log("Initial selected jobs:", selectedJobs.size);
+  console.log("Updated jobCounter after init:", jobCounter);
   
-  // Function to update item numbers
-  function updateItemNumbers() {
-    document.querySelectorAll('.line-item-row').forEach((row, index) => {
-      const itemNumberField = row.querySelector('.item-number');
-      if (itemNumberField) {
-        itemNumberField.value = index + 1;
-      }
-    });
-  }
-  
-  // Function to calculate totals
-  function calculateTotal(row) {
-    const quantityInput = row.querySelector('.line-item-quantity');
-    const unitPriceInput = row.querySelector('.line-item-unit-price');
-    const totalField = row.querySelector('.line-item-total');
+  // Update selected jobs display
+  function updateSelectedJobsDisplay() {
+    const selectedJobsList = document.getElementById('selected-jobs-list');
+    const noJobsMessage = document.getElementById('no-jobs-message');
+    const selectedJobsCount = document.getElementById('selected-jobs-count');
     
-    if (quantityInput && unitPriceInput && totalField) {
-      const quantity = parseFloat(quantityInput.value) || 0;
-      const unitPrice = parseFloat(unitPriceInput.value) || 0;
-      const total = quantity * unitPrice;
-      
-      totalField.value = total.toFixed(2);
-      
-      // Format with currency symbol if needed
-      if (!totalField.value.includes('$')) {
-        totalField.value = '$' + totalField.value;
-      }
-    }
-  }
-  
-  // Function to attach event listeners to line item
-  function attachLineItemListeners(row) {
-    // Calculate total when quantity or price changes
-    const quantityInput = row.querySelector('.line-item-quantity');
-    const priceInput = row.querySelector('.line-item-unit-price');
-    
-    if (quantityInput) {
-      quantityInput.addEventListener('input', function() {
-        calculateTotal(row);
-      });
+    if (!selectedJobsList) {
+      console.error("Selected jobs list not found!");
+      return;
     }
     
-    if (priceInput) {
-      priceInput.addEventListener('input', function() {
-        calculateTotal(row);
-      });
-    }
+    // Clear the list
+    selectedJobsList.innerHTML = '';
     
-    // Remove button
-    const removeBtn = row.querySelector('.remove-line-item');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', function() {
-        const row = this.closest('.line-item-row');
-        const destroyField = row.querySelector('.destroy-field');
-        
-        if (destroyField) {
-          // If it's a persisted record, mark for destruction
-          if (destroyField.name.includes('][id]') || destroyField.name.includes('[0]') || destroyField.name.includes('[1]') || destroyField.name.includes('[2]')) {
-            // This is likely a persisted record, mark for destruction
-            destroyField.value = '1';
-            row.style.display = 'none';
-          } else {
-            // This is a new record, just remove it
-            row.remove();
-            updateItemNumbers();
-          }
-        } else {
-          // No destroy field, just remove
-          row.remove();
-          updateItemNumbers();
-        }
-      });
-    }
-    
-    // Calculate initial total
-    calculateTotal(row);
-  }
-  
-  // Attach listeners to existing line items
-  document.querySelectorAll('.line-item-row').forEach(row => {
-    attachLineItemListeners(row);
-  });
-  
-  // Also attach a global listener for remove buttons (for dynamically added items)
-  lineItemsContainer.addEventListener('click', function(e) {
-    if (e.target.classList.contains('remove-line-item') || e.target.closest('.remove-line-item')) {
-      const removeBtn = e.target.classList.contains('remove-line-item') ? e.target : e.target.closest('.remove-line-item');
-      const row = removeBtn.closest('.line-item-row');
-      
-      const destroyField = row.querySelector('.destroy-field');
-      if (destroyField) {
-        if (destroyField.name.includes('new_')) {
-          // New record, just remove it
-          row.remove();
-          updateItemNumbers();
-        } else {
-          // Persisted record, mark for destruction
-          destroyField.value = '1';
-          row.style.display = 'none';
-        }
+    if (selectedJobs.size === 0) {
+      if (noJobsMessage) {
+        noJobsMessage.style.display = 'block';
       } else {
-        // No destroy field, just remove
-        row.remove();
-        updateItemNumbers();
+        selectedJobsList.innerHTML = '<p class="text-muted text-center mb-0"><i class="fas fa-info-circle"></i> No jobs selected yet. Select jobs from the left panel.</p>';
+      }
+      if (selectedJobsCount) selectedJobsCount.textContent = '0';
+      return;
+    }
+    
+    
+    if (noJobsMessage) {
+      noJobsMessage.style.display = 'none';
+    }
+    
+    if (selectedJobsCount) selectedJobsCount.textContent = selectedJobs.size;
+    
+    // Add each selected job
+    selectedJobs.forEach((job, index) => {
+      const jobItem = document.createElement('div');
+      jobItem.className = 'job-item mb-2 p-2 border rounded';
+      jobItem.setAttribute('data-job-index', index);
+      
+      // Calculate total for this job
+      const jobTotal = (job.hours * job.rate).toFixed(2);
+      
+      jobItem.innerHTML = `
+        <div class="job-header d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <strong>${job.name}</strong>
+            ${job.templateId ? '<span class="badge bg-info ms-2">Template</span>' : ''}
+          </div>
+          <button type="button" class="btn btn-sm btn-danger remove-selected-job-btn" data-index="${index}" title="Remove job" style="min-width: 28px; padding: 4px 8px; cursor: pointer; z-index: 100; position: relative;">
+            <span style="font-size: 12px; pointer-events: none;">✕</span>
+          </button>
+        </div>
+        <div class="job-details">
+          <small class="text-muted d-block">${job.description || 'No description'}</small>
+          <div class="mt-1 d-flex justify-content-between">
+            <div>
+              <small><i class="fas fa-clock"></i> ${job.hours} hrs</small> | 
+              <small><i class="fas fa-dollar-sign"></i> ${job.rate}/hr</small>
+            </div>
+            <div>
+              <small><strong>Total: ${formatCurrency(job.hours * job.rate)}</strong></small>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      selectedJobsList.appendChild(jobItem);
+    });
+  }
+  
+  // Add job from template - FIXED VERSION
+  function addJobFromTemplate(templateId, name, description, hours, rate) {
+    console.log("=== ADDING JOB FROM TEMPLATE ===");
+    console.log("Template:", templateId, name);
+    console.log("Current jobCounter:", jobCounter);
+    
+    // Check if already added (by templateId)
+    for (const [index, job] of selectedJobs) {
+      if (job.templateId == templateId) {
+        alert('This job template has already been added.');
+        return;
       }
     }
-  });
-  
-  // Recalculate all totals when page loads
-  document.querySelectorAll('.line-item-row').forEach(row => {
-    calculateTotal(row);
-  });
-  
-  // Handle form submission to ensure all line items are included
-  const form = document.querySelector('.tt-quotation-form');
-  if (form) {
-    form.addEventListener('submit', function() {
-      // Update item numbers one last time before submission
-      updateItemNumbers();
+    
+    // Create job row in table
+    const jobTableBody = document.getElementById('job-table-body');
+    const jobRowTemplate = document.getElementById('job-row-template');
+    
+    console.log("Job table body:", jobTableBody);
+    console.log("Job row template:", jobRowTemplate);
+    
+    if (!jobTableBody || !jobRowTemplate) {
+      console.error("Job table body or template not found!");
+      alert("Error: Cannot add job. Please refresh the page and try again.");
+      return;
+    }
+    
+    // Remove "no jobs" message if it exists
+    const noJobsRow = document.getElementById('no-jobs-row');
+    if (noJobsRow) {
+      console.log("Removing no-jobs-row");
+      noJobsRow.remove();
+    }
+    
+    // Show the total footer
+    const jobTotalFooter = document.getElementById('job-total-footer');
+    if (jobTotalFooter) {
+      jobTotalFooter.style.display = '';
+    }
+    
+    const templateContent = jobRowTemplate.innerHTML;
+    const jobTotal = (parseFloat(hours) * parseFloat(rate)).toFixed(2);
+    
+    console.log("Creating row with jobCounter:", jobCounter);
+    
+    const newRowHtml = templateContent
+      .replace(/__JOB_INDEX__/g, jobCounter)
+      .replace(/__TEMPLATE_ID__/g, templateId)
+      .replace(/__JOB_NAME__/g, name)
+      .replace(/__JOB_DESCRIPTION__/g, description)
+      .replace(/__JOB_HOURS__/g, hours)
+      .replace(/__JOB_RATE__/g, rate)
+      .replace(/__JOB_TOTAL__/g, jobTotal);
+    
+    const newRow = document.createElement('tr');
+    newRow.className = 'gov-table-row job-row';
+    newRow.setAttribute('data-job-index', jobCounter);
+    newRow.setAttribute('data-template-id', templateId);
+    newRow.innerHTML = newRowHtml;
+    
+    console.log("New row created:", newRow);
+    
+    // Add to table
+    jobTableBody.appendChild(newRow);
+    console.log("Row added to table body");
+    
+    // Add to selected jobs Map
+    selectedJobs.set(jobCounter, {
+      name: name,
+      description: description,
+      hours: parseFloat(hours),
+      rate: parseFloat(rate),
+      templateId: templateId,
+      row: newRow
+    });
+    
+    // Add event listeners to new inputs
+    const hoursInput = newRow.querySelector('.job-hours-input');
+    const rateInput = newRow.querySelector('.job-rate-input');
+    
+    if (hoursInput) {
+      hoursInput.addEventListener('input', function() {
+        updateJobTotal(newRow);
+        calculateAllTotals();
+      });
+    }
+    
+    if (rateInput) {
+      rateInput.addEventListener('input', function() {
+        updateJobTotal(newRow);
+        calculateAllTotals();
+      });
+    }
+    
+    // Add direct click handler to remove button using a closure
+    const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
+    if (removeBtn) {
+      console.log("Adding direct click handler to remove button for job:", jobCounter);
       
-      // Ensure all line items are properly included
-      document.querySelectorAll('.line-item-row').forEach((row, index) => {
-        const quantityInput = row.querySelector('.line-item-quantity');
-        const priceInput = row.querySelector('.line-item-unit-price');
+      // Create a closure to capture the current jobCounter value
+      (function(currentIndex) {
+        removeBtn.addEventListener('click', function(e) {
+          console.log("DIRECT CLICK HANDLER: Remove button clicked for job:", currentIndex);
+          e.preventDefault();
+          e.stopPropagation();
+          removeJob(currentIndex);
+        });
+      })(jobCounter); // Pass jobCounter to the closure
+      
+      // Make sure button is visible and clickable
+      removeBtn.style.cursor = 'pointer';
+      removeBtn.style.position = 'relative';
+      removeBtn.style.zIndex = '100';
+    }
+    
+    // Initialize the job total calculation
+    updateJobTotal(newRow);
+    
+    // Update job counter AFTER setting up the click handler
+    jobCounter++;
+    console.log("jobCounter incremented to:", jobCounter);
+    
+    // Update selected jobs display
+    updateSelectedJobsDisplay();
+    
+    // Update totals
+    calculateAllTotals();
+    
+    // Update job template data
+    updateJobTemplateData();
+    
+    console.log("=== JOB ADDED SUCCESSFULLY ===");
+    console.log("Total jobs now:", selectedJobs.size);
+    
+    return true;
+  }
+  
+  // Update job total display
+  function updateJobTotal(row) {
+    const hoursInput = row.querySelector('.job-hours-input');
+    const rateInput = row.querySelector('.job-rate-input');
+    const totalCell = row.querySelector('.job-total-amount');
+    
+    if (hoursInput && rateInput && totalCell) {
+      const hours = parseFloat(hoursInput.value) || 0;
+      const rate = parseFloat(rateInput.value) || 0;
+      const total = hours * rate;
+      totalCell.textContent = formatCurrency(total);
+      
+      // Update stored job data
+      const jobIndex = parseInt(row.getAttribute('data-job-index'));
+      if (selectedJobs.has(jobIndex)) {
+        const job = selectedJobs.get(jobIndex);
+        job.hours = hours;
+        job.rate = rate;
+        selectedJobs.set(jobIndex, job);
+      }
+    }
+  }
+  
+  // Remove job
+  function removeJob(jobIndex) {
+    console.log("=== REMOVING JOB ===");
+    console.log("Job index to remove:", jobIndex);
+    console.log("Selected jobs has this index?", selectedJobs.has(jobIndex));
+    
+    if (!selectedJobs.has(jobIndex)) {
+      console.log("Job index not found in selectedJobs:", jobIndex);
+      return;
+    }
+    
+    // Get job data
+    const job = selectedJobs.get(jobIndex);
+    console.log("Job found:", job.name);
+    
+    // Remove from selected jobs Map
+    selectedJobs.delete(jobIndex);
+    console.log("Removed from selectedJobs Map");
+    
+    // Remove from HTML table if row exists
+    if (job.row && job.row.parentNode) {
+      job.row.remove();
+      console.log("Row removed from DOM");
+    }
+    
+    // Show "no jobs" message if no jobs left
+    if (selectedJobs.size === 0) {
+      console.log("No jobs left, showing message");
+      const jobTableBody = document.getElementById('job-table-body');
+      const jobTotalFooter = document.getElementById('job-total-footer');
+      
+      if (jobTableBody && !document.getElementById('no-jobs-row')) {
+        const noJobsRow = document.createElement('tr');
+        noJobsRow.id = 'no-jobs-row';
+        noJobsRow.innerHTML = `
+          <td colspan="6" class="text-center text-muted py-4">
+            <i class="fas fa-info-circle me-2"></i>
+            No jobs added yet. Select jobs from the template panel above.
+          </td>
+        `;
+        jobTableBody.appendChild(noJobsRow);
+      }
+      
+      if (jobTotalFooter) {
+        jobTotalFooter.style.display = 'none';
+      }
+    }
+    
+    // Update selected jobs display
+    updateSelectedJobsDisplay();
+    
+    // Update totals
+    calculateAllTotals();
+    
+    // Update job template data
+    updateJobTemplateData();
+    
+    console.log("=== JOB REMOVED SUCCESSFULLY ===");
+    console.log("Remaining jobs:", selectedJobs.size);
+  }
+  
+  // Attach template selection event listeners
+  function attachTemplateListeners() {
+    console.log("Setting up template listeners...");
+    
+    // Use event delegation
+    document.addEventListener('click', function(e) {
+      const addBtn = e.target.closest('.add-template-btn');
+      if (addBtn) {
+        e.preventDefault();
+        e.stopPropagation();
         
-        if (quantityInput && priceInput) {
-          // Ensure values are valid
-          if (!quantityInput.value || parseFloat(quantityInput.value) <= 0) {
-            quantityInput.value = '1';
+        const card = addBtn.closest('.template-card');
+        if (!card) return;
+        
+        const templateId = card.getAttribute('data-template-id');
+        const name = card.getAttribute('data-template-name');
+        const description = card.getAttribute('data-template-description');
+        const hours = card.getAttribute('data-template-hours') || 1;
+        const rate = card.getAttribute('data-template-rate') || 100;
+        
+        console.log("Add button clicked for template:", templateId, name);
+        
+        addJobFromTemplate(templateId, name, description, hours, rate);
+        
+        // Visual feedback
+        card.style.backgroundColor = '#e7f3fe';
+        card.style.borderColor = '#007bff';
+        setTimeout(() => {
+          card.style.backgroundColor = '';
+          card.style.borderColor = '';
+        }, 500);
+      }
+    });
+  }
+  
+  // Set up event delegation for ALL remove buttons - FIXED VERSION
+  function setupRemoveButtonDelegation() {
+    console.log("Setting up remove button event delegation...");
+    
+    // Event delegation for ALL clicks
+    document.addEventListener('click', function(e) {
+      // Check if clicked on remove button OR the span inside it
+      let tableRemoveBtn = e.target.closest('.remove-job-from-table-btn');
+      
+      // If not found, check if clicked on span inside button
+      if (!tableRemoveBtn && e.target.tagName === 'SPAN') {
+        tableRemoveBtn = e.target.closest('button');
+        if (tableRemoveBtn && tableRemoveBtn.classList.contains('remove-job-from-table-btn')) {
+          console.log("Found span inside remove button");
+        }
+      }
+      
+      if (tableRemoveBtn) {
+        console.log("TABLE REMOVE BUTTON CLICKED VIA DELEGATION");
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const row = tableRemoveBtn.closest('.job-row');
+        if (!row) {
+          console.error("Could not find job row");
+          return;
+        }
+        
+        const jobIndex = parseInt(row.getAttribute('data-job-index'));
+        console.log("Removing job index via delegation:", jobIndex);
+        removeJob(jobIndex);
+        return;
+      }
+      
+      // Check if clicked on remove button in panel
+      const panelRemoveBtn = e.target.closest('.remove-selected-job-btn');
+      if (panelRemoveBtn) {
+        console.log("PANEL REMOVE BUTTON CLICKED VIA DELEGATION");
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const jobIndex = parseInt(panelRemoveBtn.getAttribute('data-index'));
+        console.log("Removing job index via delegation:", jobIndex);
+        removeJob(jobIndex);
+        return;
+      }
+    }, true); // Use capture phase
+  }
+  
+  // Calculate line item totals - UPDATED FOR OPTIONAL ITEMS
+  function calculateLineItem(row) {
+    const unitPriceInput = row.querySelector('.unit-price-input');
+    const quantityInput = row.querySelector('input[name*="quantity"]') || row.querySelector('.gov-input[type="number"]');
+    const quantity = parseInt(quantityInput?.value) || 0; // Changed from 1 to 0 for optional
+    const unitPrice = parseFloat(unitPriceInput.value) || 0;
+    
+    const subtotal = unitPrice * quantity;
+    const vat = subtotal * vatRate;
+    const total = subtotal + vat;
+    
+    // Update display
+    const subtotalCell = row.querySelector('.subtotal-amount');
+    const vatCell = row.querySelector('.vat-amount');
+    
+    if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
+    if (vatCell) vatCell.textContent = formatCurrency(vat);
+    
+    // REMOVED validation highlight for optional items
+    
+    return { subtotal, vat, total };
+  }
+  
+  // Calculate job item totals
+  function calculateJobItem(row) {
+    const hoursInput = row.querySelector('.job-hours-input') || row.querySelector('input[name*="estimated_hours"]');
+    const rateInput = row.querySelector('.job-rate-input') || row.querySelector('input[name*="labor_rate_per_hour"]');
+    
+    const hours = parseFloat(hoursInput?.value) || 0;
+    const rate = parseFloat(rateInput?.value) || 0;
+    const total = hours * rate;
+    
+    // Update display
+    const totalCell = row.querySelector('.job-total-amount');
+    if (totalCell) totalCell.textContent = formatCurrency(total);
+    
+    return { hours, rate, total };
+  }
+  
+  // Calculate all totals
+  function calculateAllTotals() {
+    let subtotalSum = 0;
+    let vatSum = 0;
+    let lineItemsTotal = 0;
+    let jobsTotal = 0;
+    let grandTotal = 0;
+    
+    // Calculate line items
+    document.querySelectorAll('.gov-table-row:not(.job-row)').forEach(row => {
+      const { subtotal, vat, total } = calculateLineItem(row);
+      subtotalSum += subtotal;
+      vatSum += vat;
+      lineItemsTotal += total;
+    });
+    
+    // Calculate jobs
+    selectedJobs.forEach((job) => {
+      if (job.row) {
+        const { total } = calculateJobItem(job.row);
+        jobsTotal += total;
+      } else {
+        jobsTotal += (job.hours * job.rate);
+      }
+    });
+    
+    // Total = line items + jobs
+    grandTotal = lineItemsTotal + jobsTotal;
+    
+    // Update summary totals
+    const subtotalTotal = document.getElementById('subtotal-total');
+    const vatTotal = document.getElementById('vat-total');
+    const grandTotalElem = document.getElementById('grand-total');
+    const totalAmountDisplay = document.getElementById('total-amount-display');
+    const quotationAmount = document.getElementById('quotation_amount');
+    const totalLaborCost = document.getElementById('total-labor-cost');
+    
+    if (subtotalTotal) subtotalTotal.textContent = formatCurrency(subtotalSum);
+    if (vatTotal) vatTotal.textContent = formatCurrency(vatSum);
+    if (grandTotalElem) grandTotalElem.textContent = formatCurrency(grandTotal);
+    if (totalAmountDisplay) totalAmountDisplay.value = formatCurrency(grandTotal);
+    if (quotationAmount) quotationAmount.value = grandTotal.toFixed(2);
+    if (totalLaborCost) totalLaborCost.textContent = formatCurrency(jobsTotal);
+    
+    return { lineItemsTotal, jobsTotal, grandTotal };
+  }
+  
+  // Update job template data for submission
+  function updateJobTemplateData() {
+    const jobData = Array.from(selectedJobs.entries()).map(([index, job]) => ({
+      index: index,
+      templateId: job.templateId,
+      name: job.name,
+      description: job.description,
+      hours: job.hours,
+      rate: job.rate
+    }));
+    
+    const jobTemplateData = document.getElementById('job_template_data');
+    if (jobTemplateData) {
+      jobTemplateData.value = JSON.stringify(jobData);
+    }
+  }
+  
+  // Form validation - allows submission with only jobs
+  function setupFormValidation() {
+    const form = document.querySelector('.tt-vmcott-quotation-form');
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+      console.log("Form submit validation");
+      
+      // Check if we have at least jobs OR line items
+      const hasJobs = selectedJobs.size > 0;
+      const hasLineItems = Array.from(document.querySelectorAll('.unit-price-input'))
+        .some(input => parseFloat(input.value) > 0);
+      
+      if (!hasJobs && !hasLineItems) {
+        e.preventDefault();
+        alert('Please add at least one job or line item before submitting the quotation.');
+        return false;
+      }
+      
+      // Optional: Validate job data
+      let hasValidJobs = true;
+      selectedJobs.forEach((job, index) => {
+        if (!job.name || job.hours <= 0 || job.rate <= 0) {
+          hasValidJobs = false;
+          console.error(`Invalid job at index ${index}:`, job);
+        }
+      });
+      
+      if (!hasValidJobs) {
+        e.preventDefault();
+        alert('Please ensure all jobs have valid names, hours, and rates.');
+        return false;
+      }
+      
+      console.log("Form validation passed - submitting");
+      return true;
+    });
+  }
+  
+  // Attach event listeners to price inputs
+  function attachPriceInputListeners() {
+    document.querySelectorAll('.unit-price-input').forEach(input => {
+      input.addEventListener('input', function() {
+        // Format input as user types
+        if (this.value) {
+          const value = parseFloat(this.value);
+          if (!isNaN(value)) {
+            this.value = value.toFixed(2);
           }
-          if (!priceInput.value || parseFloat(priceInput.value) < 0) {
-            priceInput.value = '0.00';
-          }
+        }
+        
+        // Calculate totals
+        calculateAllTotals();
+      });
+      
+      input.addEventListener('blur', function() {
+        // Ensure minimum value
+        if (this.value && parseFloat(this.value) < 0) {
+          this.value = '0.00';
+          calculateAllTotals();
         }
       });
     });
   }
+  
+  // Attach event listeners to job inputs
+  function attachJobInputListeners() {
+    document.querySelectorAll('.job-hours-input, .job-rate-input').forEach(input => {
+      input.addEventListener('input', function() {
+        // Format input as user types
+        if (this.value) {
+          const value = parseFloat(this.value);
+          if (!isNaN(value)) {
+            this.value = value.toFixed(2);
+          }
+        }
+        
+        // Calculate job total and update display
+        const row = this.closest('.job-row');
+        if (row) {
+          calculateJobItem(row);
+        }
+        
+        // Recalculate all totals
+        calculateAllTotals();
+      });
+      
+      input.addEventListener('blur', function() {
+        // Ensure minimum value
+        if (this.value && parseFloat(this.value) < 0) {
+          this.value = '0.00';
+          const row = this.closest('.job-row');
+          if (row) {
+            calculateJobItem(row);
+          }
+          calculateAllTotals();
+        }
+      });
+    });
+  }
+  
+  // Add new line item functionality
+  function setupAddLineItem() {
+    const addButton = document.getElementById('add-line-item');
+    const lineItemTemplate = document.getElementById('line-item-template');
+    const lineItemsTbody = document.querySelector('#line-items');
+    
+    if (addButton && lineItemTemplate && lineItemsTbody) {
+      addButton.addEventListener('click', function() {
+        const rows = lineItemsTbody.querySelectorAll('.gov-table-row');
+        const nextIndex = rows.length;
+        const nextItemNumber = nextIndex + 1;
+        
+        // Get template content
+        const templateContent = lineItemTemplate.innerHTML;
+        
+        // Replace placeholders
+        const newRowHtml = templateContent
+          .replace(/__INDEX__/g, nextIndex)
+          .replace(/__ITEM_NUMBER__/g, nextItemNumber);
+        
+        // Create new row
+        const newRow = document.createElement('tr');
+        newRow.className = 'gov-table-row';
+        newRow.setAttribute('data-index', nextIndex);
+        newRow.innerHTML = newRowHtml;
+        
+        // Add to table
+        lineItemsTbody.appendChild(newRow);
+        
+        // Update item numbers
+        updateItemNumbers();
+        
+        // Attach event listeners to new inputs
+        const newPriceInput = newRow.querySelector('.unit-price-input');
+        if (newPriceInput) {
+          newPriceInput.addEventListener('input', function() {
+            if (this.value) {
+              const value = parseFloat(this.value);
+              if (!isNaN(value)) {
+                this.value = value.toFixed(2);
+              }
+            }
+            calculateAllTotals();
+          });
+        }
+        
+        // Re-attach listeners
+        attachPriceInputListeners();
+        
+        // Calculate new totals
+        calculateAllTotals();
+      });
+    }
+  }
+  
+  // Update all item numbers
+  function updateItemNumbers() {
+    const rows = document.querySelectorAll('.gov-table-row:not(.job-row)');
+    rows.forEach((row, index) => {
+      const numberCell = row.querySelector('.item-number');
+      if (numberCell) {
+        numberCell.textContent = index + 1;
+      }
+    });
+  }
+  
+  // Initialize everything
+  function init() {
+    console.log("Initializing quotation form - FINAL VERSION");
+    
+    // Attach listeners
+    attachTemplateListeners();
+    setupRemoveButtonDelegation(); // Event delegation for remove buttons
+    attachPriceInputListeners();
+    attachJobInputListeners();
+    setupAddLineItem();
+    setupFormValidation(); // Form validation
+    
+    // Update displays
+    updateSelectedJobsDisplay();
+    updateItemNumbers();
+    
+    // Calculate initial totals
+    calculateAllTotals();
+    
+    // Update job template data
+    updateJobTemplateData();
+    
+    console.log("Quotation form initialization complete");
+  }
+  
+  // Start initialization
+  init();
 });
 </script>

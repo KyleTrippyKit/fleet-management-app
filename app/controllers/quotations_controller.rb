@@ -5,11 +5,15 @@ class QuotationsController < ApplicationController
   before_action :authenticate_user!
   before_action :set_quotation, only: [:show, :edit, :update, :destroy, :accept, :reject, 
                                         :convert_to_purchase_order, :print, :email, :send_to_vendor, 
-                                        :duplicate, :send_email]
+                                        :duplicate, :send_email, :accept_items, :reject_items,
+                                        :send_acceptance, :acceptance_summary, :submit_to_agency,
+                                        :convert_to_po, :process_item_acceptance, :assign_jobs,
+                                        :update_jobs]
   before_action :authorize_access, only: [:show, :edit, :update, :destroy, :send_to_vendor, 
-                                          :duplicate, :print, :email, :send_email]
+                                          :duplicate, :print, :email, :send_email, :acceptance_summary]
   before_action :authorize_finance, only: [:accept, :reject, :convert_to_purchase_order]
   before_action :set_agency_and_vehicles, only: [:new, :create, :edit, :update]
+  before_action :load_job_templates, only: [:new, :edit, :create, :update]
 
   # GET /quotations
   def index
@@ -28,11 +32,331 @@ class QuotationsController < ApplicationController
     end
   end
 
+  # GET /quotations/received - For agencies to view received quotations from VMCOTT
+  def received
+    @quotations = Quotation.joins(:vehicle)
+                          .where(vehicles: { agency_id: current_user.agency_id })
+                          .where(vendor: 'VMCOTT')
+                          .where.not(status: 'draft')
+                          .order(created_at: :desc)
+                          .page(params[:page])
+    
+    @stats = {
+      total: @quotations.total_count,
+      pending: @quotations.where(status: 'sent').count,
+      accepted: @quotations.where(status: 'accepted').count,
+      rejected: @quotations.where(status: 'rejected').count
+    }
+    
+    render :received
+  end
+
+  # GET /quotations/sent - For VMCOTT to view sent quotations
+  def sent
+    return redirect_to quotations_path, alert: 'Access denied' unless current_user.agency&.code == 'VMCOTT'
+    
+    @quotations = Quotation.where(vendor: 'VMCOTT')
+                          .where.not(status: 'draft')
+                          .order(created_at: :desc)
+                          .page(params[:page])
+    
+    render :sent
+  end
+
+  # GET /quotations/workspace - VMCOTT quotation workspace
+  def workspace
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    @quotations = Quotation.where(vendor: 'VMCOTT')
+                          .where(status: ['draft', 'sent'])
+                          .order(created_at: :desc)
+                          .page(params[:page])
+    
+    @stats = {
+      draft: @quotations.where(status: 'draft').count,
+      sent: @quotations.where(status: 'sent').count,
+      pending_acceptance: @quotations.where(status: 'sent').count
+    }
+    
+    render :workspace
+  end
+
+  # GET /quotations/pending_review
+  def pending_review
+    authorize_reports_access
+    
+    @quotations = scope_quotations
+                  .where(status: 'sent')
+                  .order(created_at: :desc)
+                  .page(params[:page])
+    
+    render :pending_review
+  end
+
+  # GET /quotations/convert_from_rfq/:rfq_id
+  def convert_from_rfq
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    @rfq = Rfq.find(params[:rfq_id])
+    
+    # Check if a quotation already exists for this RFQ
+    @quotation = Quotation.find_or_initialize_by(rfq_id: @rfq.id)
+    
+    if @quotation.new_record?
+      # Create a new quotation if it doesn't exist
+      quote_number = "Q-VMC-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+      
+      @quotation.assign_attributes(
+        vehicle: @rfq.vehicle,
+        vendor: 'VMCOTT',
+        quote_number: quote_number,
+        valid_from: Date.today,
+        valid_to: Date.today + 30.days,
+        notes: "Converted from RFQ #{@rfq.rfq_number}\n\n#{@rfq.description}",
+        created_by: current_user,
+        amount: 0.00,
+        status: 'draft'
+      )
+      
+      # Add RFQ line items as quotation line items
+      @rfq.rfq_line_items.each do |rfq_item|
+        @quotation.quotation_line_items.build(
+          description: rfq_item.description,
+          quantity: rfq_item.quantity,
+          unit_price: 0.00,
+          specifications: rfq_item.specifications
+        )
+      end
+      
+      # SAVE THE QUOTATION FIRST!
+      unless @quotation.save
+        flash[:alert] = "Failed to create quotation: #{@quotation.errors.full_messages.join(', ')}"
+        redirect_to vmcott_rfq_inbox_path
+        return
+      end
+      
+      flash[:notice] = "Quotation #{@quotation.quote_number} created. Now assign jobs."
+    else
+      flash[:info] = "Continuing with existing quotation #{@quotation.quote_number}"
+    end
+    
+    # Now redirect to job assignment page WITH A SAVED QUOTATION
+    redirect_to assign_jobs_quotation_path(@quotation)
+  end
+
+  # GET /quotations/new_from_rfq/:rfq_id
+  def new_from_rfq
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    @rfq = Rfq.find(params[:rfq_id])
+    
+    # Generate quote number
+    quote_number = "Q-VMC-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+    
+    @quotation = Quotation.new(
+      rfq_id: @rfq.id,
+      vehicle: @rfq.vehicle,
+      vendor: 'VMCOTT',
+      quote_number: quote_number,
+      valid_from: Date.today,
+      valid_to: Date.today + 30.days,
+      notes: "Quotation for RFQ #{@rfq.rfq_number}\n\n#{@rfq.description}",
+      created_by: current_user,
+      amount: 0.00
+    )
+    
+    # Add RFQ line items as quotation line items
+    @rfq.rfq_line_items.each do |rfq_item|
+      @quotation.quotation_line_items.build(
+        description: rfq_item.description,
+        quantity: rfq_item.quantity,
+        unit_price: 0.00,  # VMCOTT sets price here
+        specifications: rfq_item.specifications
+      )
+    end
+    
+    # Set vehicles (from the RFQ's agency)
+    @vehicles = Vehicle.where(agency_id: @rfq.requesting_agency_id).order(:license_plate) if @rfq.requesting_agency_id
+    
+    # Load job templates for VMCOTT
+    load_job_templates
+    
+    render :new
+  end
+
+  # GET /quotations/1/accept_items - For agencies to accept/reject specific items
+  def accept_items
+    return redirect_to quotations_path, alert: 'Access denied' unless can_accept_items?
+    
+    # Get all items
+    @line_items = @quotation.quotation_line_items
+    @quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part) if @quotation.respond_to?(:quotation_jobs)
+    
+    render :accept_items
+  end
+
+  # POST /quotations/1/process_item_acceptance
+  def process_item_acceptance
+    return redirect_to quotations_path, alert: 'Access denied' unless can_accept_items?
+    
+    # Store accepted items in session for processing
+    session["quotation_#{@quotation.id}_accepted_items"] = params[:accepted_items] || {}
+    
+    # Update quotation status
+    if @quotation.update(status: 'pending_acceptance')
+      redirect_to convert_to_po_quotation_path(@quotation), 
+                  notice: 'Items accepted. Ready to create purchase order.'
+    else
+      redirect_to accept_items_quotation_path(@quotation), 
+                  alert: 'Failed to update quotation.'
+    end
+  end
+
+  # POST /quotations/1/reject_items
+  def reject_items
+    if params[:items].present?
+      # Store which items were rejected
+      session["quotation_#{@quotation.id}_rejected_items"] = params[:items]
+      @quotation.update(status: 'partially_rejected')
+      redirect_to acceptance_summary_quotation_path(@quotation), notice: 'Items rejected. Please review rejection summary.'
+    else
+      redirect_to accept_items_quotation_path(@quotation), alert: 'Please select items to reject.'
+    end
+  end
+
+  # GET /quotations/1/acceptance_summary
+  def acceptance_summary
+    @accepted_items = session["quotation_#{@quotation.id}_accepted_items"] || {}
+    @rejected_items = session["quotation_#{@quotation.id}_rejected_items"] || {}
+    
+    # Calculate totals
+    @accepted_total = calculate_accepted_total_from_session(@accepted_items)
+    @rejected_total = calculate_rejected_total(@rejected_items)
+    
+    render :acceptance_summary
+  end
+
+  # POST /quotations/1/send_acceptance
+  def send_acceptance
+    if @quotation.update(status: 'accepted', accepted_at: Time.current)
+      # Create PO from accepted items
+      create_purchase_order_from_accepted_items
+      
+      redirect_to from_quotation_purchase_orders_path(quotation_id: @quotation.id), 
+                  notice: 'Quotation accepted. Creating purchase order...'
+    else
+      redirect_to @quotation, alert: 'Failed to accept quotation.'
+    end
+  end
+
+  # POST /quotations/1/submit_to_agency
+  def submit_to_agency
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    if @quotation.update(status: 'sent', sent_at: Time.current)
+      # Notify agency
+      notify_agency_of_quotation
+      
+      redirect_to @quotation, notice: 'Quotation submitted to agency.'
+    else
+      redirect_to @quotation, alert: 'Failed to submit quotation.'
+    end
+  end
+
+  # GET /quotations/1/assign_jobs - For VMCOTT to assign jobs to line items
+  def assign_jobs
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    # Load RFQ if exists
+    @rfq = @quotation.rfq
+    
+    # Load job templates - FIXED: Use current_user's agency_id directly
+    @job_templates = JobTemplate.where(agency_id: current_user.agency_id).active
+    
+    # Load existing quotation jobs
+    @quotation_jobs = @quotation.quotation_jobs
+    
+    # Load RFQ line items for assignment
+    if @rfq
+      @rfq_line_items = @rfq.rfq_line_items
+    else
+      @rfq_line_items = []
+    end
+    
+    render :assign_jobs
+  end
+
+  # PATCH /quotations/1/update_jobs - Update job assignments
+  def update_jobs
+    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    # Parse job assignments from params
+    job_assignments = JSON.parse(params[:job_assignments] || '[]')
+    item_assignments = JSON.parse(params[:item_assignments] || '{}')
+    
+    # First, delete existing quotation jobs
+    @quotation.quotation_jobs.destroy_all
+    
+    # Create quotation jobs from assignments
+    job_assignments.each_with_index do |job_data, index|
+      job_template = JobTemplate.find_by(id: job_data['template_id'])
+      
+      quotation_job = @quotation.quotation_jobs.create!(
+        job_template_id: job_template&.id,
+        name: job_data['name'],
+        description: job_data['description'],
+        estimated_hours: job_data['hours'].to_f,
+        labor_rate_per_hour: job_data['rate'].to_f,
+        total_labor_cost: job_data['hours'].to_f * job_data['rate'].to_f,
+        job_type: job_template ? 'template' : 'custom',
+        priority: 'normal'
+      )
+      
+      # If this job has a template, copy its parts
+      if job_template && job_template.job_template_parts.any?
+        job_template.job_template_parts.each do |template_part|
+          quotation_job.quotation_job_parts.create!(
+            part_id: template_part.part_id,
+            quantity: template_part.quantity,
+            unit_price: template_part.part&.current_price || 0,
+            total_price: template_part.quantity * (template_part.part&.current_price || 0)
+          )
+        end
+      end
+    end
+    
+    # Update quotation line items with job assignments
+    item_assignments.each do |line_item_id, template_id|
+      line_item = @quotation.quotation_line_items.find_by(id: line_item_id)
+      next unless line_item
+      
+      if template_id.present? && template_id != 'standalone'
+        # Find the quotation job that matches this template
+        quotation_job = @quotation.quotation_jobs.find_by(job_template_id: template_id)
+        line_item.update(job_id: quotation_job&.id)
+      else
+        line_item.update(job_id: nil)
+      end
+    end
+    
+    # Recalculate quotation amount
+    recalculate_quotation_amount
+    
+    redirect_to edit_quotation_path(@quotation), 
+                notice: 'Jobs assigned successfully. Please review and set prices.'
+  end
+
   # GET /quotations/1
   def show
     @vehicle = @quotation.vehicle
     @agency = @vehicle&.agency || set_default_agency
     @timeline_events = @quotation.timeline_events
+    
+    # Get quotation jobs if they exist
+    @quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part) if @quotation.respond_to?(:quotation_jobs)
+    
+    # Check if user can accept items
+    @can_accept_items = can_accept_items?
     
     respond_to do |format|
       format.html
@@ -67,12 +391,32 @@ class QuotationsController < ApplicationController
       end
     end
     
+    if params[:rfq_id].present?
+      @rfq = Rfq.find_by(id: params[:rfq_id])
+      if @rfq && current_user.agency&.code == 'VMCOTT'
+        @quotation.vehicle = @rfq.vehicle
+        @quotation.vendor = 'VMCOTT'
+        @quotation.notes = "Converted from RFQ #{@rfq.rfq_number}\n\n#{@rfq.description}"
+        @quotation.rfq_id = @rfq.id
+      end
+    end
+    
     # Initialize 3 quotation_line_items for the form
     3.times { @quotation.quotation_line_items.build }
+    
+    # Load job templates if VMCOTT
+    load_job_templates
+    
+    # Initialize quotation jobs if VMCOTT
+    if current_user.agency&.code == 'VMCOTT' && @job_templates.present?
+      1.times { @quotation.quotation_jobs.build }
+    end
     
     # Set vehicles and vendors
     @vehicles = available_vehicles
     @vendors = get_vendors_list
+    
+    render :new
   end
 
   # GET /quotations/1/edit
@@ -82,6 +426,14 @@ class QuotationsController < ApplicationController
     # Add a new line item for the form if none exist
     @quotation.quotation_line_items.build if @quotation.quotation_line_items.empty?
     
+    # Load job templates
+    load_job_templates
+    
+    # Initialize quotation jobs if VMCOTT and we have job templates
+    if current_user.agency&.code == 'VMCOTT' && @job_templates.present?
+      @quotation.quotation_jobs.build if @quotation.quotation_jobs.empty?
+    end
+    
     # Set vehicles and vendors
     @vehicles = available_vehicles
     @vendors = get_vendors_list
@@ -89,30 +441,101 @@ class QuotationsController < ApplicationController
 
   # POST /quotations
   def create
-    @quotation = Quotation.new(quotation_params)
-    @quotation.created_by = current_user
+    # Add debugging to see what parameters are being sent
+    Rails.logger.info "=== QUOTATION CREATE DEBUG ==="
+    Rails.logger.info "Params received: #{params.to_unsafe_h.inspect}"
     
-    # Auto-calculate amount from line items if they exist
-    if @quotation.quotation_line_items.any?
-      @quotation.amount = @quotation.quotation_line_items.sum(&:total_price)
-    end
-    
-    if @quotation.save
-      # Handle different save actions
-      case params[:commit]
-      when 'Submit Quotation', 'SUBMIT QUOTATION'
-        @quotation.send_to_vendor!
-        redirect_to @quotation, notice: 'Quotation created and sent to vendor.'
-      when 'Save as Draft', 'SAVE AS DRAFT'
-        @quotation.draft!
-        redirect_to @quotation, notice: 'Quotation saved as draft.'
-      else
-        redirect_to @quotation, notice: 'Quotation was successfully created.'
+    begin
+      # Use the safe quotation_params method
+      quotation_params_hash = quotation_params
+      Rails.logger.info "DEBUG - quotation_params hash: #{quotation_params_hash.inspect}"
+      
+      @quotation = Quotation.new(quotation_params_hash)
+      @quotation.created_by = current_user
+      
+      # Handle job assignments if they exist
+      if params[:job_assignments].present?
+        create_jobs_from_params(@quotation, params[:job_assignments])
       end
-    else
-      # Set vehicles and vendors for re-render
+      
+      # Set vendor to VMCOTT if creating from VMCOTT agency
+      if current_user.agency&.code == 'VMCOTT' && @quotation.vendor.blank?
+        @quotation.vendor = 'VMCOTT'
+      end
+      
+      # Auto-calculate amount from line items if they exist
+      if @quotation.quotation_line_items.any?
+        line_items_total = @quotation.quotation_line_items.sum(&:total_price)
+        @quotation.amount = line_items_total
+      end
+      
+      # Calculate amount from quotation jobs if they exist
+      if @quotation.respond_to?(:quotation_jobs) && @quotation.quotation_jobs.any?
+        jobs_total = @quotation.quotation_jobs.sum(&:total_labor_cost).to_f
+        parts_total = @quotation.quotation_jobs.flat_map(&:quotation_job_parts).sum(&:total_price).to_f
+        @quotation.amount = line_items_total.to_f + jobs_total + parts_total
+      end
+      
+      if @quotation.save
+        # Handle different save actions
+        case params[:commit]
+        when 'Submit Quotation', 'SUBMIT QUOTATION'
+          @quotation.send_to_vendor!
+          redirect_to @quotation, notice: 'Quotation created and sent to vendor.'
+        when 'Save as Draft', 'SAVE AS DRAFT'
+          @quotation.draft!
+          redirect_to @quotation, notice: 'Quotation saved as draft.'
+        when 'Submit to Agency'
+          @quotation.update(status: 'sent', sent_at: Time.current)
+          notify_agency_of_quotation
+          redirect_to @quotation, notice: 'Quotation submitted to agency.'
+        else
+          redirect_to @quotation, notice: 'Quotation was successfully created.'
+        end
+      else
+        Rails.logger.error "DEBUG - Quotation save failed: #{@quotation.errors.full_messages}"
+        # Load job templates for re-render
+        load_job_templates
+        # Set vehicles and vendors for re-render
+        @vehicles = available_vehicles
+        @vendors = get_vendors_list
+        render :new, status: :unprocessable_entity
+      end
+    rescue ActionController::UnfilteredParameters => e
+      Rails.logger.error "UnfilteredParameters error in create: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      
+      # IMPORTANT: Re-initialize @quotation for the form
+      @quotation = Quotation.new
+      @quotation.created_by = current_user
+      
+      # Initialize line items for form
+      3.times { @quotation.quotation_line_items.build }
+      
+      # Load job templates for re-render
+      load_job_templates
       @vehicles = available_vehicles
       @vendors = get_vendors_list
+      
+      flash.now[:alert] = "Error creating quotation: Invalid parameters format. Please check your input."
+      render :new, status: :unprocessable_entity
+    rescue => e
+      Rails.logger.error "Unexpected error in create: #{e.class.name} - #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      
+      # IMPORTANT: Re-initialize @quotation for the form
+      @quotation = Quotation.new
+      @quotation.created_by = current_user
+      
+      # Initialize line items for form
+      3.times { @quotation.quotation_line_items.build }
+      
+      # Load job templates for re-render
+      load_job_templates
+      @vehicles = available_vehicles
+      @vendors = get_vendors_list
+      
+      flash.now[:alert] = "Unexpected error: #{e.message}"
       render :new, status: :unprocessable_entity
     end
   end
@@ -121,23 +544,39 @@ class QuotationsController < ApplicationController
   def update
     check_edit_permission
     
-    if @quotation.update(quotation_params)
-      # Auto-calculate amount from line items if they exist
-      if @quotation.quotation_line_items.any?
-        @quotation.update_column(:amount, @quotation.quotation_line_items.sum(&:total_price))
-      end
-      
-      case params[:commit]
-      when 'Submit Quotation', 'SUBMIT QUOTATION'
-        @quotation.send_to_vendor!
-        notice = 'Quotation updated and sent to vendor.'
+    begin
+      if @quotation.update(quotation_params)
+        # Recalculate amount
+        recalculate_quotation_amount
+        
+        case params[:commit]
+        when 'Submit Quotation', 'SUBMIT QUOTATION'
+          @quotation.send_to_vendor!
+          notice = 'Quotation updated and sent to vendor.'
+        when 'Submit to Agency'
+          @quotation.update(status: 'sent', sent_at: Time.current)
+          notify_agency_of_quotation
+          notice = 'Quotation submitted to agency.'
+        when 'Save as Draft', 'SAVE AS DRAFT'
+          @quotation.draft!
+          notice = 'Quotation saved as draft.'
+        else
+          notice = 'Quotation was successfully updated.'
+        end
+        
+        redirect_to @quotation, notice: notice
       else
-        notice = 'Quotation was successfully updated.'
+        # Load job templates for re-render
+        load_job_templates
+        # Set vehicles and vendors for re-render
+        @vehicles = available_vehicles
+        @vendors = get_vendors_list
+        render :edit, status: :unprocessable_entity
       end
-      
-      redirect_to @quotation, notice: notice
-    else
-      # Set vehicles and vendors for re-render
+    rescue ActionController::UnfilteredParameters => e
+      Rails.logger.error "UnfilteredParameters error in update: #{e.message}"
+      flash.now[:alert] = "Error updating quotation: Invalid parameters format."
+      load_job_templates
       @vehicles = available_vehicles
       @vendors = get_vendors_list
       render :edit, status: :unprocessable_entity
@@ -149,6 +588,18 @@ class QuotationsController < ApplicationController
     check_delete_permission
     @quotation.destroy
     redirect_to quotations_url, notice: 'Quotation was successfully deleted.'
+  end
+
+  # POST /quotations/1/send_to_vendor
+  def send_to_vendor
+    if @quotation.send_to_vendor!
+      # Send notification to agency
+      notify_agency_of_quotation
+      
+      redirect_to @quotation, notice: 'Quotation sent to agency.'
+    else
+      redirect_to @quotation, alert: 'Unable to send quotation.'
+    end
   end
 
   # POST /quotations/1/accept
@@ -164,15 +615,6 @@ class QuotationsController < ApplicationController
     redirect_to @quotation, notice: 'Quotation rejected.'
   end
 
-  # POST /quotations/1/send_to_vendor
-  def send_to_vendor
-    if @quotation.send_to_vendor!
-      redirect_to @quotation, notice: 'Quotation sent to vendor.'
-    else
-      redirect_to @quotation, alert: 'Unable to send quotation.'
-    end
-  end
-
   # POST /quotations/1/convert_to_purchase_order
   def convert_to_purchase_order
     @purchase_order = PurchaseOrder.new(
@@ -182,13 +624,14 @@ class QuotationsController < ApplicationController
       notes: "Converted from quotation #{@quotation.quote_number}\n\n#{@quotation.notes}",
       created_by: current_user,
       status: :draft,
-      po_number: PurchaseOrder.generate_po_number
+      po_number: PurchaseOrder.generate_po_number,
+      quotation_id: @quotation.id
     )
     
     # Copy quotation_line_items if they exist
     if @quotation.quotation_line_items.any?
       @quotation.quotation_line_items.each do |line_item|
-        @purchase_order.purchase_order_line_items.build(
+        @purchase_order.purchase_order_items.build(
           description: line_item.description,
           quantity: line_item.quantity,
           unit_price: line_item.unit_price,
@@ -197,13 +640,50 @@ class QuotationsController < ApplicationController
       end
     end
     
+    # Copy accepted items only if acceptance was done
+    if session["quotation_#{@quotation.id}_accepted_items"].present?
+      accepted_items = session["quotation_#{@quotation.id}_accepted_items"]
+      create_po_items_from_accepted(accepted_items, @purchase_order)
+    end
+    
     if @purchase_order.save
-      @quotation.convert_to_purchase_order!
-      @purchase_order.update(quotation_id: @quotation.id)
+      @quotation.update(converted_at: Time.current, status: 'converted')
+      session.delete("quotation_#{@quotation.id}_accepted_items")
+      session.delete("quotation_#{@quotation.id}_rejected_items")
       redirect_to @purchase_order, notice: 'Purchase order created from quotation.'
     else
       flash[:alert] = "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
       redirect_to @quotation
+    end
+  end
+
+  # POST /quotations/1/convert_to_po
+  def convert_to_po
+    # Authorization
+    return redirect_to @quotation, alert: 'Access denied' unless can_accept_items?
+    
+    # Get accepted items from params or session
+    accepted_items = params[:accepted_items] || session["quotation_#{@quotation.id}_accepted_items"] || {}
+    
+    # Create purchase order with accepted items only
+    @purchase_order = create_po_from_accepted_items(@quotation, accepted_items, current_user)
+    
+    if @purchase_order.persisted?
+      @quotation.update(
+        status: 'accepted',
+        accepted_at: Time.current,
+        purchase_order_id: @purchase_order.id
+      )
+      
+      # Clear session data
+      session.delete("quotation_#{@quotation.id}_accepted_items")
+      session.delete("quotation_#{@quotation.id}_rejected_items")
+      
+      redirect_to from_quotation_purchase_orders_path(quotation_id: @quotation.id), 
+                  notice: 'Purchase order created from accepted items.'
+    else
+      redirect_to accept_items_quotation_path(@quotation), 
+                  alert: "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
     end
   end
 
@@ -216,10 +696,26 @@ class QuotationsController < ApplicationController
     new_quotation.accepted_at = nil
     new_quotation.rejected_at = nil
     new_quotation.converted_at = nil
+    new_quotation.sent_at = nil
     
     # Duplicate quotation_line_items
     @quotation.quotation_line_items.each do |line_item|
       new_quotation.quotation_line_items.build(line_item.attributes.except('id', 'quotation_id', 'created_at', 'updated_at'))
+    end
+    
+    # Duplicate quotation jobs if they exist
+    if @quotation.respond_to?(:quotation_jobs) && @quotation.quotation_jobs.any?
+      @quotation.quotation_jobs.each do |job|
+        new_job = new_quotation.quotation_jobs.build(
+          job.attributes.except('id', 'quotation_id', 'created_at', 'updated_at')
+        )
+        
+        job.quotation_job_parts.each do |part|
+          new_job.quotation_job_parts.build(
+            part.attributes.except('id', 'quotation_job_id', 'created_at', 'updated_at')
+          )
+        end
+      end
     end
     
     if new_quotation.save
@@ -235,8 +731,10 @@ class QuotationsController < ApplicationController
     @agency = @vehicle&.agency || set_default_agency
     @agency_name = @agency&.name || 'Agency'
     
+    # Get quotation jobs for printing
+    @quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part) if @quotation.respond_to?(:quotation_jobs)
+    
     respond_to do |format|
-      # FIX: Use layout: false since print.html.erb is a standalone HTML document
       format.html { render :print, layout: false }
       format.pdf do
         render pdf: "quotation-#{@quotation.quote_number}",
@@ -343,9 +841,7 @@ class QuotationsController < ApplicationController
     redirect_to quotations_path, alert: 'Quotation not found.'
   end
 
-  # NEW METHOD: Set agency and vehicles for form views
   def set_agency_and_vehicles
-    # Determine agency
     @agency = if @quotation&.vehicle&.agency
                 @quotation.vehicle.agency
               elsif current_user&.agency
@@ -354,14 +850,10 @@ class QuotationsController < ApplicationController
                 set_default_agency
               end
     
-    # Get vehicles for this agency
     @vehicles = available_vehicles
-    
-    # Get vendors list
     @vendors = get_vendors_list
   end
 
-  # NEW METHOD: Get available vehicles based on user role
   def available_vehicles
     if current_user.admin? || current_user.finance?
       Vehicle.active.order(:license_plate)
@@ -372,9 +864,8 @@ class QuotationsController < ApplicationController
     end
   end
 
-  # NEW METHOD: Set default agency (Judiciary)
   def set_default_agency
-    Agency.find_by(code: 'JOTT') || Agency.first
+    Agency.find_by(code: 'VMCOTT') || Agency.first
   end
 
   def authorize_access
@@ -382,11 +873,21 @@ class QuotationsController < ApplicationController
     return if current_user.finance?
     
     if @quotation.vehicle&.agency_id.present?
-      # Agency users can only access their agency's quotations
       unless current_user.agency_id == @quotation.vehicle.agency_id
         redirect_to quotations_path, alert: 'You are not authorized to access this quotation.'
       end
     end
+  end
+
+  # Check if user can accept/reject items
+  def can_accept_items?
+    return false unless @quotation.vehicle&.agency_id
+    return true if current_user.admin?
+    
+    # Agency users can only accept items from their agency's quotations
+    current_user.agency_id == @quotation.vehicle.agency_id && 
+    @quotation.vendor == 'VMCOTT' && 
+    @quotation.status == 'sent'
   end
 
   def authorize_finance
@@ -428,11 +929,9 @@ class QuotationsController < ApplicationController
   end
 
   def get_vendors_list
-    # Try to get vendors from Vendor model if it exists
     if defined?(Vendor) && Vendor.table_exists?
       Vendor.pluck(:name).sort
     else
-      # Fallback to distinct vendor names from quotations
       Quotation.distinct.pluck(:vendor).compact.sort
     end
   end
@@ -463,13 +962,13 @@ class QuotationsController < ApplicationController
     
     {
       total: base.count,
-      pending: base.pending.count,
+      pending: base.where(status: 'sent').count,
       accepted: base.accepted.count,
       rejected: base.rejected.count,
       expired: base.expired.count,
       converted: base.converted.count,
       total_amount: base.sum(:amount),
-      pending_amount: base.pending.sum(:amount),
+      pending_amount: base.where(status: 'sent').sum(:amount),
       expiring_soon: base.expiring_soon.count,
       conversion_rate: calculate_conversion_rate(base)
     }
@@ -487,7 +986,6 @@ class QuotationsController < ApplicationController
   end
 
   def calculate_report_stats(quotations)
-    # FIXED: Use Rails date_trunc for PostgreSQL-compatible month grouping
     monthly_totals = quotations
       .group("DATE_TRUNC('month', created_at)")
       .order(Arel.sql("DATE_TRUNC('month', created_at)"))
@@ -526,7 +1024,7 @@ class QuotationsController < ApplicationController
     {
       total_quotations: base.count,
       total_amount: base.sum(:amount),
-      pending_quotations: base.pending.count,
+      pending_quotations: base.where(status: 'sent').count,
       expiring_soon: base.expiring_soon.count,
       monthly_quotations: last_month.count,
       monthly_amount: last_month.sum(:amount),
@@ -623,13 +1121,327 @@ class QuotationsController < ApplicationController
     end
   end
 
+  # SIMPLIFIED quotation_params method to avoid UnfilteredParameters error
   def quotation_params
-    params.require(:quotation).permit(
-      :vehicle_id, :vendor, :amount, :valid_from, :valid_to, 
-      :notes, :status, :terms_accepted, :prices_firm, :delivery_included,
-      quotation_line_items_attributes: [
-        :id, :description, :quantity, :unit_price, :specifications, :_destroy
-      ]
+    # First, check if we have quotation params at all
+    return {} unless params[:quotation].is_a?(ActionController::Parameters)
+    
+    # Use a simple approach: permit everything for now to avoid the error
+    # We'll filter the parameters manually
+    raw_params = params.require(:quotation).to_unsafe_h
+    
+    # Build safe parameters hash
+    safe_params = {}
+    
+    # Basic attributes
+    basic_attrs = [:vehicle_id, :vendor, :amount, :valid_from, :valid_to, 
+                   :notes, :status, :terms_accepted, :prices_firm, :rfq_id]
+    
+    basic_attrs.each do |attr|
+      safe_params[attr] = raw_params[attr] if raw_params.key?(attr)
+    end
+    
+    # Handle quotation_line_items_attributes
+    if raw_params[:quotation_line_items_attributes].is_a?(Hash)
+      safe_params[:quotation_line_items_attributes] = {}
+      raw_params[:quotation_line_items_attributes].each do |key, value|
+        next unless value.is_a?(Hash)
+        
+        safe_params[:quotation_line_items_attributes][key] = {
+          id: value[:id],
+          description: value[:description],
+          quantity: value[:quantity],
+          unit_price: value[:unit_price],
+          specifications: value[:specifications],
+          job_id: value[:job_id],
+          _destroy: value[:_destroy] == "1" || value[:_destroy] == true || value[:_destroy] == "true"
+        }.compact
+      end
+    end
+    
+    # Handle quotation_jobs_attributes
+    if raw_params[:quotation_jobs_attributes].is_a?(Hash)
+      safe_params[:quotation_jobs_attributes] = {}
+      raw_params[:quotation_jobs_attributes].each do |key, value|
+        next unless value.is_a?(Hash)
+        
+        safe_params[:quotation_jobs_attributes][key] = {
+          id: value[:id],
+          job_template_id: value[:job_template_id],
+          job_type: value[:job_type],
+          name: value[:name],
+          description: value[:description],
+          estimated_hours: value[:estimated_hours],
+          labor_rate_per_hour: value[:labor_rate_per_hour],
+          total_labor_cost: value[:total_labor_cost],
+          priority: value[:priority],
+          _destroy: value[:_destroy] == "1" || value[:_destroy] == true || value[:_destroy] == "true"
+        }.compact
+        
+        # Handle nested quotation_job_parts_attributes
+        if value[:quotation_job_parts_attributes].is_a?(Hash)
+          safe_params[:quotation_jobs_attributes][key][:quotation_job_parts_attributes] = {}
+          value[:quotation_job_parts_attributes].each do |part_key, part_value|
+            next unless part_value.is_a?(Hash)
+            
+            safe_params[:quotation_jobs_attributes][key][:quotation_job_parts_attributes][part_key] = {
+              id: part_value[:id],
+              part_id: part_value[:part_id],
+              quantity: part_value[:quantity],
+              unit_price: part_value[:unit_price],
+              total_price: part_value[:total_price],
+              _destroy: part_value[:_destroy] == "1" || part_value[:_destroy] == true || part_value[:_destroy] == "true"
+            }.compact
+          end
+        end
+      end
+    end
+    
+    safe_params
+  end
+
+  # Parse accepted items from params
+  def parse_accepted_items(params)
+    # Parse checkboxes from the form
+    {
+      line_items: params[:accepted_line_items] || [],
+      jobs: params[:accepted_jobs] || [],
+      job_parts: params[:accepted_job_parts] || []
+    }
+  end
+
+  def create_po_from_accepted_items(quotation, accepted_items, user)
+    purchase_order = PurchaseOrder.new(
+      vehicle: quotation.vehicle,
+      vendor: quotation.vendor,
+      amount: calculate_accepted_total(quotation, accepted_items),
+      notes: "Created from Quotation #{quotation.quote_number}\nAccepted items only.",
+      created_by: user,
+      status: 'draft',
+      po_number: generate_po_number,
+      quotation_id: quotation.id
     )
+    
+    # Add accepted line items
+    if accepted_items[:line_items].present?
+      accepted_items[:line_items].each do |line_item_id|
+        line_item = quotation.quotation_line_items.find_by(id: line_item_id)
+        next unless line_item
+        
+        purchase_order.purchase_order_items.build(
+          description: line_item.description,
+          quantity: line_item.quantity,
+          unit_price: line_item.unit_price,
+          notes: line_item.specifications
+        )
+      end
+    end
+    
+    # Add accepted jobs
+    if accepted_items[:jobs].present? && quotation.respond_to?(:quotation_jobs)
+      accepted_items[:jobs].each do |job_id|
+        job = quotation.quotation_jobs.find_by(id: job_id)
+        next unless job
+        
+        purchase_order.purchase_order_items.build(
+          description: "Labor: #{job.name}",
+          quantity: 1,
+          unit_price: job.total_labor_cost || 0,
+          notes: job.description
+        )
+        
+        # Add job parts that were accepted
+        job.quotation_job_parts.each do |job_part|
+          if accepted_items[:job_parts]&.include?(job_part.id.to_s)
+            purchase_order.purchase_order_items.build(
+              part_id: job_part.part_id,
+              description: job_part.part&.name || "Part",
+              quantity: job_part.quantity,
+              unit_price: job_part.unit_price,
+              notes: "From job: #{job.name}"
+            )
+          end
+        end
+      end
+    end
+    
+    purchase_order.save
+    purchase_order
+  end
+
+  def calculate_accepted_total(quotation, accepted_items)
+    total = 0
+    
+    # Line items total
+    if accepted_items[:line_items].present?
+      accepted_items[:line_items].each do |line_item_id|
+        line_item = quotation.quotation_line_items.find_by(id: line_item_id)
+        total += line_item.total_price if line_item
+      end
+    end
+    
+    # Jobs total
+    if accepted_items[:jobs].present? && quotation.respond_to?(:quotation_jobs)
+      accepted_items[:jobs].each do |job_id|
+        job = quotation.quotation_jobs.find_by(id: job_id)
+        total += job.total_labor_cost if job
+      end
+    end
+    
+    # Job parts total
+    if accepted_items[:job_parts].present? && quotation.respond_to?(:quotation_jobs)
+      accepted_items[:job_parts].each do |job_part_id|
+        job_part = QuotationJobPart.find_by(id: job_part_id)
+        total += job_part.total_price if job_part
+      end
+    end
+    
+    total
+  end
+
+  def generate_po_number
+    "PO-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+
+  # Calculate accepted items total
+  def calculate_accepted_total_from_session(accepted_items)
+    total = 0
+    accepted_items.each do |item_data|
+      if item_data[:item_type] == 'job'
+        job = QuotationJob.find_by(id: item_data[:item_id])
+        total += job.total_labor_cost if job
+      elsif item_data[:item_type] == 'part'
+        part = QuotationJobPart.find_by(id: item_data[:item_id])
+        total += part.total_price if part
+      end
+    end
+    total
+  end
+
+  # Calculate rejected items total
+  def calculate_rejected_total(rejected_items)
+    total = 0
+    rejected_items.each do |item_data|
+      if item_data[:item_type] == 'job'
+        job = QuotationJob.find_by(id: item_data[:item_id])
+        total += job.total_labor_cost if job
+      elsif item_data[:item_type] == 'part'
+        part = QuotationJobPart.find_by(id: item_data[:item_id])
+        total += part.total_price if part
+      end
+    end
+    total
+  end
+
+  # Create PO items from accepted items
+  def create_po_items_from_accepted(accepted_items, purchase_order)
+    accepted_items.each do |item_data|
+      if item_data[:item_type] == 'job'
+        job = QuotationJob.find_by(id: item_data[:item_id])
+        next unless job
+        
+        purchase_order.purchase_order_items.build(
+          description: job.name,
+          quantity: 1,
+          unit_price: job.total_labor_cost,
+          notes: "Job: #{job.description}"
+        )
+      elsif item_data[:item_type] == 'part'
+        part = QuotationJobPart.find_by(id: item_data[:item_id])
+        next unless part
+        
+        purchase_order.purchase_order_items.build(
+          part_id: part.part_id,
+          description: part.part&.name || "Part from job",
+          quantity: part.quantity,
+          unit_price: part.unit_price,
+          notes: part.part&.description
+        )
+      end
+    end
+  end
+
+  # Create purchase order from accepted items
+  def create_purchase_order_from_accepted_items
+    accepted_items = session["quotation_#{@quotation.id}_accepted_items"] || {}
+    return if accepted_items.empty?
+    
+    purchase_order = create_po_from_accepted_items(@quotation, accepted_items, current_user)
+    
+    if purchase_order.persisted?
+      @quotation.update(
+        purchase_order_id: purchase_order.id,
+        status: 'accepted'
+      )
+      # Clear session data
+      session.delete("quotation_#{@quotation.id}_accepted_items")
+      session.delete("quotation_#{@quotation.id}_rejected_items")
+    end
+  end
+
+  # Notify agency of quotation submission
+  def notify_agency_of_quotation
+    return unless @quotation.vehicle&.agency
+    
+    # Create notification
+    Notification.create!(
+      agency_id: @quotation.vehicle.agency_id,
+      title: "New Quotation from VMCOTT",
+      message: "VMCOTT has submitted a quotation #{@quotation.quote_number} for vehicle #{@quotation.vehicle.license_plate}",
+      link: Rails.application.routes.url_helpers.quotation_path(@quotation),
+      priority: 'medium'
+    )
+    
+    # Email notification (if configured)
+    QuotationMailer.quotation_submitted(@quotation).deliver_later if defined?(QuotationMailer)
+  end
+
+  # Helper method to create jobs from params in create action
+  def create_jobs_from_params(quotation, job_assignments_json)
+    job_assignments = JSON.parse(job_assignments_json)
+    
+    job_assignments.each do |job_data|
+      quotation.quotation_jobs.build(
+        job_template_id: job_data['template_id'],
+        name: job_data['name'],
+        description: job_data['description'],
+        estimated_hours: job_data['hours'],
+        labor_rate_per_hour: job_data['rate'],
+        total_labor_cost: job_data['hours'].to_f * job_data['rate'].to_f,
+        job_type: 'template'
+      )
+    end
+  end
+
+  # Recalculate quotation amount based on line items and jobs
+  def recalculate_quotation_amount
+    total = 0
+    
+    # Add line items total
+    if @quotation.quotation_line_items.any?
+      total += @quotation.quotation_line_items.sum(&:total_price)
+    end
+    
+    # Add quotation jobs labor cost
+    if @quotation.respond_to?(:quotation_jobs) && @quotation.quotation_jobs.any?
+      total += @quotation.quotation_jobs.sum(&:total_labor_cost).to_f
+      
+      # Add job parts cost
+      total += @quotation.quotation_jobs.flat_map(&:quotation_job_parts).sum(&:total_price).to_f
+    end
+    
+    @quotation.update_column(:amount, total)
+  end
+  
+  # NEW METHOD: Load job templates for VMCOTT users
+  def load_job_templates
+    # Only load job templates for VMCOTT users
+    if current_user.agency&.code == 'VMCOTT'
+      @job_templates = JobTemplate.where(agency_id: current_user.agency_id).active
+      Rails.logger.info "DEBUG: Loaded #{@job_templates.count} job templates for VMCOTT agency #{current_user.agency_id}" if Rails.env.development?
+    else
+      @job_templates = nil
+      Rails.logger.info "DEBUG: Not loading job templates - user agency: #{current_user.agency&.code}" if Rails.env.development?
+    end
   end
 end

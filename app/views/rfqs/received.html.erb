@@ -1,0 +1,81 @@
+<%# app/views/rfqs/received.html.erb %>
+<div class="container mt-4">
+  <h1><i class="bi bi-inbox"></i> RFQ Inbox</h1>
+  <p class="text-muted">Requests for Quotation received from agencies</p>
+  
+  <% if @rfqs.any? %>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>RFQ #</th>
+            <th>Agency</th>
+            <th>Vehicle</th>
+            <th>Description</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <tr>
+              <td><strong><%= rfq.rfq_number %></strong></td>
+              <td><%= rfq.requesting_agency.name %></td>
+              <td>
+                <%= rfq.vehicle&.license_plate %>
+                <br>
+                <small class="text-muted">
+                  <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
+                </small>
+              </td>
+              <td>
+                <%= truncate(rfq.description, length: 50) %>
+                <% if rfq.special_instructions.present? %>
+                  <br>
+                  <small class="text-muted">
+                    <i class="bi bi-info-circle"></i> Special instructions
+                  </small>
+                <% end %>
+              </td>
+              <td><%= rfq.request_date.strftime('%b %d, %Y') %></td>
+              <td>
+                <span class="badge bg-<%= rfq.status == 'submitted' ? 'warning' : 'info' %>">
+                  <%= rfq.status.humanize %>
+                </span>
+              </td>
+              <td>
+                <div class="btn-group-vertical btn-group-sm">
+                  <%= link_to 'View', rfq_path(rfq), 
+                      class: 'btn btn-outline-primary btn-sm mb-1' %>
+                  
+                  <%= link_to 'Acknowledge', acknowledge_receipt_rfq_path(rfq), 
+                      method: :post,
+                      data: { confirm: 'Acknowledge receipt of this RFQ?' },
+                      class: 'btn btn-outline-info btn-sm mb-1' %>
+                  
+                  <% if rfq.submitted? %>
+                    <%= link_to 'Convert to Quote', convert_to_quotation_page_rfq_path(rfq), 
+                        class: 'btn btn-success btn-sm mb-1' %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <%= paginate @rfqs %>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="bi bi-inbox"></i> No RFQs received yet.
+    </div>
+  <% end %>
+</div>
+
+<style>
+  .btn-group-vertical .btn {
+    min-width: 120px;
+    white-space: nowrap;
+  }
+</style>

@@ -1,8 +1,9 @@
 // app/javascript/application.js
-
-// Import Stimulus
+// Import dependencies 
+import "jquery"  // <-- jQuery first (cocoon depends on it)
 import { Application } from "@hotwired/stimulus"
 import "@hotwired/turbo-rails"
+import "@nathanvda/cocoon"  // <-- Then cocoon (importmap will resolve to @nathanvda--cocoon.js)
 
 // Import Chart.js for analytics pages
 import Chart from 'chart.js/auto'
@@ -16,7 +17,10 @@ const application = Application.start()
 // Expose Stimulus globally
 window.Stimulus = application
 
-console.log("✅ Stimulus Application started with Chart.js")
+// Make jQuery globally available (some plugins expect $)
+window.$ = window.jQuery = jQuery;
+
+console.log("✅ Application loaded: jQuery, Stimulus, Turbo, Cocoon, Chart.js")
 
 // CSRF Token handling for Turbo
 document.addEventListener('turbo:load', () => {
@@ -37,7 +41,7 @@ document.addEventListener('turbo:before-fetch-request', (event) => {
 
 // Check if we're on a page that needs charts
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("✅ Application.js loaded");
+  console.log("✅ Application.js fully loaded");
   
   const needsChart = 
     window.location.pathname.includes('analytics') ||
@@ -50,6 +54,19 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("✅ Chart.js loaded but not needed on this page");
   }
 });
+
+// Check if jQuery and Cocoon loaded correctly
+if (typeof window.$ !== 'undefined') {
+  console.log("✅ jQuery loaded successfully as $");
+} else {
+  console.error("❌ jQuery failed to load");
+}
+
+if (typeof window.Cocoon !== 'undefined') {
+  console.log("✅ Cocoon loaded successfully");
+} else {
+  console.warn("⚠️ Cocoon not loaded - nested forms may not work");
+}
 
 // Export for compatibility
 export { application }

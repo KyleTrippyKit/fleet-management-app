@@ -1,4 +1,4 @@
-# app/controllers/invoices_controller.rb - COMPLETE FIXED VERSION WITH DOWNLOAD
+# app/controllers/invoices_controller.rb - COMPLETE REVISED VERSION
 require 'csv'
 
 class InvoicesController < ApplicationController
@@ -6,25 +6,15 @@ class InvoicesController < ApplicationController
   before_action :set_invoice, only: [:show, :edit, :update, :destroy, :mark_as_reviewed, 
                                      :mark_as_paid, :dispute, :print, :sync_to_quickbooks, 
                                      :payment_history, :create_transaction, :create_pos_transaction,
-                                     :download, :payment_timeline, :record_payment]
+                                     :download, :payment_timeline, :record_payment, :mark_as_aging_reviewed]
 
+  # GET /invoices
   def index
-    # Initialize QuickBooks if needed (safe check)
+    # Initialize QuickBooks if needed
     safe_initialize_quickbooks
     
-    # Scope invoices based on user role
-    @invoices = if current_user.admin? || current_user.finance? || current_user.fleet_manager?
-      # Admin/Finance/Fleet managers can see all invoices
-      Invoice.all.includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
-    elsif current_user.vmcott?
-      # VMCOTT can see all invoices
-      Invoice.all.includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
-    else
-      # Agency staff only see their agency's invoices
-      Invoice.joins(:vehicle)
-             .where(vehicles: { service_owner: current_user.agency_code })
-             .includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
-    end
+    # Base query
+    @invoices = policy_scope(Invoice).includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
     
     # Apply filters
     @invoices = apply_filters(@invoices)
@@ -32,50 +22,33 @@ class InvoicesController < ApplicationController
     # Apply integration filters
     @invoices = apply_integration_filters(@invoices)
     
-    # Order by due date (overdue first) or creation date
-    if params[:sort] == 'due_date'
-      @invoices = @invoices.order(:due_date, :created_at)
-    else
-      @invoices = @invoices.order(created_at: :desc)
-    end
+    # Apply sorting
+    @invoices = apply_sorting(@invoices)
     
     # Paginate
-    @invoices = @invoices.page(params[:page]).per(20)
+    @invoices = @invoices.page(params[:page]).per(params[:per_page] || 20)
     
-    # Stats for dashboard
-    @stats = calculate_stats
+    # Calculate stats for dashboard
+    @stats = calculate_stats(@invoices)
     
-    # QuickBooks connection status - with safe handling
-    begin
-      @quickbooks_connected = safe_quickbooks_connected?
-      @quickbooks_last_sync = safe_quickbooks_last_sync
-    rescue => e
-      Rails.logger.warn "QuickBooks check failed: #{e.message}"
-      @quickbooks_connected = false
-      @quickbooks_last_sync = nil
-    end
+    # QuickBooks connection status
+    @quickbooks_connected = safe_quickbooks_connected?
+    @quickbooks_last_sync = safe_quickbooks_last_sync
     
     render :index
   end
 
+  # GET /invoices/:id
   def show
-    puts "=== DEBUG SHOW ACTION ==="
-    puts "Params: #{params.inspect}"
-    puts "Format: #{request.format}"
-    puts "Template path: #{Rails.root.join('app', 'views', 'invoices', 'pdf.html.erb')}"
-    puts "File exists? #{File.exist?(Rails.root.join('app', 'views', 'invoices', 'pdf.html.erb'))}"
+    authorize @invoice
     
-    @invoice = Invoice.find(params[:id])
     @transactions = @invoice.transactions.order(created_at: :desc)
     @pos_transaction = @invoice.pos_transaction
+    @payment_histories = @invoice.payment_histories.order(payment_date: :desc)
     
     respond_to do |format|
       format.html
       format.pdf do
-        puts "=== RENDERING PDF ==="
-        puts "Using template: invoices/pdf"
-        
-        # CORRECT SYNTAX FOR WICKEDPDF
         render pdf: "invoice-#{@invoice.invoice_number}",
                template: 'invoices/pdf',
                layout: 'pdf',
@@ -84,60 +57,18 @@ class InvoicesController < ApplicationController
                margin: { top: 15, bottom: 15, left: 15, right: 15 },
                show_as_html: params[:debug].present?
       end
+      format.json { render json: @invoice }
     end
   end
 
-  # DEBUG ACTION - Add this for testing
-  def test_pdf
-    puts "=== DEBUG TEST PDF ACTION ==="
-    @invoice = Invoice.first || Invoice.create(
-      invoice_number: "TEST-INV-001",
-      vendor: "Test Vendor",
-      amount: 1000.00,
-      invoice_date: Date.today,
-      due_date: Date.today + 30.days,
-      status: "pending"
-    )
-    
-    puts "Invoice: #{@invoice.invoice_number}"
-    
-    respond_to do |format|
-      format.pdf do
-        puts "=== RENDERING TEST PDF ==="
-        
-        # Test with debug mode first
-        if params[:debug]
-          puts "Debug mode enabled - showing HTML"
-          render template: 'invoices/pdf',
-                 layout: 'pdf',
-                 formats: [:html]
-        else
-          puts "Generating actual PDF"
-          render pdf: "test-invoice-#{@invoice.invoice_number}",
-                 template: 'invoices/pdf',
-                 layout: 'pdf',
-                 formats: [:html],
-                 disposition: 'inline'
-        end
-      end
-    end
-  rescue => e
-    puts "=== TEST PDF ERROR: #{e.message} ==="
-    puts e.backtrace
-    raise
-  end
-
+  # GET /invoices/new
   def new
     @invoice = Invoice.new(
       invoice_date: Date.today, 
-      due_date: Date.today + 30.days
+      due_date: Date.today + 30.days,
+      status: 'draft'
     )
-    
-    # Check if user can create invoices
-    unless current_user.can_create_invoices?
-      redirect_to invoices_path, alert: 'You are not authorized to create invoices.'
-      return
-    end
+    authorize @invoice
     
     # Set vehicle from params if provided
     if params[:vehicle_id].present?
@@ -147,166 +78,201 @@ class InvoicesController < ApplicationController
     # Set maintenance from params if provided
     if params[:maintenance_id].present?
       @invoice.maintenance = Maintenance.find_by(id: params[:maintenance_id])
-      # If vehicle not set but maintenance has vehicle, use it
       @invoice.vehicle ||= @invoice.maintenance.vehicle if @invoice.maintenance
     end
     
+    # Set purchase order from params if provided
+    if params[:purchase_order_id].present?
+      @invoice.purchase_order = PurchaseOrder.find_by(id: params[:purchase_order_id])
+      @invoice.vehicle ||= @invoice.purchase_order.vehicle if @invoice.purchase_order
+      @invoice.vendor = @invoice.purchase_order.vendor if @invoice.purchase_order
+    end
+    
     # Get available vehicles for dropdown
-    @vehicles = Vehicle.all.order(:license_plate)
-    
-    # Get maintenances for selected vehicle (if any)
+    @vehicles = policy_scope(Vehicle).order(:license_plate)
     @maintenances = Maintenance.where(vehicle_id: @invoice.vehicle_id).order(created_at: :desc) if @invoice.vehicle_id
-    
-    # Get purchase orders for dropdown
     @purchase_orders = PurchaseOrder.active.where(vehicle_id: @invoice.vehicle_id) if @invoice.vehicle_id
     
     # Set default vendor for VMCOTT users
-    if current_user.vmcott?
+    if current_user.agency&.code == 'VMCOTT'
       @invoice.vendor = "VMCOTT"
     end
   end
 
+  # POST /invoices
   def create
     @invoice = Invoice.new(invoice_params)
-    
-    # Check if user can create invoices
-    unless current_user.can_create_invoices?
-      redirect_to invoices_path, alert: 'You are not authorized to create invoices.'
-      return
-    end
-    
-    # Auto-generate invoice number if not provided
-    @invoice.invoice_number ||= "INV-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+    authorize @invoice
     
     # Set created by user
     @invoice.created_by = current_user
     
-    # Handle service_owner if provided (update vehicle's service_owner)
-    if params[:invoice][:service_owner].present? && @invoice.vehicle.present?
-      @invoice.vehicle.update(service_owner: params[:invoice][:service_owner])
-    end
-
+    # Generate invoice number if not provided
+    @invoice.invoice_number ||= generate_invoice_number
+    
     if @invoice.save
       # Create initial transaction if amount_paid is provided
       if params[:invoice][:initial_payment_amount].present? && params[:invoice][:initial_payment_amount].to_f > 0
         @invoice.transactions.create!(
           amount: params[:invoice][:initial_payment_amount].to_f,
           payment_method: params[:invoice][:initial_payment_method] || 'cash',
-          reference_number: "PAY-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}",
+          reference_number: generate_payment_reference,
           notes: "Initial payment for invoice #{@invoice.invoice_number}",
-          user_id: current_user.id
+          user: current_user,
+          status: 'completed'
         )
       end
       
+      # Create activity log
+      ActivityLog.create!(
+        user: current_user,
+        action: 'invoice_created',
+        description: "Created invoice #{@invoice.invoice_number}",
+        record: @invoice,
+        details: invoice_params.to_h
+      )
+      
       # Auto-sync with QuickBooks if configured
       if safe_quickbooks_auto_sync? && safe_quickbooks_connected?
-        QuickbooksSyncJob.perform_later(@invoice.id, 'create') if defined?(QuickbooksSyncJob)
+        InvoiceSyncJob.perform_later(@invoice.id, 'create') if defined?(InvoiceSyncJob)
       end
       
       redirect_to @invoice, notice: 'Invoice was successfully created.'
     else
-      @vehicles = Vehicle.all.order(:license_plate)
+      @vehicles = policy_scope(Vehicle).order(:license_plate)
       @maintenances = Maintenance.where(vehicle_id: @invoice.vehicle_id).order(created_at: :desc) if @invoice.vehicle_id
       @purchase_orders = PurchaseOrder.active.where(vehicle_id: @invoice.vehicle_id) if @invoice.vehicle_id
       render :new
     end
   end
 
+  # GET /invoices/:id/edit
   def edit
-    # Check if user can edit this invoice
-    unless current_user.can_edit_invoices?
-      redirect_to @invoice, alert: 'You are not authorized to edit this invoice.'
-      return
-    end
+    authorize @invoice
     
-    @vehicles = Vehicle.all.order(:license_plate)
+    @vehicles = policy_scope(Vehicle).order(:license_plate)
     @maintenances = Maintenance.where(vehicle_id: @invoice.vehicle_id).order(created_at: :desc) if @invoice.vehicle_id
     @purchase_orders = PurchaseOrder.active.where(vehicle_id: @invoice.vehicle_id) if @invoice.vehicle_id
   end
 
+  # PATCH/PUT /invoices/:id
   def update
-    # Check if user can edit this invoice
-    unless current_user.can_edit_invoices?
-      redirect_to @invoice, alert: 'You are not authorized to edit this invoice.'
-      return
-    end
+    authorize @invoice
     
-    # Handle service_owner if provided (update vehicle's service_owner)
-    if params[:invoice][:service_owner].present? && @invoice.vehicle.present?
-      @invoice.vehicle.update(service_owner: params[:invoice][:service_owner])
-    end
-
     if @invoice.update(invoice_params)
+      # Create activity log
+      ActivityLog.create!(
+        user: current_user,
+        action: 'invoice_updated',
+        description: "Updated invoice #{@invoice.invoice_number}",
+        record: @invoice,
+        details: invoice_params.to_h
+      )
+      
       # Sync with QuickBooks if invoice is synced
       if @invoice.quickbooks_id.present? && safe_quickbooks_connected?
-        QuickbooksSyncJob.perform_later(@invoice.id, 'update') if defined?(QuickbooksSyncJob)
+        InvoiceSyncJob.perform_later(@invoice.id, 'update') if defined?(InvoiceSyncJob)
       end
       
       redirect_to @invoice, notice: 'Invoice was successfully updated.'
     else
-      @vehicles = Vehicle.all.order(:license_plate)
+      @vehicles = policy_scope(Vehicle).order(:license_plate)
       @maintenances = Maintenance.where(vehicle_id: @invoice.vehicle_id).order(created_at: :desc) if @invoice.vehicle_id
       @purchase_orders = PurchaseOrder.active.where(vehicle_id: @invoice.vehicle_id) if @invoice.vehicle_id
       render :edit
     end
   end
 
+  # DELETE /invoices/:id
   def destroy
-    # Check if user can delete this invoice
-    unless current_user.can_edit_invoices?
-      redirect_to @invoice, alert: 'You are not authorized to delete this invoice.'
-      return
-    end
+    authorize @invoice
+    
+    invoice_number = @invoice.invoice_number
     
     # Delete from QuickBooks if synced
     if @invoice.quickbooks_id.present? && safe_quickbooks_connected?
-      QuickbooksSyncJob.perform_later(@invoice.id, 'delete') if defined?(QuickbooksSyncJob)
+      InvoiceSyncJob.perform_later(@invoice.id, 'delete') if defined?(InvoiceSyncJob)
     end
-
+    
     @invoice.destroy
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: current_user,
+      action: 'invoice_deleted',
+      description: "Deleted invoice #{invoice_number}",
+      record_type: 'Invoice',
+      details: { invoice_number: invoice_number }
+    )
+    
     redirect_to invoices_url, notice: 'Invoice was successfully deleted.'
   end
 
+  # POST /invoices/:id/mark_as_reviewed
   def mark_as_reviewed
-    if current_user.can_review_invoices? && @invoice.pending?
+    authorize @invoice
+    
+    if @invoice.pending? || @invoice.draft?
       @invoice.mark_as_reviewed(current_user)
+      
       redirect_to @invoice, notice: 'Invoice marked as reviewed.'
     else
-      redirect_to @invoice, alert: 'You are not authorized to review this invoice.'
+      redirect_to @invoice, alert: 'Only pending or draft invoices can be marked as reviewed.'
     end
   end
 
+  # POST /invoices/:id/mark_as_paid
   def mark_as_paid
-    if current_user.can_pay_invoices? && @invoice.pending?
+    authorize @invoice
+    
+    if @invoice.pending? || @invoice.overdue?
       @invoice.mark_as_paid(current_user)
       
       # Sync with QuickBooks if invoice is synced
       if @invoice.quickbooks_id.present? && safe_quickbooks_connected?
-        QuickbooksSyncJob.perform_later(@invoice.id, 'update') if defined?(QuickbooksSyncJob)
+        InvoiceSyncJob.perform_later(@invoice.id, 'update') if defined?(InvoiceSyncJob)
       end
       
       redirect_to @invoice, notice: 'Invoice marked as paid.'
     else
-      redirect_to @invoice, alert: 'You are not authorized to mark this invoice as paid.'
+      redirect_to @invoice, alert: 'Only pending or overdue invoices can be marked as paid.'
     end
   end
 
+  # POST /invoices/:id/dispute
   def dispute
-    if current_user.can_dispute_invoices?
+    authorize @invoice
+    
+    if @invoice.pending? || @invoice.overdue?
       @invoice.mark_as_disputed(params[:reason], current_user)
       
       # Sync with QuickBooks if invoice is synced
       if @invoice.quickbooks_id.present? && safe_quickbooks_connected?
-        QuickbooksSyncJob.perform_later(@invoice.id, 'update') if defined?(QuickbooksSyncJob)
+        InvoiceSyncJob.perform_later(@invoice.id, 'update') if defined?(InvoiceSyncJob)
       end
       
       redirect_to @invoice, notice: 'Invoice marked as disputed.'
     else
-      redirect_to @invoice, alert: 'You are not authorized to dispute this invoice.'
+      redirect_to @invoice, alert: 'Only pending or overdue invoices can be disputed.'
     end
   end
 
+  # POST /invoices/:id/mark_as_aging_reviewed
+  def mark_as_aging_reviewed
+    authorize @invoice
+    
+    if @invoice.overdue?
+      @invoice.mark_as_aging_reviewed(current_user)
+      redirect_to @invoice, notice: 'Invoice aging reviewed.'
+    else
+      redirect_to @invoice, alert: 'Only overdue invoices require aging review.'
+    end
+  end
+
+  # GET /invoices/:id/print
   def print
+    authorize @invoice
+    
     respond_to do |format|
       format.pdf do
         render pdf: "invoice-#{@invoice.invoice_number}",
@@ -316,7 +282,6 @@ class InvoicesController < ApplicationController
                margin: { top: 15, bottom: 15, left: 15, right: 15 }
       end
       format.html do
-        # HTML print preview
         render :print, layout: false
       end
     end
@@ -325,12 +290,9 @@ class InvoicesController < ApplicationController
     redirect_to @invoice, alert: "Failed to generate print version: #{e.message}"
   end
 
+  # GET /invoices/:id/download
   def download
-    # Check if user can access invoices
-    unless current_user.can_access_invoices?
-      redirect_to invoices_path, alert: 'You are not authorized to download invoices.'
-      return
-    end
+    authorize @invoice
     
     # Create a text file with invoice details
     filename = "invoice-#{@invoice.invoice_number}-#{Date.today}.txt"
@@ -340,25 +302,26 @@ class InvoicesController < ApplicationController
               type: 'text/plain',
               disposition: 'attachment'
   end
-  
+
+  # GET /invoices/:id/payment_history
   def payment_history
+    authorize @invoice
+    
     @transactions = @invoice.transactions.order(created_at: :desc)
-    @total_paid = @transactions.sum(:amount)
+    @payment_histories = @invoice.payment_histories.order(payment_date: :desc)
+    @total_paid = @payment_histories.sum(:amount)
     @balance_due = @invoice.amount - @total_paid
   end
 
+  # GET /invoices/reports
   def reports
-    unless current_user.can_view_invoice_reports?
-      redirect_to invoices_path, alert: 'You are not authorized to view reports.'
-      return
-    end
+    authorize Invoice
     
     @start_date = params[:start_date] || 30.days.ago.to_date
     @end_date = params[:end_date] || Date.today
     
-    # Create separate query for report stats (no ORDER BY)
-    report_invoices = current_user.agency_invoices
-                                  .where(invoice_date: @start_date..@end_date)
+    # Create separate query for report stats
+    report_invoices = policy_scope(Invoice).where(invoice_date: @start_date..@end_date)
     
     # Create ordered query for CSV and display
     ordered_invoices = report_invoices.order(:invoice_date)
@@ -370,137 +333,211 @@ class InvoicesController < ApplicationController
       format.html
       format.csv do
         send_data generate_csv_report(ordered_invoices),
-                  filename: "#{current_user.agency_code.downcase}-invoices-#{@start_date}-to-#{@end_date}.csv"
+                  filename: "#{current_user.agency&.code&.downcase || 'all'}-invoices-#{@start_date}-to-#{@end_date}.csv"
       end
       format.pdf do
         render pdf: "invoice-report-#{@start_date}-#{@end_date}",
-               template: 'invoices/reports.pdf.erb',
-               layout: 'pdf.html',
+               template: 'invoices/reports.pdf',
+               layout: 'pdf',
                formats: [:html],
                margin: { top: 15, bottom: 15, left: 15, right: 15 }
       end
     end
   end
-  
-  def sync_quickbooks
-    if current_user.can_sync_quickbooks?
-      # Check if QuickBooks is available
-      unless safe_quickbooks_connected?
-        redirect_to invoices_path, alert: 'QuickBooks is not connected. Please configure QuickBooks integration first.'
-        return
-      end
-      
-      # Sync all pending invoices without QuickBooks ID
-      count = 0
-      Invoice.without_quickbooks.pending.each do |invoice|
-        result = invoice.sync_to_quickbooks
-        count += 1 if result[:success]
-      end
-      
-      if count > 0
-        redirect_to invoices_path, notice: "#{count} invoices synced with QuickBooks successfully."
-      else
-        redirect_to invoices_path, notice: "No invoices needed syncing with QuickBooks."
-      end
-    else
-      redirect_to invoices_path, alert: 'You are not authorized to sync invoices.'
-    end
-  end
-  
-  def sync_to_quickbooks
-    if current_user.can_sync_quickbooks?
-      unless safe_quickbooks_connected?
-        redirect_to @invoice, alert: 'QuickBooks is not connected. Please configure QuickBooks integration first.'
-        return
-      end
-      
-      result = @invoice.sync_to_quickbooks
-      if result[:success]
-        redirect_to @invoice, notice: 'Invoice synced with QuickBooks successfully.'
-      else
-        redirect_to @invoice, alert: "Failed to sync with QuickBooks: #{result[:error]}"
-      end
-    else
-      redirect_to @invoice, alert: 'You are not authorized to sync invoices.'
-    end
-  end
-  
-  def create_transaction
-    if current_user.can_pay_invoices?
-      @transaction = @invoice.transactions.new(transaction_params)
-      @transaction.user = current_user
-      @transaction.reference_number ||= "PAY-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
-      
-      if @transaction.save
-        # Check if invoice is now fully paid
-        if @invoice.amount <= @invoice.transactions.sum(:amount)
-          @invoice.mark_as_paid(current_user)
-        end
-        
-        redirect_to @invoice, notice: 'Payment recorded successfully.'
-      else
-        flash[:alert] = 'Failed to record payment.'
-        redirect_to @invoice
-      end
-    else
-      redirect_to @invoice, alert: 'You are not authorized to record payments.'
-    end
-  end
-  
-  def create_pos_transaction
-    if current_user.can_pay_invoices?
-      # This would create a POS transaction linked to the invoice
-      # Implementation depends on your POS system
-      redirect_to @invoice, alert: 'POS integration not yet implemented.'
-    else
-      redirect_to @invoice, alert: 'You are not authorized to create POS transactions.'
-    end
-  end
-  
-  def dashboard
-    # Dashboard-specific stats
-    @dashboard_stats = {
-      total_invoices: Invoice.count,
-      pending_invoices: Invoice.pending.count,
-      overdue_invoices: Invoice.overdue.count,
-      total_amount: Invoice.sum(:amount),
-      pending_amount: Invoice.pending.sum(:amount),
-      paid_this_month: Invoice.paid.this_month.sum(:amount),
-      quickbooks_synced: Invoice.where.not(quickbooks_id: nil).count,
-      recent_invoices: Invoice.order(created_at: :desc).limit(5)
+
+  # GET /invoices/aging_report
+  def aging_report
+    authorize Invoice
+    
+    @invoices = policy_scope(Invoice).overdue.includes(:vehicle, :vendor)
+    
+    # Group by aging buckets
+    @aging_buckets = {
+      current: @invoices.current_aging,
+      days_30: @invoices.days_30_aging,
+      days_60: @invoices.days_60_aging,
+      over_90: @invoices.over_90_aging
     }
     
-    # QuickBooks status - with safe handling
-    begin
-      @quickbooks_connected = safe_quickbooks_connected?
-      @quickbooks_last_sync = safe_quickbooks_last_sync
-    rescue => e
-      Rails.logger.warn "QuickBooks dashboard check failed: #{e.message}"
-      @quickbooks_connected = false
-      @quickbooks_last_sync = nil
+    # Calculate totals
+    @total_outstanding = @invoices.sum(:amount)
+    @total_overdue = @invoices.overdue.sum(:amount)
+    @total_current = @invoices.current_aging.sum(:amount)
+    @total_30_60 = @invoices.days_30_aging.sum(:amount) + @invoices.days_60_aging.sum(:amount)
+    @total_over_90 = @invoices.over_90_aging.sum(:amount)
+    
+    # Vendor analysis
+    @vendor_aging = @invoices.group(:vendor).sum(:amount).sort_by { |_, amount| -amount }.first(10)
+  end
+
+  # POST /invoices/sync_quickbooks
+  def sync_quickbooks
+    authorize Invoice
+    
+    # Check if QuickBooks is available
+    unless safe_quickbooks_connected?
+      redirect_to invoices_path, alert: 'QuickBooks is not connected. Please configure QuickBooks integration first.'
+      return
+    end
+    
+    # Sync all pending invoices without QuickBooks ID
+    count = 0
+    policy_scope(Invoice).without_quickbooks.pending.each do |invoice|
+      result = invoice.sync_to_quickbooks
+      count += 1 if result[:success]
+    end
+    
+    if count > 0
+      redirect_to invoices_path, notice: "#{count} invoices synced with QuickBooks successfully."
+    else
+      redirect_to invoices_path, notice: "No invoices needed syncing with QuickBooks."
     end
   end
 
+  # POST /invoices/:id/sync_to_quickbooks
+  def sync_to_quickbooks
+    authorize @invoice
+    
+    unless safe_quickbooks_connected?
+      redirect_to @invoice, alert: 'QuickBooks is not connected. Please configure QuickBooks integration first.'
+      return
+    end
+    
+    result = @invoice.sync_to_quickbooks
+    if result[:success]
+      redirect_to @invoice, notice: 'Invoice synced with QuickBooks successfully.'
+    else
+      redirect_to @invoice, alert: "Failed to sync with QuickBooks: #{result[:error]}"
+    end
+  end
+
+  # POST /invoices/:id/create_transaction
+  def create_transaction
+    authorize @invoice
+    
+    @transaction = @invoice.transactions.new(transaction_params)
+    @transaction.user = current_user
+    @transaction.reference_number ||= generate_payment_reference
+    
+    if @transaction.save
+      # Check if invoice is now fully paid
+      if @invoice.amount <= @invoice.transactions.sum(:amount)
+        @invoice.mark_as_paid(current_user)
+      end
+      
+      # Create activity log
+      ActivityLog.create!(
+        user: current_user,
+        action: 'payment_recorded',
+        description: "Recorded payment of #{number_to_currency(@transaction.amount)} for invoice #{@invoice.invoice_number}",
+        record: @invoice,
+        details: transaction_params.to_h
+      )
+      
+      redirect_to @invoice, notice: 'Payment recorded successfully.'
+    else
+      flash[:alert] = 'Failed to record payment.'
+      redirect_to @invoice
+    end
+  end
+
+  # POST /invoices/:id/create_pos_transaction
+  def create_pos_transaction
+    authorize @invoice
+    
+    # This would create a POS transaction linked to the invoice
+    # Implementation depends on your POS system
+    redirect_to @invoice, alert: 'POS integration not yet implemented.'
+  end
+
+  # GET /invoices/dashboard
+  def dashboard
+    authorize Invoice
+    
+    # Dashboard-specific stats
+    @dashboard_stats = {
+      total_invoices: policy_scope(Invoice).count,
+      pending_invoices: policy_scope(Invoice).pending.count,
+      overdue_invoices: policy_scope(Invoice).overdue.count,
+      total_amount: policy_scope(Invoice).sum(:amount),
+      pending_amount: policy_scope(Invoice).pending.sum(:amount),
+      paid_this_month: policy_scope(Invoice).paid.this_month.sum(:amount),
+      quickbooks_synced: policy_scope(Invoice).where.not(quickbooks_id: nil).count,
+      recent_invoices: policy_scope(Invoice).order(created_at: :desc).limit(5)
+    }
+    
+    # QuickBooks status
+    @quickbooks_connected = safe_quickbooks_connected?
+    @quickbooks_last_sync = safe_quickbooks_last_sync
+  end
+
+  # GET /invoices/:id/payment_timeline
   def payment_timeline
-    # This action will show payment timeline for the invoice
+    authorize @invoice
+    
     @timeline_entries = @invoice.payment_timeline
   end
 
+  # POST /invoices/:id/record_payment
   def record_payment
-    if current_user.can_pay_invoices?
-      amount = params[:amount].to_f
-      payment_method = params[:payment_method] || 'cash'
-      payment_date = params[:payment_date] || Date.current
-      notes = params[:notes]
+    authorize @invoice
+    
+    amount = params[:amount].to_f
+    payment_method = params[:payment_method] || 'cash'
+    payment_date = params[:payment_date] || Date.current
+    notes = params[:notes]
+    
+    if amount > 0 && amount <= @invoice.balance_due
+      @invoice.record_payment(amount, payment_method, payment_date, current_user, notes)
       
-      if amount > 0
-        @invoice.record_payment(amount, payment_method, payment_date, current_user, notes)
-        redirect_to @invoice, notice: 'Payment recorded successfully.'
-      else
-        redirect_to @invoice, alert: 'Invalid payment amount.'
-      end
+      # Create activity log
+      ActivityLog.create!(
+        user: current_user,
+        action: 'payment_recorded',
+        description: "Recorded payment of #{number_to_currency(amount)} for invoice #{@invoice.invoice_number}",
+        record: @invoice,
+        details: { amount: amount, payment_method: payment_method, notes: notes }
+      )
+      
+      redirect_to @invoice, notice: 'Payment recorded successfully.'
     else
-      redirect_to @invoice, alert: 'You are not authorized to record payments.'
+      redirect_to @invoice, alert: amount > 0 ? 'Payment amount exceeds invoice balance.' : 'Invalid payment amount.'
+    end
+  end
+
+  # GET /invoices/bulk_payment_view
+  def bulk_payment_view
+    authorize Invoice
+    
+    @invoices = policy_scope(Invoice)
+                .eligible_for_bulk_payment
+                .includes(:vehicle)
+                .order(:due_date)
+                
+    @total_amount = @invoices.sum(:amount)
+    @vendor_totals = @invoices.group(:vendor).sum(:amount)
+  end
+
+  # POST /invoices/process_bulk_payment
+  def process_bulk_payment
+    authorize Invoice
+    
+    invoice_ids = params[:invoice_ids] || []
+    payment_method = params[:payment_method]
+    payment_date = params[:payment_date] || Date.current
+    notes = params[:notes]
+    
+    if invoice_ids.empty?
+      redirect_to bulk_payment_view_invoices_path, alert: 'No invoices selected for payment.'
+      return
+    end
+    
+    result = Invoice.process_bulk_payment(invoice_ids, payment_method, payment_date, current_user, notes)
+    
+    if result[:success]
+      redirect_to invoices_path, notice: "Bulk payment processed successfully. #{result[:invoice_count]} invoices paid totaling #{number_to_currency(result[:total_amount])}."
+    else
+      redirect_to bulk_payment_view_invoices_path, alert: "Failed to process bulk payment: #{result[:error]}"
     end
   end
 
@@ -508,12 +545,17 @@ class InvoicesController < ApplicationController
 
   def set_invoice
     @invoice = Invoice.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to invoices_path, alert: 'Invoice not found.'
   end
 
   def apply_filters(invoices)
     invoices = invoices.where(status: params[:status]) if params[:status].present?
     invoices = invoices.where('vendor ILIKE ?', "%#{params[:vendor]}%") if params[:vendor].present?
     invoices = invoices.where('invoice_number ILIKE ?', "%#{params[:search]}%") if params[:search].present?
+    invoices = invoices.where('notes ILIKE ?', "%#{params[:notes]}%") if params[:notes].present?
+    invoices = invoices.where(category: params[:category]) if params[:category].present?
+    invoices = invoices.where(vehicle_id: params[:vehicle_id]) if params[:vehicle_id].present?
     
     if params[:date_from].present?
       invoices = invoices.where('invoice_date >= ?', Date.parse(params[:date_from]))
@@ -521,6 +563,22 @@ class InvoicesController < ApplicationController
     
     if params[:date_to].present?
       invoices = invoices.where('invoice_date <= ?', Date.parse(params[:date_to]))
+    end
+    
+    if params[:due_date_from].present?
+      invoices = invoices.where('due_date >= ?', Date.parse(params[:due_date_from]))
+    end
+    
+    if params[:due_date_to].present?
+      invoices = invoices.where('due_date <= ?', Date.parse(params[:due_date_to]))
+    end
+    
+    if params[:min_amount].present?
+      invoices = invoices.where('amount >= ?', params[:min_amount].to_f)
+    end
+    
+    if params[:max_amount].present?
+      invoices = invoices.where('amount <= ?', params[:max_amount].to_f)
     end
     
     invoices
@@ -536,17 +594,46 @@ class InvoicesController < ApplicationController
       invoices.where.not(purchase_order_id: nil)
     when 'has_transaction'
       invoices.joins(:transactions).distinct
+    when 'has_payment_history'
+      invoices.joins(:payment_histories).distinct
     when 'no_integration'
       invoices.where(quickbooks_id: nil)
-               .left_joins(:pos_transaction, :transactions)
-               .where(pos_transaction: { id: nil }, transactions: { id: nil })
+               .left_joins(:pos_transaction, :transactions, :payment_histories)
+               .where(pos_transaction: { id: nil }, transactions: { id: nil }, payment_histories: { id: nil })
+    when 'recently_synced'
+      invoices.recently_synced
+    when 'sync_stale'
+      invoices.sync_stale
+    when 'sync_failed'
+      invoices.sync_failed
     else
       invoices
     end
   end
+  
+  def apply_sorting(invoices)
+    case params[:sort]
+    when 'oldest'
+      invoices.order(:created_at)
+    when 'due_date_asc'
+      invoices.order(:due_date)
+    when 'due_date_desc'
+      invoices.order(due_date: :desc)
+    when 'amount_desc'
+      invoices.order(amount: :desc)
+    when 'amount_asc'
+      invoices.order(:amount)
+    when 'vendor'
+      invoices.order(:vendor)
+    when 'vehicle'
+      invoices.joins(:vehicle).order('vehicles.license_plate')
+    else
+      invoices.order(created_at: :desc)
+    end
+  end
 
-  def calculate_stats
-    base_invoices = current_user.agency_invoices
+  def calculate_stats(invoices)
+    base_invoices = invoices.unscoped
     
     {
       total: base_invoices.count,
@@ -561,9 +648,9 @@ class InvoicesController < ApplicationController
       paid_count: base_invoices.paid.this_month.count,
       transactions_count: Transaction.this_month.count,
       qb_synced: base_invoices.where.not(quickbooks_id: nil).count,
-      purchase_orders_count: PurchaseOrder.active.count,
-      pos_count: PosTransaction.this_month.count,
-      quotations_count: Quotation.pending.count
+      from_vmcott: base_invoices.where(vendor: 'VMCOTT').count,
+      from_rfq: base_invoices.where.not(purchase_order_id: nil).count,
+      aging_30: base_invoices.days_30_aging.count
     }
   end
 
@@ -617,30 +704,23 @@ class InvoicesController < ApplicationController
     stats[:overdue_amount] = invoices.overdue.sum(:amount)
     stats[:paid_amount] = invoices.paid.sum(:amount)
     
-    # Top vendors by volume (first 5)
+    # Top vendors by volume
     stats[:top_vendors] = stats[:by_vendor].sort_by { |_, amount| -amount }.first(5).to_h
     
-    # Daily breakdown (optional)
-    daily_totals = invoices
-      .select("invoice_date, SUM(amount) as daily_total, COUNT(*) as daily_count")
-      .group(:invoice_date)
-      .order(Arel.sql("invoice_date ASC"))
-      .limit(30) # Last 30 days
-    
-    stats[:daily_breakdown] = daily_totals.map do |record|
-      {
-        date: record.invoice_date,
-        total: record.daily_total.to_f,
-        count: record.daily_count
-      }
-    end
+    # Aging analysis
+    stats[:aging_analysis] = {
+      current: invoices.current_aging.sum(:amount),
+      days_30: invoices.days_30_aging.sum(:amount),
+      days_60: invoices.days_60_aging.sum(:amount),
+      over_90: invoices.over_90_aging.sum(:amount)
+    }
     
     stats
   end
 
   def generate_csv_report(invoices)
     CSV.generate do |csv|
-      csv << ['Invoice #', 'Date', 'Vendor', 'Vehicle', 'Agency', 'Amount', 'Status', 'Due Date', 'Category', 'QuickBooks ID', 'POS Payment', 'Purchase Order']
+      csv << ['Invoice #', 'Date', 'Vendor', 'Vehicle', 'Agency', 'Amount', 'Status', 'Due Date', 'Aging', 'Category', 'QuickBooks ID', 'POS Payment', 'Purchase Order']
       
       invoices.each do |invoice|
         csv << [
@@ -652,6 +732,7 @@ class InvoicesController < ApplicationController
           invoice.amount,
           invoice.status.humanize,
           invoice.due_date,
+          invoice.overdue? ? "#{invoice.days_overdue} days overdue" : "Current",
           invoice.category,
           invoice.quickbooks_id,
           invoice.pos_transaction_id.present? ? 'Yes' : 'No',
@@ -665,7 +746,9 @@ class InvoicesController < ApplicationController
     params.require(:invoice).permit(
       :invoice_number, :vehicle_id, :vendor, :invoice_date, :due_date,
       :amount, :subtotal, :tax, :status, :notes, :category, :maintenance_id,
-      :purchase_order_id, :quickbooks_id, :pos_transaction_id
+      :purchase_order_id, :quickbooks_id, :pos_transaction_id,
+      :service_owner, :created_by_id, :received_by_id, :reviewed_by_id,
+      :paid_by_id, :disputed_by_id
     )
   end
   
@@ -675,16 +758,40 @@ class InvoicesController < ApplicationController
     )
   end
   
+  def generate_invoice_number
+    prefix = case current_user.agency&.code
+             when 'VMCOTT'
+               'VMC'
+             when 'PTSC'
+               'PTSC'
+             when 'TTPS'
+               'TTPS'
+             when 'TTDF'
+               'TTDF'
+             else
+               'INV'
+             end
+    "#{prefix}-#{Date.today.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+  
+  def generate_payment_reference
+    "PAY-#{Date.today.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+  
   # Safe QuickBooks helper methods
   def safe_initialize_quickbooks
-    return unless defined?(QuickbooksIntegration)
+    return false unless defined?(QuickbooksIntegration)
     
     begin
       if QuickbooksIntegration.respond_to?(:initialize_defaults)
         QuickbooksIntegration.initialize_defaults
+        true
+      else
+        false
       end
     rescue => e
       Rails.logger.warn "Failed to initialize QuickBooks: #{e.message}"
+      false
     end
   end
   
@@ -693,9 +800,6 @@ class InvoicesController < ApplicationController
     
     begin
       QuickbooksIntegration.connected?
-    rescue ActiveRecord::StatementInvalid, PG::UndefinedTable => e
-      Rails.logger.warn "QuickBooks table not available: #{e.message}"
-      false
     rescue => e
       Rails.logger.warn "QuickBooks connection check failed: #{e.message}"
       false
@@ -707,9 +811,6 @@ class InvoicesController < ApplicationController
     
     begin
       QuickbooksIntegration.last_sync
-    rescue ActiveRecord::StatementInvalid, PG::UndefinedTable => e
-      Rails.logger.warn "QuickBooks table not available for last sync: #{e.message}"
-      nil
     rescue => e
       Rails.logger.warn "QuickBooks last sync check failed: #{e.message}"
       nil
@@ -721,9 +822,6 @@ class InvoicesController < ApplicationController
     
     begin
       QuickbooksIntegration.auto_sync?
-    rescue ActiveRecord::StatementInvalid, PG::UndefinedTable => e
-      Rails.logger.warn "QuickBooks table not available for auto sync: #{e.message}"
-      false
     rescue => e
       Rails.logger.warn "QuickBooks auto sync check failed: #{e.message}"
       false

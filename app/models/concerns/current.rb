@@ -1,14 +1,45 @@
-# app/models/current.rb
+# app/models/concerns/current.rb
 class Current < ActiveSupport::CurrentAttributes
   attribute :user
   attribute :request
   attribute :agency
   attribute :pos_transaction
   
-  # Set current request
+  # Fixed: Ensure user is not an array
   def self.set_request(request)
     self.request = request
-    self.agency = user&.agency if user
+    
+    # Safely get the user - handle if it's an array
+    user = if self.user.is_a?(Array)
+             self.user.first
+           else
+             self.user
+           end
+    
+    # Set agency if we have a valid user
+    if user && user.respond_to?(:agency)
+      self.agency = user.agency
+    else
+      self.agency = nil
+    end
+  end
+  
+  # Fixed: Handle array in with method
+  def self.with(user, request = nil)
+    # Ensure user is not an array
+    actual_user = if user.is_a?(Array)
+                    user.first
+                  else
+                    user
+                  end
+    
+    self.user = actual_user
+    self.request = request
+    self.agency = actual_user&.agency
+    
+    yield
+  ensure
+    reset
   end
   
   # Reset all attributes
@@ -19,49 +50,29 @@ class Current < ActiveSupport::CurrentAttributes
     self.pos_transaction = nil
   end
   
-  # Wrap execution with user context
-  def self.with(user, request = nil)
-    self.user = user
-    self.request = request
-    self.agency = user&.agency
-    
-    yield
-  ensure
-    reset
-  end
-  
-  # POS-specific helpers
+  # POS-specific helpers - with safe checks
   def self.pos_context
     {
-      user: user,
+      user: user.is_a?(User) ? user : nil,
       agency: agency,
       request: request
     }
   end
   
-  # Check if POS is accessible
+  # Check if POS is accessible - with safe check
   def self.can_access_pos?
-    user&.can_access_pos?
+    user.is_a?(User) && user.respond_to?(:can_access_pos?) ? user.can_access_pos? : false
   end
   
-  # Check if user can open register
-  def self.can_open_register?
-    user&.can_open_register?
-  end
-  
-  # Check if user can void transactions
-  def self.can_void_transactions?
-    user&.can_void_transactions?
-  end
-  
-  # Check if user can refund transactions
-  def self.can_refund_transactions?
-    user&.can_refund_transactions?
-  end
-  
-  # Get current agency code
+  # Get current agency code - with safe check
   def self.agency_code
-    agency&.code || user&.agency_code
+    if agency && agency.respond_to?(:code)
+      agency.code
+    elsif user.is_a?(User) && user.respond_to?(:agency_code)
+      user.agency_code
+    else
+      nil
+    end
   end
   
   # Check if current agency is PTSC
@@ -79,9 +90,10 @@ class Current < ActiveSupport::CurrentAttributes
     request&.user_agent if request
   end
   
-  # Create audit trail for actions
+  # Create audit trail for actions - with safe checks
   def self.audit(action, resource, details = {})
-    return unless user && resource
+    # Ensure user is a User object
+    return unless user.is_a?(User) && resource
     
     audit_details = {
       action: action,
@@ -111,10 +123,12 @@ class Current < ActiveSupport::CurrentAttributes
     Rails.logger.info("[AUDIT] #{action} by #{user.email} on #{resource.class.name}##{resource.id}")
   end
   
-  # PTSC-specific methods
+  # PTSC-specific methods with safe checks
   def self.ptsc_routes
-    return [] unless is_ptsc? && agency
+    return [] unless is_ptsc? && agency && agency.respond_to?(:id)
     Route.where(agency: agency).pluck(:route_code, :name)
+  rescue
+    []
   end
   
   def self.ptsc_fare_classes
@@ -127,21 +141,27 @@ class Current < ActiveSupport::CurrentAttributes
     ['single', 'daily', 'weekly', 'monthly', 'season']
   end
   
-  # Get fare for route and class
+  # Get fare for route and class with safe checks
   def self.get_fare(route_code, fare_class)
-    return nil unless agency && route_code && fare_class
+    return nil unless agency && agency.respond_to?(:id) && route_code && fare_class
     FareRule.find_by(agency: agency, route_code: route_code, fare_class: fare_class)&.amount
+  rescue
+    nil
   end
   
-  # Validate PTSC transaction
+  # Validate PTSC transaction with safe checks
   def self.validate_ptsc_transaction(params)
     return { valid: false, error: "Not in PTSC context" } unless is_ptsc?
     
     errors = []
     
-    # Check route
-    unless Route.exists?(agency: agency, route_code: params[:route_code])
-      errors << "Invalid route: #{params[:route_code]}"
+    # Check route with safe check
+    begin
+      unless Route.exists?(agency: agency, route_code: params[:route_code])
+        errors << "Invalid route: #{params[:route_code]}"
+      end
+    rescue
+      errors << "Route validation failed"
     end
     
     # Check fare class

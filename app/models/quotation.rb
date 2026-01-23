@@ -1,15 +1,30 @@
-require 'csv'
+# app/models/quotation.rb
 class Quotation < ApplicationRecord
   # FIX: Clear any problematic attribute aliases
   self.attribute_aliases = attribute_aliases.except('quotation_line_items')
+  
   # Associations
   belongs_to :vehicle, optional: true
   belongs_to :created_by, class_name: 'User'
+  belongs_to :rfq, optional: true
   
   # Detailed line items
   has_many :quotation_line_items, dependent: :destroy
   alias_method :line_items, :quotation_line_items
   accepts_nested_attributes_for :quotation_line_items, allow_destroy: true
+  
+  # Quotation Jobs
+  has_many :quotation_jobs, dependent: :destroy
+  accepts_nested_attributes_for :quotation_jobs, allow_destroy: true
+  has_many :quotation_job_parts, through: :quotation_jobs
+  
+  # Purchase Order reference
+  belongs_to :purchase_order, optional: true
+  
+  # Timestamps for different statuses
+  attribute :sent_at, :datetime
+  attribute :accepted_at, :datetime
+  attribute :rejected_at, :datetime
   
   # Enums
   enum :status, {
@@ -18,7 +33,9 @@ class Quotation < ApplicationRecord
     accepted: 2,
     rejected: 3,
     expired: 4,
-    converted: 5
+    converted: 5,
+    pending_acceptance: 6,
+    partially_rejected: 7
   }, default: :draft
   
   # Validations
@@ -29,18 +46,19 @@ class Quotation < ApplicationRecord
   validate :valid_date_range
   
   # Scopes
-  scope :pending, -> { where(status: [:draft, :sent]) }
-  scope :active, -> { where('valid_to >= ?', Date.today).where(status: [:draft, :sent]) }
+  scope :pending, -> { where(status: [:draft, :sent, :pending_acceptance]) }
+  scope :active, -> { where('valid_to >= ?', Date.today).where(status: [:draft, :sent, :pending_acceptance]) }
   scope :expired, -> { where('valid_to < ?', Date.today).or(where(status: :expired)) }
   scope :accepted, -> { where(status: :accepted) }
   scope :rejected, -> { where(status: :rejected) }
   scope :converted, -> { where(status: :converted) }
+  scope :pending_acceptance, -> { where(status: :pending_acceptance) }
   scope :this_month, -> { where(created_at: Time.current.beginning_of_month..Time.current.end_of_month) }
   
   # Expiring soon (within 7 days)
   scope :expiring_soon, -> { 
     where('valid_to BETWEEN ? AND ?', Date.today, Date.today + 7.days)
-    .where(status: [:draft, :sent])
+    .where(status: [:draft, :sent, :pending_acceptance])
   }
   
   # Agency scope
@@ -64,7 +82,8 @@ class Quotation < ApplicationRecord
   before_validation :generate_quote_number, on: :create
   before_validation :set_default_dates, on: :create
   before_save :update_amount_from_line_items, if: :line_items_changed?
-  after_save :update_status_timestamps
+  before_save :update_amount_from_jobs, if: :jobs_changed?
+  before_save :update_status_timestamps
   
   # Instance Methods
   
@@ -72,7 +91,13 @@ class Quotation < ApplicationRecord
     return if quote_number.present?
     date_part = Time.now.strftime('%Y%m%d')
     random_part = SecureRandom.hex(4).upcase
-    self.quote_number = "RFQ-#{date_part}-#{random_part}"
+    
+    # Check if VMCOTT quotation
+    if vendor == 'VMCOTT'
+      self.quote_number = "Q-VMC-#{date_part}-#{random_part}"
+    else
+      self.quote_number = "Q-#{date_part}-#{random_part}"
+    end
   end
   
   def set_default_dates
@@ -106,7 +131,12 @@ class Quotation < ApplicationRecord
   
   def send_to_vendor!
     return if sent? || accepted? || rejected?
-    update(status: :sent)
+    update(status: :sent, sent_at: Time.current)
+  end
+  
+  def submit_to_agency!
+    return unless vendor == 'VMCOTT'
+    send_to_vendor!
   end
   
   def update_amount_from_line_items
@@ -114,31 +144,36 @@ class Quotation < ApplicationRecord
     self.amount = quotation_line_items.sum(&:total_price)
   end
   
+  def update_amount_from_jobs
+    return if quotation_jobs.empty?
+    
+    labor_total = quotation_jobs.sum(&:total_labor_cost).to_f
+    parts_total = quotation_job_parts.sum(&:total_price).to_f
+    line_items_total = quotation_line_items.sum(&:total_price).to_f
+    
+    self.amount = line_items_total + labor_total + parts_total
+  end
+  
   def line_items_changed?
     quotation_line_items.any?(&:changed?)
   end
   
+  def jobs_changed?
+    quotation_jobs.any?(&:changed?)
+  end
+  
   def update_status_timestamps
-    # Clear timestamps when status changes from accepted/rejected/converted
-    if status_changed?
-      case status_was.to_sym
-      when :accepted
-        update_column(:accepted_at, nil) unless accepted?
-      when :rejected
-        update_column(:rejected_at, nil) unless rejected?
-      when :converted
-        update_column(:converted_at, nil) unless converted?
-      end
-      
-      # Set timestamp for new status
-      case status.to_sym
-      when :accepted
-        update_column(:accepted_at, Time.current) if accepted_at.nil?
-      when :rejected
-        update_column(:rejected_at, Time.current) if rejected_at.nil?
-      when :converted
-        update_column(:converted_at, Time.current) if converted_at.nil?
-      end
+    return unless status_changed?
+    
+    case status.to_sym
+    when :sent
+      self.sent_at = Time.current if sent_at.nil?
+    when :accepted
+      self.accepted_at = Time.current if accepted_at.nil?
+    when :rejected
+      self.rejected_at = Time.current if rejected_at.nil?
+    when :converted
+      self.converted_at = Time.current if converted_at.nil?
     end
   end
   
@@ -156,11 +191,13 @@ class Quotation < ApplicationRecord
   def display_status
     case status.to_sym
     when :draft then 'Draft'
-    when :sent then 'Sent to Vendor'
+    when :sent then 'Sent to Agency'
     when :accepted then 'Accepted'
     when :rejected then 'Rejected'
     when :expired then 'Expired'
     when :converted then 'Converted to PO'
+    when :pending_acceptance then 'Pending Acceptance'
+    when :partially_rejected then 'Partially Rejected'
     else status.humanize
     end
   end
@@ -173,6 +210,8 @@ class Quotation < ApplicationRecord
     when :rejected then 'danger'
     when :expired then 'warning'
     when :converted then 'primary'
+    when :pending_acceptance then 'warning'
+    when :partially_rejected then 'danger'
     else 'dark'
     end
   end
@@ -226,23 +265,23 @@ class Quotation < ApplicationRecord
   end
   
   def can_be_accepted?
-    [:draft, :sent].include?(status.to_sym) && !expired?
+    [:draft, :sent, :pending_acceptance].include?(status.to_sym) && !expired?
   end
   
   def can_be_rejected?
-    [:draft, :sent, :accepted].include?(status.to_sym) && !expired?
+    [:draft, :sent, :accepted, :pending_acceptance].include?(status.to_sym) && !expired?
   end
   
   def can_be_converted_to_po?
-    status.to_sym == :accepted
+    [:accepted, :pending_acceptance].include?(status.to_sym)
   end
   
   def can_be_sent?
-    draft? && !expired?
+    draft? && !expired? && vendor == 'VMCOTT'
   end
   
   def can_be_edited?
-    draft?
+    draft? && vendor == 'VMCOTT'
   end
   
   def timeline_events
@@ -250,20 +289,22 @@ class Quotation < ApplicationRecord
     
     # Creation event
     events << {
-      event: 'RFQ Created',
+      event: 'Quotation Created',
       date: created_at,
       user: created_by,
-      description: "RFQ #{quote_number} created",
-      icon: 'file-earmark-plus'
+      description: "Quotation #{quote_number} created",
+      icon: 'file-earmark-plus',
+      active: true
     }
     
     # Sent event
-    if [:sent, :accepted, :rejected].include?(status.to_sym)
+    if sent? || accepted? || rejected? || converted?
       events << {
-        event: 'Sent to Vendor',
-        date: updated_at,
-        description: "RFQ sent to #{vendor}",
-        icon: 'send'
+        event: 'Sent to Agency',
+        date: sent_at || updated_at,
+        description: "Quotation sent to requesting agency",
+        icon: 'send',
+        active: sent_at.present?
       }
     end
     
@@ -272,8 +313,9 @@ class Quotation < ApplicationRecord
       events << {
         event: 'Accepted',
         date: accepted_at,
-        description: "Quotation accepted by vendor",
-        icon: 'check-circle'
+        description: "Quotation accepted by agency",
+        icon: 'check-circle',
+        active: true
       }
     end
     
@@ -283,7 +325,8 @@ class Quotation < ApplicationRecord
         event: 'Rejected',
         date: rejected_at,
         description: "Quotation rejected",
-        icon: 'x-circle'
+        icon: 'x-circle',
+        active: true
       }
     end
     
@@ -293,7 +336,8 @@ class Quotation < ApplicationRecord
         event: 'Converted to PO',
         date: converted_at,
         description: "Converted to purchase order",
-        icon: 'cart-check'
+        icon: 'cart-check',
+        active: true
       }
     end
     
@@ -303,7 +347,8 @@ class Quotation < ApplicationRecord
         event: 'Expired',
         date: valid_to,
         description: "Quotation validity expired",
-        icon: 'clock-history'
+        icon: 'clock-history',
+        active: true
       }
     end
     
@@ -322,14 +367,34 @@ class Quotation < ApplicationRecord
     agency&.name || vehicle&.service_owner || 'Fleet Management'
   end
   
+  # Total labor cost from jobs
+  def total_labor_cost
+    quotation_jobs.sum(:total_labor_cost).to_f
+  end
+  
+  # Total parts cost from jobs
+  def total_parts_cost
+    quotation_job_parts.sum(&:total_price).to_f
+  end
+  
+  # Total job cost (labor + parts)
+  def total_job_cost
+    total_labor_cost + total_parts_cost
+  end
+  
+  # Check if has jobs assigned
+  def has_jobs?
+    quotation_jobs.any?
+  end
+  
   # For PDF generation
   def to_pdf
     content = "=" * 60 + "\n"
-    content += "REQUEST FOR QUOTATION\n"
+    content += "QUOTATION\n"
     content += "=" * 60 + "\n\n"
     
-    content += "RFQ Details:\n"
-    content += "  RFQ #: #{quote_number}\n"
+    content += "Quotation Details:\n"
+    content += "  Quote #: #{quote_number}\n"
     content += "  Date: #{created_at.strftime('%d %B, %Y')}\n"
     content += "  Vendor: #{vendor}\n"
     content += "  Valid From: #{valid_from.strftime('%d %B, %Y')}\n"
@@ -344,6 +409,25 @@ class Quotation < ApplicationRecord
       content += "  Agency: #{agency_name}\n\n"
     else
       content += "  No vehicle assigned\n\n"
+    end
+    
+    if quotation_jobs.any?
+      content += "Job Details:\n"
+      content += "-" * 60 + "\n"
+      quotation_jobs.each_with_index do |job, index|
+        content += "Job #{index + 1}: #{job.name}\n"
+        content += "  Description: #{job.description}\n"
+        content += "  Hours: #{job.estimated_hours} @ $#{'%.2f' % job.labor_rate_per_hour}/hr = $#{'%.2f' % job.total_labor_cost}\n"
+        
+        if job.quotation_job_parts.any?
+          content += "  Parts Required:\n"
+          job.quotation_job_parts.each do |part|
+            content += "    • #{part.part&.name || 'Part'}: #{part.quantity} x $#{'%.2f' % part.unit_price} = $#{'%.2f' % part.total_price}\n"
+          end
+        end
+        content += "\n"
+      end
+      content += "-" * 60 + "\n"
     end
     
     if quotation_line_items.any?
@@ -361,6 +445,13 @@ class Quotation < ApplicationRecord
     content += "  Quoted Amount: $#{'%.2f' % amount}\n"
     content += "  VAT (12.5%): $#{'%.2f' % vat_amount}\n"
     content += "  Total Amount: $#{'%.2f' % total_with_vat}\n\n"
+    
+    if quotation_jobs.any?
+      content += "Job Breakdown:\n"
+      content += "  Labor Cost: $#{'%.2f' % total_labor_cost}\n"
+      content += "  Parts Cost: $#{'%.2f' % total_parts_cost}\n"
+      content += "  Total Job Cost: $#{'%.2f' % total_job_cost}\n\n"
+    end
     
     if notes.present?
       content += "Notes:\n#{notes}\n\n"

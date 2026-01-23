@@ -1,0 +1,52 @@
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="card-title mb-0">Filter RFQs</h5>
+  </div>
+  <div class="card-body">
+    <%= form_with url: sent_rfqs_path, method: :get, local: true, class: "row g-3" do |f| %>
+      <div class="col-md-3">
+        <%= f.label :search, "Search", class: "form-label" %>
+        <%= f.text_field :search, class: "form-control", 
+              value: params[:search],
+              placeholder: "RFQ #, description..." %>
+      </div>
+      
+      <div class="col-md-2">
+        <%= f.label :status, "Status", class: "form-label" %>
+        <%= f.select :status, 
+              Rfq.statuses.keys.map { |s| [s.humanize, s] },
+              { include_blank: "All Statuses", selected: params[:status] },
+              class: "form-control" %>
+      </div>
+      
+      <div class="col-md-2">
+        <%= f.label :vehicle_id, "Vehicle", class: "form-label" %>
+        <%= f.select :vehicle_id, 
+              options_for_select(
+                (vehicles || []).map { |v| [v.license_plate, v.id] },
+                params[:vehicle_id]
+              ),
+              { include_blank: "All Vehicles" },
+              class: "form-control" %>
+      </div>
+      
+      <div class="col-md-2">
+        <%= f.label :date_from, "From Date", class: "form-label" %>
+        <%= f.date_field :date_from, class: "form-control", value: params[:date_from] %>
+      </div>
+      
+      <div class="col-md-2">
+        <%= f.label :date_to, "To Date", class: "form-label" %>
+        <%= f.date_field :date_to, class: "form-control", value: params[:date_to] %>
+      </div>
+      
+      <div class="col-md-1 align-self-end">
+        <%= f.submit "Filter", class: "btn btn-primary" %>
+      </div>
+      
+      <div class="col-md-1 align-self-end">
+        <%= link_to "Clear", sent_rfqs_path, class: "btn btn-outline-secondary" %>
+      </div>
+    <% end %>
+  </div>
+</div>

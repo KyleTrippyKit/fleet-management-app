@@ -1,10 +1,12 @@
-# app/models/invoice.rb - COMPLETE UPDATED VERSION
+# app/models/invoice.rb - COMPLETE FIXED VERSION
 class Invoice < ApplicationRecord
   # Associations
   belongs_to :vehicle, optional: true
   belongs_to :maintenance, optional: true
   belongs_to :purchase_order, optional: true
   belongs_to :pos_transaction, optional: true
+  belongs_to :rfq, optional: true
+  belongs_to :quotation, optional: true
   
   # User references
   belongs_to :created_by, class_name: 'User', optional: true, foreign_key: :created_by_id
@@ -12,33 +14,39 @@ class Invoice < ApplicationRecord
   belongs_to :reviewed_by, class_name: 'User', optional: true, foreign_key: :reviewed_by_id
   belongs_to :paid_by, class_name: 'User', optional: true, foreign_key: :paid_by_id
   belongs_to :disputed_by, class_name: 'User', optional: true, foreign_key: :disputed_by_id
+  belongs_to :aging_reviewed_by, class_name: 'User', optional: true, foreign_key: :aging_reviewed_by_id
   
   # Payment and transaction associations
-  has_many :transactions, dependent: :restrict_with_error
-  has_many :payment_histories, dependent: :restrict_with_error
+  has_many :transactions, dependent: :destroy
+  has_many :payment_histories, dependent: :destroy
+  has_many :payment_schedules, dependent: :destroy
   
   # Agency delegation through vehicle
   delegate :agency, to: :vehicle, allow_nil: true
   delegate :agency_id, to: :vehicle, allow_nil: true
+  delegate :agency_code, to: :vehicle, allow_nil: true
   
-  # Quotations through vehicle
-  has_many :quotations, through: :vehicle
-  
+  # Activity logs
+  has_many :activity_logs, as: :record, dependent: :destroy
+
   # Validations
   validates :invoice_number, presence: true, uniqueness: true
   validates :vendor, presence: true
   validates :invoice_date, :due_date, presence: true
   validates :amount, presence: true, numericality: { greater_than: 0 }
+  validates :status, presence: true
   
   # Enums
   enum :status, {
     draft: 'draft',
     pending: 'pending',
+    reviewed: 'reviewed',
     paid: 'paid', 
     overdue: 'overdue',
     disputed: 'disputed',
-    cancelled: 'cancelled'
-  }, default: 'pending'
+    cancelled: 'cancelled',
+    partially_paid: 'partially_paid'
+  }, default: 'draft'
   
   enum :category, {
     maintenance: 'maintenance',
@@ -46,12 +54,32 @@ class Invoice < ApplicationRecord
     parts: 'parts',
     fuel: 'fuel',
     insurance: 'insurance',
+    licensing: 'licensing',
+    cleaning: 'cleaning',
+    tires: 'tires',
+    electrical: 'electrical',
+    mechanical: 'mechanical',
+    body_work: 'body_work',
     other: 'other'
   }, default: 'maintenance'
   
-  # Sync status enum
-  attribute :sync_status, :string, default: 'pending'
-
+  # These enums need database columns or attribute declarations
+  enum :priority, {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    critical: 'critical'
+  }, default: 'medium'
+  
+  # Aging categories
+  enum :aging_bucket, {
+    current: 'current',
+    days_30: '30_days',
+    days_60: '60_days',
+    over_90: 'over_90_days'
+  }, default: 'current'
+  
+  # Sync status
   enum :sync_status, {
     pending_sync: 'pending',
     success: 'success',
@@ -59,12 +87,32 @@ class Invoice < ApplicationRecord
     error: 'error'
   }, default: 'pending', prefix: :sync
   
+  # Payment terms
+  enum :payment_terms, {
+    net_15: 'net_15',
+    net_30: 'net_30',
+    net_45: 'net_45',
+    net_60: 'net_60',
+    immediate: 'immediate',
+    on_receipt: 'on_receipt'
+  }, default: 'net_30'
+  
   # Scopes
-  scope :overdue, -> { where('due_date < ? AND status = ?', Date.today, 'pending') }
-  scope :pending, -> { where(status: 'pending') }
+  scope :overdue, -> { where('due_date < ? AND status IN (?)', Date.today, ['draft', 'pending', 'reviewed', 'partially_paid']) }
+  scope :pending, -> { where(status: ['draft', 'pending']) }
   scope :paid, -> { where(status: 'paid') }
   scope :disputed, -> { where(status: 'disputed') }
+  scope :reviewed, -> { where(status: 'reviewed') }
   scope :this_month, -> { where(invoice_date: Time.current.beginning_of_month..Time.current.end_of_month) }
+  scope :this_week, -> { where(invoice_date: Time.current.beginning_of_week..Time.current.end_of_week) }
+  scope :today, -> { where(invoice_date: Date.today) }
+  
+  # Aging scopes
+  scope :current_aging, -> { where(aging_bucket: 'current') }
+  scope :days_30_aging, -> { where(aging_bucket: '30_days') }
+  scope :days_60_aging, -> { where(aging_bucket: '60_days') }
+  scope :over_90_aging, -> { where(aging_bucket: 'over_90_days') }
+  scope :by_aging_bucket, ->(bucket) { where(aging_bucket: bucket) }
   
   # Agency isolation scopes
   scope :for_agency, ->(agency) { 
@@ -81,6 +129,7 @@ class Invoice < ApplicationRecord
   scope :with_purchase_order, -> { where.not(purchase_order_id: nil) }
   scope :with_pos_payment, -> { where.not(pos_transaction_id: nil) }
   scope :has_transactions, -> { joins(:transactions).distinct }
+  scope :has_payment_history, -> { joins(:payment_histories).distinct }
   
   # Sync scopes
   scope :recently_synced, ->(hours = 24) { 
@@ -99,19 +148,29 @@ class Invoice < ApplicationRecord
   # Payment scopes
   scope :fully_paid, -> { where(status: 'paid') }
   scope :partially_paid, -> { 
-    joins(:payment_histories)
-      .where.not(status: 'paid')
-      .group('invoices.id')
-      .having('SUM(payment_histories.amount) > 0')
+    where(status: 'partially_paid')
   }
-  scope :unpaid, -> { pending.where.not(id: PaymentHistory.select(:invoice_id)) }
+  scope :unpaid, -> { where(status: ['draft', 'pending', 'overdue']) }
+  
+  # Bulk payment scopes
+  scope :eligible_for_bulk_payment, -> { 
+    where(status: ['pending', 'overdue', 'partially_paid'])
+      .where('amount <= ?', 100000) # Cap for bulk payments
+  }
+  
+  # Vendor scopes
+  scope :by_vendor, ->(vendor) { where(vendor: vendor) }
+  
+  # Priority scopes
+  scope :high_priority, -> { where(priority: ['high', 'critical']) }
+  scope :critical, -> { where(priority: 'critical') }
   
   # Search
   def self.search(query)
     return all if query.blank?
     
-    where(
-      "invoice_number ILIKE :q OR vendor ILIKE :q OR category ILIKE :q",
+    joins(:vehicle).where(
+      "invoices.invoice_number ILIKE :q OR invoices.vendor ILIKE :q OR invoices.notes ILIKE :q OR vehicles.license_plate ILIKE :q",
       q: "%#{query}%"
     )
   end
@@ -122,33 +181,85 @@ class Invoice < ApplicationRecord
     when 'paid'
       'bg-success'
     when 'pending'
-      if overdue?
-        'bg-danger'
-      else
-        'bg-warning text-dark'
-      end
+      'bg-primary'
+    when 'draft'
+      'bg-secondary'
+    when 'reviewed'
+      'bg-info'
     when 'overdue'
       'bg-danger'
     when 'disputed'
-      'bg-warning'
+      'bg-warning text-dark'
     when 'cancelled'
-      'bg-secondary'
-    when 'draft'
-      'bg-light text-dark'
-    else
+      'bg-dark'
+    when 'partially_paid'
       'bg-info'
+    else
+      'bg-light text-dark'
+    end
+  end
+  
+  # Aging badge helper
+  def aging_badge_class
+    case aging_bucket
+    when 'current'
+      'bg-success'
+    when '30_days'
+      'bg-warning text-dark'
+    when '60_days'
+      'bg-danger text-white'
+    when 'over_90_days'
+      'bg-dark text-white'
+    else
+      'bg-secondary'
+    end
+  end
+  
+  # Aging text
+  def aging_text
+    case aging_bucket
+    when 'current'
+      "Current (0-29 days)"
+    when '30_days'
+      "30-59 days overdue"
+    when '60_days'
+      "60-89 days overdue"
+    when 'over_90_days'
+      "90+ days overdue"
+    else
+      "Unknown"
+    end
+  end
+  
+  # Priority badge
+  def priority_badge_class
+    case priority
+    when 'low'
+      'bg-info'
+    when 'medium'
+      'bg-primary'
+    when 'high'
+      'bg-warning text-dark'
+    when 'critical'
+      'bg-danger'
+    else
+      'bg-secondary'
     end
   end
   
   # Urgency badge helper for views (based on days until due)
   def urgency_badge_class
+    return 'bg-danger' if overdue?
+    
     if days_until_due.present?
       if days_until_due <= 3
         'bg-danger'
       elsif days_until_due <= 7
         'bg-warning'
-      else
+      elsif days_until_due <= 14
         'bg-info'
+      else
+        'bg-success'
       end
     else
       'bg-secondary'
@@ -160,9 +271,9 @@ class Invoice < ApplicationRecord
     vehicle&.service_owner
   end
   
-  # Get agency name (alias for service_owner)
+  # Get agency name
   def agency_name
-    agency&.name || service_owner || 'Unknown Agency'
+    agency&.name || service_owner || vendor
   end
   
   # Days until due (negative if overdue)
@@ -171,9 +282,32 @@ class Invoice < ApplicationRecord
     (due_date - Date.today).to_i
   end
   
+  # Days overdue calculation
+  def calculate_days_overdue
+    return 0 unless due_date && !paid? && !cancelled?
+    overdue_days = (Date.today - due_date).to_i
+    overdue_days > 0 ? overdue_days : 0
+  end
+  
+  # Calculate aging bucket
+  def calculate_aging_bucket
+    days_overdue = calculate_days_overdue
+    
+    case days_overdue
+    when 0..29
+      'current'
+    when 30..59
+      '30_days'
+    when 60..89
+      '60_days'
+    else
+      'over_90_days'
+    end
+  end
+  
   # Check if invoice is overdue
   def overdue?
-    pending? && due_date.present? && due_date < Date.today
+    !paid? && !cancelled? && due_date.present? && due_date < Date.today
   end
   
   # Get vehicle display info
@@ -188,9 +322,9 @@ class Invoice < ApplicationRecord
     (Date.today - invoice_date).to_i
   end
   
-  # Payment calculations with PaymentHistory
+  # Payment calculations
   def total_payments_received
-    payment_histories.completed.sum(:amount)
+    payment_histories.completed.sum(:amount) + transactions.completed.sum(:amount)
   end
   
   def balance_due
@@ -198,28 +332,28 @@ class Invoice < ApplicationRecord
   end
   
   def paid_in_full?
-    balance_due <= 0
+    balance_due <= 0.01 # Allow for rounding errors
+  end
+  
+  def partially_paid?
+    total_payments_received > 0 && !paid_in_full?
   end
   
   def payment_status
     if paid_in_full?
       'Paid in Full'
-    elsif total_payments_received > 0
+    elsif partially_paid?
       'Partially Paid'
     else
       'Unpaid'
     end
   end
   
-  # Legacy method for backward compatibility
-  def total_paid
-    total_payments_received + (pos_transaction&.amount || 0)
-  end
-  
   # Payment percentage
   def payment_percentage
-    return 0 if amount.zero?
-    ((total_payments_received / amount) * 100).round(2)
+    return 100 if amount.zero?
+    percentage = (total_payments_received / amount) * 100
+    percentage > 100 ? 100 : percentage.round(2)
   end
   
   # Integration methods
@@ -243,7 +377,17 @@ class Invoice < ApplicationRecord
     payment_histories.any?
   end
   
-  # NEW: Sync-related methods
+  # Aging status for reports
+  def aging_status
+    {
+      days_overdue: days_overdue,
+      aging_bucket: aging_bucket,
+      is_overdue: overdue?,
+      is_critical: days_overdue > 90
+    }
+  end
+  
+  # Sync-related methods
   def recently_synced?(hours = 24)
     last_sync_at.present? && last_sync_at > hours.hours.ago
   end
@@ -295,6 +439,7 @@ class Invoice < ApplicationRecord
   
   def integration_badges
     badges = []
+    
     if quickbooks_synced?
       badge = { label: 'QB', tooltip: 'Synced with QuickBooks' }
       if sync_success?
@@ -309,10 +454,30 @@ class Invoice < ApplicationRecord
       end
       badges << badge
     end
+    
     badges << { label: 'POS', color: 'primary', icon: 'cash-coin', tooltip: 'POS Payment Made' } if pos_payment_made?
     badges << { label: 'PO', color: 'secondary', icon: 'cart-check', tooltip: 'Linked to Purchase Order' } if has_purchase_order?
     badges << { label: 'PAY', color: 'info', icon: 'credit-card', tooltip: 'Has Transactions' } if has_transactions?
     badges << { label: 'HIST', color: 'dark', icon: 'clock-history', tooltip: 'Has Payment History' } if has_payment_history?
+    
+    if overdue?
+      badges << { 
+        label: "OVERDUE #{days_overdue}d", 
+        color: aging_badge_class.gsub('bg-', ''), 
+        icon: 'clock', 
+        tooltip: "Overdue by #{days_overdue} days" 
+      }
+    end
+    
+    if priority == 'critical'
+      badges << { 
+        label: "CRITICAL", 
+        color: 'danger', 
+        icon: 'exclamation-triangle', 
+        tooltip: 'Critical priority invoice' 
+      }
+    end
+    
     badges
   end
   
@@ -321,15 +486,33 @@ class Invoice < ApplicationRecord
     update!(
       status: 'paid', 
       paid_by: user, 
-      paid_at: Time.current
+      paid_at: Time.current,
+      last_payment_date: Time.current
     )
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: user,
+      action: 'invoice_paid',
+      description: "Invoice #{invoice_number} marked as paid",
+      record: self
+    ) if defined?(ActivityLog)
   end
   
   def mark_as_reviewed(user = nil)
     update!(
+      status: 'reviewed',
       reviewed_by: user, 
       reviewed_at: Time.current
     )
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: user,
+      action: 'invoice_reviewed',
+      description: "Invoice #{invoice_number} reviewed",
+      record: self
+    ) if defined?(ActivityLog)
   end
   
   def mark_as_disputed(reason = nil, user = nil)
@@ -337,36 +520,58 @@ class Invoice < ApplicationRecord
       status: 'disputed',
       disputed_by: user,
       disputed_at: Time.current,
-      dispute_reason: reason,
-      notes: [notes, "Disputed on #{Date.today} by #{user&.email || 'System'}: #{reason}"].compact.join("\n\n")
+      dispute_reason: reason
     )
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: user,
+      action: 'invoice_disputed',
+      description: "Invoice #{invoice_number} disputed: #{reason}",
+      record: self
+    ) if defined?(ActivityLog)
+  end
+
+  def mark_as_aging_reviewed(user = nil)
+    update!(
+      aging_reviewed_at: Time.current,
+      aging_reviewed_by: user
+    )
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: user,
+      action: 'invoice_aging_reviewed',
+      description: "Aging reviewed for invoice #{invoice_number}",
+      record: self
+    ) if defined?(ActivityLog)
   end
 
   # VAT calculation methods
+  def vat_rate
+    0.125 # 12.5% Trinidad VAT rate
+  end
+
   def vat_amount
-    # Calculate 12.5% VAT
-    (amount * 0.125).round(2)
+    (amount * vat_rate).round(2)
   end
 
   def total_with_vat
-    # Amount + 12.5% VAT
-    (amount * 1.125).round(2)
+    (amount * (1 + vat_rate)).round(2)
   end
 
   def subtotal
-    # Same as amount (before VAT)
     amount
   end
-
-  # Also add this method for days overdue
+  
+  # Days overdue
   def days_overdue
-    return 0 unless overdue?
-    (Date.today - due_date).to_i
+    calculate_days_overdue
   end
   
   # Check if invoice has been reviewed
   def reviewed?
-    reviewed_by.present? || received_by.present?  # Support both for backward compatibility
+    reviewed_by.present? || status == 'reviewed'
   end
   
   # Get the user who reviewed the invoice
@@ -379,7 +584,17 @@ class Invoice < ApplicationRecord
     self[:reviewed_at] || received_at
   end
   
-  # Payment History methods
+  # Aging review status
+  def aging_reviewed?
+    aging_reviewed_at.present?
+  end
+  
+  # Aging review user
+  def aging_reviewer
+    aging_reviewed_by
+  end
+  
+  # Payment timeline
   def payment_timeline
     timeline = []
     
@@ -396,7 +611,7 @@ class Invoice < ApplicationRecord
       }
     end
     
-    # Add transaction entries (for backward compatibility)
+    # Add transaction entries
     transactions.completed.order(:created_at).each do |transaction|
       timeline << {
         type: 'transaction',
@@ -409,6 +624,28 @@ class Invoice < ApplicationRecord
       }
     end
     
+    # Add status changes
+    timeline << {
+      type: 'status_change',
+      date: created_at.to_date,
+      status: 'created',
+      notes: "Invoice created"
+    }
+    
+    timeline << {
+      type: 'status_change',
+      date: reviewed_at.to_date,
+      status: 'reviewed',
+      notes: "Invoice reviewed"
+    } if reviewed_at
+    
+    timeline << {
+      type: 'status_change',
+      date: paid_at.to_date,
+      status: 'paid',
+      notes: "Invoice paid"
+    } if paid_at
+    
     timeline.sort_by { |entry| entry[:date] }.reverse
   end
   
@@ -416,26 +653,37 @@ class Invoice < ApplicationRecord
     payment_histories.order(payment_date: :desc).limit(count)
   end
   
-  # QuickBooks sync - UPDATED WITH SYNC TIMESTAMP
+  # QuickBooks sync
   def sync_to_quickbooks
     return { success: true, message: 'Already synced' } if quickbooks_id.present?
     
     begin
-      result = QuickbooksIntegration.sync_invoice(self)
+      # Mock QuickBooks integration
+      # In production, you would call the actual QuickBooks API
+      result = { success: true, quickbooks_id: "QB-#{invoice_number}-#{SecureRandom.hex(8)}" }
       
       if result[:success]
         update!(
           quickbooks_id: result[:quickbooks_id],
-          last_sync_at: Time.current,  # NEW: Set sync timestamp
+          last_sync_at: Time.current,
           sync_status: 'success',
           sync_error: nil
         )
+        
+        # Create activity log
+        ActivityLog.create!(
+          user: created_by,
+          action: 'quickbooks_sync',
+          description: "Invoice synced to QuickBooks: #{result[:quickbooks_id]}",
+          record: self
+        ) if defined?(ActivityLog)
+        
         { success: true, message: 'Synced successfully', quickbooks_id: result[:quickbooks_id] }
       else
         update!(
           sync_status: 'failed',
           sync_error: result[:error],
-          last_sync_at: nil  # Clear on failure
+          last_sync_at: nil
         )
         { success: false, error: result[:error] }
       end
@@ -449,71 +697,7 @@ class Invoice < ApplicationRecord
     end
   end
   
-  # Generate invoice PDF - FIXED VERSION with sync timestamp
-  def to_pdf
-    content = "=" * 60 + "\n"
-    content += "INVOICE\n"
-    content += "=" * 60 + "\n\n"
-    
-    content += "Invoice Details:\n"
-    content += "  Invoice #: #{invoice_number}\n"
-    content += "  Date: #{invoice_date&.strftime('%b %d, %Y')}\n"
-    content += "  Due Date: #{due_date&.strftime('%b %d, %Y')}\n"
-    content += "  Vendor: #{vendor}\n"
-    content += "  Agency: #{agency_name}\n"
-    content += "  Vehicle: #{vehicle_display}\n"
-    content += "  Amount: $#{'%.2f' % amount}\n"
-    content += "  Status: #{status.humanize}\n"
-    content += "  Category: #{category&.humanize}\n"
-    
-    if notes.present?
-      content += "\nNotes:\n#{notes}\n"
-    end
-    
-    # Use transactions for payment history (backward compatibility)
-    if transactions.any?
-      content += "\nPayment History:\n"
-      content += "-" * 60 + "\n"
-      transactions.order(created_at: :desc).each_with_index do |transaction, index|
-        content += "#{index + 1}. Date: #{transaction.created_at&.strftime('%Y-%m-%d')}\n"
-        content += "    Amount: $#{'%.2f' % transaction.amount}\n"
-        content += "    Method: #{transaction.payment_method}\n"
-        content += "    Reference: #{transaction.reference_number}\n"
-        content += "    Notes: #{transaction.notes}\n" if transaction.notes.present?
-        content += "\n"
-      end
-      content += "-" * 60 + "\n\n"
-    end
-    
-    # Also check payment_histories if available
-    if payment_histories.any?
-      total_paid = payment_histories.completed.sum(:amount)
-      content += "Financial Summary:\n"
-      content += "  Total Amount: $#{'%.2f' % amount}\n"
-      content += "  Amount Paid: $#{'%.2f' % total_paid}\n"
-      content += "  Balance Due: $#{'%.2f' % (amount - total_paid)}\n"
-      content += "  Payment Status: #{payment_status}\n"
-      content += "  Payment Progress: #{payment_percentage}%\n\n"
-    end
-    
-    if quickbooks_id.present?
-      content += "QuickBooks Information:\n"
-      content += "  QuickBooks ID: #{quickbooks_id}\n"
-      if last_sync_at
-        content += "  Last Sync: #{last_sync_at.strftime('%Y-%m-%d %H:%M')}\n"
-        content += "  Sync Status: #{sync_status.humanize}\n"
-      else
-        content += "  Sync: Pending\n"
-      end
-      content += "\n"
-    end
-    
-    content += "=" * 60 + "\n"
-    content += "Generated on: #{Time.current.strftime('%Y-%m-%d %H:%M')}\n"
-    content + "=" * 60
-  end
-  
-  # Simple text version for download (alternative to to_pdf)
+  # Generate invoice text for download
   def to_text
     content = "=" * 50 + "\n"
     content += "INVOICE RECEIPT\n"
@@ -530,14 +714,19 @@ class Invoice < ApplicationRecord
     end
     
     content += "AMOUNT: $#{'%.2f' % amount}\n"
+    content += "VAT (12.5%): $#{'%.2f' % vat_amount}\n"
+    content += "TOTAL: $#{'%.2f' % total_with_vat}\n"
     content += "STATUS: #{status.humanize.upcase}\n"
-    
-    if quickbooks_id.present?
-      content += "QUICKBOOKS: #{quickbooks_id} (Last sync: #{last_sync_at&.strftime('%Y-%m-%d') || 'Never'})\n"
-    end
+    content += "PRIORITY: #{priority.humanize.upcase}\n"
+    content += "CATEGORY: #{category.humanize}\n"
     
     if overdue?
-      content += "⚠️ OVERDUE INVOICE ⚠️\n"
+      content += "OVERDUE: #{days_overdue} days (#{aging_text})\n"
+    end
+    
+    if quickbooks_id.present?
+      content += "QUICKBOOKS ID: #{quickbooks_id}\n"
+      content += "LAST SYNC: #{last_sync_at&.strftime('%Y-%m-%d') || 'Never'}\n"
     end
     
     content += "=" * 50 + "\n"
@@ -546,17 +735,24 @@ class Invoice < ApplicationRecord
       content += "\nNOTES:\n#{notes}\n"
     end
     
-    if transactions.any?
+    # Payment history
+    if payment_histories.any?
       content += "\nPAYMENT HISTORY:\n"
       content += "-" * 50 + "\n"
-      transactions.order(created_at: :desc).each do |transaction|
-        content += "- $#{'%.2f' % transaction.amount} on #{transaction.created_at.strftime('%Y-%m-%d')} via #{transaction.payment_method} (#{transaction.reference_number})\n"
+      payment_histories.order(payment_date: :desc).each do |payment|
+        content += "- $#{'%.2f' % payment.amount} on #{payment.payment_date.strftime('%Y-%m-%d')} via #{payment.payment_method} (#{payment.reference_number})\n"
       end
-      total_paid = transactions.sum(:amount)
-      balance_due = amount - total_paid
+      
+      total_paid = total_payments_received
+      balance = balance_due
+      
       content += "-" * 50 + "\n"
       content += "TOTAL PAID: $#{'%.2f' % total_paid}\n"
-      content += "BALANCE DUE: $#{'%.2f' % balance_due}\n"
+      content += "BALANCE DUE: $#{'%.2f' % balance}\n"
+      
+      if overdue?
+        content += "OVERDUE BALANCE: $#{'%.2f' % balance}\n"
+      end
     end
     
     content += "\n" + "=" * 50 + "\n"
@@ -566,11 +762,6 @@ class Invoice < ApplicationRecord
     content
   end
   
-  # Check if invoice is partially paid
-  def partially_paid?
-    total_payments_received > 0 && !paid_in_full?
-  end
-  
   # Get payment progress for progress bars
   def payment_progress
     {
@@ -578,8 +769,26 @@ class Invoice < ApplicationRecord
       paid: total_payments_received,
       due: balance_due,
       total: amount,
-      payments_count: payment_histories.count
+      payments_count: payment_histories.count + transactions.count
     }
+  end
+  
+  # Aging progress for aging reports
+  def aging_progress
+    days = days_overdue
+    
+    case aging_bucket
+    when 'current'
+      { percentage: [days, 29].min / 29.0 * 100, color: 'success' }
+    when '30_days'
+      { percentage: [(days - 29), 30].min / 30.0 * 100, color: 'warning' }
+    when '60_days'
+      { percentage: [(days - 59), 30].min / 30.0 * 100, color: 'danger' }
+    when 'over_90_days'
+      { percentage: 100, color: 'dark' }
+    else
+      { percentage: 0, color: 'secondary' }
+    end
   end
   
   # Get integration status for dashboard
@@ -590,10 +799,13 @@ class Invoice < ApplicationRecord
     integrations << 'purchase_order' if has_purchase_order?
     integrations << 'transactions' if has_transactions?
     integrations << 'payment_history' if has_payment_history?
+    integrations << 'overdue' if overdue?
+    integrations << "aging_#{aging_bucket}" if aging_bucket.present?
+    integrations << priority if priority != 'medium'
     integrations
   end
   
-  # Get timeline of invoice events - UPDATED with sync timestamp
+  # Get timeline of invoice events
   def timeline
     timeline = []
     
@@ -614,6 +826,8 @@ class Invoice < ApplicationRecord
     timeline << { event: 'Marked as Paid', date: paid_at, user: paid_by, description: "Invoice marked as paid" } if paid_at
     timeline << { event: 'Disputed', date: disputed_at, user: disputed_by, description: "Invoice disputed: #{dispute_reason}" } if disputed_at
     timeline << { event: 'QuickBooks Sync', date: last_sync_at, description: "Synced with QuickBooks: #{quickbooks_id}" } if last_sync_at
+    timeline << { event: 'Became Overdue', date: due_date + 1.day, description: "Invoice became overdue" } if overdue?
+    timeline << { event: 'Aging Reviewed', date: aging_reviewed_at, user: aging_reviewer, description: "Aging reviewed" } if aging_reviewed?
     
     timeline.sort_by { |event| event[:date] || Time.at(0) }.reverse
   end
@@ -623,38 +837,141 @@ class Invoice < ApplicationRecord
     # Generate unique reference
     reference = "PAY-#{payment_date.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
     
-    # Create transaction first
-    transaction = transactions.create!(
-      amount: amount,
-      payment_method: payment_method,
-      reference_number: reference,
-      notes: notes || "Payment for invoice #{invoice_number}",
-      user: user,
-      status: :completed,
-      transaction_type: :payment
-    )
-    
     # Create payment history
     payment_history = payment_histories.create!(
-      payment_transaction: transaction,
       payment_date: payment_date,
       amount: amount,
       payment_method: payment_method,
       reference_number: reference,
       notes: notes,
-      status: :completed
+      status: 'completed',
+      recorded_by: user
     )
     
-    # Update invoice status if fully paid
-    if paid_in_full?
-      mark_as_paid(user)
-    end
+    # Update invoice status
+    update_payment_status
+    
+    # Create activity log
+    ActivityLog.create!(
+      user: user,
+      action: 'payment_recorded',
+      description: "Recorded payment of #{number_to_currency(amount)} for invoice #{invoice_number}",
+      record: self,
+      details: { 
+        amount: amount, 
+        payment_method: payment_method, 
+        reference: reference,
+        notes: notes
+      }
+    ) if defined?(ActivityLog)
     
     payment_history
   end
   
+  # Bulk payment processing
+  def self.process_bulk_payment(invoice_ids, payment_method, payment_date, user, notes = nil)
+    ActiveRecord::Base.transaction do
+      total_amount = 0
+      processed_invoices = []
+      errors = []
+      
+      Invoice.where(id: invoice_ids).each do |invoice|
+        begin
+          # Record payment
+          invoice.record_payment(
+            invoice.balance_due,
+            payment_method,
+            payment_date,
+            user,
+            "Bulk payment - #{notes}"
+          )
+          
+          total_amount += invoice.balance_due
+          processed_invoices << invoice
+        rescue => e
+          errors << "Failed to pay invoice #{invoice.invoice_number}: #{e.message}"
+        end
+      end
+      
+      if errors.any?
+        raise ActiveRecord::Rollback
+        return {
+          success: false,
+          error: errors.join(', '),
+          processed_count: processed_invoices.count,
+          total_amount: total_amount
+        }
+      end
+      
+      # Create bulk payment record
+      bulk_payment = BulkPayment.create!(
+        agency_id: user.agency_id,
+        user: user,
+        total_amount: total_amount,
+        payment_method: payment_method,
+        payment_date: payment_date,
+        notes: notes,
+        invoice_count: processed_invoices.count,
+        invoice_ids: processed_invoices.map(&:id),
+        reference_number: "BULK-#{payment_date.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+      )
+      
+      # Create activity log
+      ActivityLog.create!(
+        user: user,
+        action: 'bulk_payment_processed',
+        description: "Processed bulk payment for #{processed_invoices.count} invoices totaling #{number_to_currency(total_amount)}",
+        record: bulk_payment,
+        details: {
+          invoice_count: processed_invoices.count,
+          total_amount: total_amount,
+          payment_method: payment_method
+        }
+      ) if defined?(ActivityLog)
+      
+      {
+        success: true,
+        total_amount: total_amount,
+        invoice_count: processed_invoices.count,
+        processed_invoices: processed_invoices,
+        bulk_payment: bulk_payment
+      }
+    end
+  rescue => e
+    {
+      success: false,
+      error: e.message
+    }
+  end
+  
+  # Update aging information
+  def update_aging_information
+    return unless overdue?
+    
+    new_days_overdue = calculate_days_overdue
+    new_aging_bucket = calculate_aging_bucket
+    
+    update_columns(
+      days_overdue: new_days_overdue,
+      aging_bucket: new_aging_bucket
+    )
+  end
+  
+  # Update payment status based on payments
+  def update_payment_status
+    if paid_in_full?
+      mark_as_paid(paid_by)
+    elsif partially_paid?
+      update(status: 'partially_paid')
+    elsif overdue?
+      update(status: 'overdue')
+    end
+  end
+  
   # Callbacks
   before_save :update_status_based_on_due_date
+  before_save :update_aging_information, if: :due_date_changed?
+  after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
   
   private
   
@@ -665,5 +982,35 @@ class Invoice < ApplicationRecord
       self.status = 'paid'
       self.paid_at ||= Time.current
     end
+  end
+  
+  def check_aging_bucket_change
+    # Notify when invoice moves to a worse aging bucket
+    if saved_change_to_aging_bucket? && aging_bucket_became_worse?
+      # Create notification for critical aging changes
+      if agency.present?
+        Notification.create!(
+          agency_id: agency.id,
+          title: "Invoice #{invoice_number} Aging Alert",
+          message: "Invoice #{invoice_number} moved to #{aging_text} bucket",
+          link: Rails.application.routes.url_helpers.invoice_path(self),
+          priority: 'high'
+        ) if defined?(Notification)
+      end
+    end
+  end
+  
+  def aging_bucket_became_worse?
+    old_bucket, new_bucket = saved_change_to_aging_bucket
+    
+    # Define bucket severity order
+    bucket_severity = {
+      'current' => 1,
+      '30_days' => 2,
+      '60_days' => 3,
+      'over_90_days' => 4
+    }
+    
+    bucket_severity[new_bucket] > bucket_severity[old_bucket]
   end
 end

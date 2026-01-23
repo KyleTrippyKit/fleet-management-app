@@ -1,3 +1,4 @@
+<%# app/views/quotations/_quotation.html.erb or wherever your card is %>
 <div class="quotation-card card mb-3">
   <div class="card-body">
     <div class="row">
@@ -30,11 +31,32 @@
       <div class="col-md-4 text-end">
         <div class="btn-group">
           <%= link_to 'View', quotation, class: 'btn btn-sm btn-outline-primary' %>
+          
           <% if quotation.can_be_edited? && current_user.can_edit_quotations? %>
             <%= link_to 'Edit', edit_quotation_path(quotation), class: 'btn btn-sm btn-outline-secondary' %>
           <% end %>
+          
           <% if quotation.can_be_sent? && current_user.can_send_quotations? %>
-            <%= link_to 'Send', send_to_vendor_quotation_path(quotation), method: :post, class: 'btn btn-sm btn-outline-info', data: { confirm: 'Send this quotation to vendor?' } %>
+            <%# FIXED: Changed from link_to to button_to for POST request %>
+            <%= button_to 'Send to Agency', 
+                  submit_to_agency_quotation_path(quotation), 
+                  method: :post,
+                  class: 'btn btn-sm btn-outline-success',
+                  form: { 
+                    style: 'display: inline;',
+                    data: { 
+                      turbo_confirm: 'Are you sure you want to send this quotation to the requesting agency?' 
+                    } 
+                  } %>
+          <% end %>
+          
+          <%# Optional: Duplicate button if you want it %>
+          <% if current_user.can_edit_quotations? %>
+            <%= button_to 'Duplicate', 
+                  duplicate_quotation_path(quotation), 
+                  method: :post,
+                  class: 'btn btn-sm btn-outline-info',
+                  form: { style: 'display: inline;' } %>
           <% end %>
         </div>
       </div>

@@ -1,11 +1,12 @@
 # app/controllers/purchase_orders_controller.rb
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_purchase_order, except: [:index, :new, :create]
+  before_action :set_purchase_order, except: [:index, :new, :create, :from_quotation, :awaiting_acceptance]
   before_action :check_edit_permission, only: [:edit, :update]
   before_action :require_supervisor, only: [:approve, :reject]
   before_action :require_finance, only: [:mark_paid, :payment, :process_payment, :authorize_payment, :complete_payment, :record_payment]
 
+  # GET /purchase_orders
   def index
     @purchase_orders = fetch_purchase_orders
     @agencies = Agency.all if current_user.admin?
@@ -17,6 +18,174 @@ class PurchaseOrdersController < ApplicationController
           status: 'draft', 
           payment_status: 'unpaid'
         ) if po.persisted?
+      end
+    end
+  end
+
+  # GET /purchase_orders/from_quotation/:quotation_id
+  def from_quotation
+    @quotation = Quotation.find(params[:quotation_id])
+    
+    # Authorization - only agency finance can create PO from quotation
+    unless current_user.finance? || current_user.admin?
+      redirect_to @quotation, alert: 'Access denied. Finance role required.'
+      return
+    end
+    
+    # Check if PO already exists
+    if @quotation.purchase_orders.any?
+      redirect_to @quotation.purchase_orders.first, 
+                  notice: 'Purchase order already exists for this quotation.'
+      return
+    end
+    
+    # Create new PO from quotation with accepted items only
+    @purchase_order = PurchaseOrder.new(
+      vehicle: @quotation.vehicle,
+      vendor: @quotation.vendor,
+      amount: calculate_accepted_total(@quotation),
+      notes: "Created from Quotation #{@quotation.quote_number}\nAccepted items only.",
+      created_by: current_user,
+      status: 'draft',
+      po_number: generate_po_number,
+      quotation_id: @quotation.id
+    )
+    
+    # Add quotation line items (all accepted by default for now)
+    @quotation.quotation_line_items.each do |line_item|
+      @purchase_order.purchase_order_items.build(
+        description: line_item.description,
+        quantity: line_item.quantity,
+        unit_price: line_item.unit_price,
+        notes: line_item.specifications,
+        is_accepted: true
+      )
+    end
+    
+    # Add quotation jobs and their parts
+    if @quotation.respond_to?(:quotation_jobs)
+      @quotation.quotation_jobs.each do |job|
+        @purchase_order.purchase_order_items.build(
+          description: "Labor: #{job.name}",
+          quantity: 1,
+          unit_price: job.total_labor_cost || 0,
+          notes: job.description,
+          is_accepted: true
+        )
+        
+        job.quotation_job_parts.each do |job_part|
+          @purchase_order.purchase_order_items.build(
+            part_id: job_part.part_id,
+            description: job_part.part&.name || "Part from #{job.name}",
+            quantity: job_part.quantity,
+            unit_price: job_part.unit_price,
+            notes: "From job: #{job.name}",
+            is_accepted: true
+          )
+        end
+      end
+    end
+    
+    if @purchase_order.save
+      # Update quotation status
+      @quotation.update(status: 'accepted', accepted_at: Time.current)
+      
+      redirect_to @purchase_order, 
+                  notice: 'Purchase order created from accepted quotation items.'
+    else
+      redirect_to accept_items_quotation_path(@quotation), 
+                  alert: "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
+    end
+  end
+
+  # GET /purchase_orders/awaiting_acceptance
+  def awaiting_acceptance
+    # For VMCOTT to see POs that need acknowledgment/action
+    return redirect_to purchase_orders_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
+                                   .where.not(acceptance_status: 'acknowledged')
+                                   .order(created_at: :desc)
+                                   .includes(:vehicle, :created_by)
+                                   .page(params[:page])
+    
+    render :awaiting_acceptance
+  end
+
+  # POST /purchase_orders/:id/acknowledge_acceptance
+  def acknowledge_acceptance
+    return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    if @purchase_order.update(acceptance_status: 'acknowledged')
+      redirect_to @purchase_order, notice: 'Purchase order acceptance acknowledged.'
+    else
+      redirect_to @purchase_order, alert: 'Failed to acknowledge acceptance.'
+    end
+  end
+
+  # POST /purchase_orders/:id/create_vmcott_pos
+  def create_vmcott_pos
+    return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    # Check if internal POS already exists
+    if @purchase_order.internal_pos.present?
+      redirect_to vmcott_internal_pos_path(@purchase_order.internal_pos), 
+                  notice: 'Internal POS already exists for this PO.'
+      return
+    end
+    
+    # Create internal POS
+    @internal_pos = InternalPos.create!(
+      purchase_order: @purchase_order,
+      vehicle: @purchase_order.vehicle,
+      work_order_number: InternalPos.generate_work_order_number,
+      assigned_to: current_user, # Default to current user, can be changed later
+      priority: 'normal',
+      status: 'pending',
+      created_by: current_user,
+      notes: "Created from PO #{@purchase_order.po_number}"
+    )
+    
+    redirect_to from_po_vmcott_internal_pos_path(purchase_order_id: @purchase_order.id),
+                notice: 'Internal POS created. Please assign technician and complete details.'
+  end
+
+  # GET /purchase_orders/:id/acceptance_details
+  def acceptance_details
+    @accepted_items = @purchase_order.purchase_order_items.where(is_accepted: true)
+    @rejected_items = @purchase_order.purchase_order_items.where(is_accepted: false)
+    @accepted_total = @accepted_items.sum(&:total_price)
+    @rejected_total = @rejected_items.sum(&:total_price)
+    
+    render :acceptance_details
+  end
+
+  # PATCH /purchase_orders/:id/update_item_acceptance
+  def update_item_acceptance
+    return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+    
+    item = @purchase_order.purchase_order_items.find(params[:item_id])
+    
+    if item.update(is_accepted: params[:accepted], rejection_reason: params[:reason])
+      # Recalculate PO amount
+      @purchase_order.recalculate_amount!
+      
+      if request.xhr?
+        render json: { 
+          success: true, 
+          accepted_total: @purchase_order.accepted_items_total,
+          rejected_total: @purchase_order.rejected_items_total
+        }
+      else
+        redirect_to acceptance_details_purchase_order_path(@purchase_order),
+                    notice: 'Item acceptance updated.'
+      end
+    else
+      if request.xhr?
+        render json: { success: false, errors: item.errors.full_messages }, status: :unprocessable_entity
+      else
+        redirect_to acceptance_details_purchase_order_path(@purchase_order),
+                    alert: 'Failed to update item acceptance.'
       end
     end
   end
@@ -650,7 +819,8 @@ class PurchaseOrdersController < ApplicationController
     params.require(:purchase_order).permit(
       :vehicle_id, :vendor, :amount, :notes, :payment_terms,
       purchase_order_items_attributes: [
-        :id, :part_id, :description, :quantity, :unit_price, :total_price, :_destroy
+        :id, :part_id, :description, :quantity, :unit_price, :total_price, 
+        :is_accepted, :rejection_reason, :_destroy
       ]
     )
   end
@@ -671,5 +841,16 @@ class PurchaseOrdersController < ApplicationController
     unless current_user.finance? || current_user.admin?
       redirect_to root_path, alert: 'Unauthorized - Finance access required'
     end
+  end
+
+  # Helper methods for RFQ workflow
+  def calculate_accepted_total(quotation)
+    # In a real implementation, this would calculate based on accepted items
+    # For now, return the full amount
+    quotation.amount
+  end
+
+  def generate_po_number
+    "PO-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
   end
 end

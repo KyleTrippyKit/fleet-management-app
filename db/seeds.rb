@@ -1,5 +1,4 @@
 # db/seeds.rb
-
 puts "=== CLEANING DATABASE (WITH FOREIGN KEY SUPPORT) ==="
 
 # Clean up in correct order (child tables first)
@@ -1048,3 +1047,6 @@ puts "=" * 50
 puts "\n🎉 DATABASE SEEDED SUCCESSFULLY!"
 puts "\nAll vehicles have location data including GPS coordinates."
 puts "PTSC POS system is fully set up with routes and fare rules."
+
+puts "\n=== LOADING JOB TEMPLATES ==="
+load Rails.root.join("db/seeds/job_templates.rb")

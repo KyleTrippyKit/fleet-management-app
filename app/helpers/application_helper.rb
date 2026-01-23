@@ -1,3 +1,4 @@
+# app/helpers/application_helper.rb
 module ApplicationHelper
   # Generate a sortable link for table headers with Turbo support
   def sortable(column, title = nil)
@@ -164,6 +165,30 @@ module ApplicationHelper
   end
 
   # ========================
+  # RFQ STATUS BADGE HELPER - NEW
+  # ========================
+  def rfq_status_badge(status)
+    case status.to_s
+    when 'draft'
+      'secondary'
+    when 'submitted'
+      'info'
+    when 'under_review'
+      'warning'
+    when 'quoted'
+      'primary'
+    when 'converted'
+      'success'
+    when 'accepted'
+      'success'
+    when 'rejected'
+      'danger'
+    else
+      'secondary'
+    end
+  end
+
+  # ========================
   # POS SYSTEM HELPERS - NEW
   # ========================
 
@@ -277,7 +302,7 @@ module ApplicationHelper
                        when 'ptsc' then 'Public Transport Service Corporation (PTSC)'
                        when 'ttps' then 'Trinidad and Tobago Police Service (TTPS)'
                        when 'ttdf' then 'Trinidad and Tobago Defence Force (TTDF)'
-                       when 'vmcott' then 'Fire Service (VMCOTT)'
+                       when 'vmcott' then 'Vehicle Management Company of Trinidad and Tobago (VMCOTT)'
                        else 'General POS'
                        end
           "#{agency_name} Point of Sale"
@@ -320,12 +345,12 @@ module ApplicationHelper
       ]
     when 'vmcott'
       [
-        { name: 'Fire Inspection Fee', price: 500.00, category: 'Inspections' },
-        { name: 'Fire Safety Certificate', price: 300.00, category: 'Certificates' },
-        { name: 'Fire Extinguisher Refill', price: 150.00, category: 'Services' },
-        { name: 'Fire Drill Certification', price: 800.00, category: 'Services' },
-        { name: 'Emergency Response Fee', price: 1000.00, category: 'Services' },
-        { name: 'Fire Permit Renewal', price: 200.00, category: 'Permits' }
+        { name: 'Maintenance Inspection Fee', price: 500.00, category: 'Inspections' },
+        { name: 'Vehicle Safety Certificate', price: 300.00, category: 'Certificates' },
+        { name: 'Parts Installation Service', price: 150.00, category: 'Services' },
+        { name: 'Vehicle Diagnostic Fee', price: 800.00, category: 'Services' },
+        { name: 'Emergency Repair Service', price: 1000.00, category: 'Services' },
+        { name: 'Vehicle Permit Renewal', price: 200.00, category: 'Permits' }
       ]
     else
       [
@@ -350,7 +375,7 @@ module ApplicationHelper
       { code: 'ptsc', name: 'PTSC', path: ptsc_pos_transactions_path },
       { code: 'ttps', name: 'TTPS', path: ttps_pos_transactions_path },
       { code: 'ttdf', name: 'TTDF', path: ttdf_pos_transactions_path },
-      { code: 'vmcott', name: 'Fire Service', path: vmcott_pos_transactions_path }
+      { code: 'vmcott', name: 'VMCOTT', path: vmcott_pos_transactions_path }
     ]
     
     content_tag(:div, class: 'd-flex mb-4') do
@@ -367,7 +392,7 @@ module ApplicationHelper
     end
   end
 
-  # Quick POS transaction summary - FIXED: Now calls transaction.agency_name which exists
+  # Quick POS transaction summary
   def pos_transaction_summary(transaction)
     content_tag(:div, class: 'card') do
       content_tag(:div, class: 'card-body') do
@@ -391,12 +416,200 @@ module ApplicationHelper
               content_tag(:strong, 'Payment Type: ') + pos_payment_type_badge(transaction.payment_type)
             end +
             content_tag(:p) do
-              # FIXED: transaction.agency_name now exists after adding the method to the model
-              content_tag(:strong, 'Agency: ') + transaction.agency_name
+              agency_name = transaction.agency&.name || 'Unknown'
+              content_tag(:strong, 'Agency: ') + agency_name
             end
           end
         end
       end
+    end
+  end
+  
+  # ============================================================
+  # ROLE-BASED ACCESS HELPERS - NEW (ADDED)
+  # ============================================================
+  
+  # Check if user can access dashboard
+  def can_access_dashboard?
+    current_user.fleet_manager? || current_user.supervisor? || 
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can view financial data
+  def can_view_financial_data?
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can manage fleet
+  def can_manage_fleet?
+    current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+  end
+  
+  # Check if user is VMCOTT staff
+  def vmcott_user?
+    current_user.agency&.code == 'VMCOTT'
+  end
+  
+  # Check if user is agency staff (not VMCOTT)
+  def agency_user?
+    current_user.agency.present? && current_user.agency.code != 'VMCOTT'
+  end
+  
+  # Check if user can view RFQ workflow
+  def can_view_rfq_workflow?
+    return false unless current_user.agency.present?
+    
+    if vmcott_user?
+      current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+    else
+      # Agency users can create RFQs if they're fleet managers/supervisors/admins
+      current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+    end
+  end
+  
+  # Check if user can accept/reject quotation items
+  def can_accept_quotation_items?
+    agency_user? && (current_user.finance? || current_user.admin?)
+  end
+  
+  # Check if user can create internal POS
+  def can_create_internal_pos?
+    vmcott_user? && (current_user.fleet_manager? || current_user.supervisor? || current_user.admin?)
+  end
+  
+  # Check if user can view accounting system
+  def can_view_accounting?
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can view analytics
+  def can_view_analytics?
+    current_user.fleet_manager? || current_user.supervisor? || current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can view driver information
+  def can_view_drivers?
+    current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+  end
+  
+  # Check if user can view maintenance
+  def can_view_maintenance?
+    current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+  end
+  
+  # Check if user can view alerts
+  def can_view_alerts?
+    current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+  end
+  
+  # Check if user can view purchase orders
+  def can_view_purchase_orders?
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can view quotations
+  def can_view_quotations?
+    current_user.finance? || current_user.admin? || 
+    (agency_user? && (current_user.fleet_manager? || current_user.supervisor?))
+  end
+  
+  # Check if user can view invoices
+  def can_view_invoices?
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user can view POS transactions
+  def can_view_pos_transactions?
+    # Agency users can see their own POS, VMCOTT users can see all POS
+    (agency_user? && (current_user.finance? || current_user.admin?)) ||
+    (vmcott_user? && (current_user.fleet_manager? || current_user.supervisor? || current_user.admin?))
+  end
+  
+  # Check if user can view payment dashboard
+  def can_view_payment_dashboard?
+    agency_user? && (current_user.finance? || current_user.admin?)
+  end
+  
+  # Check if user can view QuickBooks
+  def can_view_quickbooks?
+    current_user.finance? || current_user.admin?
+  end
+  
+  # Check if user is driver role
+  def driver_user?
+    current_user.driver?
+  end
+  
+  # Check if user can view agency-specific dashboard
+  def can_view_agency_dashboard?
+    can_access_dashboard? && current_user.agency.present?
+  end
+  
+  # Check if user can access RFQ workflow features
+  def can_access_rfq_features?
+    if vmcott_user?
+      current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+    else
+      current_user.fleet_manager? || current_user.supervisor? || current_user.admin?
+    end
+  end
+  
+  # Check if user can access internal POS (VMCOTT only)
+  def can_access_internal_pos?
+    vmcott_user? && (current_user.fleet_manager? || current_user.supervisor? || current_user.admin?)
+  end
+  
+  # ============================================================
+  # NAVIGATION HELPER METHODS
+  # ============================================================
+  
+  # Get the correct dashboard path for current user
+  def current_dashboard_path
+    return main_dashboard_path unless current_user.agency
+    
+    case current_user.agency.code
+    when 'PTSC'
+      ptsc_dashboard_path
+    when 'TTPS'
+      ttps_dashboard_path
+    when 'TTDF'
+      ttdf_dashboard_path
+    when 'VMCOTT'
+      vmcott_dashboard_path
+    else
+      main_dashboard_path
+    end
+  end
+  
+  # Check if navigation item should be shown
+  def show_nav_item?(label, path = nil)
+    case label
+    when '📊 Dashboard'
+      can_access_dashboard?
+    when '🚗 Fleet', '📈 Analytics', '👥 Drivers', '⚙️ Maintenance', '🚨 Alerts'
+      can_manage_fleet?
+    when '📝 Request Quotation', '📨 RFQs Sent'
+      can_access_rfq_features? && agency_user?
+    when '📋 Quotations Received'
+      agency_user? && (current_user.finance? || current_user.admin?)
+    when '💰 Invoice Aging', '💸 Bulk Payments', '📊 Payment Dashboard'
+      agency_user? && can_view_financial_data?
+    when '📥 RFQ Inbox', '📊 Quotation Workspace', '🔧 Job Templates', '🧾 Internal POS'
+      can_access_rfq_features? && vmcott_user?
+    when '⚙️ Labor Rates'
+      vmcott_user? && can_view_financial_data?
+    when '🧾 Invoices', '📋 Purchase Orders', '📄 Quotations', '💳 Transactions'
+      can_view_financial_data?
+    when '🧾 POS'
+      can_view_pos_transactions?
+    when '📒 Accounting', '📊 Accounts Payable', '💵 Monthly Statements', '🏦 Bank Reconciliation'
+      can_view_accounting?
+    when '📊 QuickBooks'
+      can_view_quickbooks?
+    when '🚀 Quick Reports', '🎨 Themes'
+      current_user.admin?
+    else
+      true # Show other items by default
     end
   end
 end

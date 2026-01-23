@@ -1,6 +1,6 @@
-<%# app/views/invoices/index.html.erb - UPDATED WITH BUTTONS MOVED LEFT %>
+<%# app/views/invoices/index.html.erb - COMPREHENSIVE MERGED VERSION - FULLY FIXED %>
 <div class="container-fluid mt-4">
-  <%# Page Header - More professional design %>
+  <%# ===== PAGE HEADER ===== %>
   <div class="d-flex justify-content-between align-items-start mb-4">
     <div>
       <h1 class="h3 mb-1 fw-bold text-dark" style="letter-spacing: -0.5px;">
@@ -11,18 +11,39 @@
         <% end %>
       </h1>
       <p class="text-muted mb-0" style="font-size: 0.9rem; font-weight: 400;">
-        Manage invoices received from service providers
+        Manage invoices from VMCOTT and service providers
         <% if current_user.agency_name.present? %>
           for <span class="fw-semibold text-dark"><%= current_user.agency_name %></span>
         <% end %>
       </p>
+      <div class="d-flex align-items-center mt-2">
+        <small class="text-info">
+          <i class="bi bi-info-circle"></i> Invoices generated from RFQ workflow, VMCOTT work, and service providers
+        </small>
+        <% if @quickbooks_connected %>
+          <span class="badge bg-success ms-3" data-bs-toggle="modal" data-bs-target="#quickbooksStatusModal" style="cursor: pointer;">
+            <i class="bi bi-check-circle me-1"></i> QuickBooks Connected
+          </span>
+        <% else %>
+          <span class="badge bg-warning ms-3" data-bs-toggle="modal" data-bs-target="#quickbooksStatusModal" style="cursor: pointer;">
+            <i class="bi bi-exclamation-triangle me-1"></i> QB Offline
+          </span>
+        <% end %>
+      </div>
     </div>
     
-    <%# Buttons moved 200px to the left %>
-    <div class="d-flex align-items-center gap-2" style="position: relative; z-index: 1000; transform: translateX(-120px);">
-      <%# "Back to Dashboard" button - Now links to ptsc_dashboard %>
+    <%# ===== ACTION BUTTONS ===== %>
+    <div class="d-flex align-items-center gap-2">
       <%= link_to ptsc_dashboard_path, class: "btn btn-light border px-3 py-2" do %>
         <i class="bi bi-speedometer2 me-1"></i> Dashboard
+      <% end %>
+      
+      <%= link_to aging_report_invoices_path, class: "btn btn-outline-danger px-3 py-2" do %>
+        <i class="bi bi-clock-history me-1"></i> Aging Report
+      <% end %>
+      
+      <%= link_to bulk_payment_interface_path, class: "btn btn-success px-3 py-2" do %>
+        <i class="bi bi-credit-card me-1"></i> Bulk Payment
       <% end %>
       
       <% if current_user.can_view_invoice_reports? %>
@@ -31,31 +52,67 @@
         <% end %>
       <% end %>
       
-      <%# NEW: Sync status filter dropdown - FIXED WITH Z-INDEX %>
-      <div class="dropdown" style="position: relative;">
-        <button class="btn btn-outline-info px-3 py-2 dropdown-toggle" type="button" id="syncFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="bi bi-cloud-arrow-up me-1"></i> Sync Status
+      <%# Quick Actions Dropdown %>
+      <div class="dropdown">
+        <button class="btn btn-primary px-3 py-2 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-plus-circle me-1"></i> Quick Actions
         </button>
-        <ul class="dropdown-menu" aria-labelledby="syncFilterDropdown" style="z-index: 1050; position: absolute;">
-          <li><%= link_to "All Sync Status", invoices_path, class: "dropdown-item" %></li>
-          <li><%= link_to "Recently Synced (< 24h)", invoices_path(sync_filter: "recent"), class: "dropdown-item" %></li>
-          <li><%= link_to "Sync Stale (> 7d)", invoices_path(sync_filter: "stale"), class: "dropdown-item" %></li>
-          <li><%= link_to "Not Synced", invoices_path(sync_filter: "not_synced"), class: "dropdown-item" %></li>
-          <li><%= link_to "Sync Failed", invoices_path(sync_filter: "failed"), class: "dropdown-item" %></li>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <% if current_user.can_create_invoices? %>
+            <li>
+              <%= link_to new_invoice_path, class: "dropdown-item" do %>
+                <i class="bi bi-receipt me-2"></i>New Invoice
+              <% end %>
+            </li>
+          <% end %>
+          
+          <% if current_user.can_pay_invoices? %>
+            <li>
+              <%= link_to new_transaction_path, class: "dropdown-item" do %>
+                <i class="bi bi-credit-card me-2"></i>Record Payment
+              <% end %>
+            </li>
+            
+            <li>
+              <%= link_to new_pos_transaction_path, class: "dropdown-item" do %>
+                <i class="bi bi-cash-coin me-2"></i>POS Transaction
+              <% end %>
+            </li>
+            
+            <li>
+              <%= link_to new_purchase_order_path, class: "dropdown-item" do %>
+                <i class="bi bi-cart-check me-2"></i>New Purchase Order
+              <% end %>
+            </li>
+            
+            <li><hr class="dropdown-divider"></li>
+          <% end %>
+          
+          <% if current_user.can_sync_quickbooks? %>
+            <li>
+              <%= link_to sync_quickbooks_invoices_path, class: "dropdown-item", data: { turbo_method: :post } do %>
+                <i class="bi bi-arrow-repeat me-2"></i>Sync All with QuickBooks
+              <% end %>
+            </li>
+          <% end %>
         </ul>
       </div>
     </div>
   </div>
 
-  <%# Stats Dashboard - Agency specific %>
+  <%# ===== COMPREHENSIVE STATS DASHBOARD ===== %>
   <div class="row mb-4">
+    <%# Main Stats Row %>
     <div class="col-md-3 col-6">
-      <div class="card border-primary">
+      <div class="card border-primary shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">Total Invoices</h6>
               <h3 class="mb-0"><%= @stats[:total] %></h3>
+              <small class="text-muted">
+                $<%= number_with_precision(@stats[:total_amount] || 0, precision: 2) %>
+              </small>
             </div>
             <div class="avatar-sm bg-primary bg-opacity-10 rounded">
               <i class="bi bi-receipt fs-4 text-primary"></i>
@@ -66,15 +123,18 @@
     </div>
     
     <div class="col-md-3 col-6">
-      <div class="card border-info">
+      <div class="card border-warning shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">Pending</h6>
               <h3 class="mb-0"><%= @stats[:pending] %></h3>
+              <small class="text-muted">
+                $<%= number_with_precision(@stats[:pending_amount] || 0, precision: 2) %>
+              </small>
             </div>
-            <div class="avatar-sm bg-info bg-opacity-10 rounded">
-              <i class="bi bi-clock-history fs-4 text-info"></i>
+            <div class="avatar-sm bg-warning bg-opacity-10 rounded">
+              <i class="bi bi-clock fs-4 text-warning"></i>
             </div>
           </div>
         </div>
@@ -82,12 +142,15 @@
     </div>
     
     <div class="col-md-3 col-6">
-      <div class="card border-danger">
+      <div class="card border-danger shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">Overdue</h6>
               <h3 class="mb-0"><%= @stats[:overdue] %></h3>
+              <small class="text-muted">
+                $<%= number_with_precision(@stats[:overdue_amount] || 0, precision: 2) %>
+              </small>
             </div>
             <div class="avatar-sm bg-danger bg-opacity-10 rounded">
               <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
@@ -98,34 +161,38 @@
     </div>
     
     <div class="col-md-3 col-6">
-      <div class="card border-warning">
+      <div class="card border-success shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-muted mb-1">Amount Due</h6>
-              <h3 class="mb-0">$<%= number_with_precision(@stats[:pending_amount], precision: 2) %></h3>
-            </div>
-            <div class="avatar-sm bg-warning bg-opacity-10 rounded">
-              <i class="bi bi-currency-dollar fs-4 text-warning"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <%# NEW: Sync Stats Row - These might not be populated yet %>
-  <div class="row mb-4">
-    <div class="col-md-3 col-6">
-      <div class="card border-success">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">Synced</h6>
-              <h3 class="mb-0"><%= @stats[:qb_synced] || 0 %></h3>
+              <h6 class="text-muted mb-1">Paid This Month</h6>
+              <h3 class="mb-0">$<%= number_with_precision(@stats[:paid_this_month] || 0, precision: 2) %></h3>
+              <small class="text-muted">
+                <%= @stats[:paid_count] || 0 %> invoices
+              </small>
             </div>
             <div class="avatar-sm bg-success bg-opacity-10 rounded">
-              <i class="bi bi-cloud-check fs-4 text-success"></i>
+              <i class="bi bi-currency-dollar fs-4 text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Workflow & Integration Stats Row %>
+  <div class="row mb-4">
+    <div class="col-md-3 col-6">
+      <div class="card border-success shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">From VMCOTT</h6>
+              <h3 class="mb-0"><%= @stats[:from_vmcott] || 0 %></h3>
+              <small class="text-muted">Internal work & RFQ</small>
+            </div>
+            <div class="avatar-sm bg-success bg-opacity-10 rounded">
+              <i class="bi bi-shield-check fs-4 text-success"></i>
             </div>
           </div>
         </div>
@@ -133,15 +200,39 @@
     </div>
     
     <div class="col-md-3 col-6">
-      <div class="card border-secondary">
+      <div class="card border-info shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-muted mb-1">Not Synced</h6>
-              <h3 class="mb-0"><%= @stats[:total].to_i - (@stats[:qb_synced] || 0).to_i %></h3>
+              <h6 class="text-muted mb-1">From RFQ Workflow</h6>
+              <h3 class="mb-0"><%= @stats[:from_rfq] || 0 %></h3>
+              <small class="text-muted">RFQ → PO → Invoice</small>
+            </div>
+            <div class="avatar-sm bg-info bg-opacity-10 rounded">
+              <i class="bi bi-diagram-3 fs-4 text-info"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-3 col-6">
+      <div class="card border-secondary shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Synced to QB</h6>
+              <h3 class="mb-0"><%= @stats[:qb_synced] || 0 %></h3>
+              <small class="text-muted">
+                <% if @stats[:total] && @stats[:total] > 0 %>
+                  <%= ((@stats[:qb_synced].to_f / @stats[:total].to_f) * 100).round(1) %>%
+                <% else %>
+                  0%
+                <% end %> synced
+              </small>
             </div>
             <div class="avatar-sm bg-secondary bg-opacity-10 rounded">
-              <i class="bi bi-cloud-slash fs-4 text-secondary"></i>
+              <i class="bi bi-cloud-check fs-4 text-secondary"></i>
             </div>
           </div>
         </div>
@@ -149,31 +240,16 @@
     </div>
     
     <div class="col-md-3 col-6">
-      <div class="card border-warning">
+      <div class="card border-warning shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h6 class="text-muted mb-1">Recently Synced</h6>
-              <h3 class="mb-0"><%= @stats[:recently_synced] || 0 %></h3>
+              <h6 class="text-muted mb-1">Aging > 30 days</h6>
+              <h3 class="mb-0"><%= @stats[:aging_30] || 0 %></h3>
+              <small class="text-muted">Critical attention needed</small>
             </div>
             <div class="avatar-sm bg-warning bg-opacity-10 rounded">
-              <i class="bi bi-clock-history fs-4 text-warning"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-md-3 col-6">
-      <div class="card border-danger">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">Sync Stale</h6>
-              <h3 class="mb-0"><%= @stats[:sync_stale] || 0 %></h3>
-            </div>
-            <div class="avatar-sm bg-danger bg-opacity-10 rounded">
-              <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
+              <i class="bi bi-exclamation-triangle fs-4 text-warning"></i>
             </div>
           </div>
         </div>
@@ -181,238 +257,446 @@
     </div>
   </div>
 
-  <%# Filters card %>
-  <div class="card mb-4">
+  <%# ===== ADVANCED FILTERS CARD ===== %>
+  <div class="card mb-4 shadow-sm">
     <div class="card-body">
-      <h5 class="card-title mb-3"><i class="bi bi-funnel me-2"></i>Filter Invoices</h5>
-      <%= form_with url: invoices_path, method: :get, class: "row g-3" do |f| %>
-        <div class="col-md-2">
-          <label class="form-label">Status</label>
-          <%= select_tag :status, 
-              options_for_select([
-                ['All Statuses', ''],
-                ['Pending', 'pending'],
-                ['Paid', 'paid'],
-                ['Overdue', 'overdue'],
-                ['Cancelled', 'cancelled']
-              ], params[:status]),
-              class: "form-select" %>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="card-title mb-0"><i class="bi bi-funnel me-2"></i>Advanced Filters</h5>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="advancedFiltersToggle" data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
+          <label class="form-check-label" for="advancedFiltersToggle">Show Filters</label>
         </div>
-        
-        <div class="col-md-2">
-          <label class="form-label">Vendor</label>
-          <%= text_field_tag :vendor, params[:vendor], class: "form-control", placeholder: "Search vendor..." %>
-        </div>
-        
-        <div class="col-md-2">
-          <label class="form-label">Sync Status</label>
-          <%= select_tag :sync_filter, 
-              options_for_select([
-                ['All Sync', ''],
-                ['Recently Synced', 'recent'],
-                ['Sync Stale', 'stale'],
-                ['Not Synced', 'not_synced'],
-                ['Sync Failed', 'failed']
-              ], params[:sync_filter]),
-              class: "form-select" %>
-        </div>
-        
-        <div class="col-md-2">
-          <label class="form-label">From Date</label>
-          <%= date_field_tag :date_from, params[:date_from], class: "form-control" %>
-        </div>
-        
-        <div class="col-md-2">
-          <label class="form-label">To Date</label>
-          <%= date_field_tag :date_to, params[:date_to], class: "form-control" %>
-        </div>
-        
-        <div class="col-md-2 d-flex align-items-end">
-          <div class="w-100 d-flex gap-2">
-            <%= submit_tag "Apply", class: "btn btn-primary flex-grow-1 px-3 py-2" %>
-            <%= link_to "Clear", invoices_path, class: "btn btn-outline-secondary flex-grow-1 px-3 py-2" %>
+      </div>
+      
+      <div class="collapse show" id="filtersCollapse">
+        <%= form_with url: invoices_path, method: :get, class: "row g-3" do |f| %>
+          <div class="col-md-2">
+            <label class="form-label">Status</label>
+            <%= select_tag :status, 
+                options_for_select([
+                  ['All Statuses', ''],
+                  ['Pending', 'pending'],
+                  ['Paid', 'paid'],
+                  ['Overdue', 'overdue'],
+                  ['Disputed', 'disputed'],
+                  ['Cancelled', 'cancelled']
+                ], params[:status]),
+                class: "form-select form-select-sm" %>
           </div>
-        </div>
-      <% end %>
+          
+          <div class="col-md-2">
+            <label class="form-label">Vendor</label>
+            <%= text_field_tag :vendor, params[:vendor], class: "form-control form-control-sm", placeholder: "Vendor name..." %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">Source</label>
+            <%= select_tag :source, 
+                options_for_select([
+                  ['All Sources', ''],
+                  ['VMCOTT', 'vmcott'],
+                  ['RFQ Workflow', 'rfq'],
+                  ['Direct', 'direct']
+                ], params[:source]),
+                class: "form-select form-select-sm" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">Sync Status</label>
+            <%= select_tag :sync_filter, 
+                options_for_select([
+                  ['All Sync', ''],
+                  ['Recently Synced (<24h)', 'recent'],
+                  ['Sync Stale (>7d)', 'stale'],
+                  ['Not Synced', 'not_synced'],
+                  ['Sync Failed', 'failed']
+                ], params[:sync_filter]),
+                class: "form-select form-select-sm" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">From Date</label>
+            <%= date_field_tag :date_from, params[:date_from], class: "form-control form-control-sm" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">To Date</label>
+            <%= date_field_tag :date_to, params[:date_to], class: "form-control form-control-sm" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">Sort By</label>
+            <%= select_tag :sort, 
+                options_for_select([
+                  ['Newest First', ''],
+                  ['Oldest First', 'oldest'],
+                  ['Due Date (Soonest)', 'due_date_asc'],
+                  ['Due Date (Latest)', 'due_date_desc'],
+                  ['Amount (Highest)', 'amount_desc'],
+                  ['Amount (Lowest)', 'amount_asc']
+                ], params[:sort]),
+                class: "form-select form-select-sm" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">Min Amount</label>
+            <%= number_field_tag :min_amount, params[:min_amount], class: "form-control form-control-sm", placeholder: "$0.00", step: "0.01" %>
+          </div>
+          
+          <div class="col-md-2">
+            <label class="form-label">Max Amount</label>
+            <%= number_field_tag :max_amount, params[:max_amount], class: "form-control form-control-sm", placeholder: "$0.00", step: "0.01" %>
+          </div>
+          
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="w-100 d-flex gap-2">
+              <%= submit_tag "Apply Filters", class: "btn btn-primary btn-sm flex-grow-1" %>
+              <%= link_to "Clear All", invoices_path, class: "btn btn-outline-secondary btn-sm flex-grow-1" %>
+            </div>
+          </div>
+          
+          <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <small class="text-muted">
+                <% if @invoices.any? %>
+                  Found <%= @invoices.total_count %> invoices
+                <% end %>
+              </small>
+              <%= link_to "Download CSV", invoices_path(format: :csv, params: request.query_parameters), 
+                    class: "btn btn-outline-success btn-sm" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
     </div>
   </div>
 
-  <%# Invoices table %>
-  <div class="card">
-    <div class="card-body">
+  <%# ===== WORKFLOW INFO BANNER ===== %>
+  <div class="alert alert-info mb-4 shadow-sm">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+      <div class="flex-grow-1">
+        <strong>Invoice Sources:</strong> 
+        <span class="ms-2">
+          <span class="badge bg-success me-2">VMCOTT Work</span>
+          <span class="badge bg-info me-2">RFQ → PO → Invoice</span>
+          <span class="badge bg-secondary">Direct Provider</span>
+        </span>
+        <small class="d-block mt-1">Invoices are automatically generated when work is completed in any workflow</small>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  </div>
+
+  <%# ===== INVOICES TABLE ===== %>
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
       <% if @invoices.any? %>
         <div class="table-responsive">
-          <table class="table table-hover">
-            <thead>
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
               <tr>
-                <th>Invoice #</th>
+                <th class="ps-4">Invoice #</th>
                 <th>Vehicle</th>
                 <th>Vendor</th>
+                <th>Source</th>
                 <th>Date</th>
                 <th>Due Date</th>
                 <th class="text-end">Amount</th>
                 <th>Status</th>
-                <th class="text-end">Actions</th>
+                <th>Integrations</th>
+                <th class="text-end pe-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               <% @invoices.each do |invoice| %>
                 <tr class="<%= 'table-danger' if invoice.overdue? %> <%= 'table-warning' if invoice.pending? %>">
-                  <td>
-                    <strong><%= link_to invoice.invoice_number, invoice_path(invoice), class: "text-decoration-none" %></strong>
-                    <% if invoice.pending? %>
-                      <span class="badge bg-warning ms-1" title="Pending">PENDING</span>
-                    <% end %>
-                    <% if invoice.quickbooks_id %>
-                      <% if invoice.sync_status == 'success' %>
-                        <% if invoice.last_sync_at && invoice.last_sync_at > 24.hours.ago %>
-                          <span class="badge bg-success ms-1" title="Recently synced to QuickBooks (within 24 hours)">
-                            <i class="bi bi-check-circle-fill"></i> Recent
-                          </span>
-                        <% elsif invoice.last_sync_at && invoice.last_sync_at > 7.days.ago %>
-                          <span class="badge bg-info ms-1" title="Synced within 7 days">
-                            <i class="bi bi-check-circle"></i> Synced
-                          </span>
+                  <%# Invoice Number with Badges %>
+                  <td class="ps-4">
+                    <div class="d-flex flex-column">
+                      <strong>
+                        <%= link_to invoice.invoice_number, invoice_path(invoice), 
+                              class: "text-decoration-none text-dark" %>
+                      </strong>
+                      <div class="d-flex flex-wrap gap-1 mt-1">
+                        <% if invoice.received_by.nil? %>
+                          <span class="badge bg-info" title="Not yet reviewed">New</span>
+                        <% end %>
+                        <% if invoice.pending? %>
+                          <span class="badge bg-warning">Pending</span>
+                        <% end %>
+                        
+                        <%# Sync Status Badge - INLINE VERSION (no partial) %>
+                        <% if invoice.quickbooks_id %>
+                          <% if invoice.sync_status == 'success' %>
+                            <% if invoice.last_sync_at && invoice.last_sync_at > 24.hours.ago %>
+                              <span class="badge bg-success" title="Recently synced to QuickBooks">
+                                <i class="bi bi-check-circle-fill"></i> Recent
+                              </span>
+                            <% elsif invoice.last_sync_at && invoice.last_sync_at > 7.days.ago %>
+                              <span class="badge bg-info" title="Synced within 7 days">
+                                <i class="bi bi-check-circle"></i> Synced
+                              </span>
+                            <% else %>
+                              <span class="badge bg-warning" title="Sync stale">
+                                <i class="bi bi-clock-history"></i> Stale
+                              </span>
+                            <% end %>
+                          <% elsif invoice.sync_status == 'failed' %>
+                            <span class="badge bg-danger" title="QuickBooks sync failed">
+                              <i class="bi bi-x-circle"></i> Failed
+                            </span>
+                          <% elsif invoice.sync_status == 'error' %>
+                            <span class="badge bg-danger" title="QuickBooks sync error">
+                              <i class="bi bi-exclamation-triangle-fill"></i> Error
+                            </span>
+                          <% else %>
+                            <span class="badge bg-secondary" title="Synced to QuickBooks">
+                              <i class="bi bi-check-circle"></i> Synced
+                            </span>
+                          <% end %>
                         <% else %>
-                          <span class="badge bg-warning ms-1" title="Sync stale (more than 7 days)">
-                            <i class="bi bi-clock-history"></i> Stale
+                          <span class="badge bg-light text-dark border" title="Not synced to QuickBooks">
+                            <i class="bi bi-cloud-upload"></i> Not Synced
                           </span>
                         <% end %>
-                      <% elsif invoice.sync_status == 'failed' %>
-                        <span class="badge bg-danger ms-1" title="QuickBooks sync failed">
-                          <i class="bi bi-x-circle"></i> Failed
-                        </span>
-                      <% elsif invoice.sync_status == 'error' %>
-                        <span class="badge bg-danger ms-1" title="QuickBooks sync error">
-                          <i class="bi bi-exclamation-triangle-fill"></i> Error
-                        </span>
-                      <% else %>
-                        <span class="badge bg-secondary ms-1" title="Synced to QuickBooks">
-                          <i class="bi bi-check-circle"></i> Synced
-                        </span>
-                      <% end %>
-                    <% else %>
-                      <span class="badge bg-light text-dark border ms-1" title="Not synced to QuickBooks">
-                        <i class="bi bi-cloud-upload"></i> Not Synced
-                      </span>
-                    <% end %>
+                      </div>
+                    </div>
                   </td>
                   
+                  <%# Vehicle Info %>
                   <td>
                     <% if invoice.vehicle %>
-                      <%= link_to invoice.vehicle.license_plate, vehicle_path(invoice.vehicle), class: "text-decoration-none" %>
-                      <br>
-                      <small class="text-muted"><%= invoice.vehicle.make %> <%= invoice.vehicle.model %></small>
+                      <div class="fw-medium">
+                        <%= link_to invoice.vehicle.license_plate, vehicle_path(invoice.vehicle), 
+                              class: "text-decoration-none" %>
+                      </div>
+                      <small class="text-muted d-block">
+                        <%= invoice.vehicle.make %> <%= invoice.vehicle.model %>
+                      </small>
                     <% else %>
-                      <span class="text-muted">No vehicle</span>
+                      <span class="text-muted fst-italic">No vehicle</span>
                     <% end %>
                   </td>
                   
-                  <td><%= invoice.vendor %></td>
+                  <%# Vendor %>
+                  <td>
+                    <%= invoice.vendor %>
+                    <% if invoice.vendor == "VMCOTT" %>
+                      <span class="badge bg-success ms-1">VMCOTT</span>
+                    <% end %>
+                  </td>
                   
+                  <%# Source with Workflow Links - FIXED VERSION %>
+                  <td>
+                    <% if invoice.purchase_order %>
+                      <div class="d-flex flex-column gap-1">
+                        <span class="badge bg-info">
+                          <%= link_to "PO: #{invoice.purchase_order.po_number}", 
+                                purchase_order_path(invoice.purchase_order), 
+                                class: 'text-white text-decoration-none' %>
+                        </span>
+                        
+                        <%# Check if purchase order has internal POS (with safe navigation) %>
+                        <% if invoice.purchase_order.respond_to?(:has_internal_pos?) && invoice.purchase_order.has_internal_pos? %>
+                          <span class="badge bg-success mt-1">
+                            <i class="bi bi-wrench me-1"></i>VMCOTT Work
+                            <% if invoice.purchase_order.respond_to?(:internal_pos) %>
+                              <small class="ms-1">
+                                (<%= invoice.purchase_order.internal_pos.completed.count %>/<%= invoice.purchase_order.internal_pos.count %>)
+                              </small>
+                            <% end %>
+                          </span>
+                        <% end %>
+                        
+                        <% if invoice.purchase_order.quotation && invoice.purchase_order.quotation.rfq %>
+                          <small>
+                            <i class="bi bi-diagram-3 me-1"></i>
+                            <%= link_to "RFQ: #{invoice.purchase_order.quotation.rfq.rfq_number}", 
+                                  rfq_path(invoice.purchase_order.quotation.rfq), 
+                                  class: 'text-decoration-none small' %>
+                          </small>
+                        <% end %>
+                      </div>
+                    <% elsif invoice.vendor == "VMCOTT" %>
+                      <span class="badge bg-success">
+                        <i class="bi bi-wrench me-1"></i>VMCOTT Work
+                      </span>
+                    <% else %>
+                      <span class="badge bg-secondary">Direct</span>
+                    <% end %>
+                  </td>
+                  
+                  <%# Dates %>
                   <td>
                     <%= invoice.invoice_date&.strftime('%b %d, %Y') %>
                     <br>
-                    <small class="text-muted"><%= invoice.aging_days %> days</small>
+                    <small class="text-muted"><%= invoice.aging_days %> days ago</small>
                   </td>
                   
                   <td class="<%= 'text-danger fw-bold' if invoice.overdue? %>">
-                    <%= invoice.due_date&.strftime('%b %d, %Y') %>
-                    <% if invoice.overdue? %>
-                      <br><small class="badge bg-danger">OVERDUE</small>
-                    <% elsif invoice.days_until_due && invoice.days_until_due >= 0 %>
-                      <br><small class="text-muted"><%= invoice.days_until_due %> days</small>
-                    <% end %>
+                    <div>
+                      <%= invoice.due_date&.strftime('%b %d, %Y') %>
+                      <% if invoice.overdue? %>
+                        <span class="badge bg-danger ms-1">OVERDUE</span>
+                      <% elsif invoice.days_until_due && invoice.days_until_due >= 0 %>
+                        <small class="text-muted d-block">
+                          <%= invoice.days_until_due %> days left
+                        </small>
+                      <% end %>
+                    </div>
                   </td>
                   
+                  <%# Amount %>
                   <td class="text-end">
                     <strong class="<%= 'text-danger' if invoice.overdue? %>">
                       $<%= number_with_precision(invoice.amount, precision: 2) %>
                     </strong>
                     <% if invoice.category.present? %>
-                      <br><small class="text-muted"><%= invoice.category.humanize %></small>
+                      <br>
+                      <small class="text-muted"><%= invoice.category.humanize %></small>
                     <% end %>
                   </td>
                   
+                  <%# Status %>
                   <td>
                     <span class="badge <%= invoice.status_badge_class %>">
                       <%= invoice.status.humanize %>
                     </span>
+                    <% if invoice.received_by.present? %>
+                      <br>
+                      <small class="text-muted">
+                        By <%= invoice.received_by&.display_name %>
+                      </small>
+                    <% end %>
                   </td>
                   
-                  <td class="text-end">
-                    <div class="btn-group btn-group-sm" role="group" style="min-width: 220px;">
-                      <%= link_to invoice_path(invoice), class: "btn btn-outline-primary px-2 py-1", title: "View Details", style: "width: 40px;" do %>
+                  <%# Integrations %>
+                  <td>
+                    <div class="d-flex flex-wrap gap-1">
+                      <% if invoice.quickbooks_id.present? %>
+                        <span class="badge bg-success" title="Synced with QuickBooks">
+                          <i class="bi bi-check-circle"></i> QB
+                        </span>
+                      <% end %>
+                      
+                      <% if invoice.pos_transaction_id.present? %>
+                        <span class="badge bg-primary" title="POS Payment Recorded">
+                          <i class="bi bi-cash-coin"></i> POS
+                        </span>
+                      <% end %>
+                      
+                      <% if invoice.purchase_order_id.present? %>
+                        <span class="badge bg-secondary" title="Linked to Purchase Order">
+                          <i class="bi bi-cart-check"></i> PO
+                        </span>
+                      <% end %>
+                      
+                      <% if invoice.transactions.any? %>
+                        <span class="badge bg-info" title="Has Payment Transactions">
+                          <i class="bi bi-credit-card"></i> PAY
+                        </span>
+                      <% end %>
+                    </div>
+                  </td>
+                  
+                  <%# Actions %>
+                  <td class="text-end pe-4">
+                    <div class="btn-group btn-group-sm" role="group">
+                      <%= link_to invoice_path(invoice), class: "btn btn-outline-primary", 
+                            title: "View Details" do %>
                         <i class="bi bi-eye"></i>
                       <% end %>
                       
-                      <%= link_to download_invoice_path(invoice), 
-                                  class: "btn btn-outline-secondary px-2 py-1", 
-                                  title: "Download Text",
-                                  data: { turbo: false } do %>
-                        <i class="bi bi-download"></i>
-                      <% end %>
-                      
-                      <% if invoice.pending? && current_user.can_review_invoices? %>
-                        <%= button_to mark_as_reviewed_invoice_path(invoice), 
-                              method: :post,
-                              class: "btn btn-info px-2 py-1",
-                              title: "Mark as Reviewed",
-                              form: { class: "d-inline" },
-                              style: "width: 40px;",
-                              data: { confirm: "Mark this invoice as reviewed?" } do %>
-                          <i class="bi bi-check"></i>
-                        <% end %>
-                      <% end %>
-                      
-                      <% if invoice.pending? && current_user.can_pay_invoices? %>
-                        <%= button_to mark_as_paid_invoice_path(invoice), 
-                              method: :post,
-                              class: "btn btn-success px-2 py-1",
-                              title: "Mark as Paid",
-                              form: { class: "d-inline" },
-                              style: "width: 40px;",
-                              data: { confirm: "Mark this invoice as paid?" } do %>
-                          <i class="bi bi-currency-dollar"></i>
-                        <% end %>
-                      <% end %>
-                      
-                      <% if invoice.pending? && current_user.can_dispute_invoices? %>
-                        <button type="button" 
-                                class="btn btn-warning px-2 py-1" 
-                                title="Dispute Invoice"
-                                style="width: 40px;"
-                                data-bs-toggle="modal" 
-                                data-bs-target="#disputeModal<%= invoice.id %>">
-                          <i class="bi bi-question-circle"></i>
+                      <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" 
+                                data-bs-toggle="dropdown">
+                          <i class="bi bi-gear"></i>
                         </button>
-                      <% end %>
-                      
-                      <%# NEW: Quick sync button %>
-                      <% if invoice.quickbooks_id.blank? && current_user.can_sync_quickbooks? %>
-                        <%= button_to sync_to_quickbooks_invoice_path(invoice), 
-                              method: :post,
-                              class: "btn btn-outline-info px-2 py-1",
-                              title: "Sync to QuickBooks",
-                              form: { class: "d-inline" },
-                              style: "width: 40px;",
-                              data: { confirm: "Sync this invoice with QuickBooks?" } do %>
-                          <i class="bi bi-cloud-arrow-up"></i>
-                        <% end %>
-                      <% elsif invoice.last_sync_at && invoice.last_sync_at < 7.days.ago && current_user.can_sync_quickbooks? %>
-                        <%= button_to sync_to_quickbooks_invoice_path(invoice), 
-                              method: :post,
-                              class: "btn btn-outline-warning px-2 py-1",
-                              title: "Re-sync to QuickBooks",
-                              form: { class: "d-inline" },
-                              style: "width: 40px;",
-                              data: { confirm: "Re-sync this stale invoice with QuickBooks?" } do %>
-                          <i class="bi bi-arrow-repeat"></i>
-                        <% end %>
-                      <% end %>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li>
+                            <%= link_to download_invoice_path(invoice), class: "dropdown-item" do %>
+                              <i class="bi bi-download me-2"></i>Download
+                            <% end %>
+                          </li>
+                          
+                          <% if invoice.pending? || invoice.overdue? %>
+                            <% if current_user.can_review_invoices? %>
+                              <li>
+                                <%= button_to mark_as_reviewed_invoice_path(invoice), 
+                                      method: :post,
+                                      class: "dropdown-item text-info",
+                                      data: { turbo_confirm: "Mark this invoice as reviewed?" } do %>
+                                  <i class="bi bi-check me-2"></i>Mark as Reviewed
+                                <% end %>
+                              </li>
+                            <% end %>
+                            
+                            <% if current_user.can_pay_invoices? %>
+                              <li>
+                                <%= button_to mark_as_paid_invoice_path(invoice), 
+                                      method: :post,
+                                      class: "dropdown-item text-success",
+                                      data: { turbo_confirm: "Mark this invoice as paid?" } do %>
+                                  <i class="bi bi-currency-dollar me-2"></i>Mark as Paid
+                                <% end %>
+                              </li>
+                              
+                              <li>
+                                <%= link_to new_transaction_path(invoice_id: invoice.id), 
+                                      class: "dropdown-item" do %>
+                                  <i class="bi bi-credit-card me-2"></i>Record Payment
+                                <% end %>
+                              </li>
+                            <% end %>
+                            
+                            <% if current_user.can_dispute_invoices? %>
+                              <li>
+                                <button type="button" 
+                                        class="dropdown-item text-warning" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#disputeModal<%= invoice.id %>">
+                                  <i class="bi bi-question-circle me-2"></i>Dispute Invoice
+                                </button>
+                              </li>
+                            <% end %>
+                            
+                            <li><hr class="dropdown-divider"></li>
+                            
+                            <% if invoice.quickbooks_id.blank? && current_user.can_sync_quickbooks? %>
+                              <li>
+                                <%= button_to sync_to_quickbooks_invoice_path(invoice), 
+                                      method: :post,
+                                      class: "dropdown-item text-info",
+                                      data: { turbo_confirm: "Sync this invoice with QuickBooks?" } do %>
+                                  <i class="bi bi-cloud-arrow-up me-2"></i>Sync to QuickBooks
+                                <% end %>
+                              </li>
+                            <% elsif invoice.last_sync_at && invoice.last_sync_at < 7.days.ago && current_user.can_sync_quickbooks? %>
+                              <li>
+                                <%= button_to sync_to_quickbooks_invoice_path(invoice), 
+                                      method: :post,
+                                      class: "dropdown-item text-warning",
+                                      data: { turbo_confirm: "Re-sync this stale invoice with QuickBooks?" } do %>
+                                  <i class="bi bi-arrow-repeat me-2"></i>Re-sync to QB
+                                <% end %>
+                              </li>
+                            <% end %>
+                          <% end %>
+                          
+                          <% if current_user.can_edit_invoices? %>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                              <%= link_to edit_invoice_path(invoice), class: "dropdown-item" do %>
+                                <i class="bi bi-pencil me-2"></i>Edit Invoice
+                              <% end %>
+                            </li>
+                          <% end %>
+                        </ul>
+                      </div>
                     </div>
                     
-                    <%# Dispute Modal %>
+                    <%# Dispute Modal - INLINE VERSION (no partial) %>
                     <% if invoice.pending? && current_user.can_dispute_invoices? %>
                       <div class="modal fade" id="disputeModal<%= invoice.id %>" tabindex="-1">
                         <div class="modal-dialog">
@@ -426,8 +710,15 @@
                                 <p>Dispute invoice <strong><%= invoice.invoice_number %></strong> from <%= invoice.vendor %>?</p>
                                 <div class="mb-3">
                                   <label class="form-label">Reason for dispute:</label>
-                                  <%= text_area_tag :reason, nil, class: "form-control", rows: 3, placeholder: "Enter reason for disputing this invoice..." %>
+                                  <%= text_area_tag :reason, nil, class: "form-control", rows: 3, 
+                                        placeholder: "Enter reason for disputing this invoice...", required: true %>
                                 </div>
+                                <% if invoice.purchase_order %>
+                                  <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i>
+                                    This invoice is from a Purchase Order. Disputing may affect the RFQ workflow.
+                                  </div>
+                                <% end %>
                               </div>
                               <div class="modal-footer">
                                 <button type="button" class="btn btn-light border px-3 py-1" data-bs-dismiss="modal">Cancel</button>
@@ -444,31 +735,84 @@
             </tbody>
           </table>
         </div>
-
+        
         <%# Pagination %>
-        <div class="mt-4">
-          <%= paginate @invoices, theme: 'bootstrap-5' %>
+        <div class="card-footer bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted">
+              Showing <strong><%= @invoices.offset_value + 1 %></strong> to 
+              <strong><%= @invoices.offset_value + @invoices.length %></strong> of 
+              <strong><%= @invoices.total_count %></strong> invoices
+            </div>
+            <%= paginate @invoices, theme: 'bootstrap-5', pagination_class: "mb-0" %>
+          </div>
         </div>
       <% else %>
+        <%# Empty State %>
         <div class="text-center py-5">
-          <div class="text-muted">
-            <i class="bi bi-inbox display-4 d-block mb-3"></i>
-            <h4>No invoices found</h4>
-            <p class="mb-4">
-              <% if params.any? %>
-                No invoices match your filters. Try clearing filters or contact VMCOTT.
-              <% else %>
-                No invoices have been received yet. Invoices from VMCOTT will appear here.
-              <% end %>
-            </p>
-            <div class="d-flex justify-content-center gap-2">
-              <% if params.any? %>
-                <%= link_to "Clear filters", invoices_path, class: "btn btn-primary px-3 py-1" %>
-              <% end %>
-              <%= link_to ptsc_dashboard_path, class: "btn btn-light border px-3 py-1" do %>
-                <i class="bi bi-speedometer2 me-1"></i> Back to Dashboard
-              <% end %>
+          <div class="mb-4">
+            <i class="bi bi-inbox text-muted" style="font-size: 4rem;"></i>
+          </div>
+          <h4 class="text-muted mb-3">No invoices found</h4>
+          <p class="text-muted mb-4" style="max-width: 500px; margin: 0 auto;">
+            <% if params.any? %>
+              No invoices match your current filters. Try adjusting your search criteria.
+            <% else %>
+              No invoices have been received yet. Invoices will appear here when:
+            <% end %>
+          </p>
+          
+          <% unless params.any? %>
+            <div class="row justify-content-center mb-4">
+              <div class="col-md-8">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <div class="card border-info h-100">
+                      <div class="card-body text-center">
+                        <i class="bi bi-diagram-3 text-info fs-1 mb-2"></i>
+                        <h6>RFQ Workflow</h6>
+                        <p class="small text-muted">Complete RFQ → Quotation → PO workflow</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="card border-success h-100">
+                      <div class="card-body text-center">
+                        <i class="bi bi-wrench text-success fs-1 mb-2"></i>
+                        <h6>VMCOTT Work</h6>
+                        <p class="small text-muted">VMCOTT completes internal work orders</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="card border-secondary h-100">
+                      <div class="card-body text-center">
+                        <i class="bi bi-upload text-secondary fs-1 mb-2"></i>
+                        <h6>Direct Upload</h6>
+                        <p class="small text-muted">Upload service provider invoices manually</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          <% end %>
+          
+          <div class="d-flex justify-content-center gap-2">
+            <% if params.any? %>
+              <%= link_to "Clear Filters", invoices_path, class: "btn btn-primary" %>
+            <% end %>
+            <%= link_to ptsc_dashboard_path, class: "btn btn-light border" do %>
+              <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            <% end %>
+            <%= link_to sent_rfqs_path, class: "btn btn-outline-success" do %>
+              <i class="bi bi-diagram-3 me-1"></i> View RFQs
+            <% end %>
+            <% if current_user.can_create_invoices? %>
+              <%= link_to new_invoice_path, class: "btn btn-success" do %>
+                <i class="bi bi-plus-circle me-1"></i> Create Invoice
+              <% end %>
+            <% end %>
           </div>
         </div>
       <% end %>
@@ -476,37 +820,137 @@
   </div>
 </div>
 
-<%# CSS for sync badges and dropdown fix %>
+<%# ===== QUICKBOOKS STATUS MODAL ===== %>
+<div class="modal fade" id="quickbooksStatusModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">QuickBooks Integration Status</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <% if @quickbooks_connected %>
+          <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            Connected to QuickBooks Pro
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <p><strong>Last Sync:</strong><br>
+              <%= @quickbooks_last_sync&.strftime('%b %d, %Y %I:%M %p') || 'Never' %></p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>Invoices Synced:</strong><br>
+              <%= @stats[:qb_synced] || 0 %> of <%= @stats[:total] || 0 %></p>
+            </div>
+          </div>
+          <% if current_user.can_sync_quickbooks? %>
+            <div class="mt-3">
+              <%= button_to "Sync All Pending Invoices", sync_quickbooks_invoices_path, 
+                    method: :post, 
+                    class: "btn btn-primary w-100",
+                    data: { turbo_confirm: "This will sync all pending invoices with QuickBooks. Continue?" } %>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            QuickBooks connection offline
+          </div>
+          <p>Please configure your QuickBooks Pro connection settings.</p>
+          <% if current_user.admin? || current_user.finance? %>
+            <%= link_to 'Configure Connection', quickbooks_settings_path, 
+              class: 'btn btn-primary' %>
+          <% else %>
+            <p class="text-muted">Please contact an administrator to configure QuickBooks.</p>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# ===== STYLES ===== %>
 <style>
-  .sync-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    display: inline-flex;
+  .card {
+    border: 1px solid #e9ecef;
+  }
+  
+  .avatar-sm {
+    width: 48px;
+    height: 48px;
+    display: flex;
     align-items: center;
-    gap: 0.25rem;
+    justify-content: center;
   }
   
-  .sync-recent { background-color: #d1e7dd; color: #0f5132; }
-  .sync-stale { background-color: #fff3cd; color: #664d03; }
-  .sync-failed { background-color: #f8d7da; color: #842029; }
-  .sync-success { background-color: #d1e7dd; color: #0f5132; }
-  .sync-not-synced { background-color: #e2e3e5; color: #41464b; border: 1px solid #d3d6d8; }
-  
-  /* Fix for dropdown z-index issues */
-  .dropdown-menu {
-    z-index: 1050 !important;
+  .table th {
+    font-weight: 600;
+    color: #495057;
+    border-bottom-width: 2px;
   }
   
-  /* Ensure dropdown button container has proper z-index */
-  .d-flex.align-items-center.gap-2 {
-    position: relative;
-    z-index: 1000;
+  .badge.bg-info a,
+  .badge.bg-success a {
+    color: white !important;
+    text-decoration: none;
   }
   
-  /* Ensure dropdowns appear above table */
-  .table-responsive {
-    position: relative;
-    z-index: 1;
+  .badge.bg-info a:hover,
+  .badge.bg-success a:hover {
+    text-decoration: underline;
+  }
+  
+  .table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+  
+  .btn-group-sm > .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .dropdown-toggle::after {
+    margin-left: 0.25rem;
   }
 </style>
+
+<%# ===== JAVASCRIPT ===== %>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-submit sort filter
+  const sortSelect = document.getElementById('sort');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', function() {
+      this.form.submit();
+    });
+  }
+  
+  // Toggle advanced filters
+  const filtersToggle = document.getElementById('advancedFiltersToggle');
+  if (filtersToggle) {
+    filtersToggle.addEventListener('change', function() {
+      const label = this.nextElementSibling;
+      if (this.checked) {
+        label.textContent = 'Hide Filters';
+      } else {
+        label.textContent = 'Show Filters';
+      }
+    });
+  }
+  
+  // QuickBooks status modal
+  const quickbooksBadge = document.querySelector('[data-bs-target="#quickbooksStatusModal"]');
+  if (quickbooksBadge) {
+    quickbooksBadge.addEventListener('click', function() {
+      new bootstrap.Modal(document.getElementById('quickbooksStatusModal')).show();
+    });
+  }
+  
+  // Initialize tooltips
+  const tooltipTriggerList = document.querySelectorAll('[title]');
+  tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+    new bootstrap.Tooltip(tooltipTriggerEl);
+  });
+});
+</script>

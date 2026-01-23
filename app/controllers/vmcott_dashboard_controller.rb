@@ -4,6 +4,7 @@ class VmcottDashboardController < ApplicationController
   before_action :verify_vmcott_agency
   include AgencyStatistics
   
+  
   def index
     @agency = current_user.agency
     
@@ -53,6 +54,9 @@ class VmcottDashboardController < ApplicationController
     #   end
     # end
     # @vehicles_needing_attention = @vehicles_needing_attention.first(10)
+    
+    # Tell Rails to render from the vmcott folder instead of vmcott_dashboard
+    render 'vmcott/index'
   end
   
   private

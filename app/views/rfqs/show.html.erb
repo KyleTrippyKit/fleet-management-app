@@ -1,0 +1,302 @@
+<%# app/views/rfqs/show.html.erb - HTML version with PDF download %>
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">RFQ: <%= @rfq.rfq_number %></h1>
+    <div>
+      <%= link_to 'Download PDF', download_pdf_rfq_path(@rfq, format: :pdf), 
+            class: 'btn btn-outline-dark me-2', target: '_blank' %>
+      <%= link_to 'Back to RFQs', rfqs_path, class: 'btn btn-outline-secondary' %>
+    </div>
+  </div>
+  
+  <div class="row">
+    <!-- Left Column: RFQ Details -->
+    <div class="col-lg-8">
+      <!-- Card for RFQ Details -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Request Details</h5>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <p class="mb-1"><strong>RFQ Number:</strong></p>
+              <p class="mb-3"><code class="fs-5"><%= @rfq.rfq_number %></code></p>
+              
+              <p class="mb-1"><strong>Status:</strong></p>
+              <p class="mb-3">
+                <span class="badge bg-<%= rfq_status_badge(@rfq.status) %> fs-6">
+                  <%= @rfq.status.humanize %>
+                </span>
+              </p>
+              
+              <p class="mb-1"><strong>Request Date:</strong></p>
+              <p class="mb-3"><%= @rfq.request_date.strftime('%B %d, %Y') %></p>
+            </div>
+            
+            <div class="col-md-6">
+              <p class="mb-1"><strong>Agency:</strong></p>
+              <p class="mb-3"><%= @rfq.requesting_agency.name %></p>
+              
+              <p class="mb-1"><strong>Response Due:</strong></p>
+              <p class="mb-3">
+                <% if @rfq.response_due_date.present? %>
+                  <%= @rfq.response_due_date.strftime('%B %d, %Y') %>
+                <% else %>
+                  <span class="text-muted">Not specified</span>
+                <% end %>
+              </p>
+              
+              <p class="mb-1"><strong>Urgency:</strong></p>
+              <p class="mb-3">
+                <span class="badge bg-<%= @rfq.urgency == 'urgent' ? 'danger' : 'warning' %>">
+                  <%= @rfq.urgency.humanize %>
+                </span>
+              </p>
+            </div>
+          </div>
+          
+          <!-- Vehicle Information -->
+          <% if @vehicle.present? %>
+          <div class="alert alert-info mb-3">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-car fa-2x me-3"></i>
+              <div>
+                <h6 class="alert-heading mb-1">Vehicle Information</h6>
+                <p class="mb-0">
+                  <strong><%= @vehicle.license_plate %></strong> - 
+                  <%= @vehicle.make %> <%= @vehicle.model %> (<%= @vehicle.year_of_manufacture %>)
+                  <br>
+                  <small class="text-muted">VIN: <%= @vehicle.chassis_number || 'N/A' %></small>
+                </p>
+              </div>
+            </div>
+          </div>
+          <% end %>
+          
+          <!-- Description -->
+          <div class="mb-3">
+            <p class="mb-1"><strong>Description:</strong></p>
+            <div class="p-3 bg-light rounded border">
+              <%= simple_format(@rfq.description) %>
+            </div>
+          </div>
+          
+          <!-- Special Instructions -->
+          <% if @rfq.special_instructions.present? %>
+          <div class="mb-3">
+            <p class="mb-1"><strong>Special Instructions:</strong></p>
+            <div class="p-3 alert alert-warning rounded">
+              <%= simple_format(@rfq.special_instructions) %>
+            </div>
+          </div>
+          <% end %>
+        </div>
+      </div>
+      
+      <!-- Card for Requested Items -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>Requested Items</h5>
+        </div>
+        <div class="card-body">
+          <% if @rfq_line_items.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover table-sm">
+                <thead class="table-light">
+                  <tr>
+                    <th>Description</th>
+                    <th width="80">Qty</th>
+                    <th width="100">Unit</th>
+                    <th width="120">Category</th>
+                    <th width="120">Part #</th>
+                    <th>Specifications</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @rfq_line_items.each do |item| %>
+                    <tr>
+                      <td><%= item.description %></td>
+                      <td><span class="badge bg-primary"><%= item.quantity %></span></td>
+                      <td><%= item.unit_of_measure %></td>
+                      <td>
+                        <% if item.category.present? %>
+                          <span class="badge bg-secondary"><%= item.category.humanize %></span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if item.part_number.present? %>
+                          <code><%= item.part_number %></code>
+                        <% else %>
+                          <span class="text-muted">—</span>
+                        <% end %>
+                      </td>
+                      <td class="small text-muted"><%= item.specifications || '—' %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+              <p class="text-muted">No items requested</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right Column: Actions & Info -->
+    <div class="col-lg-4">
+      <!-- VMCOTT Conversion Section -->
+      <% if current_user.agency&.code == 'VMCOTT' && @rfq.status == 'submitted' %>
+        <div class="card mb-4 shadow-sm">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+              <i class="fas fa-file-invoice-dollar me-2"></i>
+              Convert to Quotation
+            </h5>
+          </div>
+          <div class="card-body">
+            <% if @existing_quotation %>
+              <div class="alert alert-info">
+                <p class="mb-1">
+                  <i class="fas fa-info-circle me-1"></i>
+                  This RFQ has already been converted to a quotation:
+                </p>
+                <p class="mb-0">
+                  <strong>Quotation:</strong> 
+                  <%= link_to @existing_quotation.quote_number, quotation_path(@existing_quotation), class: 'fw-bold' %>
+                </p>
+              </div>
+            <% else %>
+              <p class="mb-3">Ready to convert this RFQ into a quotation?</p>
+              <%= link_to convert_to_quotation_page_rfq_path(@rfq), 
+                    class: 'btn btn-success btn-lg w-100 mb-2' do %>
+                <i class="fas fa-exchange-alt me-2"></i>Convert to Quotation
+              <% end %>
+              <p class="text-muted small mb-0">
+                <i class="fas fa-info-circle me-1"></i>
+                This will create a new quotation with the RFQ items
+              </p>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+      
+      <!-- Actions Card -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Actions</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <% if @rfq.draft? %>
+              <%= link_to edit_rfq_path(@rfq), class: 'btn btn-warning' do %>
+                <i class="fas fa-edit me-2"></i>Edit RFQ
+              <% end %>
+              
+              <%= link_to submit_to_vmcott_rfq_path(@rfq),
+                    method: :post,
+                    data: { 
+                      confirm: 'Are you sure you want to submit this RFQ to VMCOTT?',
+                      turbo_confirm: 'Are you sure you want to submit this RFQ to VMCOTT?'
+                    },
+                    class: 'btn btn-success' do %>
+                <i class="fas fa-paper-plane me-2"></i>Submit to VMCOTT
+              <% end %>
+            <% end %>
+            
+            <% if @rfq.submitted? && current_user.agency&.code == 'VMCOTT' && !@existing_quotation %>
+              <%= link_to convert_to_quotation_rfq_path(@rfq),
+                    method: :post,
+                    data: { 
+                      confirm: 'Convert this RFQ to a quotation?',
+                      turbo_confirm: 'Convert this RFQ to a quotation?'
+                    },
+                    class: 'btn btn-primary' do %>
+                <i class="fas fa-exchange-alt me-2"></i>Quick Convert
+              <% end %>
+            <% end %>
+            
+            <% if @existing_quotation.present? %>
+              <div class="alert alert-info">
+                <p class="mb-1"><strong><i class="fas fa-check-circle me-1"></i>Already Converted</strong></p>
+                <p class="mb-0">
+                  This RFQ was converted to quotation:
+                  <%= link_to @existing_quotation.quote_number, @existing_quotation, class: 'fw-bold' %>
+                </p>
+              </div>
+            <% end %>
+            
+            <%= link_to clone_rfq_path(@rfq),
+                  method: :get,
+                  data: { 
+                    confirm: 'Duplicate this RFQ?',
+                    turbo_confirm: 'Duplicate this RFQ?'
+                  },
+                  class: 'btn btn-outline-secondary' do %>
+              <i class="fas fa-copy me-2"></i>Duplicate RFQ
+            <% end %>
+            
+            <hr class="my-2">
+            
+            <%= link_to rfqs_path, class: 'btn btn-outline-primary' do %>
+              <i class="fas fa-arrow-left me-2"></i>Back to RFQs
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Information Card -->
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>RFQ Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <p class="mb-1"><strong>Created:</strong></p>
+            <p class="mb-0 text-muted">
+              <%= @rfq.created_at.strftime('%B %d, %Y') %>
+              <br>
+              <small><%= time_ago_in_words(@rfq.created_at) %> ago</small>
+            </p>
+          </div>
+          
+          <div class="mb-3">
+            <p class="mb-1"><strong>Last Updated:</strong></p>
+            <p class="mb-0 text-muted">
+              <%= @rfq.updated_at.strftime('%B %d, %Y') %>
+              <br>
+              <small><%= time_ago_in_words(@rfq.updated_at) %> ago</small>
+            </p>
+          </div>
+          
+          <% if @rfq.processing_agency.present? %>
+          <div class="mb-3">
+            <p class="mb-1"><strong>Processing Agency:</strong></p>
+            <p class="mb-0"><%= @rfq.processing_agency.name %></p>
+          </div>
+          <% end %>
+          
+          <% if @rfq.maintenance_request.present? %>
+          <div class="mb-3">
+            <p class="mb-1"><strong>Linked Maintenance Request:</strong></p>
+            <p class="mb-0">
+              <%= link_to @rfq.maintenance_request.id, @rfq.maintenance_request, class: 'badge bg-info text-decoration-none' %>
+            </p>
+          </div>
+          <% end %>
+          
+          <div class="alert alert-light border mt-3">
+            <p class="small mb-0">
+              <i class="fas fa-file-pdf me-1"></i>
+              <strong>Need a print version?</strong> Use the "Download PDF" button at the top.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

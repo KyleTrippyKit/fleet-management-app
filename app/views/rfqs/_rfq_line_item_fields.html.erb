@@ -1,0 +1,100 @@
+<%# app/views/rfqs/_rfq_line_item_fields.html.erb %>
+<div class="nested-fields card mb-3 border">
+  <div class="card-body">
+    <div class="row">
+      <div class="col-md-5">
+        <div class="mb-3">
+          <%= f.label :description, "Part/Item Description", class: 'form-label required' %>
+          <%= f.text_field :description, class: 'form-control', required: true, 
+                placeholder: 'e.g., Brake Pads, Oil Filter, Spark Plugs' %>
+          <div class="form-text">Describe the part or service needed</div>
+        </div>
+      </div>
+      
+      <div class="col-md-2">
+        <div class="mb-3">
+          <%= f.label :quantity, "Quantity", class: 'form-label required' %>
+          <%= f.number_field :quantity, class: 'form-control', required: true, 
+                min: 1, value: f.object&.quantity || 1 %>
+          <div class="form-text">Required quantity</div>
+        </div>
+      </div>
+      
+      <div class="col-md-2">
+        <div class="mb-3">
+          <%= f.label :unit_of_measure, "Unit", class: 'form-label required' %>
+          <%= f.select :unit_of_measure, 
+                ['Each', 'Set', 'Pair', 'Liter', 'Gallon', 'Meter', 'Foot', 'Hour', 'Box', 'Package'],
+                { include_blank: 'Select Unit' }, 
+                class: 'form-control', required: true %>
+          <div class="form-text">Measurement unit</div>
+        </div>
+      </div>
+      
+      <div class="col-md-2">
+        <div class="mb-3">
+          <%= f.label :category, "Category", class: 'form-label required' %>
+          <%= f.select :category, 
+                [['Parts', 'parts'], ['Labor', 'labor'], ['Materials', 'materials'], ['Other', 'other']],
+                { include_blank: 'Select Category' }, 
+                class: 'form-control', required: true %>
+          <div class="form-text">Item category</div>
+        </div>
+      </div>
+      
+      <div class="col-md-1 d-flex align-items-end">
+        <div class="mb-3">
+          <!-- FIXED: Add nil check here -->
+          <% if f.object.present? %>
+            <%= link_to_remove_association f, class: 'btn btn-outline-danger btn-sm w-100' do %>
+              <i class="bi bi-trash"></i> Remove
+            <% end %>
+          <% else %>
+            <%= link_to '#', class: 'btn btn-outline-danger btn-sm w-100 disabled', onclick: 'return false;' do %>
+              <i class="bi bi-trash"></i> Remove
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="row">
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :part_number, "Part Number", class: 'form-label' %>
+          <%= f.text_field :part_number, class: 'form-control',
+                placeholder: 'Manufacturer/OEM part number' %>
+          <div class="form-text">Optional - for exact part matching</div>
+        </div>
+      </div>
+      
+      <div class="col-md-8">
+        <div class="mb-3">
+          <%= f.label :specifications, "Specifications / Special Requirements", class: 'form-label' %>
+          <%= f.text_area :specifications, class: 'form-control', rows: 2,
+                placeholder: 'e.g., Brand, size, grade, special requirements...' %>
+          <div class="form-text">Any specific requirements or details</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Hidden destroy field (managed by Cocoon) -->
+    <%= f.hidden_field :_destroy, value: false %>
+  </div>
+</div>
+
+<style>
+  .required::after {
+    content: " *";
+    color: #dc3545;
+  }
+  
+  .nested-fields {
+    transition: all 0.3s ease;
+  }
+  
+  .nested-fields:hover {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.1);
+  }
+</style>

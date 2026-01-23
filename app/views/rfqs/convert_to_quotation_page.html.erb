@@ -1,0 +1,56 @@
+<h1>Convert RFQ #<%= @rfq.rfq_number %> to Quotation</h1>
+
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">RFQ Summary</h5>
+    <p><strong>Description:</strong> <%= @rfq.description %></p>
+    <p><strong>Agency:</strong> <%= @rfq.requesting_agency.name %></p>
+    <p><strong>Vehicle:</strong> <%= @rfq.vehicle&.license_plate || "No vehicle specified" %></p>
+    
+    <h6>Items Requested:</h6>
+    <ul class="list-group mb-3">
+      <% @rfq.rfq_line_items.each do |item| %>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <strong><%= item.quantity %> x</strong> <%= item.description %>
+            <% if item.part_number.present? %>
+              <small class="text-muted">(Part #: <%= item.part_number %>)</small>
+            <% end %>
+          </div>
+          <span class="badge bg-secondary"><%= item.category || "General" %></span>
+        </li>
+      <% end %>
+    </ul>
+    
+    <% if @rfq.special_instructions.present? %>
+      <p><strong>Special Instructions:</strong> <%= @rfq.special_instructions %></p>
+    <% end %>
+    
+    <p><strong>Urgency:</strong> 
+      <% urgency_color = case @rfq.urgency&.downcase
+                         when 'urgent', 'high' then 'danger'
+                         when 'medium' then 'warning'
+                         when 'low' then 'info'
+                         else 'secondary'
+                         end %>
+      <span class="badge bg-<%= urgency_color %>"><%= @rfq.urgency&.titleize || "Normal" %></span>
+    </p>
+    
+    <div class="alert alert-info mt-3">
+      <p>This RFQ will be converted to a quotation where you can:</p>
+      <ul>
+        <li>Add job templates</li>
+        <li>Set labor rates and prices</li>
+        <li>Assign parts to jobs</li>
+        <li>Calculate totals</li>
+        <li>Send quotation back to agency</li>
+      </ul>
+    </div>
+    
+    <div class="d-flex gap-2 mt-4">
+      <%= link_to 'Go to Quotation Builder', new_from_rfq_quotations_path(rfq_id: @rfq.id), class: 'btn btn-primary' %>
+      <%= link_to 'View RFQ Details', rfq_path(@rfq), class: 'btn btn-secondary' %>
+      <%= link_to 'Back to RFQ Inbox', vmcott_rfq_inbox_path, class: 'btn btn-outline-secondary' %>
+    </div>
+  </div>
+</div>
