@@ -1,0 +1,122 @@
+<%# app/views/job_templates/select_quotation.js.erb %>
+console.log('DEBUG: select_quotation.js.erb loaded');
+console.log('Template:', '<%= @job_template.name %>');
+console.log('Pending quotations:', <%= @pending_quotations.count %>);
+
+// Get or create modal
+function getOrCreateModal() {
+  let modalElement = document.getElementById('quotationSelectionModal');
+  
+  if (!modalElement) {
+    console.log('Creating modal element...');
+    modalElement = document.createElement('div');
+    modalElement.id = 'quotationSelectionModal';
+    modalElement.className = 'modal fade';
+    modalElement.tabIndex = -1;
+    modalElement.setAttribute('aria-labelledby', 'modalTitle');
+    modalElement.setAttribute('aria-hidden', 'true');
+    
+    modalElement.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalTitle">Select Quotation</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="modalBody">
+            Loading...
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modalElement);
+  }
+  
+  return modalElement;
+}
+
+// Update modal with the partial
+const modalElement = getOrCreateModal();
+document.getElementById('modalTitle').textContent = `Add "<%= @job_template.name %>" to Quotation`;
+
+// Render the partial
+document.getElementById('modalBody').innerHTML = `
+  <%= j render partial: 'job_templates/select_quotation', 
+               locals: { 
+                 template: @job_template,
+                 pending_quotations: @pending_quotations 
+               } %>
+`;
+
+// Show modal
+const modal = new bootstrap.Modal(modalElement);
+modal.show();
+
+// Initialize button handlers after a short delay
+setTimeout(function() {
+  if (typeof initializeQuotationSelection === 'function') {
+    initializeQuotationSelection();
+  } else {
+    console.warn('initializeQuotationSelection not found, adding basic handlers');
+    
+    // Basic button handlers
+    document.querySelectorAll('.select-quotation-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const templateId = this.dataset.templateId;
+        const quotationId = this.dataset.quotationId;
+        const quotationNumber = this.dataset.quotationNumber;
+        
+        console.log('Select button clicked:', {templateId, quotationId, quotationNumber});
+        
+        // Show loading
+        const originalText = this.innerHTML;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Adding...';
+        this.disabled = true;
+        
+        // Send request
+        fetch(`/job_templates/${templateId}/add_to_quotation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({ quotation_id: quotationId })
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Response:', data);
+          if (data.success) {
+            document.getElementById('modalBody').innerHTML = `
+              <div class="text-center py-4">
+                <div class="mb-3">
+                  <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+                </div>
+                <h5>Success!</h5>
+                <p>${data.message}</p>
+                <div class="mt-4">
+                  <a href="${data.quotation_path}" class="btn btn-primary" data-turbo="false">
+                    View Quotation ${data.quotation_number}
+                  </a>
+                  <button class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Close
+                  </button>
+                </div>
+              </div>
+            `;
+          } else {
+            alert('Error: ' + (data.error || 'Failed to add template'));
+            this.innerHTML = originalText;
+            this.disabled = false;
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Network error. Please try again.');
+          this.innerHTML = originalText;
+          this.disabled = false;
+        });
+      });
+    });
+  }
+}, 100);

@@ -1,0 +1,130 @@
+<%# app/views/quotations/_quotation_builder.html.erb %>
+<div class="quotation-builder">
+  <h4>Select Job Templates</h4>
+  
+  <% if @job_templates.present? %>
+    <div class="job-templates-list">
+      <% @job_templates.each do |template| %>
+        <% status = template.inventory_status %>
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h5 class="card-title mb-1">
+                  <%= template.name %>
+                  <% if status[:all_available] %>
+                    <span class="badge bg-success">In Stock</span>
+                  <% else %>
+                    <span class="badge bg-warning">Low Stock</span>
+                  <% end %>
+                </h5>
+                <p class="card-text text-muted small mb-2">
+                  <%= template.description %>
+                </p>
+                <div class="small">
+                  <span class="badge bg-info">Labor: <%= template.standard_hours || 0 %> hrs</span>
+                  <span class="badge bg-secondary">Cost: TTD <%= number_to_currency(template.total_cost, unit: '') %></span>
+                </div>
+              </div>
+              
+              <div>
+                <button type="button" class="btn btn-sm btn-outline-primary add-template-btn" 
+                        data-template-id="<%= template.id %>"
+                        data-template-name="<%= template.name %>"
+                        data-template-hours="<%= template.standard_hours || 0 %>"
+                        data-template-rate="<%= template.labor_rate_per_hour || 0 %>">
+                  Add to Quotation
+                </button>
+                
+                <% unless status[:all_available] %>
+                  <button type="button" class="btn btn-sm btn-outline-warning mt-1" 
+                          data-bs-toggle="collapse" 
+                          data-bs-target="#inventoryDetails<%= template.id %>">
+                    Show Inventory Details
+                  </button>
+                <% end %>
+              </div>
+            </div>
+            
+            <% unless status[:all_available] %>
+              <div class="collapse mt-3" id="inventoryDetails<%= template.id %>">
+                <div class="alert alert-warning">
+                  <h6 class="alert-heading">Parts needing reorder:</h6>
+                  <ul class="mb-2">
+                    <% status[:unavailable_parts].each do |item| %>
+                      <li>
+                        <strong><%= item[:part_name] %></strong> (<%= item[:part_number] %>):
+                        Need <%= item[:needed] %>, Available <%= item[:available] %>
+                        <span class="text-danger">(Shortfall: <%= item[:shortfall] %>)</span>
+                      </li>
+                    <% end %>
+                  </ul>
+                  <%= link_to "Create Purchase Request", 
+                        create_purchase_request_quotation_path(@quotation, 
+                          part_id: status[:unavailable_parts].first[:part_id],
+                          quantity: status[:unavailable_parts].first[:shortfall]),
+                        class: "btn btn-sm btn-primary" %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      No job templates available. Please create job templates first.
+    </div>
+  <% end %>
+</div>
+
+<%# Hidden form for job assignments %>
+<%= form_with url: update_jobs_quotation_path(@quotation), method: :patch, id: 'job-assignments-form' do |f| %>
+  <%= f.hidden_field :job_assignments, id: 'job-assignments-data' %>
+  <%= f.hidden_field :item_assignments, id: 'item-assignments-data' %>
+<% end %>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const addedJobs = [];
+    
+    // Add template button click handler
+    document.querySelectorAll('.add-template-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const templateId = this.dataset.templateId;
+        const templateName = this.dataset.templateName;
+        const templateHours = parseFloat(this.dataset.templateHours);
+        const templateRate = parseFloat(this.dataset.templateRate);
+        
+        // Add to jobs array
+        addedJobs.push({
+          template_id: templateId,
+          name: templateName,
+          hours: templateHours,
+          rate: templateRate,
+          description: `Job template: ${templateName}`
+        });
+        
+        // Update hidden field
+        document.getElementById('job-assignments-data').value = JSON.stringify(addedJobs);
+        
+        // Show success message
+        alert(`Added "${templateName}" to quotation`);
+        
+        // Update UI to show added status
+        this.disabled = true;
+        this.textContent = 'Added ✓';
+        this.classList.remove('btn-outline-primary');
+        this.classList.add('btn-success');
+      });
+    });
+    
+    // Form submission
+    document.getElementById('job-assignments-form')?.addEventListener('submit', function(e) {
+      if (addedJobs.length === 0) {
+        e.preventDefault();
+        alert('Please add at least one job template to the quotation');
+      }
+    });
+  });
+</script>

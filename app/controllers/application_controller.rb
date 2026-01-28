@@ -1,3 +1,4 @@
+# app/controllers/application_controller.rb
 class ApplicationController < ActionController::Base
   include Pundit::Authorization
   
@@ -92,7 +93,8 @@ class ApplicationController < ActionController::Base
                 :can_refund_transactions?,
                 :is_ptsc?,
                 :can_view_reports?,
-                :can_close_register?
+                :can_close_register?,
+                :invoice_status_badge_color
 
   # =====================================================
   # Public Methods
@@ -188,6 +190,17 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  # Badge color for invoice status
+  def invoice_status_badge_color(status)
+    case status
+    when 'paid' then 'success'
+    when 'reviewed' then 'info'
+    when 'pending' then 'warning'
+    when 'disputed' then 'danger'
+    else 'secondary'
+    end
+  end
+
   # Format date consistently
   def format_date(date, format: :medium)
     return "N/A" if date.blank?
@@ -207,9 +220,18 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # POS Authorization Methods
+  # Authorization Methods
   # =====================================================
   
+  def require_vmcott_user
+    return if current_user.admin?
+    
+    unless vmcott?
+      redirect_to root_path, alert: 'Access denied. VMCOTT users only.'
+    end
+  end
+  
+  # POS Authorization Methods
   def require_pos_access
     unless can_access_pos?
       redirect_to root_path, alert: 'You do not have permission to access the POS system'
@@ -249,33 +271,6 @@ class ApplicationController < ActionController::Base
   def authorize_ptsc_pos!
     return if is_ptsc?
     redirect_to root_path, alert: 'PTSC POS features are only available to PTSC staff'
-  end
-
-  # =====================================================
-  # Pagination
-  # =====================================================
-  def per_page
-    params[:per_page] || 20
-  end
-  helper_method :per_page
-
-  # =====================================================
-  # JSON Response Helpers
-  # =====================================================
-  def render_json_success(data = {}, message = nil)
-    render json: {
-      success: true,
-      message: message,
-      data: data
-    }
-  end
-
-  def render_json_error(message = "An error occurred", errors = {}, status: :unprocessable_entity)
-    render json: {
-      success: false,
-      message: message,
-      errors: errors
-    }, status: status
   end
 
   # =====================================================
@@ -335,6 +330,33 @@ class ApplicationController < ActionController::Base
       flash[:alert] = "You are not authorized to view this resource."
       redirect_back(fallback_location: root_path)
     end
+  end
+
+  # =====================================================
+  # Pagination
+  # =====================================================
+  def per_page
+    params[:per_page] || 20
+  end
+  helper_method :per_page
+
+  # =====================================================
+  # JSON Response Helpers
+  # =====================================================
+  def render_json_success(data = {}, message = nil)
+    render json: {
+      success: true,
+      message: message,
+      data: data
+    }
+  end
+
+  def render_json_error(message = "An error occurred", errors = {}, status: :unprocessable_entity)
+    render json: {
+      success: false,
+      message: message,
+      errors: errors
+    }, status: status
   end
 
   # =====================================================

@@ -87,6 +87,23 @@ class Quotation < ApplicationRecord
   
   # Instance Methods
   
+  def requesting_agency
+    # Return the agency if you have an agency association
+    # Or use a default
+    Agency.find_by(code: 'VMCOTT') || Agency.first
+  end
+  
+  def calculate_total_amount
+    total = 0
+    quotation_jobs.each do |job|
+      total += job.total_labor_cost || 0
+      job.quotation_job_parts.each do |part|
+        total += part.total_price || 0
+      end
+    end
+    total
+  end
+  
   def generate_quote_number
     return if quote_number.present?
     date_part = Time.now.strftime('%Y%m%d')

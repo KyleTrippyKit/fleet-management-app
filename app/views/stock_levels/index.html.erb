@@ -1,0 +1,162 @@
+<!-- app/views/stock_levels/index.html.erb -->
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1>VMCOTT Stock Level Management</h1>
+      <p class="lead">Adjust minimum stock levels and reorder points</p>
+    </div>
+  </div>
+  
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_with url: stock_levels_path, method: :get, class: 'row g-3' do |f| %>
+        <div class="col-md-4">
+          <%= f.label :search, 'Search Parts', class: 'form-label' %>
+          <%= f.text_field :search, class: 'form-control', placeholder: 'Name or Part Number', value: params[:search] %>
+        </div>
+        
+        <div class="col-md-3">
+          <%= f.label :category, 'Category', class: 'form-label' %>
+          <%= f.select :category, options_for_select(@categories, params[:category]), 
+                      { include_blank: 'All Categories' }, class: 'form-control' %>
+        </div>
+        
+        <div class="col-md-3">
+          <%= f.label :supplier, 'Supplier', class: 'form-label' %>
+          <%= f.select :supplier, options_for_select(@suppliers, params[:supplier]), 
+                      { include_blank: 'All Suppliers' }, class: 'form-control' %>
+        </div>
+        
+        <div class="col-md-2 d-flex align-items-end">
+          <%= f.submit 'Filter', class: 'btn btn-primary me-2' %>
+          <%= link_to 'Clear', stock_levels_path, class: 'btn btn-outline-secondary' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+  <!-- Import/Export -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h5>Import Stock Levels</h5>
+          <%= form_with url: import_stock_levels_path, multipart: true do |f| %>
+            <div class="input-group">
+              <%= f.file_field :file, class: 'form-control', accept: '.csv' %>
+              <%= f.submit 'Import CSV', class: 'btn btn-success' %>
+            </div>
+            <small class="form-text text-muted">Download the template first to ensure proper format</small>
+          <% end %>
+        </div>
+        
+        <div class="col-md-6">
+          <h5>Export Stock Levels</h5>
+          <%= link_to 'Download Current Stock Levels', export_stock_levels_path(format: :csv), 
+                     class: 'btn btn-info' %>
+          <%= link_to 'Download Template', 'https://example.com/template.csv', 
+                     class: 'btn btn-outline-secondary' %>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Batch Update Form -->
+  <%= form_with url: update_batch_stock_levels_path, method: :post do |f| %>
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Batch Update Stock Levels</h5>
+        <%= f.submit 'Save All Changes', class: 'btn btn-primary', data: { confirm: 'Save changes to all parts?' } %>
+      </div>
+      
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Part Name</th>
+                <th>Part #</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Minimum Stock</th>
+                <th>Reorder Point</th>
+                <th>Status</th>
+                <th>Last Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @parts.each do |part| %>
+                <tr class="<%= 'table-danger' if part.current_stock <= part.minimum_stock %> 
+                           <%= 'table-warning' if part.current_stock <= part.reorder_point && part.current_stock > part.minimum_stock %>">
+                  <td><strong><%= part.name %></strong></td>
+                  <td><code><%= part.part_number %></code></td>
+                  <td><%= part.category %></td>
+                  
+                  <td>
+                    <%= f.fields_for "parts[#{part.id}]" do |pf| %>
+                      <%= pf.number_field :current_stock, value: part.current_stock, 
+                                        class: 'form-control form-control-sm', min: 0 %>
+                    <% end %>
+                  </td>
+                  
+                  <td>
+                    <%= f.fields_for "parts[#{part.id}]" do |pf| %>
+                      <%= pf.number_field :minimum_stock, value: part.minimum_stock, 
+                                        class: 'form-control form-control-sm', min: 0 %>
+                    <% end %>
+                  </td>
+                  
+                  <td>
+                    <%= f.fields_for "parts[#{part.id}]" do |pf| %>
+                      <%= pf.number_field :reorder_point, value: part.reorder_point, 
+                                        class: 'form-control form-control-sm', min: 0 %>
+                    <% end %>
+                  </td>
+                  
+                  <td>
+                    <% if part.current_stock <= part.minimum_stock %>
+                      <span class="badge bg-danger">CRITICAL</span>
+                    <% elsif part.current_stock <= part.reorder_point %>
+                      <span class="badge bg-warning">LOW</span>
+                    <% else %>
+                      <span class="badge bg-success">OK</span>
+                    <% end %>
+                  </td>
+                  
+                  <td><small><%= part.updated_at.strftime('%m/%d/%Y') %></small></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="d-flex justify-content-center">
+          <%= will_paginate @parts %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<!-- JavaScript for quick calculations -->
+<script>
+  // Auto-calculate reorder point as 1.5x minimum stock
+  document.addEventListener('input', function(e) {
+    if (e.target.name.includes('[minimum_stock]')) {
+      const minStock = parseInt(e.target.value) || 0;
+      const reorderPointField = e.target.closest('tr').querySelector('input[name$="[reorder_point]"]');
+      if (reorderPointField && !reorderPointField.dataset.manual) {
+        reorderPointField.value = Math.ceil(minStock * 1.5);
+      }
+    }
+  });
+  
+  // Mark reorder point as manually edited
+  document.addEventListener('input', function(e) {
+    if (e.target.name.includes('[reorder_point]')) {
+      e.target.dataset.manual = 'true';
+    }
+  });
+</script>

@@ -1,0 +1,95 @@
+<%# app/views/vmcott/inventory/purchase_requests.html.erb %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>Purchase Requests</h1>
+      <p class="text-muted">Manage and track purchase requests for inventory items</p>
+    </div>
+    <div>
+      <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
+    </div>
+  </div>
+
+  <% if @purchase_requests.any? %>
+    <div class="card">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">All Purchase Requests</h5>
+        <div>
+          <span class="badge bg-secondary"><%= @purchase_requests.total_count %> total</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Part</th>
+                <th>Quantity</th>
+                <th>Status</th>
+                <th>Urgency</th>
+                <th>Requested By</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @purchase_requests.each do |pr| %>
+                <tr>
+                  <td>PR#<%= pr.id %></td>
+                  <td>
+                    <strong><%= pr.part&.name || 'Unknown' %></strong>
+                    <% if pr.part&.part_number %>
+                      <br><small class="text-muted"><%= pr.part.part_number %></small>
+                    <% end %>
+                  </td>
+                  <td><%= pr.quantity %></td>
+                  <td>
+                    <% badge_class = case pr.status
+                       when 'approved' then 'success'
+                       when 'rejected' then 'danger'
+                       when 'pending' then 'warning'
+                       else 'secondary'
+                       end %>
+                    <span class="badge bg-<%= badge_class %>">
+                      <%= pr.status.titleize %>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge bg-<%= pr.urgency == 'high' ? 'danger' : 'warning' %>">
+                      <%= pr.urgency.titleize %>
+                    </span>
+                  </td>
+                  <td><%= pr.requested_by&.name || pr.requested_by&.email || 'System' %></td>
+                  <td><%= time_ago_in_words(pr.created_at) %> ago</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to 'View', pr, class: 'btn btn-outline-primary' %>
+                      <% if pr.pending? %>
+                        <%= link_to 'Approve', approve_purchase_request_path(pr), 
+                              method: :post, 
+                              class: 'btn btn-sm btn-success',
+                              data: { confirm: 'Approve this purchase request?' } %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-center mt-3">
+          <%= paginate @purchase_requests %>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <h4 class="text-muted mb-3">No Purchase Requests</h4>
+        <p class="text-muted mb-4">No purchase requests have been created yet.</p>
+        <%= link_to 'Back to Inventory', vmcott_inventory_dashboard_path, class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>

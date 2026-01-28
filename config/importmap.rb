@@ -14,3 +14,6 @@ pin_all_from "app/javascript/controllers", under: "controllers"
 # External dependencies
 pin "@nathanvda/cocoon", to: "@nathanvda--cocoon.js"
 pin "jquery", to: "jquery.js"
+
+# Add Bootstrap - Use the bundle version (includes Popper)
+pin "bootstrap", to: "https://ga.jspm.io/npm:bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"

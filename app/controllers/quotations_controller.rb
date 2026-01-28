@@ -8,9 +8,10 @@ class QuotationsController < ApplicationController
                                         :duplicate, :send_email, :accept_items, :reject_items,
                                         :send_acceptance, :acceptance_summary, :submit_to_agency,
                                         :convert_to_po, :process_item_acceptance, :assign_jobs,
-                                        :update_jobs]
+                                        :update_jobs, :inventory_status, :create_purchase_request]
   before_action :authorize_access, only: [:show, :edit, :update, :destroy, :send_to_vendor, 
-                                          :duplicate, :print, :email, :send_email, :acceptance_summary]
+                                          :duplicate, :print, :email, :send_email, :acceptance_summary,
+                                          :inventory_status, :create_purchase_request]
   before_action :authorize_finance, only: [:accept, :reject, :convert_to_purchase_order]
   before_action :set_agency_and_vehicles, only: [:new, :create, :edit, :update]
   before_action :load_job_templates, only: [:new, :edit, :create, :update]
@@ -182,6 +183,96 @@ class QuotationsController < ApplicationController
     load_job_templates
     
     render :new
+  end
+
+  # GET /quotations/inventory_check - Check inventory before creating quotation
+  def inventory_check
+    @rfq = Rfq.find(params[:rfq_id])
+    @quotation = Quotation.new(rfq_id: @rfq.id)
+    
+    # Check inventory for job templates that might be used
+    @job_templates = JobTemplate.where(agency_id: current_user.agency_id).active
+    @missing_parts = {}
+    
+    @job_templates.each do |template|
+      missing = template.missing_parts
+      @missing_parts[template.id] = missing if missing.any?
+    end
+    
+    render :inventory_check
+  end
+
+  # GET /quotations/1/inventory_status
+  def inventory_status
+    @quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part)
+    @missing_parts = []
+    
+    @quotation_jobs.each do |job|
+      job.quotation_job_parts.each do |job_part|
+        part = job_part.part
+        next unless part
+        
+        unless part.can_fulfill?(job_part.quantity)
+          @missing_parts << {
+            job_name: job.name,
+            part_name: part.name,
+            part_number: part.part_number,
+            needed: job_part.quantity,
+            available: part.current_stock,
+            shortfall: job_part.quantity - part.current_stock
+          }
+        end
+      end
+    end
+    
+    render :inventory_status
+  end
+
+  # POST /quotations/1/create_purchase_request
+  def create_purchase_request
+    # Gather all missing parts from quotation
+    quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part)
+    missing_parts = []
+    
+    quotation_jobs.each do |job|
+      job.quotation_job_parts.each do |job_part|
+        part = job_part.part
+        next unless part && !part.can_fulfill?(job_part.quantity)
+        
+        missing_parts << {
+          part: part,
+          needed: job_part.quantity,
+          shortfall: job_part.quantity - part.current_stock
+        }
+      end
+    end
+    
+    if missing_parts.empty?
+      redirect_to @quotation, notice: 'All parts are in stock.'
+      return
+    end
+    
+    # Create purchase order for missing parts
+    purchase_order = PurchaseOrder.create!(
+      po_number: "PO-QTN-#{@quotation.quote_number}-#{SecureRandom.hex(4).upcase}",
+      vendor: 'Multiple Suppliers',
+      status: 'draft',
+      created_by: current_user,
+      notes: "Auto-generated for missing parts in quotation #{@quotation.quote_number}"
+    )
+    
+    missing_parts.each do |item|
+      purchase_order.purchase_order_items.create!(
+        part_id: item[:part].id,
+        description: "#{item[:part].name} - #{item[:part].part_number}",
+        quantity: item[:shortfall],
+        unit_price: item[:part].cost_price || item[:part].current_price,
+        notes: "For quotation #{@quotation.quote_number}, job requires #{item[:needed]}, only #{item[:part].current_stock} available"
+      )
+    end
+    
+    redirect_to purchase_order_path(purchase_order), 
+                notice: "Purchase order created for #{missing_parts.count} missing parts."
   end
 
   # GET /quotations/1/accept_items - For agencies to accept/reject specific items

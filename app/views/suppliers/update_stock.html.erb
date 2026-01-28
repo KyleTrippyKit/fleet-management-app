@@ -1,0 +1,182 @@
+<%# app/views/suppliers/update_stock.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><%= link_to 'Vendors', suppliers_path %></li>
+          <li class="breadcrumb-item"><%= link_to @supplier.name, supplier_path(@supplier) %></li>
+          <li class="breadcrumb-item active">Update Stock</li>
+        </ol>
+      </nav>
+      
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h3 mb-1">Update Stock - <%= @supplier.name %></h1>
+          <p class="text-muted mb-0">Update stock levels for items from this vendor</p>
+        </div>
+        <div>
+          <%= link_to 'Add New Item', new_inventory_item_path(supplier_id: @supplier.id), 
+                class: 'btn btn-primary' %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_with url: update_stock_supplier_path(@supplier), method: :get, local: true, class: "row g-3" do |f| %>
+        <div class="col-md-8">
+          <input type="text" 
+                 name="search" 
+                 class="form-control" 
+                 placeholder="Search items by name or part number..."
+                 value="<%= params[:search] %>"
+                 data-controller="autocomplete"
+                 data-autocomplete-url="<%= search_items_supplier_path(@supplier) %>">
+        </div>
+        <div class="col-md-4">
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Search</button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Stock Update Form -->
+  <%= form_with url: process_stock_update_supplier_path(@supplier), method: :post, local: true do |f| %>
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Stock Adjustments</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Current Stock</th>
+                <th>Minimum</th>
+                <th>Adjustment</th>
+                <th>New Stock</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if @parts.empty? %>
+                <tr>
+                  <td colspan="6" class="text-center py-4">
+                    <i class="bi bi-box-seam text-muted fs-1 mb-3"></i>
+                    <h4>No items found</h4>
+                    <p class="text-muted">
+                      This vendor doesn't have any inventory items yet.
+                      <%= link_to 'Add your first item', new_inventory_item_path(supplier_id: @supplier.id) %>.
+                    </p>
+                  </td>
+                </tr>
+              <% else %>
+                <% @parts.each do |part| %>
+                  <tr>
+                    <td>
+                      <strong><%= part.name %></strong>
+                      <br><small class="text-muted"><code><%= part.part_number %></code></small>
+                    </td>
+                    <td>
+                      <span class="badge bg-<%= part.current_stock <= part.minimum_stock ? 'warning' : 'success' %>">
+                        <%= part.current_stock %>
+                      </span>
+                    </td>
+                    <td><%= part.minimum_stock %></td>
+                    <td style="width: 200px;">
+                      <div class="input-group input-group-sm">
+                        <button type="button" class="btn btn-outline-secondary" 
+                                onclick="adjustQuantity('<%= part.id %>', -1)">-</button>
+                        <input type="number" 
+                               name="adjustments[<%= part.id %>][quantity]" 
+                               id="quantity-<%= part.id %>"
+                               value="0" 
+                               min="-<%= part.current_stock %>"
+                               class="form-control text-center">
+                        <button type="button" class="btn btn-outline-secondary"
+                                onclick="adjustQuantity('<%= part.id %>', 1)">+</button>
+                      </div>
+                    </td>
+                    <td>
+                      <span id="new-stock-<%= part.id %>" class="fw-bold">
+                        <%= part.current_stock %>
+                      </span>
+                    </td>
+                    <td>
+                      <input type="text" 
+                             name="adjustments[<%= part.id %>][notes]" 
+                             class="form-control form-control-sm" 
+                             placeholder="Reason for adjustment...">
+                    </td>
+                  </tr>
+                <% end %>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <% if @parts.any? %>
+        <div class="card-footer">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="create-pr" name="create_pr" value="1">
+                <label class="form-check-label" for="create-pr">
+                  Create purchase request for negative adjustments
+                </label>
+              </div>
+            </div>
+            <div>
+              <%= f.submit 'Save Adjustments', class: 'btn btn-primary', data: { turbo_confirm: 'Save all stock adjustments?' } %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<%= javascript_tag do %>
+  function adjustQuantity(partId, change) {
+    const input = document.getElementById(`quantity-${partId}`);
+    const newStock = document.getElementById(`new-stock-${partId}`);
+    const currentValue = parseInt(input.value) || 0;
+    const minValue = parseInt(input.min) || -999;
+    
+    let newValue = currentValue + change;
+    if (newValue < minValue) newValue = minValue;
+    
+    input.value = newValue;
+    
+    // Update new stock display
+    const parts = <%= raw @parts.to_json(only: [:id, :current_stock]) %>;
+    const part = parts.find(p => p.id == partId);
+    if (part) {
+      newStock.textContent = part.current_stock + newValue;
+      newStock.className = part.current_stock + newValue <= 0 ? 'fw-bold text-danger' : 'fw-bold';
+    }
+  }
+  
+  // Initialize quantity inputs
+  document.addEventListener('turbo:load', function() {
+    const parts = <%= raw @parts.to_json(only: [:id, :current_stock]) %>;
+    parts.forEach(part => {
+      const input = document.getElementById(`quantity-${part.id}`);
+      const newStock = document.getElementById(`new-stock-${part.id}`);
+      if (input && newStock) {
+        input.addEventListener('input', function() {
+          const adjustment = parseInt(this.value) || 0;
+          newStock.textContent = part.current_stock + adjustment;
+          newStock.className = part.current_stock + adjustment <= 0 ? 'fw-bold text-danger' : 'fw-bold';
+        });
+      }
+    });
+  });
+<% end %>

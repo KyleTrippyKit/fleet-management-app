@@ -4,8 +4,8 @@ class RfqMailer < ApplicationMailer
     @agency = rfq.requesting_agency
     
     mail(
-      to: @agency.email,  # Agency contact
-      cc: 'vmcott@example.com',  # VMCOTT
+      to: @agency.email.presence || 'vmcott@example.com',
+      cc: 'vmcott@example.com',
       subject: "New RFQ Created: #{rfq.rfq_number}"
     )
   end
@@ -14,8 +14,15 @@ class RfqMailer < ApplicationMailer
     @rfq = rfq
     @agency = rfq.requesting_agency
     
+    # Determine recipient based on status
+    recipient_email = if @rfq.status == 'submitted'
+                       'vmcott@example.com'
+                     else
+                       @agency.email.presence || 'vmcott@example.com'
+                     end
+    
     mail(
-      to: @rfq.status == 'submitted' ? 'vmcott@example.com' : @agency.email,
+      to: recipient_email,
       subject: "RFQ Status Updated: #{rfq.rfq_number} - #{rfq.status.humanize}"
     )
   end

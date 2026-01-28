@@ -1,0 +1,196 @@
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h1 class="h3 mb-0">Add Inventory Item</h1>
+      <p class="text-muted">Add new part to inventory<% if @supplier %> for <%= @supplier.name %><% end %></p>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body">
+          <%= form_with(model: @part, local: true) do |form| %>
+            <% if @supplier %>
+              <%= form.hidden_field :supplier_id, value: @supplier.id %>
+            <% end %>
+            
+            <% if @part.errors.any? %>
+              <div class="alert alert-danger">
+                <h4><%= pluralize(@part.errors.count, "error") %> prohibited this item from being saved:</h4>
+                <ul>
+                  <% @part.errors.each do |error| %>
+                    <li><%= error.full_message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+            
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <%= form.label :name, "Part Name *", class: 'form-label' %>
+                <%= form.text_field :name, class: 'form-control', required: true %>
+              </div>
+              
+              <div class="col-md-6 mb-3">
+                <%= form.label :part_number, "Part Number", class: 'form-label' %>
+                <%= form.text_field :part_number, class: 'form-control' %>
+                <small class="text-muted">Leave blank to auto-generate</small>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <%= form.label :category, "Category", class: 'form-label' %>
+                <%= form.select :category, 
+                    @categories.presence || ['Engine', 'Brakes', 'Electrical', 'Suspension', 'Body', 'Interior'], 
+                    { include_blank: 'Select category' }, 
+                    class: 'form-select' %>
+              </div>
+              
+              <div class="col-md-6 mb-3">
+                <%= form.label :unit_of_measure, "Unit", class: 'form-label' %>
+                <%= form.select :unit_of_measure, 
+                    ['Each', 'Set', 'Meter', 'Liter', 'Kilogram'], 
+                    { include_blank: 'Select unit' }, 
+                    class: 'form-select' %>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= form.label :cost_price, "Cost Price (TTD) *", class: 'form-label' %>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <%= form.number_field :cost_price, 
+                      class: 'form-control', 
+                      step: '0.01', 
+                      min: 0, 
+                      required: true %>
+                </div>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <%= form.label :sale_price, "Sale Price (TTD)", class: 'form-label' %>
+                <div class="input-group">
+                  <span class="input-group-text">$</span>
+                  <%= form.number_field :sale_price, 
+                      class: 'form-control', 
+                      step: '0.01', 
+                      min: 0 %>
+                </div>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <%= form.label :current_stock, "Initial Stock", class: 'form-label' %>
+                <%= form.number_field :current_stock, 
+                    class: 'form-control', 
+                    value: 0, 
+                    min: 0 %>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <%= form.label :minimum_stock, "Min Stock", class: 'form-label' %>
+                <%= form.number_field :minimum_stock, 
+                    class: 'form-control', 
+                    value: 5, 
+                    min: 0 %>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <%= form.label :reorder_point, "Reorder Point", class: 'form-label' %>
+                <%= form.number_field :reorder_point, 
+                    class: 'form-control', 
+                    value: 10, 
+                    min: 0 %>
+              </div>
+              
+              <div class="col-md-4 mb-3">
+                <%= form.label :location_in_warehouse, "Location", class: 'form-label' %>
+                <%= form.text_field :location_in_warehouse, class: 'form-control' %>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <%= form.label :description, "Description", class: 'form-label' %>
+              <%= form.text_area :description, class: 'form-control', rows: 3 %>
+            </div>
+            
+            <div class="mb-4">
+              <div class="form-check form-switch">
+                <%= form.check_box :is_consumable, class: 'form-check-input' %>
+                <%= form.label :is_consumable, "Consumable Item", class: 'form-check-label' %>
+                <small class="text-muted d-block">Check if this is a consumable part (oil, filters, etc.)</small>
+              </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+              <%= link_to 'Cancel', @supplier ? supplier_path(@supplier) : parts_path, class: 'btn btn-outline-secondary' %>
+              <%= form.submit 'Add to Inventory', class: 'btn btn-primary' %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Supplier Info</h5>
+        </div>
+        <div class="card-body">
+          <% if @supplier %>
+            <div class="d-flex align-items-start mb-3">
+              <div class="bg-primary bg-opacity-10 p-2 rounded me-3">
+                <i class="bi bi-building text-primary"></i>
+              </div>
+              <div>
+                <h6 class="fw-bold mb-1"><%= @supplier.name %></h6>
+                <% if @supplier.contact_person %>
+                  <p class="text-muted small mb-1">
+                    <i class="bi bi-person me-1"></i>
+                    <%= @supplier.contact_person %>
+                  </p>
+                <% end %>
+                <% if @supplier.email %>
+                  <p class="text-muted small mb-1">
+                    <i class="bi bi-envelope me-1"></i>
+                    <%= @supplier.email %>
+                  </p>
+                <% end %>
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <small class="text-muted">This part will be linked to:</small>
+              <ul class="list-unstyled mt-2">
+                <li class="mb-1">
+                  <i class="bi bi-link text-success me-2"></i>
+                  <small>Supplier: <%= @supplier.name %></small>
+                </li>
+                <li class="mb-1">
+                  <i class="bi bi-truck text-success me-2"></i>
+                  <small>Future orders will default to this supplier</small>
+                </li>
+                <li>
+                  <i class="bi bi-box-seam text-success me-2"></i>
+                  <small>Stock tracking will be supplier-specific</small>
+                </li>
+              </ul>
+            </div>
+          <% else %>
+            <p class="text-muted">No supplier selected. Part will be added to general inventory.</p>
+            <div class="alert alert-info">
+              <small>
+                <i class="bi bi-info-circle me-1"></i>
+                To link to a supplier, go to the supplier's page and click "Add Part"
+              </small>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

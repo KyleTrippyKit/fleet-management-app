@@ -1,0 +1,175 @@
+<%# app/views/vmcott/inventory/stock_history.html.erb %>
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><%= link_to 'VMCOTT Dashboard', vmcott_dashboard_path %></li>
+          <li class="breadcrumb-item"><%= link_to 'Inventory', vmcott_inventory_dashboard_path %></li>
+          <li class="breadcrumb-item active" aria-current="page">Stock History: <%= @part.name %></li>
+        </ol>
+      </nav>
+      <h1 class="h3">Stock History: <%= @part.name %></h1>
+      <p class="text-muted">
+        Part #: <%= @part.part_number || 'N/A' %> | 
+        Category: <%= @part.category || 'N/A' %> |
+        Supplier: <%= @part.supplier&.name || 'N/A' %>
+      </p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Part Summary</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th>Current Stock:</th>
+              <td class="text-end">
+                <span class="badge bg-<%= stock_badge_color(@part.current_stock, @part.minimum_stock) %>">
+                  <%= @part.current_stock %>
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <th>Minimum Stock:</th>
+              <td class="text-end"><%= @part.minimum_stock %></td>
+            </tr>
+            <tr>
+              <th>Reorder Point:</th>
+              <td class="text-end"><%= @part.reorder_point %></td>
+            </tr>
+            <tr>
+              <th>Cost Price:</th>
+              <td class="text-end"><%= number_to_currency(@part.cost_price) if @part.cost_price %></td>
+            </tr>
+            <tr>
+              <th>Selling Price:</th>
+              <td class="text-end"><%= number_to_currency(@part.price) if @part.price %></td>
+            </tr>
+            <tr>
+              <th>Stock Value:</th>
+              <td class="text-end"><%= number_to_currency(@part.stock_value) %></td>
+            </tr>
+          </table>
+          
+          <%= link_to 'Adjust Stock', vmcott_inventory_adjust_stock_path(@part), class: 'btn btn-sm btn-info w-100 mb-2' %>
+          <%= link_to 'Create Purchase Request', vmcott_inventory_create_purchase_request_path(@part), class: 'btn btn-sm btn-warning w-100' %>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Period Summary</h5>
+        </div>
+        <div class="card-body">
+          <% if @summary %>
+            <table class="table table-sm">
+              <tr>
+                <th>Total In:</th>
+                <td class="text-end text-success"><%= @summary[:total_in] %></td>
+              </tr>
+              <tr>
+                <th>Total Out:</th>
+                <td class="text-end text-danger"><%= @summary[:total_out] %></td>
+              </tr>
+              <tr>
+                <th>Net Change:</th>
+                <td class="text-end <%= @summary[:net_change] >= 0 ? 'text-success' : 'text-danger' %>">
+                  <%= @summary[:net_change] >= 0 ? '+' : '' %><%= @summary[:net_change] %>
+                </td>
+              </tr>
+              <tr>
+                <th>Average Price:</th>
+                <td class="text-end"><%= number_to_currency(@summary[:average_price]) if @summary[:average_price] %></td>
+              </tr>
+              <tr>
+                <th>Total Value:</th>
+                <td class="text-end"><%= number_to_currency(@summary[:total_value]) if @summary[:total_value] %></td>
+              </tr>
+            </table>
+          <% else %>
+            <p class="text-muted text-center">No data available</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Stock Transactions</h5>
+          <div>
+            <span class="badge bg-secondary me-2"><%= @transactions.total_count %> transactions</span>
+            <%= form_tag vmcott_inventory_stock_history_path(@part), method: :get, class: 'd-inline' do %>
+              <div class="input-group input-group-sm">
+                <%= date_field_tag :start_date, params[:start_date], class: 'form-control form-control-sm', placeholder: 'Start Date' %>
+                <%= date_field_tag :end_date, params[:end_date], class: 'form-control form-control-sm', placeholder: 'End Date' %>
+                <%= submit_tag 'Filter', class: 'btn btn-sm btn-outline-secondary' %>
+                <%= link_to 'Reset', vmcott_inventory_stock_history_path(@part), class: 'btn btn-sm btn-outline-secondary' %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div class="card-body">
+          <% if @transactions.any? %>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                    <th>User</th>
+                    <th>Reference</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @transactions.each do |transaction| %>
+                    <tr>
+                      <td><%= l(transaction.created_at, format: :short) %></td>
+                      <td>
+                        <span class="badge bg-<%= transaction.quantity.positive? ? 'success' : 'danger' %>">
+                          <%= transaction.transaction_type.humanize %>
+                        </span>
+                      </td>
+                      <td class="<%= transaction.quantity.positive? ? 'text-success' : 'text-danger' %>">
+                        <%= transaction.quantity.positive? ? '+' : '' %><%= transaction.quantity %>
+                      </td>
+                      <td><%= number_to_currency(transaction.unit_price) if transaction.unit_price %></td>
+                      <td><%= number_to_currency(transaction.total_price) if transaction.total_price %></td>
+                      <td><%= transaction.user&.name || 'System' %></td>
+                      <td>
+                        <% if transaction.reference %>
+                          <%= transaction.reference.class.name %> #<%= transaction.reference.id %>
+                        <% else %>
+                          N/A
+                        <% end %>
+                      </td>
+                      <td><%= transaction.notes %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="d-flex justify-content-center">
+              <%= paginate @transactions %>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <p class="text-muted">No stock transactions found for the selected period.</p>
+              <%= link_to 'View All Transactions', vmcott_inventory_stock_history_path(@part), class: 'btn btn-sm btn-outline-secondary' %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

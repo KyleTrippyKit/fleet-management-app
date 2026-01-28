@@ -1,0 +1,229 @@
+<%# app/views/vendor_invoices/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">Vendor Invoices</h1>
+      <p class="text-muted">All invoices from your vendors</p>
+    </div>
+    <div>
+      <%= link_to 'Vendor List', suppliers_path, class: 'btn btn-outline-primary me-2' %>
+      <%= link_to 'New Invoice Upload', '#', 
+            class: 'btn btn-primary', 
+            data: { bs_toggle: 'modal', bs_target: '#uploadModal' } %>
+    </div>
+  </div>
+
+  <!-- Search and Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_with url: vendor_invoices_path, method: :get, local: true, class: "row g-3" do |f| %>
+        <div class="col-md-3">
+          <input type="text" 
+                 name="q" 
+                 class="form-control" 
+                 placeholder="Search invoice #, vendor..."
+                 value="<%= params[:q] %>"
+                 data-controller="autocomplete"
+                 data-autocomplete-url="<%= search_vendor_invoices_path %>">
+        </div>
+        <div class="col-md-3">
+          <%= select_tag :status, 
+                options_for_select([
+                  ['All Statuses', ''],
+                  ['Pending', 'pending'],
+                  ['Reviewed', 'reviewed'],
+                  ['Paid', 'paid'],
+                  ['Disputed', 'disputed']
+                ], params[:status]), 
+                class: 'form-select' %>
+        </div>
+        <div class="col-md-3">
+          <%= select_tag :supplier_id, 
+                options_from_collection_for_select(Supplier.active.order(:name), :id, :name, params[:supplier_id]),
+                include_blank: 'All Vendors',
+                class: 'form-select' %>
+        </div>
+        <div class="col-md-3">
+          <div class="d-grid">
+            <button type="submit" class="btn btn-primary">Filter</button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Invoices Table -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Vendor</th>
+              <th>Date</th>
+              <th>Due Date</th>
+              <th>Amount</th>
+              <th>PO #</th>
+              <th>Status</th>
+              <th>Days</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @vendor_invoices.each do |invoice| %>
+              <tr>
+                <td>
+                  <strong><%= invoice.invoice_number %></strong>
+                  <% if invoice.invoice_scan.attached? %>
+                    <i class="bi bi-paperclip text-muted ms-1"></i>
+                  <% end %>
+                </td>
+                <td>
+                  <%= link_to invoice.supplier.name, supplier_path(invoice.supplier) %>
+                </td>
+                <td><%= invoice.invoice_date.strftime('%d/%m/%Y') %></td>
+                <td class="<%= invoice.due_date < Date.today && !invoice.paid? ? 'text-danger fw-bold' : '' %>">
+                  <%= invoice.due_date.strftime('%d/%m/%Y') %>
+                </td>
+                <td><strong><%= number_to_currency(invoice.amount) %></strong></td>
+                <td>
+                  <% if invoice.purchase_order %>
+                    <%= link_to invoice.purchase_order.po_number, 
+                        purchase_order_path(invoice.purchase_order),
+                        class: 'badge bg-info text-decoration-none' %>
+                  <% else %>
+                    <span class="text-muted">—</span>
+                  <% end %>
+                </td>
+                <td>
+                  <span class="badge bg-<%= invoice_status_color(invoice.status) %>">
+                    <%= invoice.status.titleize %>
+                  </span>
+                </td>
+                <td>
+                  <% if invoice.due_date && !invoice.paid? %>
+                    <% if invoice.due_date < Date.today %>
+                      <span class="text-danger">
+                        <%= (Date.today - invoice.due_date).to_i %> days overdue
+                      </span>
+                    <% else %>
+                      <span class="text-success">
+                        Due in <%= (invoice.due_date - Date.today).to_i %> days
+                      </span>
+                    <% end %>
+                  <% end %>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <%= link_to 'View', vendor_invoice_path(invoice), 
+                          class: 'btn btn-outline-primary' %>
+                    <% if invoice.invoice_scan.attached? %>
+                      <%= link_to 'Scan', rails_blob_path(invoice.invoice_scan, disposition: 'inline'),
+                            target: '_blank', class: 'btn btn-outline-info' %>
+                    <% end %>
+                    <% if invoice.pending? || invoice.reviewed? %>
+                      <%= button_to 'Mark Paid', mark_paid_vendor_invoice_path(invoice),
+                            method: :post,
+                            class: 'btn btn-outline-success btn-sm',
+                            form: { class: 'd-inline' },
+                            data: { turbo_confirm: "Mark invoice #{invoice.invoice_number} as paid?" } %>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+      <% if @vendor_invoices.empty? %>
+        <div class="text-center py-5">
+          <i class="bi bi-receipt text-muted fs-1 mb-3"></i>
+          <h4>No invoices found</h4>
+          <p class="text-muted">Upload your first vendor invoice to get started.</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Upload Vendor Invoice</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <%= form_with(model: VendorInvoice.new, url: vendor_invoices_path, local: true) do |f| %>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <%= f.label :supplier_id, 'Vendor *', class: 'form-label' %>
+              <%= f.collection_select :supplier_id, 
+                    Supplier.active.order(:name), :id, :name,
+                    { include_blank: 'Select Vendor' },
+                    class: 'form-select', required: true %>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <%= f.label :invoice_number, 'Invoice Number *', class: 'form-label' %>
+              <%= f.text_field :invoice_number, class: 'form-control', required: true %>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <%= f.label :invoice_date, 'Invoice Date *', class: 'form-label' %>
+              <%= f.date_field :invoice_date, class: 'form-control', 
+                    required: true, value: Date.today.to_s %>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <%= f.label :amount, 'Amount (TTD) *', class: 'form-label' %>
+              <%= f.number_field :amount, step: '0.01', class: 'form-control', required: true %>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <%= f.label :purchase_order_id, 'Purchase Order', class: 'form-label' %>
+              <%= f.collection_select :purchase_order_id, 
+                    PurchaseOrder.order(created_at: :desc).limit(50), 
+                    :id, :po_number,
+                    { include_blank: 'Link to PO (optional)' },
+                    class: 'form-select' %>
+            </div>
+            
+            <div class="col-md-6 mb-3">
+              <%= f.label :invoice_scan, 'Scanned Invoice', class: 'form-label' %>
+              <%= f.file_field :invoice_scan, class: 'form-control',
+                    accept: 'image/*,.pdf,.doc,.docx' %>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <%= f.label :description, 'Description', class: 'form-label' %>
+            <%= f.text_area :description, class: 'form-control', rows: 2 %>
+          </div>
+          
+          <div class="d-grid">
+            <%= f.submit 'Upload Invoice', class: 'btn btn-primary' %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# Helper for status badge colors %>
+<% def invoice_status_color(status) %>
+  <% case status %>
+  <% when 'paid' %> 'success'
+  <% when 'reviewed' %> 'info'
+  <% when 'pending' %> 'warning'
+  <% when 'disputed' %> 'danger'
+  <% else 'secondary' %>
+  <% end %>
+<% end %>

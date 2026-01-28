@@ -1,48 +1,83 @@
 <%# app/views/job_templates/_job_card.html.erb %>
-<% template = local_assigns[:job_template] %>
-<div class="card job-card mb-3" data-id="<%= template.id %>">
-  <div class="card-header">
-    <div class="d-flex justify-content-between align-items-center">
-      <h6 class="mb-0"><%= template.name %></h6>
-      <span class="badge bg-secondary"><%= template.category %></span>
-    </div>
-  </div>
+<div class="card h-100 border-light shadow-sm">
   <div class="card-body">
-    <p class="card-text"><%= template.description %></p>
-    <div class="row">
-      <div class="col-md-6">
+    <div class="d-flex justify-content-between align-items-start mb-3">
+      <div>
+        <h5 class="card-title mb-1">
+          <%= link_to job_template.name, job_template, class: 'text-decoration-none text-dark' %>
+        </h5>
+        <% if job_template.category.present? %>
+          <span class="badge bg-light text-dark border"><%= job_template.category %></span>
+        <% end %>
+      </div>
+      <span class="badge bg-<%= job_template.is_active ? 'success' : 'secondary' %>">
+        <%= job_template.is_active ? 'Active' : 'Inactive' %>
+      </span>
+    </div>
+    
+    <p class="card-text text-muted small mb-3">
+      <%= truncate(job_template.description, length: 100) %>
+    </p>
+    
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
         <small class="text-muted">
-          <strong>Standard Hours:</strong> <%= template.standard_hours || 'N/A' %>
+          <i class="bi bi-clock"></i> <%= number_with_precision(job_template.standard_hours, precision: 1) %> hrs
+        </small>
+        <small class="text-muted ms-3">
+          <i class="bi bi-currency-dollar"></i> <%= number_to_currency(job_template.labor_rate_per_hour) %>/hr
         </small>
       </div>
-      <div class="col-md-6">
+      <div>
         <small class="text-muted">
-          <strong>Labor Rate:</strong> $<%= number_with_precision(template.labor_rate_per_hour, precision: 2) %>/hr
+          <i class="bi bi-box-seam"></i> <%= job_template.parts.count %> parts
         </small>
       </div>
     </div>
     
-    <% if template.job_template_parts.any? %>
-      <hr class="my-2">
-      <p class="mb-1"><strong>Default Parts:</strong></p>
-      <ul class="list-unstyled mb-0">
-        <% template.job_template_parts.includes(:part).limit(3).each do |job_part| %>
+    <div class="d-flex justify-content-between">
+      <div class="btn-group">
+        <%= link_to edit_job_template_path(job_template), 
+              class: 'btn btn-sm btn-outline-secondary',
+              title: 'Edit' do %>
+          <i class="bi bi-pencil"></i>
+        <% end %>
+        
+        <!-- UPDATED LINK: Added format: :js and data-turbo="false" -->
+        <%= link_to 'Add to Quote', 
+              select_quotation_job_template_path(job_template, format: :js), 
+              remote: true, 
+              class: 'btn btn-sm btn-primary add-to-quotation-btn',
+              data: { 
+                template_id: job_template.id,
+                template_name: job_template.name,
+                turbo: false 
+              } %>
+      </div>
+      
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-light text-dark border" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-three-dots"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
           <li>
-            <small>
-              <%= job_part.part.name %> x <%= job_part.quantity %>
-            </small>
+            <%= link_to 'Usage Stats', usage_stats_job_template_path(job_template), 
+                  class: 'dropdown-item' %>
           </li>
-        <% end %>
-        <% if template.job_template_parts.count > 3 %>
-          <li><small>...and <%= template.job_template_parts.count - 3 %> more</small></li>
-        <% end %>
-      </ul>
-    <% end %>
-  </div>
-  <div class="card-footer text-end">
-    <button type="button" class="btn btn-sm btn-outline-primary add-template-btn"
-            data-template-id="<%= template.id %>">
-      Add to Quotation
-    </button>
+          <li>
+            <%= link_to 'Duplicate', duplicate_job_template_path(job_template), 
+                  method: :post, 
+                  class: 'dropdown-item' %>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <%= link_to 'Delete', job_template, 
+                  method: :delete, 
+                  class: 'dropdown-item text-danger',
+                  data: { confirm: 'Are you sure?' } %>
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
 </div>

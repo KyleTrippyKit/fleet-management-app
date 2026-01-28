@@ -49,14 +49,31 @@ Rails.application.configure do
   # Increase variant cache size
   config.active_storage.routes_prefix = '/rails/active_storage'
   
-  # Don't care if the mailer can't send.
-  config.action_mailer.raise_delivery_errors = false
+  # ============================================
+  # EMAIL CONFIGURATION
+  # ============================================
+  
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.perform_deliveries = true
+  config.action_mailer.raise_delivery_errors = true
+  config.action_mailer.default_options = { from: 'inventory@vmcott.com' }
+  config.action_mailer.smtp_settings = {
+    address: 'sandbox.smtp.mailtrap.io',
+    port: 587,
+    domain: 'vmcott.gov.tt',
+    user_name: '00b0b0ddf3f1f1',
+    password: 'd2f9abfa15fde1',
+    authentication: 'plain',
+    enable_starttls_auto: true
+  }
+  config.action_mailer.default_url_options = { 
+    host: 'localhost', 
+    port: 3000,
+    protocol: 'http'
+  }
 
   # Make template changes take effect immediately.
   config.action_mailer.perform_caching = false
-
-  # Set localhost to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "localhost", port: 3000 }
 
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log

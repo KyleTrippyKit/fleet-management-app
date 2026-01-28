@@ -1,3 +1,4 @@
+# config/application.rb
 require_relative "boot"
 
 require "rails/all"
@@ -22,6 +23,9 @@ module ActivePlusDemo
 
     # Active Storage default service
     config.active_storage.service = ENV.fetch("ACTIVE_STORAGE_SERVICE", "local").to_sym
+    
+    # Active Job queue adapter
+    config.active_job.queue_adapter = :sidekiq
     
     # Demo mode toggle
     config.x.demo_mode = Rails.env.development?

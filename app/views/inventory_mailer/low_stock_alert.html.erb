@@ -1,0 +1,102 @@
+<!-- app/views/inventory_mailer/low_stock_alert.html.erb -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; background-color: #f5f5f5; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 25px; border-radius: 8px; text-align: center; }
+    .content { padding: 25px 0; }
+    .critical-item { background: #fff3f3; border-left: 5px solid #dc3545; padding: 15px; margin: 15px 0; border-radius: 0 5px 5px 0; }
+    .stats { display: flex; justify-content: space-between; margin: 25px 0; gap: 15px; }
+    .stat-box { background: white; padding: 20px; border-radius: 8px; text-align: center; flex: 1; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; }
+    .stat-number { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #666; text-align: center; font-size: 14px; }
+    .btn { display: inline-block; background: #dc3545; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; }
+    .btn:hover { background: #c82333; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    td { padding: 10px 12px; border-bottom: 1px solid #e0e0e0; }
+    .urgent { color: #dc3545; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 style="margin: 0; font-size: 28px;">🚨 VMCOTT Critical Stock Alert</h1>
+      <p style="margin: 10px 0 0 0; opacity: 0.9;">Date: <%= Time.current.strftime('%B %d, %Y at %I:%M %p') %></p>
+    </div>
+    
+    <div class="content">
+      <h2>Immediate Attention Required</h2>
+      <p>Dear <%= @user.name || @user.email.split('@').first.titleize %>,</p>
+      
+      <p>The VMCOTT Trinidad inventory system has detected <strong class="urgent"><%= @total_critical %> critical parts</strong> that require immediate reordering. This represents <%= ((@total_critical.to_f / @low_stock_count) * 100).round(0) %>% of all low-stock items.</p>
+      
+      <div class="stats">
+        <div class="stat-box">
+          <div class="stat-number" style="color: #dc3545;"><%= @total_critical %></div>
+          <div>Critical Parts</div>
+          <small>(Below minimum stock)</small>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" style="color: #ffc107;"><%= @low_stock_count %></div>
+          <div>Low Stock Parts</div>
+          <small>(Below reorder point)</small>
+        </div>
+        <div class="stat-box">
+          <div class="stat-number" style="color: #28a745;"><%= @purchase_requests_created %></div>
+          <div>PRs Created</div>
+          <small>(Auto-generated)</small>
+        </div>
+      </div>
+      
+      <% if @critical_parts.any? %>
+        <h3>Most Critical Parts (First 10):</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Part Name</th>
+              <th>Current Stock</th>
+              <th>Minimum Required</th>
+              <th>Shortfall</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @critical_parts.first(10).each do |part| %>
+              <tr>
+                <td><strong><%= part.name %></strong></td>
+                <td class="urgent"><%= part.current_stock %></td>
+                <td><%= part.minimum_stock %></td>
+                <td class="urgent"><%= part.minimum_stock - part.current_stock %></td>
+                <td><span class="urgent">CRITICAL</span></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+        
+        <% if @critical_parts.count > 10 %>
+          <p style="text-align: center; font-style: italic;">
+            ... and <%= @critical_parts.count - 10 %> more critical parts
+          </p>
+        <% end %>
+      <% end %>
+      
+      <div style="text-align: center; margin-top: 30px;">
+        <!-- FIXED LINE: Changed to simple text or hardcoded URL -->
+        <div class="btn" style="cursor: default; display: inline-block;">
+          Log into VMCOTT System to Review
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>This is an automated alert from the VMCOTT Trinidad Inventory System.</p>
+      <p>Vehicle Maintenance Company of Trinidad and Tobago | Inventory Management System</p>
+      <p>📍 Trinidad and Tobago | 📞 Contact: inventory@vmcott.gov.tt</p>
+    </div>
+  </div>
+</body>
+</html>

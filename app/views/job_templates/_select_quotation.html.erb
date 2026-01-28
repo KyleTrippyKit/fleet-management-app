@@ -1,0 +1,118 @@
+<%# app/views/job_templates/_select_quotation.html.erb %>
+<% if pending_quotations.any? %>
+  <div class="mb-4">
+    <div class="alert alert-info d-flex align-items-center mb-3">
+      <i class="bi bi-info-circle me-2"></i>
+      <div>
+        Select a quotation to add "<strong><%= template.name %></strong>" to:
+      </div>
+    </div>
+    
+    <div class="list-group mb-3">
+      <% pending_quotations.each do |quotation| %>
+        <div class="list-group-item list-group-item-action">
+          <div class="d-flex w-100 justify-content-between align-items-center">
+            <div class="flex-grow-1 me-3">
+              <div class="d-flex align-items-start mb-2">
+                <h6 class="mb-0 me-2">
+                  <strong class="text-primary"><%= quotation.quote_number %></strong>
+                </h6>
+                <span class="badge bg-<%= quotation.status == 0 ? 'warning' : 'info' %>">
+                  <%= quotation.status == 0 ? 'Pending' : 'Under Review' %>
+                </span>
+              </div>
+              
+              <div class="mb-1">
+                <%# USE .try to safely call the agency method %>
+                <% agency = quotation.try(:agency) %>
+                <% if agency %>
+                  <span class="badge bg-secondary me-2">
+                    <%= agency.try(:code) || 'N/A' %>
+                  </span>
+                  <small class="text-muted"><%= agency.try(:name) || 'No agency' %></small>
+                <% end %>
+              </div>
+              
+              <% if quotation.vehicle %>
+                <div class="mb-1">
+                  <i class="bi bi-truck me-1 text-muted"></i>
+                  <small class="text-muted">
+                    <%= quotation.vehicle.license_plate %>
+                    (<%= quotation.vehicle.make %> <%= quotation.vehicle.model %>)
+                  </small>
+                </div>
+              <% end %>
+              
+              <% if quotation.notes.present? %>
+                <div class="mt-1">
+                  <small class="text-muted">
+                    <i class="bi bi-chat-left-text me-1"></i>
+                    <%= truncate(quotation.notes, length: 80) %>
+                  </small>
+                </div>
+              <% end %>
+              
+              <div class="mt-2">
+                <small class="text-muted">
+                  <i class="bi bi-calendar me-1"></i>
+                  Created <%= time_ago_in_words(quotation.created_at) %> ago
+                </small>
+              </div>
+            </div>
+            
+            <div class="btn-group-vertical">
+              <button type="button" 
+                      class="btn btn-sm btn-outline-primary select-quotation-btn mb-1"
+                      data-template-id="<%= template.id %>"
+                      data-quotation-id="<%= quotation.id %>"
+                      data-quotation-number="<%= quotation.quote_number %>">
+                <i class="bi bi-plus-circle me-1"></i> Add & View
+              </button>
+              <button type="button" 
+                      class="btn btn-sm btn-primary quick-add-btn"
+                      data-template-id="<%= template.id %>"
+                      data-quotation-id="<%= quotation.id %>"
+                      data-quotation-number="<%= quotation.quote_number %>"
+                      title="Quick add without opening quotation">
+                <i class="bi bi-plus"></i> Quick Add
+              </button>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    
+    <div class="text-center">
+      <p class="text-muted small mb-2">
+        Don't see the right quotation?
+      </p>
+      <div class="btn-group">
+        <%= link_to 'Go to RFQ Inbox', rfqs_path, 
+              class: 'btn btn-outline-secondary btn-sm',
+              data: { turbo: false } %>
+        <%= link_to 'Create New Quotation', new_quotation_path, 
+              class: 'btn btn-outline-primary btn-sm',
+              data: { turbo: false } %>
+      </div>
+    </div>
+  </div>
+  
+<% else %>
+  <div class="text-center py-4">
+    <div class="mb-3">
+      <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+    </div>
+    <h5>No Pending Quotations Available</h5>
+    <p class="text-muted mb-4">
+      You don't have any pending quotations to add this template to.
+    </p>
+    <div class="d-flex justify-content-center gap-2">
+      <%= link_to 'Go to RFQ Inbox', rfqs_path, 
+            class: 'btn btn-primary',
+            data: { turbo: false } %>
+      <%= link_to 'Create New Quotation', new_quotation_path, 
+            class: 'btn btn-outline-secondary',
+            data: { turbo: false } %>
+    </div>
+  </div>
+<% end %>

@@ -1,5 +1,9 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH WORKING RFQ WORKFLOW
+# config/routes.rb - COMPLETE REVISED VERSION WITH GET ROUTE FOR PURCHASE REQUEST
+
 Rails.application.routes.draw do
+  get "stock_levels/index"
+  get "stock_levels/update_batch"
+  
   # ========================
   # Authentication - Use default Devise
   # ========================
@@ -81,7 +85,154 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # Vehicles with alert integration
+  # VENDOR & INVENTORY MANAGEMENT (ENHANCED VERSION)
+  # ========================
+  
+  # Vendors (Suppliers) - Enhanced with all features from first file
+  resources :suppliers do
+    collection do
+      get :search
+      get :export
+    end
+    
+    member do
+      # Invoice management
+      get :invoices
+      post :upload_invoice
+      
+      # Stock management
+      get :update_stock
+      post :process_stock_update
+      
+      # Inventory items
+      get :inventory_items
+      get :new_item_form
+      
+      # Analytics
+      get :spending_report
+      get :performance
+    end
+    
+    # Nested routes for vendor-specific management
+    resources :vendor_invoices, only: [:index, :create]
+    resources :vendor_parts, only: [:index, :create, :update]
+  end
+  
+  # Vendor invoices standalone - Enhanced with all features from first file
+  resources :vendor_invoices, except: [:new, :edit] do
+    collection do
+      get :search
+      get :aging_report
+      post :bulk_approve
+      get :export
+    end
+    
+    member do
+      post :mark_paid
+      post :mark_reviewed
+      post :dispute
+      get :download
+      post :sync_to_quickbooks
+    end
+  end
+
+  # Inventory items (vendor-specific creation) - Enhanced
+  resources :inventory_items, only: [:new, :create] do
+    collection do
+      get :search_items
+      get :new, path: 'new/:supplier_id', as: 'new_with_supplier'
+      post :create, path: 'create/:supplier_id', as: 'create_with_supplier'
+    end
+  end
+
+  # Vendor-specific inventory management
+  get 'suppliers/:supplier_id/search-items', to: 'inventory_items#search_items', as: 'search_items_supplier'
+
+  # Parts (existing - keep as is) - Enhanced with features from first file
+  resources :parts do
+    collection do
+      get :low_stock
+      get :consumables
+      post :import_csv
+      get :export_csv
+      get :reorder_suggestions
+      get :search_by_vendor
+    end
+    
+    member do
+      post :adjust_stock
+      post :create_purchase_request
+      get :stock_history
+      get :vendor_pricing
+    end
+  end
+
+  # Purchase Requests - Existing routes
+  resources :purchase_requests do
+    member do
+      post :approve
+      post :reject
+      post :mark_ordered
+      post :mark_received
+    end
+  end
+
+  # ========================
+  # VMCOTT Inventory Management Routes (ENHANCED)
+  # ========================
+  namespace :vmcott do
+    # Inventory Dashboard
+    get 'inventory_dashboard', to: 'inventory#dashboard', as: 'inventory_dashboard'
+    get 'inventory/low_stock', to: 'inventory#low_stock', as: 'inventory_low_stock'
+    get 'inventory/consumables', to: 'inventory#consumables', as: 'inventory_consumables'
+    get 'inventory/purchase_requests', to: 'inventory#purchase_requests', as: 'inventory_purchase_requests'
+    get 'inventory/reorder_suggestions', to: 'inventory#reorder_suggestions', as: 'inventory_reorder_suggestions'
+    
+    # Stock management
+    get 'inventory/adjust_stock/:id', to: 'inventory#adjust_stock', as: 'inventory_adjust_stock'
+    post 'inventory/adjust_stock/:id', to: 'inventory#adjust_stock'  # Process adjustment
+    
+    # Stock history
+    get 'inventory/stock_history/:id', to: 'inventory#stock_history', as: 'inventory_stock_history'
+    
+    # Purchase requests - ADDED GET ROUTE FOR FORM
+    get 'inventory/new_purchase_request/:id', to: 'inventory#new_purchase_request', as: 'inventory_new_purchase_request'
+    post 'inventory/create_purchase_request/:id', to: 'inventory#create_purchase_request', as: 'inventory_create_purchase_request'
+    post 'inventory/create_bulk_purchase_requests', to: 'inventory#create_bulk_purchase_requests', as: 'create_bulk_purchase_requests'
+    
+    # Vendor Management (New)
+    get 'vendor-management', to: 'suppliers#index', as: 'vendor_management'
+    get 'vendor-invoices', to: 'vendor_invoices#index', as: 'vendor_invoices'
+    
+    # Settings and Configuration
+    get 'labor_rates', to: 'settings#labor_rates', as: 'labor_rates'
+    post 'update_labor_rates', to: 'settings#update_labor_rates', as: 'update_labor_rates'
+    get 'invoice_management', to: 'invoice_management#index', as: 'invoice_management'
+    
+    # Internal POS System
+    resources :internal_pos, except: [:destroy] do
+      collection do
+        get 'from_po/:purchase_order_id', to: 'internal_pos#from_po', as: :from_po
+        get :active_work, as: 'active_work'
+        get :completed_today, as: 'completed_today'
+      end
+      
+      member do
+        post :mark_in_progress, as: 'mark_in_progress'
+        post :mark_completed, as: 'mark_completed'
+        post :create_invoice, as: 'create_invoice'
+        # INVENTORY INTEGRATION ROUTES
+        post :consume_parts, as: 'consume_parts'
+      end
+    end
+  end
+
+  # Inventory Management Dashboard (Standalone)
+  get 'inventory-management', to: redirect('/vmcott/inventory_dashboard')
+  get 'inventory-dashboard', to: redirect('/vmcott/inventory_dashboard')
+
+  # ========================
+  # FLEET & VEHICLE MANAGEMENT
   # ========================
   resources :vehicles do
     member do
@@ -158,19 +309,23 @@ Rails.application.routes.draw do
     collection do
       get :categories
       post :import_defaults
+      post :bulk_add_to_quotation
       get :export
     end
     
     member do
       post :duplicate
       get :usage_stats
+      get :select_quotation
+      post :add_to_quotation
+      post :quick_add
     end
     
     resources :job_template_parts
   end
 
   # ========================
-  # Enhanced Quotations with Jobs
+  # Enhanced Quotations with Jobs & Inventory Integration
   # ========================
   resources :quotations do
     collection do
@@ -183,6 +338,8 @@ Rails.application.routes.draw do
       get :workspace, as: 'workspace'        # VMCOTT quotation workspace
       get 'convert_from_rfq/:rfq_id', to: 'quotations#convert_from_rfq', as: :convert_from_rfq
       get 'new_from_rfq/:rfq_id', to: 'quotations#new_from_rfq', as: :new_from_rfq
+      # INVENTORY INTEGRATION ROUTES
+      get 'inventory_check/:rfq_id', to: 'quotations#inventory_check', as: :inventory_check
     end
     
     member do
@@ -202,6 +359,9 @@ Rails.application.routes.draw do
       get 'assign_jobs', to: 'quotations#assign_jobs'
       patch 'update_jobs', to: 'quotations#update_jobs'
       get 'pricing', to: 'quotations#pricing'
+      # INVENTORY INTEGRATION ROUTES
+      get 'inventory_status', to: 'quotations#inventory_status'
+      post 'create_purchase_request', to: 'quotations#create_purchase_request'
     end
     
     resources :quotation_jobs do
@@ -209,9 +369,7 @@ Rails.application.routes.draw do
     end
   end
 
-  # ========================
   # VMCOTT QUOTATION WORKSPACE
-  # ========================
   get 'vmcott/quotation_workspace', to: 'quotations#workspace', as: 'vmcott_quotation_workspace'
 
   # ========================
@@ -285,7 +443,7 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # ENHANCED PURCHASE ORDERS ROUTES with Acceptance Workflow
+  # ENHANCED PURCHASE ORDERS ROUTES with Acceptance Workflow & Inventory Integration
   # ========================
   resources :purchase_orders do
     collection do
@@ -341,6 +499,9 @@ Rails.application.routes.draw do
       post :create_vmcott_pos, as: 'create_vmcott_pos'            # VMCOTT creates internal POS
       get :acceptance_details, as: 'acceptance_details'           # View acceptance details
       post :update_item_acceptance, as: 'update_item_acceptance'  # Update acceptance status of items
+      # INVENTORY INTEGRATION ROUTES
+      post :consume_parts, as: 'consume_parts'
+      get :parts_usage, as: 'parts_usage'
     end
     
     resources :purchase_order_items
@@ -419,32 +580,6 @@ Rails.application.routes.draw do
       get :stops
       get :analytics
     end
-  end
-
-  # ========================
-  # VMCOTT INTERNAL WORKFLOW ROUTES (NEW) - FIXED
-  # ========================
-  namespace :vmcott do
-    # Internal POS System
-    resources :internal_pos, except: [:destroy] do
-      collection do
-        get 'from_po/:purchase_order_id', to: 'internal_pos#from_po', as: :from_po
-        get :active_work, as: 'active_work'
-        get :completed_today, as: 'completed_today'
-      end
-      
-      member do
-        post :mark_in_progress, as: 'mark_in_progress'
-        post :mark_completed, as: 'mark_completed'
-        post :create_invoice, as: 'create_invoice'
-      end
-    end
-    
-    # Settings and Configuration - FIXED: Using existing controllers
-    get 'inventory_dashboard', to: 'inventory#dashboard', as: 'inventory_dashboard'
-    get 'labor_rates', to: 'settings#labor_rates', as: 'labor_rates'
-    post 'update_labor_rates', to: 'settings#update_labor_rates', as: 'update_labor_rates'
-    get 'invoice_management', to: 'invoice_management#index', as: 'invoice_management'
   end
 
   # ========================
@@ -722,6 +857,19 @@ Rails.application.routes.draw do
       end
     end
   end
+
+  # ========================
+  # HELPER ROUTES FOR EASY ACCESS
+  # ========================
+  get 'vendors', to: 'suppliers#index', as: 'vendors'
+  # Remove the duplicate line - the route already exists in resources :vendor_invoices
+  get 'inventory-management-dashboard', to: 'inventory#management', as: 'inventory_management_dashboard'
+
+  # ========================
+  # EASY ACCESS ALIASES (from first file)
+  # ========================
+  get 'vendor-invoices', to: 'vendor_invoices#index', as: 'vendor_invoices_list'
+  get 'inventory-dashboard', to: 'inventory#management', as: 'inventory_dashboard_main'
 
   # ========================
   # Public routes

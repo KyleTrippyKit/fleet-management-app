@@ -1,0 +1,140 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>Reorder Suggestions</h1>
+      <p class="text-muted">Intelligent suggestions based on consumption patterns</p>
+    </div>
+    <div>
+      <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
+      <%= link_to 'Low Stock Parts', vmcott_inventory_low_stock_path, class: 'btn btn-warning' %>
+      <%= link_to 'Purchase Requests', vmcott_inventory_purchase_requests_path, class: 'btn btn-primary' %>
+      <%= link_to 'Parts List', parts_path, class: 'btn btn-info' %>
+    </div>
+  </div>
+  
+  <% if flash[:notice] %>
+    <div class="alert alert-success alert-dismissible fade show mb-3">
+      <%= flash[:notice] %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% end %>
+  
+  <% if @parts.any? %>
+    <% suggestions_by_supplier = @parts.group_by { |p| p[:supplier] } %>
+    
+    <% suggestions_by_supplier.each do |supplier, suggestions| %>
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <%= supplier&.name || 'No Supplier' %>
+            <small class="text-muted">(<%= suggestions.count %> items)</small>
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Part</th>
+                  <th>Current Stock</th>
+                  <th>Minimum</th>
+                  <th>Days Supply</th>
+                  <th>Monthly Usage</th>
+                  <th>Suggested Qty</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% suggestions.each do |data| %>
+                  <% part = data[:part] %>
+                  <% 
+                    days_of_supply = data[:days_of_supply]
+                    days_display = if days_of_supply.infinite?
+                                     '∞'
+                                   elsif days_of_supply.nil? || days_of_supply.nan?
+                                     'N/A'
+                                   else
+                                     days_of_supply.to_i
+                                   end
+                    
+                    badge_color = if days_of_supply.infinite? || days_of_supply.nil? || days_of_supply.nan?
+                                    'info'
+                                  elsif days_of_supply < 7
+                                    'danger'
+                                  elsif days_of_supply < 14
+                                    'warning'
+                                  else
+                                    'secondary'
+                                  end
+                    
+                    monthly_usage = data[:avg_monthly_consumption]
+                    monthly_display = if monthly_usage.nil? || monthly_usage.nan?
+                                        'N/A'
+                                      else
+                                        monthly_usage.to_i
+                                      end
+                  %>
+                  <tr>
+                    <td>
+                      <strong><%= part.name %></strong><br>
+                      <small class="text-muted"><%= part.part_number || 'N/A' %></small>
+                    </td>
+                    <td>
+                      <span class="badge bg-<%= stock_badge_color(part.current_stock, part.minimum_stock) %>">
+                        <%= part.current_stock %>
+                      </span>
+                    </td>
+                    <td><%= part.minimum_stock %></td>
+                    <td>
+                      <span class="badge bg-<%= badge_color %>">
+                        <%= days_display %> <%= 'days' unless days_display.to_s == '∞' || days_display.to_s == 'N/A' %>
+                      </span>
+                    </td>
+                    <td><%= monthly_display %></td>
+                    <td><span class="badge bg-primary"><%= data[:suggested_quantity] %></span></td>
+                    <td>
+                      <div class="btn-group btn-group-sm">
+                        <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
+                          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+                          <input type="hidden" name="quantity" value="<%= data[:suggested_quantity] %>">
+                          <input type="hidden" name="urgency" value="<%= days_of_supply < 7 ? 'high' : 'normal' %>">
+                          <input type="hidden" name="notes" value="Reorder suggestion based on <%= days_display %> days supply">
+                          
+                          <button type="submit" class="btn btn-success btn-sm">
+                            Request
+                          </button>
+                        <% end %>
+                        
+                        <%= link_to 'View', part_path(part), class: 'btn btn-outline-secondary btn-sm' %>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+          
+          <% if supplier %>
+            <div class="text-end mt-3">
+              <%= form_tag create_bulk_purchase_requests_vmcott_inventory_index_path, method: :post do %>
+                <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+                <%= hidden_field_tag :supplier_id, supplier.id %>
+                <%= submit_tag "Create All Requests for #{supplier.name}", 
+                      class: 'btn btn-primary btn-sm',
+                      onclick: "return confirm('Create purchase requests for all #{suggestions.count} items from #{supplier.name}?')" %>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <h4 class="text-success mb-3">No reorder suggestions needed!</h4>
+        <p class="text-muted mb-4">All parts are currently above their reorder points.</p>
+        <%= link_to 'Back to Inventory', vmcott_inventory_dashboard_path, class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>

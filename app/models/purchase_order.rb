@@ -10,12 +10,14 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :payment_authorized_by, class_name: 'User', optional: true
   belongs_to :quotation, optional: true  # Link to quotation
   belongs_to :payable, optional: true
+  belongs_to :supplier, optional: true  # NEW: Link to supplier model
 
   has_many :purchase_order_items, dependent: :destroy
   has_many :invoices, dependent: :nullify
   has_many :payment_histories, as: :payment_transaction
   has_many :payment_audits, dependent: :destroy
   has_many :acceptance_audits, class_name: 'PurchaseOrderAcceptanceAudit', dependent: :destroy
+  has_many :vendor_invoices
   
   # NEW: Link to internal POS (VMCOTT internal work orders)
   has_many :internal_pos, dependent: :nullify
@@ -75,12 +77,12 @@ class PurchaseOrder < ApplicationRecord
   # NEW: Acceptance Status Enum
   # -------------------------
   enum :acceptance_status, {
-    pending_acceptance: 'pending_acceptance',
-    partially_accepted: 'partially_accepted',
-    fully_accepted: 'fully_accepted',
-    partially_rejected: 'partially_rejected',
-    fully_rejected: 'fully_rejected'
-  }, default: 'pending_acceptance'
+    pending_acceptance: 0,
+    partially_accepted: 1,
+    fully_accepted: 2,
+    partially_rejected: 3,
+    fully_rejected: 4
+  }, default: :pending_acceptance
 
   # -------------------------
   # NEW: VMCOTT Internal Status Enum (for VMCOTT users)
@@ -1064,6 +1066,10 @@ class PurchaseOrder < ApplicationRecord
   
   # From quotation scope
   scope :from_quotation, ->(quotation_id) { where(quotation_id: quotation_id) }
+  
+  # Supplier scopes (NEW)
+  scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) }
+  scope :with_supplier, -> { where.not(supplier_id: nil) }
 
   # -------------------------
   # Analytics Methods
@@ -1093,6 +1099,8 @@ class PurchaseOrder < ApplicationRecord
   before_validation :generate_po_number, on: :create
   before_validation :set_default_statuses, on: :create
   before_validation :calculate_amount_from_items, if: -> { purchase_order_items.present? }
+  before_save :link_supplier  # NEW: Link supplier from vendor field
+  
   after_update :auto_create_invoice_if_paid
   after_update :create_payment_audit_trail, if: :saved_change_to_payment_status?
   after_save :update_acceptance_status, if: :saved_change_to_purchase_order_items?
@@ -1129,6 +1137,13 @@ class PurchaseOrder < ApplicationRecord
     if purchase_order_items.any?
       calculated_amount = purchase_order_items.sum { |item| item.quantity * item.unit_price }
       self.amount = calculated_amount if calculated_amount > 0
+    end
+  end
+  
+  # NEW: Link supplier from vendor field
+  def link_supplier
+    if vendor.present? && supplier.nil?
+      self.supplier = Supplier.find_by(name: vendor)
     end
   end
 

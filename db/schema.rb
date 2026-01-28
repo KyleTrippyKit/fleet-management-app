@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_26_084955) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -264,6 +264,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.index ["work_order_number"], name: "index_internal_pos_on_work_order_number", unique: true
   end
 
+  create_table "inventory_transactions", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.datetime "created_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.bigint "inventory_item_id", null: false
+    t.string "inventory_item_type", null: false
+    t.integer "new_quantity"
+    t.text "notes"
+    t.integer "previous_quantity"
+    t.decimal "quantity", precision: 10, scale: 2, null: false
+    t.bigint "reference_id"
+    t.string "reference_type"
+    t.decimal "total_price", precision: 10, scale: 2
+    t.string "transaction_type", null: false
+    t.decimal "unit_price", precision: 10, scale: 2
+    t.datetime "updated_at", precision: nil, default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.bigint "user_id"
+    t.bigint "vendor_invoice_id"
+    t.index ["agency_id"], name: "index_inventory_transactions_on_agency_id"
+    t.index ["created_at"], name: "idx_inv_trans_created"
+    t.index ["inventory_item_type", "inventory_item_id"], name: "idx_inv_trans_inventory_item"
+    t.index ["reference_type", "reference_id"], name: "idx_inv_trans_reference"
+    t.index ["transaction_type"], name: "idx_inv_trans_type"
+    t.index ["user_id"], name: "idx_inv_trans_user"
+    t.index ["vendor_invoice_id"], name: "index_inventory_transactions_on_vendor_invoice_id"
+  end
+
   create_table "invoices", force: :cascade do |t|
     t.bigint "account_id"
     t.string "aging_bucket", default: "current"
@@ -295,6 +321,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.integer "reviewed_by_id"
     t.string "status", default: "pending"
     t.decimal "subtotal", precision: 10, scale: 2
+    t.bigint "supplier_id"
     t.text "sync_error"
     t.string "sync_status"
     t.decimal "tax", precision: 10, scale: 2
@@ -315,6 +342,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.index ["quickbooks_id"], name: "index_invoices_on_quickbooks_id"
     t.index ["reviewed_by_id"], name: "index_invoices_on_reviewed_by_id"
     t.index ["status"], name: "index_invoices_on_status"
+    t.index ["supplier_id"], name: "index_invoices_on_supplier_id"
     t.index ["sync_status"], name: "index_invoices_on_sync_status"
     t.index ["vehicle_id"], name: "index_invoices_on_vehicle_id"
     t.index ["vendor"], name: "index_invoices_on_vendor"
@@ -326,6 +354,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.text "notes"
     t.bigint "part_id", null: false
     t.integer "quantity", default: 1
+    t.boolean "required", default: true
     t.datetime "updated_at", null: false
     t.index ["job_template_id", "part_id"], name: "index_job_template_parts_on_job_template_id_and_part_id", unique: true
     t.index ["job_template_id"], name: "index_job_template_parts_on_job_template_id"
@@ -444,9 +473,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   end
 
   create_table "parts", force: :cascade do |t|
+    t.string "category"
+    t.decimal "cost_price", precision: 10, scale: 2
     t.datetime "created_at", null: false
+    t.integer "current_stock", default: 0
+    t.text "description"
+    t.boolean "is_active", default: true
+    t.boolean "is_consumable", default: false
+    t.integer "lead_time_days", default: 7
+    t.string "location_in_warehouse"
+    t.integer "minimum_stock", default: 5
     t.string "name"
+    t.string "part_number"
+    t.decimal "price", precision: 10, scale: 2
+    t.integer "reorder_point", default: 10
+    t.decimal "sale_price", precision: 10, scale: 2
+    t.decimal "standard_markup_percentage", precision: 5, scale: 2, default: "30.0"
+    t.bigint "supplier_id"
+    t.string "unit_of_measure", default: "each"
     t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_parts_on_category"
+    t.index ["is_active"], name: "index_parts_on_is_active"
+    t.index ["is_consumable"], name: "index_parts_on_is_consumable"
+    t.index ["part_number"], name: "index_parts_on_part_number", unique: true
+    t.index ["supplier_id"], name: "index_parts_on_supplier_id"
   end
 
   create_table "parts_stores", id: false, force: :cascade do |t|
@@ -604,7 +654,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   end
 
   create_table "purchase_orders", force: :cascade do |t|
-    t.integer "acceptance_status", default: 0
+    t.string "acceptance_status", default: "pending_acceptance"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "approved_at"
     t.bigint "approved_by_id"
@@ -639,10 +689,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.bigint "rejected_by_id"
     t.text "rejection_reason"
     t.string "status", default: "draft", null: false
+    t.bigint "supplier_id"
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id"
     t.string "vendor", null: false
-    t.integer "vmcott_status", default: 0, null: false
+    t.string "vmcott_status", default: "pending_internal_work", null: false
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"
@@ -653,7 +704,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
     t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id"
+    t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
+  end
+
+  create_table "purchase_requests", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.datetime "created_at", null: false
+    t.text "notes"
+    t.datetime "ordered_at"
+    t.bigint "part_id", null: false
+    t.integer "quantity", null: false
+    t.bigint "quotation_id"
+    t.datetime "received_at"
+    t.bigint "requested_by_id", null: false
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.string "urgency", default: "normal"
+    t.bigint "vendor_invoice_id"
+    t.index ["approved_by_id"], name: "index_purchase_requests_on_approved_by_id"
+    t.index ["part_id", "status"], name: "index_purchase_requests_on_part_id_and_status"
+    t.index ["part_id"], name: "index_purchase_requests_on_part_id"
+    t.index ["quotation_id"], name: "index_purchase_requests_on_quotation_id"
+    t.index ["requested_by_id"], name: "index_purchase_requests_on_requested_by_id"
+    t.index ["status"], name: "index_purchase_requests_on_status"
+    t.index ["urgency"], name: "index_purchase_requests_on_urgency"
+    t.index ["vendor_invoice_id"], name: "index_purchase_requests_on_vendor_invoice_id"
   end
 
   create_table "purchases", force: :cascade do |t|
@@ -846,6 +923,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "suppliers", force: :cascade do |t|
+    t.string "address"
+    t.string "contact_person"
+    t.datetime "created_at", null: false
+    t.string "email"
+    t.boolean "is_active", default: true
+    t.string "name", null: false
+    t.text "notes"
+    t.string "payment_terms"
+    t.string "phone"
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_suppliers_on_is_active"
+    t.index ["name"], name: "index_suppliers_on_name", unique: true
+  end
+
   create_table "transactions", force: :cascade do |t|
     t.bigint "account_transaction_id"
     t.decimal "amount", precision: 10, scale: 2, null: false
@@ -976,6 +1068,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
+  create_table "vendor_invoices", force: :cascade do |t|
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "attachment_path"
+    t.datetime "created_at", null: false
+    t.string "currency", default: "TTD"
+    t.text "description"
+    t.date "due_date"
+    t.date "invoice_date", null: false
+    t.string "invoice_number", null: false
+    t.date "paid_date"
+    t.text "payment_notes"
+    t.bigint "purchase_order_id"
+    t.string "status", default: "pending"
+    t.bigint "supplier_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["invoice_date"], name: "index_vendor_invoices_on_invoice_date"
+    t.index ["invoice_number"], name: "index_vendor_invoices_on_invoice_number", unique: true
+    t.index ["purchase_order_id"], name: "index_vendor_invoices_on_purchase_order_id"
+    t.index ["status"], name: "index_vendor_invoices_on_status"
+    t.index ["supplier_id"], name: "index_vendor_invoices_on_supplier_id"
+    t.index ["user_id"], name: "index_vendor_invoices_on_user_id"
+  end
+
+  create_table "vendor_parts", force: :cascade do |t|
+    t.decimal "cost_price", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.boolean "is_active", default: true
+    t.boolean "is_preferred", default: false
+    t.integer "lead_time_days"
+    t.bigint "part_id", null: false
+    t.bigint "supplier_id", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "vendor_cost_price", precision: 10, scale: 2
+    t.string "vendor_part_number"
+    t.index ["part_id"], name: "index_vendor_parts_on_part_id"
+    t.index ["supplier_id", "part_id"], name: "index_vendor_parts_on_supplier_id_and_part_id", unique: true
+    t.index ["supplier_id"], name: "index_vendor_parts_on_supplier_id"
+  end
+
   create_table "z_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -995,7 +1127,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "drivers_vehicles", "drivers"
   add_foreign_key "drivers_vehicles", "vehicles"
+  add_foreign_key "inventory_transactions", "agencies"
+  add_foreign_key "inventory_transactions", "users", name: "inventory_transactions_user_id_fkey"
+  add_foreign_key "inventory_transactions", "vendor_invoices"
   add_foreign_key "invoices", "maintenances"
+  add_foreign_key "invoices", "suppliers"
   add_foreign_key "invoices", "vehicles"
   add_foreign_key "job_template_parts", "job_templates"
   add_foreign_key "job_template_parts", "parts"
@@ -1009,6 +1145,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "parts", "suppliers"
   add_foreign_key "payment_audits", "purchase_orders"
   add_foreign_key "payment_audits", "users"
   add_foreign_key "payment_histories", "invoices"
@@ -1021,9 +1158,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   add_foreign_key "purchase_order_items", "parts"
   add_foreign_key "purchase_order_items", "purchase_orders"
   add_foreign_key "purchase_orders", "quotations"
+  add_foreign_key "purchase_orders", "suppliers"
   add_foreign_key "purchase_orders", "users", column: "approved_by_id"
   add_foreign_key "purchase_orders", "users", column: "created_by_id"
   add_foreign_key "purchase_orders", "vehicles"
+  add_foreign_key "purchase_requests", "parts"
+  add_foreign_key "purchase_requests", "quotations"
+  add_foreign_key "purchase_requests", "users", column: "approved_by_id"
+  add_foreign_key "purchase_requests", "users", column: "requested_by_id"
+  add_foreign_key "purchase_requests", "vendor_invoices"
   add_foreign_key "purchases", "parts"
   add_foreign_key "quickbooks_integrations", "users"
   add_foreign_key "quickbooks_settings", "users"
@@ -1047,4 +1190,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_23_210328) do
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
   add_foreign_key "vehicles", "drivers"
+  add_foreign_key "vendor_invoices", "purchase_orders"
+  add_foreign_key "vendor_invoices", "suppliers"
+  add_foreign_key "vendor_invoices", "users"
+  add_foreign_key "vendor_parts", "parts"
+  add_foreign_key "vendor_parts", "suppliers"
 end

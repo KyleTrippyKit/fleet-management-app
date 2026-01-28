@@ -1,0 +1,57 @@
+<%# app/views/vmcott/inventory/consumables.html.erb %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Consumable Parts</h1>
+    <div>
+      <%= link_to 'Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
+      <%= link_to 'Low Stock Parts', vmcott_inventory_low_stock_path, class: 'btn btn-warning' %>
+    </div>
+  </div>
+  
+  <% if @consumables.any? %>
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Consumable Parts (<%= @consumables.total_count %>)</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Part Name</th>
+                <th>Part Number</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Supplier</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @consumables.each do |part| %>
+                <tr>
+                  <td><%= link_to part.name, part_path(part) %></td>
+                  <td><%= part.part_number %></td>
+                  <td><%= part.category %></td>
+                  <td><%= part.current_stock %></td>
+                  <td><%= part.supplier&.name || 'N/A' %></td>
+                  <td>
+                    <%= link_to 'Adjust Stock', vmcott_inventory_adjust_stock_path(part), class: 'btn btn-sm btn-outline-primary' %>
+                    <%= link_to 'Stock History', stock_history_part_path(part), class: 'btn btn-sm btn-outline-info' %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-center">
+          <%= paginate @consumables %>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <h4 class="alert-heading">No Consumables</h4>
+      <p>No consumable parts found.</p>
+    </div>
+  <% end %>
+</div>

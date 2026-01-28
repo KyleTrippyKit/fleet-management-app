@@ -7,6 +7,7 @@ class Invoice < ApplicationRecord
   belongs_to :pos_transaction, optional: true
   belongs_to :rfq, optional: true
   belongs_to :quotation, optional: true
+  belongs_to :supplier, optional: true  # NEW: Link to supplier model
   
   # User references
   belongs_to :created_by, class_name: 'User', optional: true, foreign_key: :created_by_id
@@ -160,6 +161,10 @@ class Invoice < ApplicationRecord
   
   # Vendor scopes
   scope :by_vendor, ->(vendor) { where(vendor: vendor) }
+  
+  # Supplier scopes (NEW)
+  scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) }
+  scope :with_supplier, -> { where.not(supplier_id: nil) }
   
   # Priority scopes
   scope :high_priority, -> { where(priority: ['high', 'critical']) }
@@ -375,6 +380,23 @@ class Invoice < ApplicationRecord
   
   def has_payment_history?
     payment_histories.any?
+  end
+  
+  # Supplier methods (NEW)
+  def supplier_name
+    supplier&.name || vendor
+  end
+  
+  def supplier_contact
+    supplier&.contact_person if supplier
+  end
+  
+  def supplier_email
+    supplier&.email if supplier
+  end
+  
+  def supplier_phone
+    supplier&.phone if supplier
   end
   
   # Aging status for reports
@@ -971,6 +993,8 @@ class Invoice < ApplicationRecord
   # Callbacks
   before_save :update_status_based_on_due_date
   before_save :update_aging_information, if: :due_date_changed?
+  before_save :link_supplier  # NEW: Link supplier from vendor field
+  
   after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
   
   private
@@ -981,6 +1005,13 @@ class Invoice < ApplicationRecord
     elsif paid_in_full? && status != 'paid'
       self.status = 'paid'
       self.paid_at ||= Time.current
+    end
+  end
+  
+  # NEW: Link supplier from vendor field
+  def link_supplier
+    if vendor.present? && supplier.nil?
+      self.supplier = Supplier.find_by(name: vendor)
     end
   end
   

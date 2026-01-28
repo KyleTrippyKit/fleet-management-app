@@ -1,0 +1,240 @@
+<%# app/views/vmcott/inventory/adjust_stock.html.erb %>
+<div class="container-fluid">
+  <div class="row mb-4">
+    <div class="col">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><%= link_to 'VMCOTT Dashboard', vmcott_dashboard_path %></li>
+          <li class="breadcrumb-item"><%= link_to 'Inventory', vmcott_inventory_dashboard_path %></li>
+          <li class="breadcrumb-item active" aria-current="page">Adjust Stock: <%= @part.name %></li>
+        </ol>
+      </nav>
+      <h1 class="h3">Adjust Stock: <%= @part.name %></h1>
+      <p class="text-muted">
+        Part #: <%= @part.part_number || 'N/A' %> | 
+        Current Stock: <span class="badge bg-<%= stock_badge_color(@part.current_stock, @part.minimum_stock) %>"><%= @part.current_stock %></span>
+      </p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Part Details</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th>Name:</th>
+              <td><%= @part.name %></td>
+            </tr>
+            <tr>
+              <th>Part Number:</th>
+              <td><%= @part.part_number || 'N/A' %></td>
+            </tr>
+            <tr>
+              <th>Category:</th>
+              <td><%= @part.category || 'N/A' %></td>
+            </tr>
+            <tr>
+              <th>Supplier:</th>
+              <td><%= @part.supplier&.name || 'N/A' %></td>
+            </tr>
+            <tr>
+              <th>Current Stock:</th>
+              <td>
+                <span class="badge bg-<%= stock_badge_color(@part.current_stock, @part.minimum_stock) %>">
+                  <%= @part.current_stock %> <%= @part.unit_of_measure %>
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <th>Minimum Stock:</th>
+              <td><%= @part.minimum_stock %></td>
+            </tr>
+            <tr>
+              <th>Reorder Point:</th>
+              <td><%= @part.reorder_point %></td>
+            </tr>
+            <tr>
+              <th>Cost Price:</th>
+              <td><%= number_to_currency(@part.cost_price) if @part.cost_price %></td>
+            </tr>
+            <tr>
+              <th>Sale Price:</th>
+              <td><%= number_to_currency(@part.price) if @part.price %></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Adjust Stock</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with(url: vmcott_inventory_adjust_stock_path(@part), method: :post, local: true) do |f| %>
+            <div class="mb-3">
+              <label class="form-label">Adjustment Type</label>
+              <div class="form-check">
+                <%= radio_button_tag :adjustment_type, 'add', true, class: 'form-check-input', id: 'adjustment_type_add' %>
+                <label class="form-check-label text-success" for="adjustment_type_add">
+                  <i class="fas fa-plus-circle me-1"></i> Add Stock (Increase)
+                </label>
+              </div>
+              <div class="form-check">
+                <%= radio_button_tag :adjustment_type, 'subtract', false, class: 'form-check-input', id: 'adjustment_type_subtract' %>
+                <label class="form-check-label text-danger" for="adjustment_type_subtract">
+                  <i class="fas fa-minus-circle me-1"></i> Subtract Stock (Decrease)
+                </label>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="quantity" class="form-label">Quantity</label>
+              <%= number_field_tag :quantity, nil, class: 'form-control', required: true, min: 1, step: 1, placeholder: 'Enter quantity' %>
+              <div class="form-text">
+                Enter the quantity to adjust. Minimum: 1 unit.
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="notes" class="form-label">Notes/Reason</label>
+              <%= text_area_tag :notes, nil, class: 'form-control', rows: 3, placeholder: 'Enter reason for adjustment (optional)' %>
+              <div class="form-text">
+                Optional: Add notes explaining why you're adjusting the stock.
+              </div>
+            </div>
+
+            <div class="alert alert-info">
+              <h6 class="alert-heading mb-2">Current Status:</h6>
+              <ul class="mb-0">
+                <li>Current Stock: <strong><%= @part.current_stock %> <%= @part.unit_of_measure %></strong></li>
+                <li>After adjustment: <span id="projected-stock" class="badge bg-secondary"><%= @part.current_stock %></span> <%= @part.unit_of_measure %></li>
+                <li>Status: <span id="projected-status" class="badge"><%= stock_badge_color(@part.current_stock, @part.minimum_stock) %></span></li>
+              </ul>
+            </div>
+
+            <div class="d-flex justify-content-between">
+              <%= link_to 'Cancel', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
+              <%= f.submit 'Adjust Stock', class: 'btn btn-primary', data: { confirm: 'Are you sure you want to adjust the stock?' } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="card-title mb-0">Recent Transactions</h5>
+        </div>
+        <div class="card-body">
+          <% recent_transactions = @part.inventory_transactions.order(created_at: :desc).limit(5) %>
+          <% if recent_transactions.any? %>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>User</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% recent_transactions.each do |transaction| %>
+                    <tr>
+                      <td><%= l(transaction.created_at, format: :short) %></td>
+                      <td>
+                        <span class="badge bg-<%= transaction.quantity.positive? ? 'success' : 'danger' %>">
+                          <%= transaction.transaction_type.humanize %>
+                        </span>
+                      </td>
+                      <td class="<%= transaction.quantity.positive? ? 'text-success' : 'text-danger' %>">
+                        <%= transaction.quantity.positive? ? '+' : '' %><%= transaction.quantity %>
+                      </td>
+                      <td><%= transaction.user&.name || 'System' %></td>
+                      <td><%= truncate(transaction.notes, length: 50) %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            <%= link_to 'View Full History', vmcott_inventory_stock_history_path(@part), class: 'btn btn-sm btn-outline-secondary' %>
+          <% else %>
+            <p class="text-muted text-center">No recent transactions found.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%# JavaScript for live stock projection %>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const quantityInput = document.getElementById('quantity');
+  const addRadio = document.getElementById('adjustment_type_add');
+  const subtractRadio = document.getElementById('adjustment_type_subtract');
+  const projectedStock = document.getElementById('projected-stock');
+  const projectedStatus = document.getElementById('projected-status');
+  
+  const currentStock = <%= @part.current_stock %>;
+  const minimumStock = <%= @part.minimum_stock || 0 %>;
+  
+  function updateProjection() {
+    const quantity = parseInt(quantityInput.value) || 0;
+    const isAdd = addRadio.checked;
+    
+    let newStock = currentStock;
+    if (isAdd) {
+      newStock = currentStock + quantity;
+    } else {
+      newStock = currentStock - quantity;
+    }
+    
+    // Update projected stock
+    projectedStock.textContent = newStock;
+    
+    // Update status badge
+    let statusClass, statusText;
+    if (newStock <= 0) {
+      statusClass = 'bg-danger';
+      statusText = 'Out of Stock';
+    } else if (newStock <= minimumStock) {
+      statusClass = 'bg-warning';
+      statusText = 'Low Stock';
+    } else {
+      statusClass = 'bg-success';
+      statusText = 'In Stock';
+    }
+    
+    projectedStatus.className = 'badge ' + statusClass;
+    projectedStatus.textContent = statusText;
+    
+    // Validate subtraction
+    if (!isAdd && quantity > currentStock) {
+      subtractRadio.parentElement.classList.add('text-danger');
+      document.querySelector('input[type="submit"]').disabled = true;
+    } else {
+      subtractRadio.parentElement.classList.remove('text-danger');
+      document.querySelector('input[type="submit"]').disabled = false;
+    }
+  }
+  
+  // Add event listeners
+  quantityInput.addEventListener('input', updateProjection);
+  addRadio.addEventListener('change', updateProjection);
+  subtractRadio.addEventListener('change', updateProjection);
+  
+  // Initial update
+  updateProjection();
+});
+</script>

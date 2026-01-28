@@ -1,0 +1,40 @@
+<%# app/views/quotations/inventory_check.html.erb %>
+<div class="container">
+  <h2>Inventory Check for New Quotation</h2>
+  
+  <% if @missing_parts.any? %>
+    <div class="alert alert-warning">
+      <h4>⚠️ Some parts are out of stock:</h4>
+      <ul>
+        <% @missing_parts.each do |item| %>
+          <li>
+            <strong><%= item[:part].name %></strong>:
+            Need <%= item[:needed] %>, Only <%= item[:available] %> available
+            (Shortfall: <%= item[:shortfall] %>)
+          </li>
+        <% end %>
+      </ul>
+    </div>
+    
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Actions:</h5>
+        <%= form_with url: create_purchase_requests_quotations_path, method: :post do |f| %>
+          <% @missing_parts.each do |item| %>
+            <%= f.hidden_field "part_ids[]", value: item[:part].id %>
+            <%= f.hidden_field "quantities[]", value: item[:shortfall] %>
+          <% end %>
+          
+          <%= f.submit "Create Purchase Requests", class: "btn btn-primary" %>
+          <%= link_to "Continue Anyway", "#", class: "btn btn-secondary", 
+                data: { bs_toggle: "modal", bs_target: "#continueModal" } %>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-success">
+      <h4>✅ All parts are in stock!</h4>
+      <%= link_to "Continue Creating Quotation", new_quotation_path, class: "btn btn-success" %>
+    </div>
+  <% end %>
+</div>

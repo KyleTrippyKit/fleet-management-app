@@ -10,6 +10,9 @@ class User < ApplicationRecord
   
   # Add association for cashier sessions
   has_many :cashier_sessions
+  has_many :quotations, foreign_key: :created_by_id
+  has_many :created_purchase_orders, class_name: 'PurchaseOrder', foreign_key: :created_by_id
+  has_many :approved_purchase_orders, class_name: 'PurchaseOrder', foreign_key: :approved_by_id
   
   # ========================
   # ROLE ENUM - FIXED FOR RAILS 8

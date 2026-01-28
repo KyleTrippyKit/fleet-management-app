@@ -827,7 +827,14 @@ if finance_user
   end
 end
 
-puts "\n=== CREATING SAMPLE PARTS ==="
+puts "\n=== LOADING CONSOLIDATED INVENTORY ==="
+begin
+  load Rails.root.join("db/seeds/inventory_consolidated.rb")
+rescue LoadError => e
+  puts "⚠️ Inventory seed file not found: #{e.message}"
+  puts "Loading default common parts instead..."
+  load Rails.root.join("db/seeds/common_parts.rb")
+end
 
 # Create parts based on the actual schema
 parts_data = [
@@ -1049,4 +1056,8 @@ puts "\nAll vehicles have location data including GPS coordinates."
 puts "PTSC POS system is fully set up with routes and fare rules."
 
 puts "\n=== LOADING JOB TEMPLATES ==="
-load Rails.root.join("db/seeds/job_templates.rb")
+begin
+  load Rails.root.join("db/seeds/job_templates.rb")
+rescue LoadError => e
+  puts "⚠️ Job templates seed file not found: #{e.message}"
+end

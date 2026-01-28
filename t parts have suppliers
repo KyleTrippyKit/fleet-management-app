@@ -1,0 +1,39 @@
+                                                  Table "public.parts"
+           Column           |              Type              | Collation | Nullable |              Default              
+----------------------------+--------------------------------+-----------+----------+-----------------------------------
+ id                         | bigint                         |           | not null | nextval('parts_id_seq'::regclass)
+ category                   | character varying              |           |          | 
+ cost_price                 | numeric(10,2)                  |           |          | 
+ created_at                 | timestamp(6) without time zone |           | not null | 
+ current_stock              | integer                        |           |          | 0
+ description                | text                           |           |          | 
+ is_active                  | boolean                        |           |          | true
+ is_consumable              | boolean                        |           |          | false
+ lead_time_days             | integer                        |           |          | 7
+ location_in_warehouse      | character varying              |           |          | 
+ minimum_stock              | integer                        |           |          | 5
+ name                       | character varying              |           |          | 
+ part_number                | character varying              |           |          | 
+ price                      | numeric(10,2)                  |           |          | 
+ reorder_point              | integer                        |           |          | 10
+ standard_markup_percentage | numeric(5,2)                   |           |          | 30.0
+ supplier_id                | bigint                         |           | not null | 
+ unit_of_measure            | character varying              |           |          | 'each'::character varying
+ updated_at                 | timestamp(6) without time zone |           | not null | 
+Indexes:
+    "parts_pkey" PRIMARY KEY, btree (id)
+    "index_parts_on_category" btree (category)
+    "index_parts_on_is_active" btree (is_active)
+    "index_parts_on_is_consumable" btree (is_consumable)
+    "index_parts_on_part_number" UNIQUE, btree (part_number)
+    "index_parts_on_supplier_id" btree (supplier_id)
+Foreign-key constraints:
+    "fk_rails_a6f95ed203" FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+Referenced by:
+    TABLE "quotation_job_parts" CONSTRAINT "fk_rails_169b24b689" FOREIGN KEY (part_id) REFERENCES parts(id)
+    TABLE "job_template_parts" CONSTRAINT "fk_rails_3873f0168b" FOREIGN KEY (part_id) REFERENCES parts(id)
+    TABLE "purchase_order_items" CONSTRAINT "fk_rails_69b2b3d152" FOREIGN KEY (part_id) REFERENCES parts(id)
+    TABLE "purchases" CONSTRAINT "fk_rails_8f7791db1d" FOREIGN KEY (part_id) REFERENCES parts(id)
+    TABLE "maintenance_parts" CONSTRAINT "fk_rails_96d0f92d76" FOREIGN KEY (part_id) REFERENCES parts(id)
+    TABLE "purchase_requests" CONSTRAINT "fk_rails_ebb0f46b1d" FOREIGN KEY (part_id) REFERENCES parts(id)
+

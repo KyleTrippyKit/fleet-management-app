@@ -66,3 +66,5 @@ gem 'caxlsx_rails'
 
 gem 'cocoon'
 gem "pundit", "~> 2.5"
+gem 'sidekiq'
+gem 'dotenv-rails', groups: [:development, :test]
