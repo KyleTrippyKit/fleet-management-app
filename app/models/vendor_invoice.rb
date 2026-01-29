@@ -1,10 +1,11 @@
-# app/models/vendor_invoice.rb
 class VendorInvoice < ApplicationRecord
   belongs_to :supplier
   belongs_to :purchase_order, optional: true
   belongs_to :user, optional: true
   has_many :inventory_transactions
   has_many :purchase_requests
+  has_many :vendor_invoice_items, dependent: :destroy
+  accepts_nested_attributes_for :vendor_invoice_items, allow_destroy: true
   
   has_one_attached :invoice_scan
   
@@ -21,13 +22,49 @@ class VendorInvoice < ApplicationRecord
     cancelled: 'cancelled'
   }
   
+  # Add validations for file
+  validate :validate_invoice_scan
+  
+  def validate_invoice_scan
+    return unless invoice_scan.attached?
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
+    unless allowed_types.include?(invoice_scan.content_type)
+      errors.add(:invoice_scan, 'must be a JPEG, PNG, GIF, or PDF file')
+    end
+    
+    # Validate file size (max 10MB)
+    if invoice_scan.byte_size > 10.megabytes
+      errors.add(:invoice_scan, 'size must be less than 10MB')
+    end
+  end
+  
   # Calculate due date if not set
   before_save :set_due_date
   def set_due_date
     self.due_date ||= invoice_date + 30.days if invoice_date
   end
   
-  # Scopes - FIXED: Add nil check for optional query parameter
+  # Calculate amount from items
+  def update_amount_from_items
+    self.amount = vendor_invoice_items.sum(:total_price)
+    save
+  end
+  
+  # Link to purchase order items
+  def link_to_purchase_order_items
+    return unless purchase_order.present?
+    
+    vendor_invoice_items.each do |invoice_item|
+      next unless invoice_item.part.present?
+      
+      po_item = purchase_order.purchase_order_items.find_by(part_id: invoice_item.part_id)
+      invoice_item.update(purchase_order_item: po_item) if po_item
+    end
+  end
+  
+  # Scopes
   scope :search, ->(query = nil) {
     return all if query.blank?
     where("invoice_number ILIKE ? OR description ILIKE ?", 
@@ -72,5 +109,5 @@ class VendorInvoice < ApplicationRecord
       paid_date: payment_date,
       payment_notes: notes
     )
-  end 
+  end
 end

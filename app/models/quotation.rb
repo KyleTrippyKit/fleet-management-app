@@ -1,4 +1,3 @@
-# app/models/quotation.rb
 class Quotation < ApplicationRecord
   # FIX: Clear any problematic attribute aliases
   self.attribute_aliases = attribute_aliases.except('quotation_line_items')
@@ -44,6 +43,7 @@ class Quotation < ApplicationRecord
   validates :vendor, presence: true
   validates :valid_from, :valid_to, presence: true
   validate :valid_date_range
+  validate :ensure_prices_present_before_conversion
   
   # Scopes
   scope :pending, -> { where(status: [:draft, :sent, :pending_acceptance]) }
@@ -87,9 +87,30 @@ class Quotation < ApplicationRecord
   
   # Instance Methods
   
+  # ADDED: Validate that prices are present before conversion to PO
+  def ensure_prices_present_before_conversion
+    return unless status_changed? && converted?
+    
+    # Check quotation line items
+    quotation_line_items.each do |item|
+      if item.unit_price.blank? || item.unit_price <= 0
+        errors.add(:base, "Line item '#{item.description}' must have a valid price")
+        return false
+      end
+    end
+    
+    # Check quotation job parts
+    quotation_job_parts.each do |part|
+      if part.unit_price.blank? || part.unit_price <= 0
+        errors.add(:base, "Part '#{part.part&.name || 'Unknown'}' must have a valid price")
+        return false
+      end
+    end
+    
+    true
+  end
+  
   def requesting_agency
-    # Return the agency if you have an agency association
-    # Or use a default
     Agency.find_by(code: 'VMCOTT') || Agency.first
   end
   
@@ -143,6 +164,13 @@ class Quotation < ApplicationRecord
   end
   
   def convert_to_purchase_order!
+    return unless can_be_converted_to_po?
+    
+    # Ensure all prices are valid before conversion
+    unless ensure_prices_present_before_conversion
+      raise ActiveRecord::RecordInvalid.new(self)
+    end
+    
     update(status: :converted, converted_at: Time.current)
   end
   

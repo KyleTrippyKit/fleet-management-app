@@ -5,14 +5,14 @@ class InternalPos < ApplicationRecord
   belongs_to :assigned_to, class_name: 'User', optional: true
   belongs_to :created_by, class_name: 'User'
   
-  enum status: {
+  enum :status, {
     pending: 'pending',
     in_progress: 'in_progress',
     completed: 'completed',
     cancelled: 'cancelled'
   }
   
-  enum priority: {
+  enum :priority, {
     low: 'low',
     normal: 'normal',
     high: 'high',

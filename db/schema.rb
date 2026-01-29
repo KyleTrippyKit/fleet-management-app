@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_26_084955) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_28_165017) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1068,6 +1068,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_26_084955) do
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
+  create_table "vendor_invoice_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "description"
+    t.text "notes"
+    t.bigint "part_id"
+    t.integer "quantity", default: 1
+    t.decimal "total_price", precision: 10, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_invoice_id", null: false
+    t.index ["part_id"], name: "index_vendor_invoice_items_on_part_id"
+    t.index ["vendor_invoice_id"], name: "index_vendor_invoice_items_on_vendor_invoice_id"
+  end
+
   create_table "vendor_invoices", force: :cascade do |t|
     t.decimal "amount", precision: 15, scale: 2, null: false
     t.string "attachment_path"
@@ -1190,6 +1204,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_26_084955) do
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
   add_foreign_key "vehicles", "drivers"
+  add_foreign_key "vendor_invoice_items", "parts"
+  add_foreign_key "vendor_invoice_items", "vendor_invoices"
   add_foreign_key "vendor_invoices", "purchase_orders"
   add_foreign_key "vendor_invoices", "suppliers"
   add_foreign_key "vendor_invoices", "users"

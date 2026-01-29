@@ -1,4 +1,3 @@
-# app/models/part.rb
 class Part < ApplicationRecord
   belongs_to :supplier, optional: true
   has_many :purchases
@@ -12,6 +11,7 @@ class Part < ApplicationRecord
   has_many :purchase_requests
   has_many :vendor_parts
   has_many :suppliers, through: :vendor_parts
+  has_many :vendor_invoice_items
   
   # Validations for all new columns
   validates :name, presence: true
@@ -19,12 +19,11 @@ class Part < ApplicationRecord
   validates :current_stock, numericality: { greater_than_or_equal_to: 0 }
   validates :minimum_stock, numericality: { greater_than_or_equal_to: 0 }
   validates :reorder_point, numericality: { greater_than_or_equal_to: 0 }
-  validates :price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :cost_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :standard_markup_percentage, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   
-  # Add sale price validation
-  validates :sale_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  # REMOVED: :price validation (using sale_price instead)
+  # REMOVED: :sale_price validation (only using cost_price + markup)
   
   # Scopes for inventory management
   scope :active, -> { where(is_active: true) }
@@ -43,24 +42,30 @@ class Part < ApplicationRecord
   # Default order
   default_scope -> { order(name: :asc) }
   
-  # Calculated selling price (cost + markup)
-  def calculated_selling_price
-    return price if price.present?
+  # Callback to update current_stock after inventory transactions
+  after_commit :recalculate_stock_from_transactions, if: :should_recalculate_stock?
+  
+  # Calculated selling price (cost + markup) - SINGLE SOURCE OF TRUTH
+  def selling_price
     return nil if cost_price.nil?
     
     markup = standard_markup_percentage || 30.0
-    cost_price * (1 + (markup / 100.0))
+    (cost_price * (1 + (markup / 100.0))).round(2)
   end
   
-  # Current price to use (prefers manually set price, falls back to calculated)
-  def current_price
-    price || calculated_selling_price || 0
-  end
+  # Alias for backward compatibility
+  alias_method :current_price, :selling_price
   
   # Calculate profit margin
   def profit_margin
-    return 0 if cost_price.nil? || sale_price.nil? || cost_price <= 0
-    ((sale_price - cost_price) / cost_price * 100).round(2)
+    return 0 if cost_price.nil? || cost_price <= 0 || selling_price.nil?
+    ((selling_price - cost_price) / cost_price * 100).round(2)
+  end
+  
+  # Profit amount (revenue - cost)
+  def profit_amount
+    return 0 if cost_price.nil? || selling_price.nil?
+    selling_price - cost_price
   end
   
   # Suggested reorder quantity
@@ -79,7 +84,6 @@ class Part < ApplicationRecord
   
   # Average monthly consumption from last 90 days
   def average_monthly_consumption
-    # Calculate average monthly consumption from last 90 days
     consumption = inventory_transactions
       .where(transaction_type: 'issue')
       .where('created_at >= ?', 90.days.ago)
@@ -91,7 +95,6 @@ class Part < ApplicationRecord
   # Upcoming demand estimate
   def upcoming_demand
     # Estimate demand from upcoming maintenance and jobs
-    # This is a simplified version - you can enhance it
     0
   end
   
@@ -155,8 +158,11 @@ class Part < ApplicationRecord
       agency: agency || supplier&.agency || Agency.first,
       reference: reference,
       notes: notes,
-      unit_price: current_price
+      unit_price: cost_price
     )
+    
+    # Immediately recalculate stock
+    recalculate_stock_from_transactions
     
     transaction
   end
@@ -181,15 +187,20 @@ class Part < ApplicationRecord
     )
   end
   
-  # Updated: Calculate current_stock from transactions
+  # FIXED: Calculate current_stock ONLY from transactions for consistency
   def current_stock
-    # Try to use cached value first, fall back to calculation
-    if has_attribute?(:current_stock) && read_attribute(:current_stock).present?
-      read_attribute(:current_stock)
-    else
-      # Calculate from transactions
-      inventory_transactions.sum(:quantity)
-    end
+    inventory_transactions.sum(:quantity)
+  end
+  
+  # Store calculated stock in database for performance
+  def recalculate_stock_from_transactions
+    new_stock = inventory_transactions.sum(:quantity)
+    update_column(:current_stock, new_stock) if new_stock != read_attribute(:current_stock).to_i
+  end
+  
+  private def should_recalculate_stock?
+    transaction_types = ['stock_in', 'stock_out', 'receipt', 'consumption', 'adjustment']
+    transaction_types.include?(inventory_transactions.last&.transaction_type) if inventory_transactions.last
   end
   
   # Keep backward compatibility methods
@@ -220,6 +231,7 @@ class Part < ApplicationRecord
       notes: notes || "Reserved for #{reference.class.name} #{reference.id}"
     )
     
+    recalculate_stock_from_transactions
     true
   end
   
@@ -236,6 +248,8 @@ class Part < ApplicationRecord
         reference: reference,
         notes: notes || "Released from #{reference.class.name} #{reference.id}"
       )
+      
+      recalculate_stock_from_transactions
       true
     else
       false
@@ -272,7 +286,7 @@ class Part < ApplicationRecord
       .order(created_at: :desc)
   end
   
-  # Get average monthly consumption (alternative method)
+  # Get average monthly consumption
   def average_monthly_consumption_alt(months: 6)
     end_date = Time.current
     start_date = months.months.ago
@@ -288,7 +302,7 @@ class Part < ApplicationRecord
     (total_consumed.to_f / months_elapsed).round(2)
   end
   
-  # Calculate suggested reorder quantity (alternative method)
+  # Calculate suggested reorder quantity
   def suggested_reorder_quantity_alt
     avg_consumption = average_monthly_consumption_alt
     lead_time_needed = (avg_consumption * lead_time_days / 30.0).ceil
@@ -343,7 +357,7 @@ class Part < ApplicationRecord
       .sum(:quantity)
   end
   
-  # Calculate days of supply (alternative method)
+  # Calculate days of supply
   def days_of_supply_alt
     avg_daily = average_monthly_consumption_alt / 30.0
     return Float::INFINITY if avg_daily <= 0
@@ -363,7 +377,6 @@ class Part < ApplicationRecord
         part_number: row['part_number'],
         unit_of_measure: row['unit_of_measure'] || 'each',
         cost_price: row['cost_price'],
-        price: row['price'],
         current_stock: row['current_stock'] || 0,
         minimum_stock: row['minimum_stock'] || 5,
         reorder_point: row['reorder_point'] || 10,
@@ -383,7 +396,7 @@ class Part < ApplicationRecord
       category,
       unit_of_measure,
       cost_price,
-      price,
+      selling_price,
       current_stock,
       minimum_stock,
       reorder_point,
@@ -416,6 +429,16 @@ class Part < ApplicationRecord
   # For reporting
   def stock_value
     current_stock * (cost_price || 0)
+  end
+  
+  # Profit margin reporting
+  def profit_margin_data
+    {
+      cost_price: cost_price || 0,
+      selling_price: selling_price || 0,
+      profit_margin: profit_margin,
+      profit_amount: profit_amount
+    }
   end
   
   # Class method for daily low stock check
@@ -477,7 +500,9 @@ class Part < ApplicationRecord
       minimum_stock: minimum_stock,
       reorder_point: reorder_point,
       cost_price: cost_price,
-      current_price: current_price,
+      selling_price: selling_price,
+      profit_margin: profit_margin,
+      profit_amount: profit_amount,
       stock_status: stock_status,
       stock_value: stock_value,
       average_monthly_consumption: average_monthly_consumption,
@@ -499,7 +524,7 @@ class Part < ApplicationRecord
         results[:errors] << { part_id: update[:part_id], error: "Part not found" }
         next
       end
-      
+        
       begin
         if update[:quantity].positive?
           part.stock_in(
@@ -534,20 +559,33 @@ class Part < ApplicationRecord
   # Update stock from vendor invoice
   def update_from_vendor_invoice(quantity, unit_price, invoice)
     transaction do
-      update!(
-        current_stock: current_stock + quantity,
-        cost_price: unit_price # Update cost price with latest purchase
-      )
+      # Update cost price
+      update!(cost_price: unit_price) # Update cost price with latest purchase
       
-      InventoryTransaction.create!(
-        inventory_item: self,
-        transaction_type: 'receipt',
-        quantity: quantity,
-        unit_price: unit_price,
-        total_price: quantity * unit_price,
-        vendor_invoice: invoice,
-        notes: "Received via vendor invoice #{invoice.invoice_number}"
+      # Create inventory transaction record
+      stock_in(quantity, 
+        user: invoice.user,
+        agency: invoice.supplier&.agency,
+        reference: invoice,
+        notes: "Received via vendor invoice #{invoice.invoice_number}",
+        unit_price: unit_price
       )
     end
+  end
+  
+  # Additional profit-related methods
+  def calculate_profit_for_quantity(quantity)
+    return 0 if cost_price.nil? || selling_price.nil?
+    (selling_price - cost_price) * quantity
+  end
+  
+  def markup_amount
+    return 0 if cost_price.nil? || selling_price.nil?
+    selling_price - cost_price
+  end
+  
+  def markup_percentage
+    return 0 if cost_price.nil? || cost_price <= 0 || selling_price.nil?
+    ((selling_price - cost_price) / cost_price * 100).round(2)
   end
 end

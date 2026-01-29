@@ -1,0 +1,121 @@
+<div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" id="uploadInvoiceModal">
+  <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
+    <div class="mt-3">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-medium text-gray-900">Upload Invoice for <%= @supplier.name %></h3>
+        <button type="button" onclick="closeUploadModal()" class="text-gray-400 hover:text-gray-500">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+      
+      <%= form_with model: [@supplier, @vendor_invoice], 
+            url: upload_invoice_supplier_path(@supplier), 
+            html: { multipart: true, class: "space-y-4" }, local: true do |f| %>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <%= f.label :invoice_number, "Invoice Number *", class: "block text-sm font-medium text-gray-700" %>
+            <%= f.text_field :invoice_number, required: true, 
+                  class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" %>
+          </div>
+          
+          <div>
+            <%= f.label :invoice_date, "Invoice Date *", class: "block text-sm font-medium text-gray-700" %>
+            <%= f.date_field :invoice_date, required: true, value: Date.today,
+                  class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" %>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <%= f.label :amount, "Amount *", class: "block text-sm font-medium text-gray-700" %>
+            <div class="mt-1 relative rounded-md shadow-sm">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="text-gray-500 sm:text-sm">$</span>
+              </div>
+              <%= f.number_field :amount, step: "0.01", required: true,
+                    class: "pl-7 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" %>
+            </div>
+          </div>
+          
+          <div>
+            <%= f.label :due_date, "Due Date", class: "block text-sm font-medium text-gray-700" %>
+            <%= f.date_field :due_date, value: (Date.today + 30.days),
+                  class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" %>
+          </div>
+        </div>
+        
+        <div>
+          <%= f.label :purchase_order_id, "Link to Purchase Order (Optional)", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.select :purchase_order_id, 
+                options_for_select(@purchase_orders.map { |po| ["PO: #{po.po_number} - #{po.status.titleize}", po.id] }, @vendor_invoice.purchase_order_id),
+                { include_blank: 'Select Purchase Order...' },
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" %>
+          <p class="mt-1 text-sm text-gray-500">If this invoice is for a specific purchase order, select it here to automatically update inventory.</p>
+        </div>
+        
+        <div>
+          <%= f.label :description, "Description / Notes", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_area :description, rows: 2,
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500",
+                placeholder: "Optional description or notes about this invoice..." %>
+        </div>
+        
+        <div>
+          <%= f.label :invoice_scan, "Upload Scanned Invoice *", class: "block text-sm font-medium text-gray-700" %>
+          <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div class="space-y-1 text-center">
+              <i class="bi bi-cloud-upload text-gray-400 text-3xl mx-auto"></i>
+              <div class="flex text-sm text-gray-600">
+                <%= f.file_field :invoice_scan, 
+                      accept: '.pdf,.jpg,.jpeg,.png,.gif', required: true,
+                      class: "sr-only", id: "file-upload" %>
+                <label for="file-upload" class="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                  <span>Upload a file</span>
+                </label>
+                <p class="pl-1">or drag and drop</p>
+              </div>
+              <p class="text-xs text-gray-500">PDF, PNG, JPG, GIF up to 10MB</p>
+              <p id="file-name" class="text-sm font-medium text-green-600 hidden"></p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+          <button type="button" onclick="closeUploadModal()" 
+                  class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+            Cancel
+          </button>
+          <%= f.submit "Upload Invoice", 
+                class: "px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+// Show selected file name
+document.addEventListener('turbo:load', function() {
+  const fileInput = document.getElementById('file-upload');
+  const fileNameDisplay = document.getElementById('file-name');
+  
+  if (fileInput && fileNameDisplay) {
+    fileInput.addEventListener('change', function(e) {
+      if (this.files.length > 0) {
+        fileNameDisplay.textContent = this.files[0].name;
+        fileNameDisplay.classList.remove('hidden');
+      } else {
+        fileNameDisplay.classList.add('hidden');
+      }
+    });
+  }
+});
+
+function closeUploadModal() {
+  const modal = document.getElementById('uploadInvoiceModal');
+  if (modal) {
+    modal.remove();
+  }
+}
+</script>

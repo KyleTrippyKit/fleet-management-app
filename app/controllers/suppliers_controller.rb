@@ -1,17 +1,31 @@
-# app/controllers/suppliers_controller.rb
 class SuppliersController < ApplicationController
   before_action :authenticate_user!
   before_action :set_supplier, only: [:show, :edit, :update, :destroy, :invoices, :upload_invoice, 
-                                      :update_stock, :process_stock_update, :inventory_items, :new_item_form]
+                                      :new_invoice, :process_invoice, :update_stock, :process_stock_update, 
+                                      :inventory_items, :new_item_form]
   before_action :require_vmcott_user, except: [:index, :show, :search]
   
-  # GET /suppliers
+  # GET /suppliers - CARD VIEW
   def index
-    @suppliers = Supplier.active.order(name: :asc)
+    @suppliers = Supplier.active.includes(:vendor_invoices).order(name: :asc)
     
     if params[:search].present?
-      @suppliers = @suppliers.where("name ILIKE ? OR email ILIKE ? OR phone ILIKE ?", 
-                                   "%#{params[:search]}%", "%#{params[:search]}%", "%#{params[:search]}%")
+      search_term = "%#{params[:search]}%"
+      @suppliers = @suppliers.where(
+        "suppliers.name ILIKE ? OR suppliers.email ILIKE ? OR suppliers.contact_person ILIKE ? OR suppliers.phone ILIKE ?",
+        search_term, search_term, search_term, search_term
+      )
+    end
+    
+    # Pre-calculate stats for each supplier to avoid N+1 queries
+    @suppliers_with_stats = @suppliers.map do |supplier|
+      {
+        supplier: supplier,
+        total_spent: supplier.vendor_invoices.where(status: 'paid').sum(:amount),
+        outstanding: supplier.vendor_invoices.where(status: ['pending', 'reviewed']).sum(:amount),
+        invoice_count: supplier.vendor_invoices.count,
+        last_invoice: supplier.vendor_invoices.order(invoice_date: :desc).first
+      }
     end
     
     respond_to do |format|
@@ -20,7 +34,7 @@ class SuppliersController < ApplicationController
     end
   end
   
-  # GET /suppliers/1
+  # GET /suppliers/1 - VENDOR DETAIL PAGE WITH STATS
   def show
     @vendor_invoices = @supplier.vendor_invoices.includes(:purchase_order).order(invoice_date: :desc).limit(10)
     @purchase_orders = @supplier.purchase_orders.order(created_at: :desc).limit(5)
@@ -31,6 +45,7 @@ class SuppliersController < ApplicationController
     @outstanding = @supplier.vendor_invoices.where(status: ['pending', 'reviewed']).sum(:amount)
     @overdue_invoices = @supplier.vendor_invoices.where("due_date < ? AND status IN (?)", 
       Date.today, ['pending', 'reviewed'])
+    @invoice_count = @supplier.vendor_invoices.count
     
     # For new invoice form
     @vendor_invoice = @supplier.vendor_invoices.new
@@ -73,7 +88,7 @@ class SuppliersController < ApplicationController
     redirect_to suppliers_url, notice: 'Supplier was deactivated.'
   end
   
-  # GET /suppliers/1/invoices
+  # GET /suppliers/1/invoices - INVOICE LIST WITH SEARCH
   def invoices
     @vendor_invoices = @supplier.vendor_invoices
       .includes(:purchase_order)
@@ -81,39 +96,123 @@ class SuppliersController < ApplicationController
       .page(params[:page])
       .per(20)
     
-    if params[:q].present?
-      @vendor_invoices = @vendor_invoices.where("invoice_number ILIKE ?", "%#{params[:q]}%")
+    # Calculate stats for display
+    @outstanding = @vendor_invoices.where(status: ['pending', 'reviewed']).sum(:amount)
+    @paid = @vendor_invoices.where(status: 'paid').sum(:amount)
+    @total = @vendor_invoices.sum(:amount)
+    
+    # FIXED: Enhanced search - search by ID, invoice number, or date
+    if params[:search].present?
+      search_term = "%#{params[:search]}%"
+      @vendor_invoices = @vendor_invoices.where(
+        "invoice_number ILIKE ? OR CAST(vendor_invoices.id AS TEXT) ILIKE ? OR description ILIKE ?",
+        search_term, search_term, search_term
+      )
     end
     
-    if params[:start_date].present? && params[:end_date].present?
+    # Status filter
+    if params[:status].present?
+      @vendor_invoices = @vendor_invoices.where(status: params[:status])
+    end
+    
+    # Date range filter - FIXED: Handle single dates too
+    if params[:start_date].present?
       start_date = Date.parse(params[:start_date])
-      end_date = Date.parse(params[:end_date])
-      @vendor_invoices = @vendor_invoices.where(invoice_date: start_date..end_date)
+      if params[:end_date].present?
+        end_date = Date.parse(params[:end_date])
+        @vendor_invoices = @vendor_invoices.where(invoice_date: start_date..end_date)
+      else
+        @vendor_invoices = @vendor_invoices.where(invoice_date: start_date)
+      end
+    end
+    
+    respond_to do |format|
+      format.html
+      format.json do
+        render json: @vendor_invoices.limit(20).map { |vi|
+          {
+            id: vi.id,
+            invoice_number: vi.invoice_number,
+            invoice_date: vi.invoice_date,
+            amount: vi.amount,
+            status: vi.status,
+            purchase_order_id: vi.purchase_order_id,
+            due_date: vi.due_date,
+            has_attachment: vi.invoice_scan.attached?,
+            attachment_url: vi.invoice_scan.attached? ? rails_blob_url(vi.invoice_scan) : nil
+          }
+        }
+      end
     end
   end
   
-  # POST /suppliers/1/upload_invoice
+  # GET /suppliers/1/new_invoice - NEW INVOICE FORM
+  def new_invoice
+    @vendor_invoice = @supplier.vendor_invoices.new
+    @vendor_invoice.invoice_date = Date.today
+    @vendor_invoice.due_date = Date.today + 30.days
+    
+    # Get available purchase orders for this supplier
+    @purchase_orders = @supplier.purchase_orders.where(status: ['approved', 'ordered'])
+    
+    render 'new_invoice', layout: false
+  end
+  
+  # POST /suppliers/1/upload_invoice - FIXED FILE UPLOAD
   def upload_invoice
     @vendor_invoice = @supplier.vendor_invoices.new(vendor_invoice_params)
     @vendor_invoice.user = current_user
     
-    if @vendor_invoice.save
-      # Attach scanned invoice if provided
-      if params[:vendor_invoice][:invoice_scan].present?
-        @vendor_invoice.invoice_scan.attach(params[:vendor_invoice][:invoice_scan])
+    # FIXED: Check if invoice_scan is present in params
+    invoice_scan_file = params[:vendor_invoice][:invoice_scan] if params[:vendor_invoice]
+    
+    if @vendor_invoice.valid?
+      ActiveRecord::Base.transaction do
+        @vendor_invoice.save!
+        
+        # FIXED: Attach file if present
+        if invoice_scan_file.present?
+          @vendor_invoice.invoice_scan.attach(invoice_scan_file)
+        end
+        
+        # If linked to PO, update inventory
+        if @vendor_invoice.purchase_order
+          update_inventory_from_po(@vendor_invoice.purchase_order, @vendor_invoice)
+        end
+        
+        # Create audit log
+        create_invoice_audit(@vendor_invoice, 'uploaded')
       end
       
-      # If linked to PO, update inventory
-      if @vendor_invoice.purchase_order
-        update_inventory_from_invoice(@vendor_invoice)
-      end
-      
-      redirect_to supplier_path(@supplier), 
+      redirect_to invoices_supplier_path(@supplier), 
                   notice: "Invoice #{@vendor_invoice.invoice_number} uploaded successfully."
     else
+      @purchase_orders = @supplier.purchase_orders.where(status: ['approved', 'ordered'])
       flash[:alert] = "Failed to upload invoice: #{@vendor_invoice.errors.full_messages.join(', ')}"
-      render :show
+      render :new_invoice
     end
+  end
+  
+  # POST /suppliers/1/process_invoice - PROCESS INVOICE PAYMENT/STATUS
+  def process_invoice
+    @vendor_invoice = @supplier.vendor_invoices.find(params[:invoice_id])
+    action = params[:action_type]
+    
+    case action
+    when 'mark_paid'
+      @vendor_invoice.mark_as_paid(Date.today, params[:payment_notes])
+      message = "Invoice marked as paid."
+    when 'mark_reviewed'
+      @vendor_invoice.update!(status: 'reviewed')
+      message = "Invoice marked as reviewed."
+    when 'dispute'
+      @vendor_invoice.update!(status: 'disputed', payment_notes: params[:dispute_reason])
+      message = "Invoice marked as disputed."
+    else
+      return redirect_to invoices_supplier_path(@supplier), alert: "Invalid action."
+    end
+    
+    redirect_to invoices_supplier_path(@supplier), notice: message
   end
   
   # GET /suppliers/1/update_stock
@@ -199,8 +298,8 @@ class SuppliersController < ApplicationController
     query = params[:q].to_s.strip
     
     @suppliers = Supplier.active
-      .where("name ILIKE ? OR email ILIKE ? OR phone ILIKE ? OR contact_person ILIKE ?",
-             "%#{query}%", "%#{query}%", "%#{query}%", "%#{query}%")
+      .where("name ILIKE ? OR email ILIKE ? OR contact_person ILIKE ?", 
+             "%#{query}%", "%#{query}%", "%#{query}%")
       .limit(10)
       .order(:name)
     
@@ -210,7 +309,10 @@ class SuppliersController < ApplicationController
         name: s.name, 
         email: s.email,
         phone: s.phone,
-        outstanding: s.total_outstanding
+        outstanding: s.vendor_invoices.where(status: ['pending', 'reviewed']).sum(:amount),
+        contact_person: s.contact_person,
+        is_active: s.is_active,
+        vendor_invoice_count: s.vendor_invoices.count
       } 
     }
   end
@@ -224,41 +326,65 @@ class SuppliersController < ApplicationController
   def supplier_params
     params.require(:supplier).permit(
       :name, :address, :email, :phone, :contact_person,
-      :payment_terms, :notes, :is_active
+      :payment_terms, :notes, :is_active,
+      :tax_id, :website, :bank_account_details  # Added more fields
     )
   end
   
   def vendor_invoice_params
     params.require(:vendor_invoice).permit(
       :invoice_number, :invoice_date, :amount, :currency,
-      :description, :purchase_order_id, :due_date
+      :description, :purchase_order_id, :due_date,
+      :invoice_scan, :tax_amount, :shipping_cost
     )
   end
   
-  def update_inventory_from_invoice(invoice)
-    return unless invoice.purchase_order
+  def update_inventory_from_po(purchase_order, vendor_invoice)
+    return unless purchase_order
     
-    invoice.purchase_order.purchase_order_items.each do |item|
-      next unless item.part
+    purchase_order.purchase_order_items.each do |po_item|
+      next unless po_item.part
       
-      # Update part stock
-      item.part.update!(
-        current_stock: item.part.current_stock + item.quantity,
-        cost_price: item.unit_price
+      # Check if already received via this invoice
+      next if InventoryTransaction.exists?(
+        vendor_invoice: vendor_invoice,
+        inventory_item: po_item.part
+      )
+      
+      # Update stock
+      po_item.part.update!(
+        current_stock: po_item.part.current_stock + po_item.quantity,
+        cost_price: po_item.unit_price  # Update cost price from PO
       )
       
       # Create inventory transaction
       InventoryTransaction.create!(
-        inventory_item: item.part,
+        inventory_item: po_item.part,
         transaction_type: 'receipt',
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total_price: item.total_price,
-        notes: "Received via vendor invoice #{invoice.invoice_number}",
-        vendor_invoice: invoice,
+        quantity: po_item.quantity,
+        unit_price: po_item.unit_price,
+        total_price: po_item.total_price,
+        notes: "Received via PO #{purchase_order.po_number}, Invoice #{vendor_invoice.invoice_number}",
+        vendor_invoice: vendor_invoice,
+        purchase_order: purchase_order,
         user: current_user
       )
     end
+  end
+  
+  def create_invoice_audit(vendor_invoice, action)
+    # Create audit log for invoice actions
+    AccessLog.create!(
+      user: current_user,
+      action: "invoice_#{action}",
+      resource: vendor_invoice,
+      outcome: 'success',
+      details: {
+        invoice_number: vendor_invoice.invoice_number,
+        amount: vendor_invoice.amount,
+        supplier_id: vendor_invoice.supplier_id
+      }
+    )
   end
   
   def require_vmcott_user
@@ -266,6 +392,18 @@ class SuppliersController < ApplicationController
     
     unless current_user.agency&.code == 'VMCOTT'
       redirect_to root_path, alert: 'Access denied. VMCOTT users only.'
+    end
+  end
+  
+  # Helper method for view
+  helper_method :invoice_status_color
+  def invoice_status_color(status)
+    case status
+    when 'paid' then 'bg-green-100 text-green-800'
+    when 'pending' then 'bg-yellow-100 text-yellow-800'
+    when 'reviewed' then 'bg-blue-100 text-blue-800'
+    when 'disputed' then 'bg-red-100 text-red-800'
+    else 'bg-gray-100 text-gray-800'
     end
   end
 end

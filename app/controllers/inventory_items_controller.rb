@@ -7,7 +7,15 @@ class InventoryItemsController < ApplicationController
   def new
     @part = @supplier.parts.new
     @part.supplier = @supplier
-    @categories = Part.distinct.pluck(:category).compact.sort
+    
+    # FIXED: Use unscoped to avoid default_scope conflict with DISTINCT
+    @categories = Part.unscoped
+                      .where.not(category: [nil, ''])
+                      .select(:category)
+                      .distinct
+                      .order(:category)
+                      .pluck(:category)
+                      .sort
   end
   
   def create
@@ -49,7 +57,14 @@ class InventoryItemsController < ApplicationController
       redirect_to supplier_path(@supplier), 
                   notice: 'Inventory item was successfully created.'
     else
-      @categories = Part.distinct.pluck(:category).compact.sort
+      # FIXED: Use the same unscoped query in the error case
+      @categories = Part.unscoped
+                        .where.not(category: [nil, ''])
+                        .select(:category)
+                        .distinct
+                        .order(:category)
+                        .pluck(:category)
+                        .sort
       render :new
     end
   end

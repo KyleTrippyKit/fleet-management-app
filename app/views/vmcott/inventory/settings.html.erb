@@ -1,0 +1,390 @@
+<%# app/views/vmcott/inventory/settings.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-10 offset-md-1">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="mb-1">
+            <i class="bi bi-gear text-primary me-2"></i>Inventory Settings
+          </h1>
+          <p class="text-muted mb-0">Configure your inventory management system</p>
+        </div>
+        <div>
+          <%= link_to 'Back to Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-outline-secondary' %>
+        </div>
+      </div>
+      
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-0">
+          <ul class="nav nav-tabs card-header-tabs" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                <i class="bi bi-sliders me-2"></i>General
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab">
+                <i class="bi bi-bell me-2"></i>Notifications
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
+                <i class="bi bi-arrow-left-right me-2"></i>Import/Export
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="suppliers-tab" data-bs-toggle="tab" data-bs-target="#suppliers" type="button" role="tab">
+                <i class="bi bi-truck me-2"></i>Suppliers
+              </button>
+            </li>
+          </ul>
+        </div>
+        
+        <div class="card-body p-4">
+          <div class="tab-content" id="settingsTabsContent">
+            
+            <!-- General Settings Tab -->
+            <div class="tab-pane fade show active" id="general" role="tabpanel">
+              <%= form_with url: update_inventory_settings_path, method: :patch, local: true, data: { turbo: false } do |f| %>
+                <%= hidden_field_tag :setting_type, 'general' %>
+                
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Default Reorder Percentage</label>
+                      <div class="input-group">
+                        <%= number_field_tag :default_reorder_percentage, 
+                            @inventory_settings[:default_reorder_percentage],
+                            class: 'form-control',
+                            min: 100,
+                            max: 500,
+                            step: 10 %>
+                        <span class="input-group-text">%</span>
+                      </div>
+                      <small class="form-text text-muted">Percentage above minimum stock level to trigger reorder</small>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Low Stock Threshold</label>
+                      <div class="input-group">
+                        <%= number_field_tag :low_stock_threshold, 
+                            @inventory_settings[:low_stock_threshold],
+                            class: 'form-control',
+                            min: 1,
+                            max: 90 %>
+                        <span class="input-group-text">days</span>
+                      </div>
+                      <small class="form-text text-muted">Days of supply considered "low stock"</small>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Default Markup Percentage</label>
+                      <div class="input-group">
+                        <%= number_field_tag :default_markup_percentage, 
+                            @inventory_settings[:default_markup_percentage],
+                            class: 'form-control',
+                            min: 0,
+                            max: 100,
+                            step: 0.5 %>
+                        <span class="input-group-text">%</span>
+                      </div>
+                      <small class="form-text text-muted">Default markup for pricing parts</small>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Currency</label>
+                      <%= select_tag :currency, 
+                          options_for_select([['TTD - Trinidad and Tobago Dollar', 'TTD'], 
+                                            ['USD - US Dollar', 'USD'],
+                                            ['EUR - Euro', 'EUR']], 
+                                            @inventory_settings[:currency]),
+                          class: 'form-select' %>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Default Unit of Measure</label>
+                  <%= text_field_tag :default_unit_of_measure, 
+                      @inventory_settings[:default_unit_of_measure],
+                      class: 'form-control' %>
+                  <small class="form-text text-muted">e.g., each, pair, box, kg, liter</small>
+                </div>
+                
+                <div class="d-flex justify-content-end">
+                  <%= f.submit 'Save General Settings', class: 'btn btn-primary' %>
+                </div>
+              <% end %>
+            </div>
+            
+            <!-- Notifications Tab -->
+            <div class="tab-pane fade" id="notifications" role="tabpanel">
+              <%= form_with url: update_inventory_settings_path, method: :patch, local: true, data: { turbo: false } do |f| %>
+                <%= hidden_field_tag :setting_type, 'notifications' %>
+                
+                <div class="mb-4">
+                  <h6 class="mb-3">Email Notifications</h6>
+                  <div class="form-check form-switch mb-3">
+                    <%= check_box_tag :low_stock_email, '1', @notification_settings[:low_stock_email], 
+                        class: 'form-check-input', 
+                        id: 'low_stock_email' %>
+                    <label class="form-check-label" for="low_stock_email">
+                      <strong>Low Stock Alerts</strong>
+                      <small class="d-block text-muted">Receive email when parts fall below reorder point</small>
+                    </label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-3">
+                    <%= check_box_tag :daily_report_email, '1', @notification_settings[:daily_report_email], 
+                        class: 'form-check-input', 
+                        id: 'daily_report_email' %>
+                    <label class="form-check-label" for="daily_report_email">
+                      <strong>Daily Inventory Report</strong>
+                      <small class="d-block text-muted">Receive daily summary of inventory status</small>
+                    </label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-3">
+                    <%= check_box_tag :critical_stock_notification, '1', @notification_settings[:critical_stock_notification], 
+                        class: 'form-check-input', 
+                        id: 'critical_stock_notification' %>
+                    <label class="form-check-label" for="critical_stock_notification">
+                      <strong>Critical Stock Notifications</strong>
+                      <small class="d-block text-muted">Immediate alerts for critically low stock</small>
+                    </label>
+                  </div>
+                  
+                  <div class="form-check form-switch mb-3">
+                    <%= check_box_tag :purchase_request_approval_notification, '1', 
+                        @notification_settings[:purchase_request_approval_notification], 
+                        class: 'form-check-input', 
+                        id: 'purchase_request_approval_notification' %>
+                    <label class="form-check-label" for="purchase_request_approval_notification">
+                      <strong>Purchase Request Approval Notifications</strong>
+                      <small class="d-block text-muted">Notify when purchase requests need approval</small>
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="d-flex justify-content-end">
+                  <%= f.submit 'Save Notification Settings', class: 'btn btn-primary' %>
+                </div>
+              <% end %>
+            </div>
+            
+            <!-- Import/Export Tab -->
+            <div class="tab-pane fade" id="import" role="tabpanel">
+              <%= form_with url: update_inventory_settings_path, method: :patch, local: true, data: { turbo: false } do |f| %>
+                <%= hidden_field_tag :setting_type, 'import_export' %>
+                
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">CSV Column Mapping</label>
+                      <%= select_tag :csv_column_mapping, 
+                          options_for_select([['Default Mapping', 'default'],
+                                            ['Custom Mapping 1', 'custom1'],
+                                            ['Custom Mapping 2', 'custom2']], 
+                                            @import_export_settings[:csv_column_mapping]),
+                          class: 'form-select' %>
+                      <small class="form-text text-muted">Mapping for CSV import/export columns</small>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Default Export Format</label>
+                      <%= select_tag :export_format, 
+                          options_for_select([['CSV', 'csv'],
+                                            ['Excel (XLSX)', 'xlsx'],
+                                            ['PDF', 'pdf']], 
+                                            @import_export_settings[:export_format]),
+                          class: 'form-select' %>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Maximum File Size</label>
+                      <div class="input-group">
+                        <%= number_field_tag :max_file_size_mb, 
+                            @import_export_settings[:max_file_size_mb],
+                            class: 'form-control',
+                            min: 1,
+                            max: 100 %>
+                        <span class="input-group-text">MB</span>
+                      </div>
+                      <small class="form-text text-muted">Maximum file size for imports</small>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Backup Frequency</label>
+                      <%= select_tag :backup_frequency, 
+                          options_for_select([['Daily', 'daily'],
+                                            ['Weekly', 'weekly'],
+                                            ['Monthly', 'monthly'],
+                                            ['Never', 'never']], 
+                                            @import_export_settings[:backup_frequency]),
+                          class: 'form-select' %>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="form-check form-switch mb-4">
+                  <%= check_box_tag :auto_backup_enabled, '1', @import_export_settings[:auto_backup_enabled], 
+                      class: 'form-check-input', 
+                      id: 'auto_backup_enabled' %>
+                  <label class="form-check-label" for="auto_backup_enabled">
+                    <strong>Enable Automatic Backups</strong>
+                    <small class="d-block text-muted">Automatically backup inventory data</small>
+                  </label>
+                </div>
+                
+                <div class="d-flex justify-content-end">
+                  <%= f.submit 'Save Import/Export Settings', class: 'btn btn-primary' %>
+                </div>
+              <% end %>
+            </div>
+            
+            <!-- Suppliers Tab -->
+            <div class="tab-pane fade" id="suppliers" role="tabpanel">
+              <%= form_with url: update_inventory_settings_path, method: :patch, local: true, data: { turbo: false } do |f| %>
+                <%= hidden_field_tag :setting_type, 'supplier' %>
+                
+                <div class="row mb-4">
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Default Payment Terms</label>
+                      <%= select_tag :default_payment_terms, 
+                          options_for_select([['Net 30', 'net30'],
+                                            ['Net 60', 'net60'],
+                                            ['Due on Receipt', 'due_on_receipt'],
+                                            ['2% 10, Net 30', '2_10_net30']], 
+                                            @inventory_settings[:default_payment_terms]),
+                          class: 'form-select' %>
+                      <small class="form-text text-muted">Default payment terms for suppliers</small>
+                    </div>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <div class="mb-3">
+                      <label class="form-label">Minimum Order Quantity</label>
+                      <%= number_field_tag :minimum_order_quantity, 
+                          @inventory_settings[:minimum_order_quantity],
+                          class: 'form-control',
+                          min: 1 %>
+                      <small class="form-text text-muted">Default minimum order quantity</small>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Lead Time (Days)</label>
+                  <%= number_field_tag :lead_time_days, 
+                      @inventory_settings[:lead_time_days],
+                      class: 'form-control',
+                      min: 1,
+                      max: 90 %>
+                  <small class="form-text text-muted">Default lead time for supplier deliveries</small>
+                </div>
+                
+                <div class="d-flex justify-content-end">
+                  <%= f.submit 'Save Supplier Settings', class: 'btn btn-primary' %>
+                </div>
+              <% end %>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">
+            <i class="bi bi-shield-check me-2"></i>System Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <strong class="d-block text-muted">Total Parts</strong>
+                <span class="h4"><%= Part.count %></span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <strong class="d-block text-muted">Active Suppliers</strong>
+                <span class="h4"><%= Supplier.active.count %></span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <strong class="d-block text-muted">Inventory Value</strong>
+                <span class="h4">TTD <%= number_to_currency(Part.sum('current_stock * COALESCE(cost_price, 0)'), unit: '') %></span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4 pt-3 border-top">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <small class="text-muted">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Settings are cached for 1 hour. Changes may take effect immediately.
+                </small>
+              </div>
+              <div>
+                <%= link_to 'Reset to Defaults', '#', 
+                    class: 'btn btn-outline-danger btn-sm',
+                    data: { confirm: 'Are you sure you want to reset all settings to defaults?' } %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%= javascript_tag do %>
+  document.addEventListener('turbo:load', function() {
+    // Initialize tab functionality
+    const settingsTabs = document.querySelector('#settingsTabs');
+    if (settingsTabs) {
+      const tabTriggerList = [].slice.call(settingsTabs.querySelectorAll('button[data-bs-toggle="tab"]'));
+      tabTriggerList.forEach(function (tabTriggerEl) {
+        tabTriggerEl.addEventListener('click', function (event) {
+          event.preventDefault();
+          const bsTab = new bootstrap.Tab(tabTriggerEl);
+          bsTab.show();
+        });
+      });
+    }
+    
+    // Save settings confirmation
+    const settingsForms = document.querySelectorAll('form[action*="update_settings"]');
+    settingsForms.forEach(form => {
+      form.addEventListener('submit', function(e) {
+        const submitBtn = this.querySelector('input[type="submit"]');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.value = 'Saving...';
+          submitBtn.classList.add('disabled');
+        }
+      });
+    });
+  });
+<% end %>

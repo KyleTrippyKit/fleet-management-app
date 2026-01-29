@@ -1,0 +1,169 @@
+<%# app/views/vmcott/inventory/export_report.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-10 offset-md-1">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="mb-0">
+                <i class="bi bi-download text-primary me-2"></i>Export Inventory Report
+              </h4>
+              <small class="text-muted">Generate and download inventory reports in various formats</small>
+            </div>
+            <div>
+              <%= link_to 'Back to Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-sm btn-outline-secondary' %>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-8">
+              <%= form_with url: vmcott_inventory_export_report_path, method: :get, local: true, class: 'mb-4' do |f| %>
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Report Type</label>
+                    <%= select_tag :type, 
+                        options_for_select([['Full Inventory Report', 'full'],
+                                          ['Low Stock Report', 'low_stock'],
+                                          ['Inventory Valuation', 'valuation'],
+                                          ['Vendor Inventory', 'vendor']]),
+                        class: 'form-select' %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <label class="form-label">Format</label>
+                    <div class="btn-group w-100" role="group">
+                      <%= link_to 'CSV', vmcott_inventory_export_report_path(format: :csv, type: 'full'), 
+                          class: 'btn btn-outline-primary' %>
+                      <%= link_to 'Excel', vmcott_inventory_export_report_path(format: :xlsx, type: 'full'), 
+                          class: 'btn btn-outline-success' %>
+                      <%= link_to 'PDF', vmcott_inventory_export_report_path(format: :pdf, type: 'full'), 
+                          class: 'btn btn-outline-danger' %>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Category</label>
+                    <%= select_tag :category, 
+                        options_for_select(Part.distinct.pluck(:category).compact.sort),
+                        include_blank: 'All Categories',
+                        class: 'form-select' %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <label class="form-label">Supplier</label>
+                    <%= select_tag :supplier_id, 
+                        options_from_collection_for_select(Supplier.all, :id, :name),
+                        include_blank: 'All Suppliers',
+                        class: 'form-select' %>
+                  </div>
+                </div>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Stock Status</label>
+                    <%= select_tag :stock_status, 
+                        options_for_select([['All', ''],
+                                          ['Low Stock', 'low'],
+                                          ['Critical', 'critical'],
+                                          ['Out of Stock', 'out_of_stock']]),
+                        class: 'form-select' %>
+                  </div>
+                  
+                  <div class="col-md-6">
+                    <label class="form-label">Search</label>
+                    <%= text_field_tag :search, '', 
+                        placeholder: 'Search by name or part number...',
+                        class: 'form-control' %>
+                  </div>
+                </div>
+                
+                <div class="d-grid">
+                  <%= f.submit 'Generate Report', class: 'btn btn-primary' %>
+                </div>
+              <% end %>
+              
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Recent Exports</h5>
+                </div>
+                <div class="card-body">
+                  <div class="text-center py-5">
+                    <i class="bi bi-file-earmark-text text-muted fs-1 mb-3 opacity-50"></i>
+                    <p class="text-muted">No recent exports</p>
+                    <small class="text-muted">Generated reports will appear here</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-4">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">Export Options</h5>
+                  
+                  <div class="list-group list-group-flush">
+                    <%= link_to vmcott_inventory_export_report_path(format: :csv, type: 'full'), 
+                        class: 'list-group-item list-group-item-action d-flex justify-content-between align-items-center' do %>
+                      <div>
+                        <i class="bi bi-filetype-csv text-primary me-2"></i>
+                        <span>Full Inventory</span>
+                      </div>
+                      <small class="text-muted">CSV</small>
+                    <% end %>
+                    
+                    <%= link_to vmcott_inventory_export_report_path(format: :xlsx, type: 'low_stock'), 
+                        class: 'list-group-item list-group-item-action d-flex justify-content-between align-items-center' do %>
+                      <div>
+                        <i class="bi bi-filetype-xlsx text-success me-2"></i>
+                        <span>Low Stock Report</span>
+                      </div>
+                      <small class="text-muted">Excel</small>
+                    <% end %>
+                    
+                    <%= link_to vmcott_inventory_export_report_path(format: :pdf, type: 'valuation'), 
+                        class: 'list-group-item list-group-item-action d-flex justify-content-between align-items-center' do %>
+                      <div>
+                        <i class="bi bi-filetype-pdf text-danger me-2"></i>
+                        <span>Valuation Report</span>
+                      </div>
+                      <small class="text-muted">PDF</small>
+                    <% end %>
+                    
+                    <%= link_to vmcott_inventory_export_report_path(format: :csv, type: 'vendor'), 
+                        class: 'list-group-item list-group-item-action d-flex justify-content-between align-items-center' do %>
+                      <div>
+                        <i class="bi bi-filetype-csv text-primary me-2"></i>
+                        <span>Vendor Inventory</span>
+                      </div>
+                      <small class="text-muted">CSV</small>
+                    <% end %>
+                  </div>
+                  
+                  <div class="mt-4 pt-3 border-top">
+                    <h6 class="mb-3">Quick Export</h6>
+                    <div class="d-grid gap-2">
+                      <%= link_to 'Export All to CSV', 
+                          vmcott_inventory_export_report_path(format: :csv, type: 'full'),
+                          class: 'btn btn-outline-primary' %>
+                      <%= link_to 'Low Stock to Excel', 
+                          vmcott_inventory_export_report_path(format: :xlsx, type: 'low_stock'),
+                          class: 'btn btn-outline-success' %>
+                      <%= link_to 'Valuation to PDF', 
+                          vmcott_inventory_export_report_path(format: :pdf, type: 'valuation'),
+                          class: 'btn btn-outline-danger' %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

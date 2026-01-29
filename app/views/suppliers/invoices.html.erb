@@ -1,0 +1,249 @@
+<!-- app/views/suppliers/invoices.html.erb -->
+<div class="container mx-auto px-4 py-8">
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Invoices for <%= @supplier.name %></h1>
+      <p class="text-gray-600">
+        <i class="bi bi-envelope me-1"></i><%= @supplier.email %> | 
+        <i class="bi bi-telephone ms-3 me-1"></i><%= @supplier.phone %>
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <%= link_to suppliers_path, class: 'btn btn-outline-secondary' do %>
+        <i class="bi bi-arrow-left me-1"></i> Back to Vendors
+      <% end %>
+      <button onclick="showUploadForm()" class="btn btn-success">
+        <i class="bi bi-cloud-upload me-1"></i> Upload New Invoice
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm text-gray-500">Total Invoices</div>
+      <div class="text-2xl font-bold"><%= number_with_delimiter(@vendor_invoices.total_count) %></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm text-gray-500">Total Amount</div>
+      <div class="text-2xl font-bold"><%= number_to_currency(@total) %></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm text-gray-500">Paid</div>
+      <div class="text-2xl font-bold text-green-600"><%= number_to_currency(@paid) %></div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="text-sm text-gray-500">Outstanding</div>
+      <div class="text-2xl font-bold text-<%= @outstanding > 0 ? 'warning' : 'success' %>">
+        <%= number_to_currency(@outstanding) %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search and Filter -->
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <%= form_with url: invoices_supplier_path(@supplier), method: :get, local: true, class: "space-y-4" do |f| %>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <%= f.label :search, "Search", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.text_field :search, 
+                placeholder: "Invoice #, ID, or description...", 
+                value: params[:search],
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" %>
+        </div>
+        
+        <div>
+          <%= f.label :status, "Status", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.select :status, 
+                options_for_select([
+                  ['All Statuses', ''],
+                  ['Pending', 'pending'],
+                  ['Reviewed', 'reviewed'],
+                  ['Paid', 'paid'],
+                  ['Disputed', 'disputed']
+                ], params[:status]),
+                {},
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" %>
+        </div>
+        
+        <div>
+          <%= f.label :start_date, "From Date", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.date_field :start_date, 
+                value: params[:start_date],
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" %>
+        </div>
+        
+        <div>
+          <%= f.label :end_date, "To Date", class: "block text-sm font-medium text-gray-700" %>
+          <%= f.date_field :end_date, 
+                value: params[:end_date],
+                class: "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" %>
+        </div>
+      </div>
+      
+      <div class="flex justify-between">
+        <div>
+          <% if params[:search].present? || params[:status].present? || params[:start_date].present? %>
+            <%= link_to 'Clear Filters', invoices_supplier_path(@supplier), class: 'text-sm text-gray-600 hover:text-gray-900' %>
+          <% end %>
+        </div>
+        <div>
+          <%= f.submit "Apply Filters", class: "btn btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Invoices Table -->
+  <div class="bg-white shadow-md rounded-lg overflow-hidden">
+    <% if @vendor_invoices.empty? %>
+      <div class="text-center py-12">
+        <i class="bi bi-receipt text-gray-300 text-4xl mb-3"></i>
+        <p class="text-gray-500">No invoices found for this vendor.</p>
+        <button onclick="showUploadForm()" class="btn btn-primary mt-3">
+          <i class="bi bi-cloud-upload me-1"></i> Upload First Invoice
+        </button>
+      </div>
+    <% else %>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <% @vendor_invoices.each do |invoice| %>
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                  <div class="font-medium text-gray-900">
+                    <i class="bi bi-receipt me-2"></i><%= invoice.invoice_number %>
+                  </div>
+                  <% if invoice.description.present? %>
+                    <div class="text-sm text-gray-500 truncate max-w-xs"><%= invoice.description %></div>
+                  <% end %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <%= invoice.invoice_date.strftime('%b %d, %Y') %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <%= number_to_currency(invoice.amount) %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <% if invoice.due_date %>
+                    <span class="<%= invoice.due_date < Date.today && invoice.status.in?(%w[pending reviewed]) ? 'text-red-600 font-semibold' : '' %>">
+                      <%= invoice.due_date.strftime('%b %d, %Y') %>
+                      <% if invoice.due_date < Date.today && invoice.status.in?(%w[pending reviewed]) %>
+                        <br><span class="text-xs text-red-500">(<%= (Date.today - invoice.due_date).to_i %> days overdue)</span>
+                      <% end %>
+                    </span>
+                  <% else %>
+                    <span class="text-gray-400">Not set</span>
+                  <% end %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs rounded-full <%= invoice_status_color(invoice.status) %>">
+                    <%= invoice.status.titleize %>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div class="flex gap-2">
+                    <% if invoice.invoice_scan.attached? %>
+                      <%= link_to rails_blob_path(invoice.invoice_scan, disposition: 'attachment'), 
+                            class: 'btn btn-sm btn-outline-primary', 
+                            title: 'Download Scanned Invoice' do %>
+                        <i class="bi bi-download"></i>
+                      <% end %>
+                    <% end %>
+                    
+                    <%= link_to vendor_invoice_path(invoice), 
+                          class: 'btn btn-sm btn-outline-info',
+                          title: 'View Invoice Details' do %>
+                      <i class="bi bi-eye"></i>
+                    <% end %>
+                    
+                    <% if invoice.status == 'pending' || invoice.status == 'reviewed' %>
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                          <i class="bi bi-gear"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                          <li>
+                            <%= form_with url: process_invoice_supplier_path(@supplier, invoice_id: invoice.id, action_type: 'mark_paid'), 
+                                  method: :post, class: 'dropdown-item' do %>
+                              <button type="submit" class="w-100 text-left">
+                                <i class="bi bi-check-circle me-1"></i> Mark as Paid
+                              </button>
+                            <% end %>
+                          </li>
+                          <li>
+                            <%= form_with url: process_invoice_supplier_path(@supplier, invoice_id: invoice.id, action_type: 'mark_reviewed'), 
+                                  method: :post, class: 'dropdown-item' do %>
+                              <button type="submit" class="w-100 text-left">
+                                <i class="bi bi-check-square me-1"></i> Mark as Reviewed
+                              </button>
+                            <% end %>
+                          </li>
+                        </ul>
+                      </div>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      <div class="bg-gray-50 px-4 py-3 border-t border-gray-200 sm:px-6">
+        <%= paginate @vendor_invoices %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Modal Script -->
+<script>
+function showUploadForm() {
+  fetch('<%= new_invoice_supplier_path(@supplier) %>')
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.text();
+    })
+    .then(html => {
+      document.body.insertAdjacentHTML('beforeend', html);
+    })
+    .catch(error => {
+      console.error('Error loading upload form:', error);
+      alert('Error loading upload form. Please try again.');
+    });
+}
+
+function closeUploadModal() {
+  const modal = document.getElementById('uploadInvoiceModal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeUploadModal();
+  }
+});
+
+// Close modal when clicking outside
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('uploadInvoiceModal');
+  if (modal && e.target === modal) {
+    closeUploadModal();
+  }
+});
+</script>

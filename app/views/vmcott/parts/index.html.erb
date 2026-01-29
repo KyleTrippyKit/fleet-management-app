@@ -1,0 +1,100 @@
+<%# app/views/vmcott/parts/index.html.erb %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-box-seam me-2"></i>Parts Management
+    </h1>
+    <div>
+      <%= link_to 'New Part', new_vmcott_part_path, class: 'btn btn-primary' %>
+      <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-outline-secondary' %>
+    </div>
+  </div>
+  
+  <div class="card">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">All Parts (<%= @parts.total_count %>)</h5>
+    </div>
+    
+    <div class="card-body">
+      <% if @parts.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Part Number</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Cost Price</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @parts.each do |part| %>
+                <tr>
+                  <td><%= part.id %></td>
+                  <td><strong><%= part.name %></strong></td>
+                  <td><%= part.part_number || 'N/A' %></td>
+                  <td><span class="badge bg-secondary"><%= part.category || 'Uncategorized' %></span></td>
+                  <td>
+                    <span class="badge bg-<%= part.current_stock > (part.minimum_stock || 0) ? 'success' : 'danger' %>">
+                      <%= part.current_stock %> in stock
+                    </span>
+                  </td>
+                  <td>$<%= number_with_precision(part.cost_price, precision: 2) %></td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to 'View', vmcott_part_path(part), class: 'btn btn-outline-primary' %>
+                      <%= link_to 'Edit', edit_vmcott_part_path(part), class: 'btn btn-outline-warning' %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="mt-3">
+          <%= paginate @parts %>
+        </div>
+      <% else %>
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          No parts found. <%= link_to 'Create your first part', new_vmcott_part_path %>.
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+  <% if @low_stock_parts.any? %>
+    <div class="card mt-4 border-warning">
+      <div class="card-header bg-warning text-white">
+        <h5 class="mb-0">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Low Stock Alert (<%= @low_stock_parts.count %> parts)
+        </h5>
+      </div>
+      <div class="card-body">
+        <ul class="list-group">
+          <% @low_stock_parts.limit(5).each do |part| %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <strong><%= part.name %></strong>
+                <small class="text-muted ms-2"><%= part.part_number %></small>
+              </div>
+              <span class="badge bg-danger">
+                <%= part.current_stock %> / <%= part.minimum_stock || 0 %>
+              </span>
+            </li>
+          <% end %>
+        </ul>
+        <% if @low_stock_parts.count > 5 %>
+          <div class="mt-2 text-center">
+            <small class="text-muted">... and <%= @low_stock_parts.count - 5 %> more</small>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>

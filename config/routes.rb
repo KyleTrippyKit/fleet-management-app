@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH GET ROUTE FOR PURCHASE REQUEST
+# config/routes.rb - COMPLETE REVISED VERSION WITH VMCOTT PARTS MANAGEMENT
 
 Rails.application.routes.draw do
   get "stock_levels/index"
@@ -98,7 +98,10 @@ Rails.application.routes.draw do
     member do
       # Invoice management
       get :invoices
+      get :new_invoice
       post :upload_invoice
+      post :process_invoice
+
       
       # Stock management
       get :update_stock
@@ -111,6 +114,7 @@ Rails.application.routes.draw do
       # Analytics
       get :spending_report
       get :performance
+      
     end
     
     # Nested routes for vendor-specific management
@@ -148,32 +152,17 @@ Rails.application.routes.draw do
   # Vendor-specific inventory management
   get 'suppliers/:supplier_id/search-items', to: 'inventory_items#search_items', as: 'search_items_supplier'
 
-  # Parts (existing - keep as is) - Enhanced with features from first file
-  resources :parts do
-    collection do
-      get :low_stock
-      get :consumables
-      post :import_csv
-      get :export_csv
-      get :reorder_suggestions
-      get :search_by_vendor
-    end
-    
-    member do
-      post :adjust_stock
-      post :create_purchase_request
-      get :stock_history
-      get :vendor_pricing
-    end
-  end
-
+  # ========================
   # Purchase Requests - Existing routes
+  # ========================
+  namespace :vmcott do
   resources :purchase_requests do
-    member do
-      post :approve
-      post :reject
-      post :mark_ordered
-      post :mark_received
+      member do
+        post :approve
+        post :reject
+        post :mark_ordered
+        post :mark_received
+      end
     end
   end
 
@@ -181,6 +170,25 @@ Rails.application.routes.draw do
   # VMCOTT Inventory Management Routes (ENHANCED)
   # ========================
   namespace :vmcott do
+    # PARTS MANAGEMENT - MOVED HERE FROM OUTSIDE NAMESPACE
+    resources :parts do
+      collection do
+        get :low_stock
+        get :consumables
+        post :import_csv
+        get :export_csv
+        get :reorder_suggestions
+        get :search_by_vendor
+      end
+      
+      member do
+        post :adjust_stock
+        post :create_purchase_request
+        get :stock_history
+        get :vendor_pricing
+      end
+    end
+    
     # Inventory Dashboard
     get 'inventory_dashboard', to: 'inventory#dashboard', as: 'inventory_dashboard'
     get 'inventory/low_stock', to: 'inventory#low_stock', as: 'inventory_low_stock'
@@ -195,10 +203,20 @@ Rails.application.routes.draw do
     # Stock history
     get 'inventory/stock_history/:id', to: 'inventory#stock_history', as: 'inventory_stock_history'
     
-    # Purchase requests - ADDED GET ROUTE FOR FORM
-    get 'inventory/new_purchase_request/:id', to: 'inventory#new_purchase_request', as: 'inventory_new_purchase_request'
+    # Purchase requests - FIXED: Corrected route names to avoid conflicts
+    get 'inventory/new_purchase_request', to: 'inventory#new_purchase_request', as: 'inventory_new_purchase_request'
+    get 'inventory/new_purchase_request/:id', to: 'inventory#new_purchase_request_with_part', as: 'inventory_new_purchase_request_with_part'
     post 'inventory/create_purchase_request/:id', to: 'inventory#create_purchase_request', as: 'inventory_create_purchase_request'
     post 'inventory/create_bulk_purchase_requests', to: 'inventory#create_bulk_purchase_requests', as: 'create_bulk_purchase_requests'
+    
+    # Import/Export routes
+    get 'inventory/import_csv', to: 'inventory#import_csv', as: 'inventory_import_csv'
+    post 'inventory/import_csv', to: 'inventory#import_csv'
+    get 'inventory/download_csv_template', to: 'inventory#download_csv_template', as: 'download_csv_template'
+    get 'inventory/export_report', to: 'inventory#export_report', as: 'inventory_export_report'
+    get 'inventory/settings', to: 'inventory#settings', as: 'inventory_settings'
+    patch 'inventory/update_settings', to: 'inventory#update_settings', as: 'update_inventory_settings'
+    get 'inventory/valuation_report', to: 'inventory#valuation_report', as: 'inventory_valuation_report'
     
     # Vendor Management (New)
     get 'vendor-management', to: 'suppliers#index', as: 'vendor_management'
@@ -209,10 +227,12 @@ Rails.application.routes.draw do
     post 'update_labor_rates', to: 'settings#update_labor_rates', as: 'update_labor_rates'
     get 'invoice_management', to: 'invoice_management#index', as: 'invoice_management'
     
-    # Internal POS System
+    # Internal POS System - FIXED: Added proper route for creating from part
+    get 'internal_pos/new_from_part/:part_id', to: 'internal_pos#new_from_part', as: 'new_internal_pos_from_part'
+    get 'internal_pos/from_po/:purchase_order_id', to: 'internal_pos#from_po', as: 'internal_pos_from_po'
+    
     resources :internal_pos, except: [:destroy] do
       collection do
-        get 'from_po/:purchase_order_id', to: 'internal_pos#from_po', as: :from_po
         get :active_work, as: 'active_work'
         get :completed_today, as: 'completed_today'
       end
@@ -862,14 +882,12 @@ Rails.application.routes.draw do
   # HELPER ROUTES FOR EASY ACCESS
   # ========================
   get 'vendors', to: 'suppliers#index', as: 'vendors'
-  # Remove the duplicate line - the route already exists in resources :vendor_invoices
-  get 'inventory-management-dashboard', to: 'inventory#management', as: 'inventory_management_dashboard'
+  get 'inventory-management-dashboard', to: redirect('/vmcott/inventory_dashboard')
 
   # ========================
   # EASY ACCESS ALIASES (from first file)
   # ========================
-  get 'vendor-invoices', to: 'vendor_invoices#index', as: 'vendor_invoices_list'
-  get 'inventory-dashboard', to: 'inventory#management', as: 'inventory_dashboard_main'
+  get 'inventory-dashboard', to: redirect('/vmcott/inventory_dashboard')
 
   # ========================
   # Public routes

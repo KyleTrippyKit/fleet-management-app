@@ -393,17 +393,115 @@
     </div>
     <!-- END OF JOBS SECTION -->
 
-    <!-- Section 2: Line Items with Trinidad Pricing Table - OPTIONAL -->
+    <!-- Section 2: Inventory Parts for Quotation - UPDATED TO USE INVENTORY PARTS -->
     <div class="form-section mb-4 gov-section">
       <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #28a745; border-bottom: 2px solid #dee2e6;">
         <h4 style="color: #2c3e50; font-weight: 700;">
-          <i class="fas fa-list-alt me-2" style="color: #28a745;"></i>SECTION 2: OPTIONAL ITEMIZED QUOTATION
+          <i class="fas fa-boxes me-2" style="color: #28a745;"></i>SECTION 2: PARTS FROM INVENTORY
         </h4>
         <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
-          Optional: Enter unit prices for additional items (excludes VAT 12.5%)
+          Select parts from inventory to include in this quotation (excluding VAT 12.5%)
         </p>
       </div>
+      
+      <!-- Parts Search and Selection Panel -->
       <div class="section-body">
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="input-group mb-3">
+              <span class="input-group-text gov-input-prefix"><i class="fas fa-search"></i></span>
+              <input type="text" id="parts-search" class="form-control gov-input" 
+                     placeholder="Search parts by name or part number...">
+              <button class="btn btn-outline-secondary" type="button" id="clear-search">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="d-flex justify-content-end">
+              <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-secondary" id="show-in-stock">
+                  <i class="fas fa-check-circle"></i> In Stock Only
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="show-low-stock">
+                  <i class="fas fa-exclamation-triangle"></i> Low Stock
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="show-all-parts">
+                  <i class="fas fa-list"></i> All Parts
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Parts Selection Grid -->
+        <div class="parts-grid mb-4" style="border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto; background: #f8f9fa;">
+          <div class="row" id="parts-grid-container">
+            <% if @parts.present? %>
+              <% @parts.each do |part| %>
+                <div class="col-md-4 mb-3 part-card" 
+                     data-part-id="<%= part.id %>"
+                     data-part-name="<%= part.name %>"
+                     data-part-number="<%= part.part_number %>"
+                     data-part-description="<%= part.description %>"
+                     data-unit-price="<%= part.selling_price %>"
+                     data-current-stock="<%= part.current_stock %>"
+                     data-stock-status="<%= part.stock_status %>">
+                  <div class="card h-100 border <%= part.stock_status == 'out_of_stock' ? 'border-danger' : part.stock_status == 'low_stock' ? 'border-warning' : 'border-success' %>">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0" style="font-size: 0.9rem;">
+                          <strong><%= part.name %></strong>
+                        </h6>
+                        <span class="badge <%= part.stock_status == 'out_of_stock' ? 'bg-danger' : part.stock_status == 'low_stock' ? 'bg-warning' : 'bg-success' %>">
+                          <%= part.current_stock %> in stock
+                        </span>
+                      </div>
+                      
+                      <% if part.part_number.present? %>
+                        <small class="text-muted d-block mb-2">
+                          <i class="fas fa-hashtag"></i> <%= part.part_number %>
+                        </small>
+                      <% end %>
+                      
+                      <% if part.description.present? %>
+                        <p class="card-text" style="font-size: 0.8rem; color: #6c757d;">
+                          <%= truncate(part.description, length: 60) %>
+                        </p>
+                      <% end %>
+                      
+                      <div class="mt-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <strong style="color: #28a745; font-size: 0.9rem;">
+                              <%= number_to_currency(part.selling_price) %>
+                            </strong>
+                            <br>
+                            <small class="text-muted">
+                              Cost: <%= number_to_currency(part.cost_price) %>
+                            </small>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-primary add-part-btn" 
+                                  data-part-id="<%= part.id %>"
+                                  <%= 'disabled' if part.stock_status == 'out_of_stock' %>>
+                            <i class="fas fa-plus"></i> Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <div class="col-12 text-center py-4">
+                <i class="fas fa-box-open fa-2x text-muted mb-3"></i>
+                <p class="text-muted">No parts found in inventory. Please add parts first.</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+        <!-- Selected Parts Table -->
         <div class="table-responsive">
           <table class="table gov-pricing-table">
             <thead>
@@ -411,119 +509,26 @@
                 <th width="5%" class="text-center" style="background: #DA291C; color: white;">
                   <i class="fas fa-hashtag"></i>
                 </th>
-                <th width="40%" style="background: #DA291C; color: white;">DESCRIPTION OF GOODS/SERVICES</th>
+                <th width="30%" style="background: #DA291C; color: white;">PART / DESCRIPTION</th>
+                <th width="10%" class="text-center" style="background: #DA291C; color: white;">STOCK</th>
                 <th width="10%" class="text-center" style="background: #DA291C; color: white;">QUANTITY</th>
                 <th width="15%" class="text-center" style="background: #DA291C; color: white;">UNIT PRICE (TTD)</th>
                 <th width="15%" class="text-center" style="background: #28a745; color: white;">SUBTOTAL (TTD)</th>
                 <th width="15%" class="text-center" style="background: #007bff; color: white;">VAT 12.5%</th>
               </tr>
             </thead>
-            <tbody id="line-items">
-              <%= f.fields_for :quotation_line_items do |line_item| %>
-                <tr class="gov-table-row" data-index="<%= line_item.index %>">
-                  <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
-                    <%= line_item.index + 1 %>
-                  </td>
-                  <td>
-                    <div class="item-description">
-                      <% if line_item.object.persisted? %>
-                        <strong><%= line_item.object.description %></strong>
-                        <% if line_item.object.specifications.present? %>
-                          <div class="item-specs text-muted">
-                            <small><i class="fas fa-info-circle"></i> <%= line_item.object.specifications %></small>
-                          </div>
-                        <% end %>
-                        <%= line_item.hidden_field :description %>
-                        <%= line_item.hidden_field :specifications %>
-                      <% else %>
-                        <%= line_item.text_field :description, class: 'form-control gov-input mb-1', placeholder: "Optional item description" %>
-                        <%= line_item.text_area :specifications, class: 'form-control gov-textarea', rows: 1, placeholder: "Specifications (optional)" %>
-                      <% end %>
-                    </div>
-                  </td>
-                  <td class="text-center">
-                    <div class="quantity-display">
-                      <% if line_item.object.persisted? %>
-                        <%= line_item.object.quantity %>
-                        <%= line_item.hidden_field :quantity %>
-                      <% else %>
-                        <%= line_item.number_field :quantity, class: 'form-control gov-input', min: 0, value: 0 %>
-                      <% end %>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text gov-currency-sm">$</span>
-                      <%= line_item.number_field :unit_price, step: '0.01', min: '0', max: '9999999.99',
-                            class: 'form-control form-control-sm unit-price-input',
-                            placeholder: "0.00", 
-                            data: { index: line_item.index } %>
-                    </div>
-                    <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
-                  </td>
-                  <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
-                    <span class="subtotal-amount">$0.00</span>
-                  </td>
-                  <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
-                    <span class="vat-amount">$0.00</span>
-                  </td>
-                </tr>
-              <% end %>
-              
-              <!-- Add one optional line item by default -->
-              <% if @quotation.quotation_line_items.empty? %>
-                <tr class="gov-table-row optional-line-item" data-index="0">
-                  <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
-                    1
-                  </td>
-                  <td>
-                    <div class="item-description">
-                      <input type="text" name="quotation[quotation_line_items_attributes][0][description]" 
-                             class="form-control gov-input mb-1" placeholder="Optional item description">
-                      <textarea name="quotation[quotation_line_items_attributes][0][specifications]" 
-                                class="form-control gov-textarea" rows="1" placeholder="Specifications (optional)"></textarea>
-                    </div>
-                  </td>
-                  <td class="text-center">
-                    <input type="number" name="quotation[quotation_line_items_attributes][0][quantity]" 
-                           class="form-control gov-input" min="0" value="0">
-                  </td>
-                  <td>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text gov-currency-sm">$</span>
-                      <input type="number" step="0.01" min="0" max="9999999.99"
-                             name="quotation[quotation_line_items_attributes][0][unit_price]" 
-                             class="form-control form-control-sm unit-price-input" placeholder="0.00"
-                             data-index="0">
-                    </div>
-                    <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
-                  </td>
-                  <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
-                    <span class="subtotal-amount">$0.00</span>
-                  </td>
-                  <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
-                    <span class="vat-amount">$0.00</span>
-                  </td>
-                </tr>
-              <% end %>
+            <tbody id="parts-table-body">
+              <!-- Parts will be dynamically added here -->
             </tbody>
-            <tfoot>
+            <tfoot id="parts-table-footer" style="display: none;">
               <tr class="table-footer-subtotal">
-                <td colspan="4" class="text-end" style="font-weight: bold; background: #f8f9fa;">
-                  SUBTOTAL (excluding VAT):
+                <td colspan="5" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                  PARTS SUBTOTAL (excluding VAT):
                 </td>
-                <td id="subtotal-total" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                <td id="parts-subtotal" class="text-end" style="font-weight: bold; background: #f8f9fa;">
                   $0.00
                 </td>
-                <td id="vat-total" class="text-end" style="font-weight: bold; background: #f8f9fa;">
-                  $0.00
-                </td>
-              </tr>
-              <tr class="table-footer-grandtotal">
-                <td colspan="4" class="text-end" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white; font-weight: bold; font-size: 1.1em;">
-                  <i class="fas fa-calculator me-2"></i>TOTAL QUOTED AMOUNT (including VAT):
-                </td>
-                <td colspan="2" id="grand-total" class="text-end" style="background: linear-gradient(135deg, #DA291C 0%, #B31B2E 100%); color: white; font-weight: bold; font-size: 1.2em;">
+                <td id="parts-vat" class="text-end" style="font-weight: bold; background: #f8f9fa;">
                   $0.00
                 </td>
               </tr>
@@ -532,26 +537,18 @@
         </div>
         
         <div class="text-center mt-3">
-          <button type="button" id="add-line-item" class="btn btn-outline-primary gov-btn">
-            <i class="fas fa-plus-circle me-1"></i> ADD OPTIONAL ITEM
+          <button type="button" id="add-custom-part" class="btn btn-outline-secondary gov-btn">
+            <i class="fas fa-plus-circle me-1"></i> ADD CUSTOM ITEM (Non-inventory)
           </button>
         </div>
         
         <div class="calculation-note mt-3">
           <div class="alert alert-info gov-alert-info">
-            <i class="fas fa-calculator me-2"></i>
-            <strong>VAT Calculation:</strong> All prices exclude VAT 12.5%. VAT is calculated automatically on subtotal.
-            <br>
-            <small class="text-muted">Formula: Subtotal × 0.125 = VAT Amount</small>
-          </div>
-        </div>
-        
-        <div class="optional-note mt-2">
-          <div class="alert alert-warning gov-alert-info">
             <i class="fas fa-info-circle me-2"></i>
-            <strong>Note:</strong> Line items are optional. You can submit this quotation with only labor jobs.
+            <strong>Inventory Integration:</strong> Parts are selected from your current inventory. 
+            Prices are based on current selling price (cost + markup).
             <br>
-            <small class="text-muted">Leave prices as $0.00 if you only want to include labor jobs.</small>
+            <small class="text-muted">Out of stock parts cannot be added to quotations.</small>
           </div>
         </div>
       </div>
@@ -831,41 +828,105 @@
   
   <!-- Hidden field for job template data -->
   <input type="hidden" name="job_template_data" id="job_template_data" value="">
+  
+  <!-- Hidden field for parts data -->
+  <input type="hidden" name="parts_data" id="parts_data" value="[]">
 <% end %>
 
-<!-- Hidden template for adding new line items -->
-<template id="line-item-template">
-  <tr class="gov-table-row" data-index="__INDEX__">
+<!-- Hidden template for custom line items -->
+<template id="custom-item-template">
+  <tr class="gov-table-row custom-item-row" data-index="__INDEX__">
     <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
       __ITEM_NUMBER__
     </td>
     <td>
       <div class="item-description">
-        <input type="text" name="quotation[quotation_line_items_attributes][__INDEX__][description]" 
-               class="form-control gov-input mb-1" placeholder="Optional item description">
-        <textarea name="quotation[quotation_line_items_attributes][__INDEX__][specifications]" 
+        <input type="text" name="custom_items[__INDEX__][description]" 
+               class="form-control gov-input mb-1" placeholder="Custom item description" required>
+        <textarea name="custom_items[__INDEX__][specifications]" 
                   class="form-control gov-textarea" rows="1" placeholder="Specifications (optional)"></textarea>
       </div>
     </td>
     <td class="text-center">
-      <input type="number" name="quotation[quotation_line_items_attributes][__INDEX__][quantity]" 
-             class="form-control gov-input" min="0" value="0">
+      <span class="badge bg-secondary">N/A</span>
+    </td>
+    <td class="text-center">
+      <input type="number" name="custom_items[__INDEX__][quantity]" 
+             class="form-control gov-input" min="1" value="1" required>
     </td>
     <td>
       <div class="input-group input-group-sm">
         <span class="input-group-text gov-currency-sm">$</span>
         <input type="number" step="0.01" min="0" max="9999999.99"
-               name="quotation[quotation_line_items_attributes][__INDEX__][unit_price]" 
-               class="form-control form-control-sm unit-price-input" placeholder="0.00"
-               data-index="__INDEX__">
+               name="custom_items[__INDEX__][unit_price]" 
+               class="form-control form-control-sm custom-unit-price-input" placeholder="0.00"
+               data-index="__INDEX__" required>
       </div>
-      <small class="text-muted"><i class="fas fa-keyboard"></i> Optional price</small>
     </td>
     <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
       <span class="subtotal-amount">$0.00</span>
     </td>
     <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
       <span class="vat-amount">$0.00</span>
+    </td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-danger remove-custom-item-btn" data-index="__INDEX__">
+        <span style="font-size: 12px; pointer-events: none;">✕</span>
+      </button>
+    </td>
+  </tr>
+</template>
+
+<!-- Hidden template for inventory parts rows -->
+<template id="part-row-template">
+  <tr class="gov-table-row inventory-part-row" data-part-id="__PART_ID__" data-index="__INDEX__">
+    <td class="text-center item-number" style="font-weight: bold; background: #f8f9fa;">
+      __ITEM_NUMBER__
+    </td>
+    <td>
+      <div class="item-description">
+        <strong>__PART_NAME__</strong>
+        <div class="item-specs text-muted">
+          <small><i class="fas fa-hashtag"></i> __PART_NUMBER__</small>
+          <br>
+          <small><i class="fas fa-info-circle"></i> __PART_DESCRIPTION__</small>
+        </div>
+        <input type="hidden" name="quotation_line_items[__INDEX__][part_id]" value="__PART_ID__">
+        <input type="hidden" name="quotation_line_items[__INDEX__][description]" value="__PART_NAME__">
+      </div>
+    </td>
+    <td class="text-center">
+      <span class="badge bg-__STOCK_COLOR__">__CURRENT_STOCK__</span>
+    </td>
+    <td class="text-center">
+      <div class="input-group input-group-sm">
+        <input type="number" name="quotation_line_items[__INDEX__][quantity]" 
+               class="form-control gov-input part-quantity-input" min="1" max="__MAX_QUANTITY__" value="1" 
+               data-part-id="__PART_ID__" required>
+      </div>
+      <small class="text-muted d-block">Max: __MAX_QUANTITY__</small>
+    </td>
+    <td>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text gov-currency-sm">$</span>
+        <input type="number" step="0.01" min="0" max="9999999.99"
+               name="quotation_line_items[__INDEX__][unit_price]" 
+               class="form-control form-control-sm part-unit-price-input" 
+               value="__UNIT_PRICE__" readonly
+               data-part-id="__PART_ID__" required>
+      </div>
+      <small class="text-muted d-block">Inventory price</small>
+    </td>
+    <td class="text-end subtotal-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+      <span class="subtotal-amount">$__UNIT_PRICE__</span>
+    </td>
+    <td class="text-end vat-cell" style="font-weight: bold; font-family: 'Courier New', monospace;">
+      <span class="vat-amount">$__VAT_AMOUNT__</span>
+    </td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-danger remove-part-btn" data-part-id="__PART_ID__">
+        <span style="font-size: 12px; pointer-events: none;">✕</span>
+      </button>
     </td>
   </tr>
 </template>
@@ -1484,6 +1545,40 @@
   box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
+/* Parts Grid Styles */
+.parts-grid .part-card .card {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.parts-grid .part-card .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.parts-grid .part-card .card-title {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.parts-grid .part-card .add-part-btn {
+  transition: all 0.2s ease;
+}
+
+.parts-grid .part-card .add-part-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.parts-grid .part-card .add-part-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Stock status colors */
+.bg-success { background-color: #28a745 !important; }
+.bg-warning { background-color: #ffc107 !important; color: #212529 !important; }
+.bg-danger { background-color: #dc3545 !important; }
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .tt-vmcott-quotation-form {
@@ -1524,6 +1619,11 @@
   .remove-job-from-table-btn {
     min-width: 28px;
     padding: 4px 6px;
+  }
+  
+  .parts-grid .part-card {
+    flex: 0 0 100%;
+    max-width: 100%;
   }
 }
 
@@ -1570,16 +1670,21 @@
   }
   
   /* Hide remove buttons in print */
-  .remove-job-from-table-btn, .remove-selected-job-btn {
+  .remove-job-from-table-btn, .remove-selected-job-btn, .remove-part-btn, .remove-custom-item-btn {
+    display: none !important;
+  }
+  
+  /* Hide parts grid in print */
+  .parts-grid {
     display: none !important;
   }
 }
 </style>
 
-<!-- JavaScript for Trinidad Government Quotation Form with Job Templates - FINAL VERSION -->
+<!-- JavaScript for Trinidad Government Quotation Form with Inventory Parts Integration -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("Quotation form JavaScript loaded - FINAL VERSION");
+  console.log("Quotation form JavaScript loaded - WITH INVENTORY PARTS");
   
   const vatRate = 0.125; // 12.5% VAT for Trinidad and Tobago
   const currencySymbol = '$'; // TTD
@@ -1593,12 +1698,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const selectedJobs = new Map();
   let jobCounter = 0;
   
-  console.log("Initial jobCounter:", jobCounter);
+  // Store selected parts
+  const selectedParts = new Map();
+  let partCounter = 0;
+  
+  // Store custom items
+  const customItems = new Map();
+  let customItemCounter = 0;
   
   // Initialize with existing jobs from the form
   const existingJobRows = document.querySelectorAll('.job-row');
-  console.log("Existing job rows:", existingJobRows.length);
-  
   existingJobRows.forEach((row, index) => {
     const jobIndex = index;
     const nameInput = row.querySelector('input[name*="name"]');
@@ -1619,9 +1728,6 @@ document.addEventListener('DOMContentLoaded', function() {
       jobCounter = Math.max(jobCounter, jobIndex + 1);
     }
   });
-  
-  console.log("Initial selected jobs:", selectedJobs.size);
-  console.log("Updated jobCounter after init:", jobCounter);
   
   // Update selected jobs display
   function updateSelectedJobsDisplay() {
@@ -1691,11 +1797,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Add job from template - FIXED VERSION
+  // Add job from template
   function addJobFromTemplate(templateId, name, description, hours, rate) {
     console.log("=== ADDING JOB FROM TEMPLATE ===");
-    console.log("Template:", templateId, name);
-    console.log("Current jobCounter:", jobCounter);
     
     // Check if already added (by templateId)
     for (const [index, job] of selectedJobs) {
@@ -1709,9 +1813,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const jobTableBody = document.getElementById('job-table-body');
     const jobRowTemplate = document.getElementById('job-row-template');
     
-    console.log("Job table body:", jobTableBody);
-    console.log("Job row template:", jobRowTemplate);
-    
     if (!jobTableBody || !jobRowTemplate) {
       console.error("Job table body or template not found!");
       alert("Error: Cannot add job. Please refresh the page and try again.");
@@ -1721,7 +1822,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Remove "no jobs" message if it exists
     const noJobsRow = document.getElementById('no-jobs-row');
     if (noJobsRow) {
-      console.log("Removing no-jobs-row");
       noJobsRow.remove();
     }
     
@@ -1733,8 +1833,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const templateContent = jobRowTemplate.innerHTML;
     const jobTotal = (parseFloat(hours) * parseFloat(rate)).toFixed(2);
-    
-    console.log("Creating row with jobCounter:", jobCounter);
     
     const newRowHtml = templateContent
       .replace(/__JOB_INDEX__/g, jobCounter)
@@ -1751,11 +1849,8 @@ document.addEventListener('DOMContentLoaded', function() {
     newRow.setAttribute('data-template-id', templateId);
     newRow.innerHTML = newRowHtml;
     
-    console.log("New row created:", newRow);
-    
     // Add to table
     jobTableBody.appendChild(newRow);
-    console.log("Row added to table body");
     
     // Add to selected jobs Map
     selectedJobs.set(jobCounter, {
@@ -1788,9 +1883,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add direct click handler to remove button using a closure
     const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
     if (removeBtn) {
-      console.log("Adding direct click handler to remove button for job:", jobCounter);
-      
-      // Create a closure to capture the current jobCounter value
       (function(currentIndex) {
         removeBtn.addEventListener('click', function(e) {
           console.log("DIRECT CLICK HANDLER: Remove button clicked for job:", currentIndex);
@@ -1798,7 +1890,7 @@ document.addEventListener('DOMContentLoaded', function() {
           e.stopPropagation();
           removeJob(currentIndex);
         });
-      })(jobCounter); // Pass jobCounter to the closure
+      })(jobCounter);
       
       // Make sure button is visible and clickable
       removeBtn.style.cursor = 'pointer';
@@ -1811,7 +1903,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update job counter AFTER setting up the click handler
     jobCounter++;
-    console.log("jobCounter incremented to:", jobCounter);
     
     // Update selected jobs display
     updateSelectedJobsDisplay();
@@ -1821,9 +1912,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update job template data
     updateJobTemplateData();
-    
-    console.log("=== JOB ADDED SUCCESSFULLY ===");
-    console.log("Total jobs now:", selectedJobs.size);
     
     return true;
   }
@@ -1854,8 +1942,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // Remove job
   function removeJob(jobIndex) {
     console.log("=== REMOVING JOB ===");
-    console.log("Job index to remove:", jobIndex);
-    console.log("Selected jobs has this index?", selectedJobs.has(jobIndex));
     
     if (!selectedJobs.has(jobIndex)) {
       console.log("Job index not found in selectedJobs:", jobIndex);
@@ -1864,21 +1950,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Get job data
     const job = selectedJobs.get(jobIndex);
-    console.log("Job found:", job.name);
     
     // Remove from selected jobs Map
     selectedJobs.delete(jobIndex);
-    console.log("Removed from selectedJobs Map");
     
     // Remove from HTML table if row exists
     if (job.row && job.row.parentNode) {
       job.row.remove();
-      console.log("Row removed from DOM");
     }
     
     // Show "no jobs" message if no jobs left
     if (selectedJobs.size === 0) {
-      console.log("No jobs left, showing message");
       const jobTableBody = document.getElementById('job-table-body');
       const jobTotalFooter = document.getElementById('job-total-footer');
       
@@ -1907,16 +1989,548 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update job template data
     updateJobTemplateData();
+  }
+  
+  // Add part from inventory
+  function addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus) {
+    console.log("=== ADDING PART FROM INVENTORY ===");
     
-    console.log("=== JOB REMOVED SUCCESSFULLY ===");
-    console.log("Remaining jobs:", selectedJobs.size);
+    // Check if already added
+    if (selectedParts.has(partId)) {
+      alert('This part has already been added to the quotation.');
+      return;
+    }
+    
+    // Check if in stock
+    if (stockStatus === 'out_of_stock') {
+      alert('This part is out of stock and cannot be added to the quotation.');
+      return;
+    }
+    
+    // Create part row in table
+    const partsTableBody = document.getElementById('parts-table-body');
+    const partRowTemplate = document.getElementById('part-row-template');
+    
+    if (!partsTableBody || !partRowTemplate) {
+      console.error("Parts table body or template not found!");
+      alert("Error: Cannot add part. Please refresh the page and try again.");
+      return;
+    }
+    
+    // Show the parts table footer
+    const partsTableFooter = document.getElementById('parts-table-footer');
+    if (partsTableFooter) {
+      partsTableFooter.style.display = '';
+    }
+    
+    const templateContent = partRowTemplate.innerHTML;
+    const vatAmount = (unitPrice * vatRate).toFixed(2);
+    const maxQuantity = parseInt(currentStock);
+    const stockColor = stockStatus === 'low_stock' ? 'warning' : stockStatus === 'out_of_stock' ? 'danger' : 'success';
+    
+    const newRowHtml = templateContent
+      .replace(/__PART_ID__/g, partId)
+      .replace(/__INDEX__/g, partCounter)
+      .replace(/__ITEM_NUMBER__/g, selectedParts.size + 1)
+      .replace(/__PART_NAME__/g, partName)
+      .replace(/__PART_NUMBER__/g, partNumber || 'N/A')
+      .replace(/__PART_DESCRIPTION__/g, description || 'No description')
+      .replace(/__CURRENT_STOCK__/g, currentStock)
+      .replace(/__MAX_QUANTITY__/g, maxQuantity)
+      .replace(/__UNIT_PRICE__/g, unitPrice.toFixed(2))
+      .replace(/__VAT_AMOUNT__/g, vatAmount)
+      .replace(/__STOCK_COLOR__/g, stockColor);
+    
+    const newRow = document.createElement('tr');
+    newRow.className = 'gov-table-row inventory-part-row';
+    newRow.setAttribute('data-part-id', partId);
+    newRow.setAttribute('data-index', partCounter);
+    newRow.innerHTML = newRowHtml;
+    
+    // Add to table
+    partsTableBody.appendChild(newRow);
+    
+    // Add to selected parts Map
+    selectedParts.set(partId, {
+      partId: partId,
+      name: partName,
+      partNumber: partNumber,
+      description: description,
+      unitPrice: unitPrice,
+      currentStock: currentStock,
+      stockStatus: stockStatus,
+      quantity: 1,
+      row: newRow
+    });
+    
+    // Add event listener to quantity input
+    const quantityInput = newRow.querySelector('.part-quantity-input');
+    if (quantityInput) {
+      quantityInput.addEventListener('input', function() {
+        const newQuantity = parseInt(this.value) || 1;
+        if (newQuantity > maxQuantity) {
+          this.value = maxQuantity;
+          alert(`Maximum quantity available: ${maxQuantity}`);
+        }
+        updatePartTotal(partId);
+        calculateAllTotals();
+      });
+    }
+    
+    // Add event listener to remove button
+    const removeBtn = newRow.querySelector('.remove-part-btn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        removePart(partId);
+      });
+    }
+    
+    // Update part counter
+    partCounter++;
+    
+    // Update parts data for submission
+    updatePartsData();
+    
+    // Update totals
+    calculateAllTotals();
+    
+    return true;
+  }
+  
+  // Update part total
+  function updatePartTotal(partId) {
+    if (!selectedParts.has(partId)) return;
+    
+    const part = selectedParts.get(partId);
+    const row = part.row;
+    const quantityInput = row.querySelector('.part-quantity-input');
+    const unitPriceInput = row.querySelector('.part-unit-price-input');
+    
+    if (quantityInput && unitPriceInput) {
+      const quantity = parseInt(quantityInput.value) || 1;
+      const unitPrice = parseFloat(unitPriceInput.value) || 0;
+      
+      // Update stored quantity
+      part.quantity = quantity;
+      selectedParts.set(partId, part);
+      
+      // Update display
+      const subtotal = quantity * unitPrice;
+      const vat = subtotal * vatRate;
+      
+      const subtotalCell = row.querySelector('.subtotal-amount');
+      const vatCell = row.querySelector('.vat-amount');
+      
+      if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
+      if (vatCell) vatCell.textContent = formatCurrency(vat);
+    }
+  }
+  
+  // Remove part
+  function removePart(partId) {
+    if (!selectedParts.has(partId)) return;
+    
+    const part = selectedParts.get(partId);
+    
+    // Remove from table
+    if (part.row && part.row.parentNode) {
+      part.row.remove();
+    }
+    
+    // Remove from Map
+    selectedParts.delete(partId);
+    
+    // Hide footer if no parts left
+    if (selectedParts.size === 0) {
+      const partsTableFooter = document.getElementById('parts-table-footer');
+      if (partsTableFooter) {
+        partsTableFooter.style.display = 'none';
+      }
+    } else {
+      // Update item numbers
+      updatePartItemNumbers();
+    }
+    
+    // Update parts data
+    updatePartsData();
+    
+    // Update totals
+    calculateAllTotals();
+  }
+  
+  // Update part item numbers
+  function updatePartItemNumbers() {
+    const partRows = document.querySelectorAll('.inventory-part-row');
+    partRows.forEach((row, index) => {
+      const numberCell = row.querySelector('.item-number');
+      if (numberCell) {
+        numberCell.textContent = index + 1;
+      }
+    });
+  }
+  
+  // Add custom item
+  function addCustomItem() {
+    const partsTableBody = document.getElementById('parts-table-body');
+    const customItemTemplate = document.getElementById('custom-item-template');
+    
+    if (!partsTableBody || !customItemTemplate) return;
+    
+    // Show the parts table footer
+    const partsTableFooter = document.getElementById('parts-table-footer');
+    if (partsTableFooter) {
+      partsTableFooter.style.display = '';
+    }
+    
+    const templateContent = customItemTemplate.innerHTML;
+    const newRowHtml = templateContent
+      .replace(/__INDEX__/g, customItemCounter)
+      .replace(/__ITEM_NUMBER__/g, selectedParts.size + customItems.size + 1);
+    
+    const newRow = document.createElement('tr');
+    newRow.className = 'gov-table-row custom-item-row';
+    newRow.setAttribute('data-index', customItemCounter);
+    newRow.innerHTML = newRowHtml;
+    
+    // Add to table
+    partsTableBody.appendChild(newRow);
+    
+    // Add to custom items Map
+    customItems.set(customItemCounter, {
+      index: customItemCounter,
+      row: newRow
+    });
+    
+    // Add event listeners
+    const quantityInput = newRow.querySelector('input[name*="quantity"]');
+    const priceInput = newRow.querySelector('.custom-unit-price-input');
+    const removeBtn = newRow.querySelector('.remove-custom-item-btn');
+    
+    if (quantityInput) {
+      quantityInput.addEventListener('input', function() {
+        calculateCustomItemTotal(customItemCounter);
+        calculateAllTotals();
+      });
+    }
+    
+    if (priceInput) {
+      priceInput.addEventListener('input', function() {
+        calculateCustomItemTotal(customItemCounter);
+        calculateAllTotals();
+      });
+    }
+    
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        removeCustomItem(customItemCounter);
+      });
+    }
+    
+    customItemCounter++;
+    calculateAllTotals();
+  }
+  
+  // Calculate custom item total
+  function calculateCustomItemTotal(index) {
+    if (!customItems.has(index)) return;
+    
+    const item = customItems.get(index);
+    const row = item.row;
+    const quantityInput = row.querySelector('input[name*="quantity"]');
+    const priceInput = row.querySelector('.custom-unit-price-input');
+    
+    if (quantityInput && priceInput) {
+      const quantity = parseInt(quantityInput.value) || 1;
+      const unitPrice = parseFloat(priceInput.value) || 0;
+      const subtotal = quantity * unitPrice;
+      const vat = subtotal * vatRate;
+      
+      const subtotalCell = row.querySelector('.subtotal-amount');
+      const vatCell = row.querySelector('.vat-amount');
+      
+      if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
+      if (vatCell) vatCell.textContent = formatCurrency(vat);
+    }
+  }
+  
+  // Remove custom item
+  function removeCustomItem(index) {
+    if (!customItems.has(index)) return;
+    
+    const item = customItems.get(index);
+    
+    // Remove from table
+    if (item.row && item.row.parentNode) {
+      item.row.remove();
+    }
+    
+    // Remove from Map
+    customItems.delete(index);
+    
+    // Hide footer if no items left
+    if (selectedParts.size === 0 && customItems.size === 0) {
+      const partsTableFooter = document.getElementById('parts-table-footer');
+      if (partsTableFooter) {
+        partsTableFooter.style.display = 'none';
+      }
+    }
+    
+    calculateAllTotals();
+  }
+  
+  // Calculate parts totals
+  function calculatePartsTotals() {
+    let partsSubtotal = 0;
+    let partsVat = 0;
+    let partsTotal = 0;
+    
+    // Calculate inventory parts
+    selectedParts.forEach((part) => {
+      const quantity = part.quantity || 1;
+      const subtotal = quantity * part.unitPrice;
+      partsSubtotal += subtotal;
+      partsVat += subtotal * vatRate;
+    });
+    
+    // Calculate custom items
+    customItems.forEach((item, index) => {
+      const row = item.row;
+      const quantityInput = row.querySelector('input[name*="quantity"]');
+      const priceInput = row.querySelector('.custom-unit-price-input');
+      
+      if (quantityInput && priceInput) {
+        const quantity = parseInt(quantityInput.value) || 1;
+        const unitPrice = parseFloat(priceInput.value) || 0;
+        const subtotal = quantity * unitPrice;
+        partsSubtotal += subtotal;
+        partsVat += subtotal * vatRate;
+      }
+    });
+    
+    partsTotal = partsSubtotal + partsVat;
+    
+    // Update parts totals display
+    const partsSubtotalElem = document.getElementById('parts-subtotal');
+    const partsVatElem = document.getElementById('parts-vat');
+    
+    if (partsSubtotalElem) partsSubtotalElem.textContent = formatCurrency(partsSubtotal);
+    if (partsVatElem) partsVatElem.textContent = formatCurrency(partsVat);
+    
+    return { partsSubtotal, partsVat, partsTotal };
+  }
+  
+  // Calculate job item totals
+  function calculateJobItem(row) {
+    const hoursInput = row.querySelector('.job-hours-input') || row.querySelector('input[name*="estimated_hours"]');
+    const rateInput = row.querySelector('.job-rate-input') || row.querySelector('input[name*="labor_rate_per_hour"]');
+    
+    const hours = parseFloat(hoursInput?.value) || 0;
+    const rate = parseFloat(rateInput?.value) || 0;
+    const total = hours * rate;
+    
+    // Update display
+    const totalCell = row.querySelector('.job-total-amount');
+    if (totalCell) totalCell.textContent = formatCurrency(total);
+    
+    return { hours, rate, total };
+  }
+  
+  // Calculate all totals
+  function calculateAllTotals() {
+    let jobsTotal = 0;
+    
+    // Calculate jobs
+    selectedJobs.forEach((job) => {
+      if (job.row) {
+        const { total } = calculateJobItem(job.row);
+        jobsTotal += total;
+      } else {
+        jobsTotal += (job.hours * job.rate);
+      }
+    });
+    
+    // Calculate parts
+    const { partsTotal } = calculatePartsTotals();
+    
+    // Grand total = jobs + parts
+    const grandTotal = jobsTotal + partsTotal;
+    
+    // Update summary totals
+    const grandTotalElem = document.getElementById('grand-total');
+    const totalAmountDisplay = document.getElementById('total-amount-display');
+    const quotationAmount = document.getElementById('quotation_amount');
+    const totalLaborCost = document.getElementById('total-labor-cost');
+    
+    // Update jobs section total
+    if (totalLaborCost) totalLaborCost.textContent = formatCurrency(jobsTotal);
+    
+    // Update main totals (jobs + parts)
+    if (grandTotalElem) grandTotalElem.textContent = formatCurrency(grandTotal);
+    if (totalAmountDisplay) totalAmountDisplay.value = formatCurrency(grandTotal);
+    if (quotationAmount) quotationAmount.value = grandTotal.toFixed(2);
+    
+    return { jobsTotal, partsTotal, grandTotal };
+  }
+  
+  // Update job template data for submission
+  function updateJobTemplateData() {
+    const jobData = Array.from(selectedJobs.entries()).map(([index, job]) => ({
+      index: index,
+      templateId: job.templateId,
+      name: job.name,
+      description: job.description,
+      hours: job.hours,
+      rate: job.rate
+    }));
+    
+    const jobTemplateData = document.getElementById('job_template_data');
+    if (jobTemplateData) {
+      jobTemplateData.value = JSON.stringify(jobData);
+    }
+  }
+  
+  // Update parts data for submission
+  function updatePartsData() {
+    const partsData = Array.from(selectedParts.entries()).map(([partId, part]) => ({
+      partId: partId,
+      quantity: part.quantity,
+      unitPrice: part.unitPrice
+    }));
+    
+    const partsDataInput = document.getElementById('parts_data');
+    if (partsDataInput) {
+      partsDataInput.value = JSON.stringify(partsData);
+    }
+  }
+  
+  // Form validation
+  function setupFormValidation() {
+    const form = document.querySelector('.tt-vmcott-quotation-form');
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+      console.log("Form submit validation");
+      
+      // Check if we have at least jobs OR parts
+      const hasJobs = selectedJobs.size > 0;
+      const hasParts = selectedParts.size > 0;
+      const hasCustomItems = customItems.size > 0;
+      
+      if (!hasJobs && !hasParts && !hasCustomItems) {
+        e.preventDefault();
+        alert('Please add at least one job, part, or custom item before submitting the quotation.');
+        return false;
+      }
+      
+      // Validate job data
+      let hasValidJobs = true;
+      selectedJobs.forEach((job, index) => {
+        if (!job.name || job.hours <= 0 || job.rate <= 0) {
+          hasValidJobs = false;
+          console.error(`Invalid job at index ${index}:`, job);
+        }
+      });
+      
+      if (!hasValidJobs) {
+        e.preventDefault();
+        alert('Please ensure all jobs have valid names, hours, and rates.');
+        return false;
+      }
+      
+      console.log("Form validation passed - submitting");
+      return true;
+    });
+  }
+  
+  // Parts search functionality
+  function setupPartsSearch() {
+    const searchInput = document.getElementById('parts-search');
+    const clearSearchBtn = document.getElementById('clear-search');
+    
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const partCards = document.querySelectorAll('.part-card');
+        
+        partCards.forEach(card => {
+          const partName = card.getAttribute('data-part-name').toLowerCase();
+          const partNumber = card.getAttribute('data-part-number')?.toLowerCase() || '';
+          const partDescription = card.getAttribute('data-part-description')?.toLowerCase() || '';
+          
+          if (partName.includes(searchTerm) || 
+              partNumber.includes(searchTerm) || 
+              partDescription.includes(searchTerm)) {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    }
+    
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        const partCards = document.querySelectorAll('.part-card');
+        partCards.forEach(card => {
+          card.style.display = 'block';
+        });
+      });
+    }
+  }
+  
+  // Parts filter functionality
+  function setupPartsFilter() {
+    const showInStockBtn = document.getElementById('show-in-stock');
+    const showLowStockBtn = document.getElementById('show-low-stock');
+    const showAllPartsBtn = document.getElementById('show-all-parts');
+    
+    if (showInStockBtn) {
+      showInStockBtn.addEventListener('click', function() {
+        const partCards = document.querySelectorAll('.part-card');
+        partCards.forEach(card => {
+          const stockStatus = card.getAttribute('data-stock-status');
+          if (stockStatus === 'in_stock') {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    }
+    
+    if (showLowStockBtn) {
+      showLowStockBtn.addEventListener('click', function() {
+        const partCards = document.querySelectorAll('.part-card');
+        partCards.forEach(card => {
+          const stockStatus = card.getAttribute('data-stock-status');
+          if (stockStatus === 'low_stock') {
+            card.style.display = 'block';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    }
+    
+    if (showAllPartsBtn) {
+      showAllPartsBtn.addEventListener('click', function() {
+        const partCards = document.querySelectorAll('.part-card');
+        partCards.forEach(card => {
+          card.style.display = 'block';
+        });
+      });
+    }
   }
   
   // Attach template selection event listeners
   function attachTemplateListeners() {
     console.log("Setting up template listeners...");
     
-    // Use event delegation
+    // Use event delegation for job templates
     document.addEventListener('click', function(e) {
       const addBtn = e.target.closest('.add-template-btn');
       if (addBtn) {
@@ -1947,13 +2561,44 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Set up event delegation for ALL remove buttons - FIXED VERSION
+  // Attach parts selection event listeners
+  function attachPartsListeners() {
+    // Use event delegation for parts
+    document.addEventListener('click', function(e) {
+      const addPartBtn = e.target.closest('.add-part-btn');
+      if (addPartBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const card = addPartBtn.closest('.part-card');
+        if (!card) return;
+        
+        const partId = card.getAttribute('data-part-id');
+        const partName = card.getAttribute('data-part-name');
+        const partNumber = card.getAttribute('data-part-number');
+        const description = card.getAttribute('data-part-description');
+        const unitPrice = parseFloat(card.getAttribute('data-unit-price'));
+        const currentStock = card.getAttribute('data-current-stock');
+        const stockStatus = card.getAttribute('data-stock-status');
+        
+        addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus);
+        
+        // Visual feedback
+        card.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          card.style.transform = '';
+        }, 300);
+      }
+    });
+  }
+  
+  // Set up event delegation for ALL remove buttons
   function setupRemoveButtonDelegation() {
     console.log("Setting up remove button event delegation...");
     
     // Event delegation for ALL clicks
     document.addEventListener('click', function(e) {
-      // Check if clicked on remove button OR the span inside it
+      // Check if clicked on job remove button
       let tableRemoveBtn = e.target.closest('.remove-job-from-table-btn');
       
       // If not found, check if clicked on span inside button
@@ -1996,297 +2641,36 @@ document.addEventListener('DOMContentLoaded', function() {
     }, true); // Use capture phase
   }
   
-  // Calculate line item totals - UPDATED FOR OPTIONAL ITEMS
-  function calculateLineItem(row) {
-    const unitPriceInput = row.querySelector('.unit-price-input');
-    const quantityInput = row.querySelector('input[name*="quantity"]') || row.querySelector('.gov-input[type="number"]');
-    const quantity = parseInt(quantityInput?.value) || 0; // Changed from 1 to 0 for optional
-    const unitPrice = parseFloat(unitPriceInput.value) || 0;
-    
-    const subtotal = unitPrice * quantity;
-    const vat = subtotal * vatRate;
-    const total = subtotal + vat;
-    
-    // Update display
-    const subtotalCell = row.querySelector('.subtotal-amount');
-    const vatCell = row.querySelector('.vat-amount');
-    
-    if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
-    if (vatCell) vatCell.textContent = formatCurrency(vat);
-    
-    // REMOVED validation highlight for optional items
-    
-    return { subtotal, vat, total };
-  }
-  
-  // Calculate job item totals
-  function calculateJobItem(row) {
-    const hoursInput = row.querySelector('.job-hours-input') || row.querySelector('input[name*="estimated_hours"]');
-    const rateInput = row.querySelector('.job-rate-input') || row.querySelector('input[name*="labor_rate_per_hour"]');
-    
-    const hours = parseFloat(hoursInput?.value) || 0;
-    const rate = parseFloat(rateInput?.value) || 0;
-    const total = hours * rate;
-    
-    // Update display
-    const totalCell = row.querySelector('.job-total-amount');
-    if (totalCell) totalCell.textContent = formatCurrency(total);
-    
-    return { hours, rate, total };
-  }
-  
-  // Calculate all totals
-  function calculateAllTotals() {
-    let subtotalSum = 0;
-    let vatSum = 0;
-    let lineItemsTotal = 0;
-    let jobsTotal = 0;
-    let grandTotal = 0;
-    
-    // Calculate line items
-    document.querySelectorAll('.gov-table-row:not(.job-row)').forEach(row => {
-      const { subtotal, vat, total } = calculateLineItem(row);
-      subtotalSum += subtotal;
-      vatSum += vat;
-      lineItemsTotal += total;
-    });
-    
-    // Calculate jobs
-    selectedJobs.forEach((job) => {
-      if (job.row) {
-        const { total } = calculateJobItem(job.row);
-        jobsTotal += total;
-      } else {
-        jobsTotal += (job.hours * job.rate);
-      }
-    });
-    
-    // Total = line items + jobs
-    grandTotal = lineItemsTotal + jobsTotal;
-    
-    // Update summary totals
-    const subtotalTotal = document.getElementById('subtotal-total');
-    const vatTotal = document.getElementById('vat-total');
-    const grandTotalElem = document.getElementById('grand-total');
-    const totalAmountDisplay = document.getElementById('total-amount-display');
-    const quotationAmount = document.getElementById('quotation_amount');
-    const totalLaborCost = document.getElementById('total-labor-cost');
-    
-    if (subtotalTotal) subtotalTotal.textContent = formatCurrency(subtotalSum);
-    if (vatTotal) vatTotal.textContent = formatCurrency(vatSum);
-    if (grandTotalElem) grandTotalElem.textContent = formatCurrency(grandTotal);
-    if (totalAmountDisplay) totalAmountDisplay.value = formatCurrency(grandTotal);
-    if (quotationAmount) quotationAmount.value = grandTotal.toFixed(2);
-    if (totalLaborCost) totalLaborCost.textContent = formatCurrency(jobsTotal);
-    
-    return { lineItemsTotal, jobsTotal, grandTotal };
-  }
-  
-  // Update job template data for submission
-  function updateJobTemplateData() {
-    const jobData = Array.from(selectedJobs.entries()).map(([index, job]) => ({
-      index: index,
-      templateId: job.templateId,
-      name: job.name,
-      description: job.description,
-      hours: job.hours,
-      rate: job.rate
-    }));
-    
-    const jobTemplateData = document.getElementById('job_template_data');
-    if (jobTemplateData) {
-      jobTemplateData.value = JSON.stringify(jobData);
-    }
-  }
-  
-  // Form validation - allows submission with only jobs
-  function setupFormValidation() {
-    const form = document.querySelector('.tt-vmcott-quotation-form');
-    if (!form) return;
-    
-    form.addEventListener('submit', function(e) {
-      console.log("Form submit validation");
-      
-      // Check if we have at least jobs OR line items
-      const hasJobs = selectedJobs.size > 0;
-      const hasLineItems = Array.from(document.querySelectorAll('.unit-price-input'))
-        .some(input => parseFloat(input.value) > 0);
-      
-      if (!hasJobs && !hasLineItems) {
-        e.preventDefault();
-        alert('Please add at least one job or line item before submitting the quotation.');
-        return false;
-      }
-      
-      // Optional: Validate job data
-      let hasValidJobs = true;
-      selectedJobs.forEach((job, index) => {
-        if (!job.name || job.hours <= 0 || job.rate <= 0) {
-          hasValidJobs = false;
-          console.error(`Invalid job at index ${index}:`, job);
-        }
-      });
-      
-      if (!hasValidJobs) {
-        e.preventDefault();
-        alert('Please ensure all jobs have valid names, hours, and rates.');
-        return false;
-      }
-      
-      console.log("Form validation passed - submitting");
-      return true;
-    });
-  }
-  
-  // Attach event listeners to price inputs
-  function attachPriceInputListeners() {
-    document.querySelectorAll('.unit-price-input').forEach(input => {
-      input.addEventListener('input', function() {
-        // Format input as user types
-        if (this.value) {
-          const value = parseFloat(this.value);
-          if (!isNaN(value)) {
-            this.value = value.toFixed(2);
-          }
-        }
-        
-        // Calculate totals
-        calculateAllTotals();
-      });
-      
-      input.addEventListener('blur', function() {
-        // Ensure minimum value
-        if (this.value && parseFloat(this.value) < 0) {
-          this.value = '0.00';
-          calculateAllTotals();
-        }
-      });
-    });
-  }
-  
-  // Attach event listeners to job inputs
-  function attachJobInputListeners() {
-    document.querySelectorAll('.job-hours-input, .job-rate-input').forEach(input => {
-      input.addEventListener('input', function() {
-        // Format input as user types
-        if (this.value) {
-          const value = parseFloat(this.value);
-          if (!isNaN(value)) {
-            this.value = value.toFixed(2);
-          }
-        }
-        
-        // Calculate job total and update display
-        const row = this.closest('.job-row');
-        if (row) {
-          calculateJobItem(row);
-        }
-        
-        // Recalculate all totals
-        calculateAllTotals();
-      });
-      
-      input.addEventListener('blur', function() {
-        // Ensure minimum value
-        if (this.value && parseFloat(this.value) < 0) {
-          this.value = '0.00';
-          const row = this.closest('.job-row');
-          if (row) {
-            calculateJobItem(row);
-          }
-          calculateAllTotals();
-        }
-      });
-    });
-  }
-  
-  // Add new line item functionality
-  function setupAddLineItem() {
-    const addButton = document.getElementById('add-line-item');
-    const lineItemTemplate = document.getElementById('line-item-template');
-    const lineItemsTbody = document.querySelector('#line-items');
-    
-    if (addButton && lineItemTemplate && lineItemsTbody) {
-      addButton.addEventListener('click', function() {
-        const rows = lineItemsTbody.querySelectorAll('.gov-table-row');
-        const nextIndex = rows.length;
-        const nextItemNumber = nextIndex + 1;
-        
-        // Get template content
-        const templateContent = lineItemTemplate.innerHTML;
-        
-        // Replace placeholders
-        const newRowHtml = templateContent
-          .replace(/__INDEX__/g, nextIndex)
-          .replace(/__ITEM_NUMBER__/g, nextItemNumber);
-        
-        // Create new row
-        const newRow = document.createElement('tr');
-        newRow.className = 'gov-table-row';
-        newRow.setAttribute('data-index', nextIndex);
-        newRow.innerHTML = newRowHtml;
-        
-        // Add to table
-        lineItemsTbody.appendChild(newRow);
-        
-        // Update item numbers
-        updateItemNumbers();
-        
-        // Attach event listeners to new inputs
-        const newPriceInput = newRow.querySelector('.unit-price-input');
-        if (newPriceInput) {
-          newPriceInput.addEventListener('input', function() {
-            if (this.value) {
-              const value = parseFloat(this.value);
-              if (!isNaN(value)) {
-                this.value = value.toFixed(2);
-              }
-            }
-            calculateAllTotals();
-          });
-        }
-        
-        // Re-attach listeners
-        attachPriceInputListeners();
-        
-        // Calculate new totals
-        calculateAllTotals();
-      });
-    }
-  }
-  
-  // Update all item numbers
-  function updateItemNumbers() {
-    const rows = document.querySelectorAll('.gov-table-row:not(.job-row)');
-    rows.forEach((row, index) => {
-      const numberCell = row.querySelector('.item-number');
-      if (numberCell) {
-        numberCell.textContent = index + 1;
-      }
-    });
-  }
-  
   // Initialize everything
   function init() {
-    console.log("Initializing quotation form - FINAL VERSION");
+    console.log("Initializing quotation form - WITH INVENTORY PARTS");
     
     // Attach listeners
     attachTemplateListeners();
-    setupRemoveButtonDelegation(); // Event delegation for remove buttons
-    attachPriceInputListeners();
-    attachJobInputListeners();
-    setupAddLineItem();
-    setupFormValidation(); // Form validation
+    attachPartsListeners();
+    setupRemoveButtonDelegation();
+    setupPartsSearch();
+    setupPartsFilter();
+    setupFormValidation();
+    
+    // Custom item button
+    const addCustomPartBtn = document.getElementById('add-custom-part');
+    if (addCustomPartBtn) {
+      addCustomPartBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        addCustomItem();
+      });
+    }
     
     // Update displays
     updateSelectedJobsDisplay();
-    updateItemNumbers();
     
     // Calculate initial totals
     calculateAllTotals();
     
-    // Update job template data
+    // Update data for submission
     updateJobTemplateData();
+    updatePartsData();
     
     console.log("Quotation form initialization complete");
   }

@@ -1,7 +1,9 @@
+# app/controllers/vmcott/inventory_controller.rb
 module Vmcott
   class InventoryController < ApplicationController
     before_action :authenticate_user!
     before_action :require_vmcott_user
+    before_action :set_inventory_settings, only: [:dashboard, :settings, :update_settings]
     
     def dashboard
       @total_parts = Part.count
@@ -123,6 +125,371 @@ module Vmcott
       render 'vmcott/inventory/consumables'
     end
     
+    # NEW PURCHASE REQUEST FORM METHOD - BULK (for multiple parts)
+    def new_purchase_request
+      # Load parts that need reordering (below reorder point) or all parts if specified
+      if params[:all_parts] == 'true'
+        @parts = Part.active
+                    .includes(:supplier)
+                    .order(:name)
+                    .page(params[:page])
+                    .per(25)
+      else
+        @parts = Part.active
+                    .where('current_stock <= reorder_point')
+                    .includes(:supplier)
+                    .order(:current_stock, :name)
+                    .page(params[:page])
+                    .per(25)
+      end
+      
+      # If no parts need reordering and we're not showing all, show a message
+      if @parts.empty? && params[:all_parts] != 'true'
+        flash[:info] = "No parts need reordering. Showing all parts instead."
+        redirect_to new_purchase_request_vmcott_inventory_path(all_parts: 'true')
+        return
+      end
+      
+      render 'vmcott/inventory/new_purchase_request'
+    end
+    
+    # NEW PURCHASE REQUEST FORM METHOD - SINGLE PART
+    def new_purchase_request_with_part
+      @part = Part.find(params[:id])
+      @purchase_request = PurchaseRequest.new(
+        part: @part,
+        quantity: @part.suggested_reorder_quantity,
+        urgency: @part.current_stock <= @part.minimum_stock ? 'high' : 'normal',
+        requested_by: current_user,
+        notes: "Manual purchase request for #{@part.name}"
+      )
+      
+      render 'vmcott/inventory/new_purchase_request_single'
+    end
+    
+    def create_purchase_request
+      begin
+        @part = Part.find(params[:id])
+        quantity = params[:quantity].to_i
+        urgency = params[:urgency] || 'normal'
+        notes = params[:notes] || "Manual purchase request"
+        
+        # Create the purchase request
+        purchase_request = PurchaseRequest.create!(
+          part: @part,
+          quantity: quantity,
+          urgency: urgency,
+          notes: notes,
+          requested_by: current_user,
+          status: 'pending',
+          due_date: calculate_due_date(urgency)
+        )
+        
+        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name}"
+        
+      rescue ActiveRecord::RecordNotFound
+        flash[:alert] = "Part not found"
+      rescue ActiveRecord::RecordInvalid => e
+        flash[:alert] = "Failed to create purchase request: #{e.message}"
+      rescue => e
+        flash[:alert] = "Error creating purchase request: #{e.message}"
+      end
+      
+      # Always redirect to purchase requests page
+      redirect_to vmcott_inventory_purchase_requests_path
+    end
+    
+    # IMPORT CSV FUNCTIONALITY
+    def import_csv
+      if request.get?
+        render 'vmcott/inventory/import_csv'
+      else
+        if params[:csv_file].blank?
+          flash[:alert] = "Please select a CSV file to upload"
+          render 'vmcott/inventory/import_csv' and return
+        end
+        
+        begin
+          csv_text = File.read(params[:csv_file].tempfile)
+          csv = CSV.parse(csv_text, headers: true, encoding: 'UTF-8')
+          
+          import_results = {
+            success: 0,
+            errors: [],
+            skipped: 0
+          }
+          
+          csv.each_with_index do |row, index|
+            row_number = index + 2 # +2 because index starts at 0 and we skip header
+            
+            begin
+              # Extract data from CSV row
+              name = row['name'].to_s.strip
+              part_number = row['part_number'].to_s.strip.presence
+              category = row['category'].to_s.strip.presence
+              description = row['description'].to_s.strip.presence
+              cost_price = row['cost_price'].to_f if row['cost_price'].present?
+              sale_price = row['sale_price'].to_f if row['sale_price'].present?
+              current_stock = row['current_stock'].to_i if row['current_stock'].present?
+              minimum_stock = row['minimum_stock'].to_i || 10
+              reorder_point = row['reorder_point'].to_i || 20
+              unit_of_measure = row['unit_of_measure'].to_s.strip.presence || 'each'
+              is_consumable = row['is_consumable'].to_s.downcase == 'true'
+              
+              # Handle supplier
+              supplier_name = row['supplier_name'].to_s.strip.presence
+              supplier = if supplier_name.present?
+                          Supplier.find_or_create_by!(name: supplier_name)
+                        end
+              
+              # Check if part already exists
+              existing_part = if part_number.present?
+                               Part.find_by(part_number: part_number)
+                             else
+                               Part.find_by(name: name)
+                             end
+              
+              if existing_part
+                # Update existing part
+                existing_part.update!(
+                  name: name,
+                  category: category,
+                  description: description,
+                  cost_price: cost_price,
+                  sale_price: sale_price,
+                  current_stock: current_stock || existing_part.current_stock,
+                  minimum_stock: minimum_stock,
+                  reorder_point: reorder_point,
+                  unit_of_measure: unit_of_measure,
+                  is_consumable: is_consumable,
+                  supplier: supplier
+                )
+                import_results[:success] += 1
+              else
+                # Create new part
+                Part.create!(
+                  name: name,
+                  part_number: part_number,
+                  category: category,
+                  description: description,
+                  cost_price: cost_price,
+                  sale_price: sale_price,
+                  current_stock: current_stock || 0,
+                  minimum_stock: minimum_stock,
+                  reorder_point: reorder_point,
+                  unit_of_measure: unit_of_measure,
+                  is_consumable: is_consumable,
+                  supplier: supplier
+                )
+                import_results[:success] += 1
+              end
+              
+            rescue => e
+              import_results[:errors] << "Row #{row_number}: #{e.message}"
+              import_results[:skipped] += 1
+            end
+          end
+          
+          if import_results[:errors].empty?
+            flash[:success] = "Successfully imported #{import_results[:success]} parts"
+          else
+            flash[:warning] = "Imported #{import_results[:success]} parts, skipped #{import_results[:skipped]} rows with errors"
+            flash[:alert] = import_results[:errors].first(5).join(', ') if import_results[:errors].any?
+          end
+          
+          redirect_to vmcott_inventory_dashboard_path
+          
+        rescue CSV::MalformedCSVError => e
+          flash[:alert] = "Invalid CSV format: #{e.message}"
+          render 'vmcott/inventory/import_csv'
+        rescue => e
+          flash[:alert] = "Import failed: #{e.message}"
+          render 'vmcott/inventory/import_csv'
+        end
+      end
+    end
+    
+    def download_csv_template
+      csv_data = CSV.generate do |csv|
+        csv << ['name', 'part_number', 'category', 'description', 'cost_price', 'sale_price', 
+                'current_stock', 'minimum_stock', 'reorder_point', 'unit_of_measure', 
+                'is_consumable', 'supplier_name']
+        csv << ['Brake Pad', 'BP-001', 'Brakes', 'Front brake pads', '45.00', '67.50', 
+                '25', '20', '30', 'pair', 'true', 'ABC Auto Parts']
+        csv << ['Oil Filter', 'OF-005', 'Filters', 'Engine oil filter', '12.50', '18.75', 
+                '60', '50', '75', 'each', 'true', 'XYZ Supplies']
+      end
+      
+      send_data csv_data, 
+                filename: "inventory-import-template-#{Date.today}.csv",
+                type: 'text/csv'
+    end
+    
+    # EXPORT REPORT FUNCTIONALITY - FIXED for XLSX
+    def export_report
+      @parts = Part.includes(:supplier)
+      
+      # Apply filters
+      if params[:category].present?
+        @parts = @parts.where(category: params[:category])
+      end
+      
+      if params[:supplier_id].present?
+        @parts = @parts.where(supplier_id: params[:supplier_id])
+      end
+      
+      if params[:stock_status].present?
+        case params[:stock_status]
+        when 'low'
+          @parts = @parts.below_reorder_point
+        when 'critical'
+          @parts = @parts.where('current_stock <= minimum_stock')
+        when 'out_of_stock'
+          @parts = @parts.out_of_stock
+        end
+      end
+      
+      if params[:search].present?
+        @parts = @parts.where("name ILIKE ? OR part_number ILIKE ?", 
+                             "%#{params[:search]}%", "%#{params[:search]}%")
+      end
+      
+      report_type = params[:type] || 'full'
+      
+      respond_to do |format|
+        format.html do
+          render 'vmcott/inventory/export_report'
+        end
+        
+        format.csv do
+          filename = case report_type
+                     when 'low_stock' then "low-stock-report-#{Date.today}.csv"
+                     when 'valuation' then "inventory-valuation-#{Date.today}.csv"
+                     when 'vendor' then "vendor-inventory-#{Date.today}.csv"
+                     else "full-inventory-#{Date.today}.csv"
+                     end
+          
+          headers['Content-Disposition'] = "attachment; filename=\"#{filename}\""
+          headers['Content-Type'] ||= 'text/csv'
+        end
+        
+        format.xlsx do
+          # Simple XLSX export using RubyXL gem
+          # Make sure you have gem 'rubyXL' in your Gemfile
+          filename = case report_type
+                     when 'low_stock' then "low-stock-report-#{Date.today}.xlsx"
+                     when 'valuation' then "inventory-valuation-#{Date.today}.xlsx"
+                     when 'vendor' then "vendor-inventory-#{Date.today}.xlsx"
+                     else "full-inventory-#{Date.today}.xlsx"
+                     end
+          
+          # Create a simple workbook
+          p = Axlsx::Package.new
+          wb = p.workbook
+          
+          wb.add_worksheet(name: "Inventory Report") do |sheet|
+            # Add headers
+            sheet.add_row ['Name', 'Part Number', 'Category', 'Supplier', 'Current Stock', 
+                          'Minimum Stock', 'Reorder Point', 'Cost Price', 'Selling Price', 'Status']
+            
+            # Add data rows
+            @parts.each do |part|
+              stock_status = if part.current_stock <= 0
+                              'Out of Stock'
+                            elsif part.current_stock <= part.minimum_stock
+                              'Critical'
+                            elsif part.current_stock <= part.reorder_point
+                              'Low'
+                            else
+                              'Good'
+                            end
+              
+              sheet.add_row [
+                part.name,
+                part.part_number,
+                part.category,
+                part.supplier&.name || 'N/A',
+                part.current_stock,
+                part.minimum_stock,
+                part.reorder_point,
+                part.cost_price,
+                part.sale_price,
+                stock_status
+              ]
+            end
+          end
+          
+          send_data p.to_stream.read, 
+                    filename: filename,
+                    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        end
+        
+        format.pdf do
+          @report_type = report_type
+          @generated_at = Time.current
+          
+          pdf = WickedPdf.new.pdf_from_string(
+            render_to_string(
+              template: 'vmcott/inventory/export_report.pdf.erb',
+              layout: 'pdf.html'
+            ),
+            margin: { top: 10, bottom: 10, left: 10, right: 10 }
+          )
+          
+          filename = case report_type
+                     when 'low_stock' then "low-stock-report-#{Date.today}.pdf"
+                     when 'valuation' then "inventory-valuation-#{Date.today}.pdf"
+                     when 'vendor' then "vendor-inventory-#{Date.today}.pdf"
+                     else "full-inventory-#{Date.today}.pdf"
+                     end
+          
+          send_data pdf, filename: filename, type: 'application/pdf'
+        end
+      end
+    end
+    
+    # SETTINGS FUNCTIONALITY
+    def settings
+      @notification_settings = {
+        low_stock_email: @inventory_settings[:low_stock_email] || true,
+        daily_report_email: @inventory_settings[:daily_report_email] || false,
+        critical_stock_notification: @inventory_settings[:critical_stock_notification] || true,
+        purchase_request_approval_notification: @inventory_settings[:purchase_request_approval_notification] || true
+      }
+      
+      @import_export_settings = {
+        csv_column_mapping: @inventory_settings[:csv_column_mapping] || 'default',
+        export_format: @inventory_settings[:export_format] || 'csv',
+        max_file_size_mb: @inventory_settings[:max_file_size_mb] || 10,
+        auto_backup_enabled: @inventory_settings[:auto_backup_enabled] || false,
+        backup_frequency: @inventory_settings[:backup_frequency] || 'weekly'
+      }
+      
+      render 'vmcott/inventory/settings'
+    end
+    
+    def update_settings
+      setting_type = params[:setting_type]
+      
+      case setting_type
+      when 'general'
+        update_general_settings
+      when 'notifications'
+        update_notification_settings
+      when 'import_export'
+        update_import_export_settings
+      when 'supplier'
+        update_supplier_settings
+      else
+        update_all_settings
+      end
+      
+      redirect_to settings_vmcott_inventory_path, notice: 'Settings updated successfully'
+    rescue => e
+      flash[:alert] = "Failed to update settings: #{e.message}"
+      redirect_to settings_vmcott_inventory_path
+    end
+    
     def adjust_stock
       @part = Part.find(params[:id])
       
@@ -181,38 +548,6 @@ module Vmcott
       end
     end
     
-    def create_purchase_request
-      begin
-        @part = Part.find(params[:id])
-        quantity = params[:quantity].to_i
-        urgency = params[:urgency] || 'normal'
-        notes = params[:notes] || "Manual purchase request"
-        
-        # Create the purchase request
-        purchase_request = PurchaseRequest.create!(
-          part: @part,
-          quantity: quantity,
-          urgency: urgency,
-          notes: notes,
-          requested_by: current_user,
-          status: 'pending',
-          due_date: calculate_due_date(urgency)
-        )
-        
-        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name}"
-        
-      rescue ActiveRecord::RecordNotFound
-        flash[:alert] = "Part not found"
-      rescue ActiveRecord::RecordInvalid => e
-        flash[:alert] = "Failed to create purchase request: #{e.message}"
-      rescue => e
-        flash[:alert] = "Error creating purchase request: #{e.message}"
-      end
-      
-      # Always redirect to purchase requests page
-      redirect_to vmcott_inventory_purchase_requests_path
-    end
-    
     def stock_history
       @part = Part.find(params[:id])
       start_date = params[:start_date]&.to_date || 30.days.ago
@@ -267,6 +602,33 @@ module Vmcott
       redirect_to vendor_invoices_path
     end
     
+    # New method for inventory valuation report
+    def valuation_report
+      @parts = Part.includes(:supplier)
+        .where('cost_price IS NOT NULL AND current_stock > 0')
+        .order('current_stock * cost_price DESC')
+        .page(params[:page])
+        .per(50)
+      
+      @total_valuation = @parts.sum('current_stock * cost_price')
+      @average_valuation = @parts.average('current_stock * cost_price')
+      
+      # Group by category
+      @category_valuations = Part.group(:category)
+        .where('cost_price IS NOT NULL')
+        .sum('current_stock * cost_price')
+        .sort_by { |_, value| -value }
+      
+      # Group by supplier
+      @supplier_valuations = Part.joins(:supplier)
+        .where('cost_price IS NOT NULL')
+        .group('suppliers.name')
+        .sum('current_stock * cost_price')
+        .sort_by { |_, value| -value }
+      
+      render 'vmcott/inventory/valuation_report'
+    end
+    
     private
     
     def require_vmcott_user
@@ -286,6 +648,86 @@ module Vmcott
       else
         7.days.from_now
       end
+    end
+    
+    def set_inventory_settings
+      # Load settings from database or use defaults
+      @inventory_settings = Rails.cache.fetch('inventory_settings', expires_in: 1.hour) do
+        {
+          # General Settings
+          default_reorder_percentage: 150,  # 150% of minimum stock
+          low_stock_threshold: 7,           # 7 days supply
+          default_markup_percentage: 30.0,  # 30% markup
+          currency: 'TTD',
+          default_unit_of_measure: 'each',
+          
+          # Notification Settings
+          low_stock_email: true,
+          daily_report_email: false,
+          critical_stock_notification: true,
+          purchase_request_approval_notification: true,
+          
+          # Import/Export Settings
+          csv_column_mapping: 'default',
+          export_format: 'csv',
+          max_file_size_mb: 10,
+          auto_backup_enabled: false,
+          backup_frequency: 'weekly',
+          
+          # Supplier Settings
+          default_payment_terms: 'net30',
+          minimum_order_quantity: 1,
+          lead_time_days: 7
+        }
+      end
+    end
+    
+    def update_general_settings
+      @inventory_settings[:default_reorder_percentage] = params[:default_reorder_percentage].to_i
+      @inventory_settings[:low_stock_threshold] = params[:low_stock_threshold].to_i
+      @inventory_settings[:default_markup_percentage] = params[:default_markup_percentage].to_f
+      @inventory_settings[:currency] = params[:currency]
+      @inventory_settings[:default_unit_of_measure] = params[:default_unit_of_measure]
+      
+      save_settings
+    end
+    
+    def update_notification_settings
+      @inventory_settings[:low_stock_email] = params[:low_stock_email] == '1'
+      @inventory_settings[:daily_report_email] = params[:daily_report_email] == '1'
+      @inventory_settings[:critical_stock_notification] = params[:critical_stock_notification] == '1'
+      @inventory_settings[:purchase_request_approval_notification] = params[:purchase_request_approval_notification] == '1'
+      
+      save_settings
+    end
+    
+    def update_import_export_settings
+      @inventory_settings[:csv_column_mapping] = params[:csv_column_mapping]
+      @inventory_settings[:export_format] = params[:export_format]
+      @inventory_settings[:max_file_size_mb] = params[:max_file_size_mb].to_i
+      @inventory_settings[:auto_backup_enabled] = params[:auto_backup_enabled] == '1'
+      @inventory_settings[:backup_frequency] = params[:backup_frequency]
+      
+      save_settings
+    end
+    
+    def update_supplier_settings
+      @inventory_settings[:default_payment_terms] = params[:default_payment_terms]
+      @inventory_settings[:minimum_order_quantity] = params[:minimum_order_quantity].to_i
+      @inventory_settings[:lead_time_days] = params[:lead_time_days].to_i
+      
+      save_settings
+    end
+    
+    def update_all_settings
+      update_general_settings
+      update_notification_settings
+      update_import_export_settings
+      update_supplier_settings
+    end
+    
+    def save_settings
+      Rails.cache.write('inventory_settings', @inventory_settings, expires_in: 1.hour)
     end
   end
 end

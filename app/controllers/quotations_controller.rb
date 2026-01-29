@@ -15,6 +15,7 @@ class QuotationsController < ApplicationController
   before_action :authorize_finance, only: [:accept, :reject, :convert_to_purchase_order]
   before_action :set_agency_and_vehicles, only: [:new, :create, :edit, :update]
   before_action :load_job_templates, only: [:new, :edit, :create, :update]
+  before_action :load_parts_for_inventory, only: [:new, :edit] # NEW LINE ADDED
 
   # GET /quotations
   def index
@@ -181,6 +182,9 @@ class QuotationsController < ApplicationController
     
     # Load job templates for VMCOTT
     load_job_templates
+    
+    # Load parts for inventory selection
+    load_parts_for_inventory
     
     render :new
   end
@@ -507,6 +511,9 @@ class QuotationsController < ApplicationController
     @vehicles = available_vehicles
     @vendors = get_vendors_list
     
+    # Load parts for inventory selection - ADDED
+    load_parts_for_inventory
+    
     render :new
   end
 
@@ -528,6 +535,9 @@ class QuotationsController < ApplicationController
     # Set vehicles and vendors
     @vehicles = available_vehicles
     @vendors = get_vendors_list
+    
+    # Load parts for inventory selection - ADDED
+    load_parts_for_inventory
   end
 
   # POST /quotations
@@ -590,6 +600,8 @@ class QuotationsController < ApplicationController
         # Set vehicles and vendors for re-render
         @vehicles = available_vehicles
         @vendors = get_vendors_list
+        # Load parts for re-render
+        load_parts_for_inventory
         render :new, status: :unprocessable_entity
       end
     rescue ActionController::UnfilteredParameters => e
@@ -607,6 +619,8 @@ class QuotationsController < ApplicationController
       load_job_templates
       @vehicles = available_vehicles
       @vendors = get_vendors_list
+      # Load parts for re-render
+      load_parts_for_inventory
       
       flash.now[:alert] = "Error creating quotation: Invalid parameters format. Please check your input."
       render :new, status: :unprocessable_entity
@@ -625,6 +639,8 @@ class QuotationsController < ApplicationController
       load_job_templates
       @vehicles = available_vehicles
       @vendors = get_vendors_list
+      # Load parts for re-render
+      load_parts_for_inventory
       
       flash.now[:alert] = "Unexpected error: #{e.message}"
       render :new, status: :unprocessable_entity
@@ -662,6 +678,8 @@ class QuotationsController < ApplicationController
         # Set vehicles and vendors for re-render
         @vehicles = available_vehicles
         @vendors = get_vendors_list
+        # Load parts for re-render
+        load_parts_for_inventory
         render :edit, status: :unprocessable_entity
       end
     rescue ActionController::UnfilteredParameters => e
@@ -670,6 +688,7 @@ class QuotationsController < ApplicationController
       load_job_templates
       @vehicles = available_vehicles
       @vendors = get_vendors_list
+      load_parts_for_inventory
       render :edit, status: :unprocessable_entity
     end
   end
@@ -1534,5 +1553,12 @@ class QuotationsController < ApplicationController
       @job_templates = nil
       Rails.logger.info "DEBUG: Not loading job templates - user agency: #{current_user.agency&.code}" if Rails.env.development?
     end
+  end
+  
+  # NEW METHOD: Load parts for inventory selection in quotation form
+  def load_parts_for_inventory
+    # Load active parts for inventory selection
+    @parts = Part.active.includes(:supplier).order(name: :asc)
+    Rails.logger.info "DEBUG: Loaded #{@parts.count} active parts for inventory selection" if Rails.env.development?
   end
 end

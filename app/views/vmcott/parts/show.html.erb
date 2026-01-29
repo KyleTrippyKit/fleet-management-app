@@ -1,0 +1,553 @@
+<%# app/views/vmcott/parts/show.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Header Section -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">
+        <%= @part.name %>
+        <% if @part.part_number.present? %>
+          <small class="text-muted">(<%= @part.part_number %>)</small>
+        <% end %>
+      </h1>
+      
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <% if @part.category.present? %>
+          <span class="badge bg-primary"><%= @part.category %></span>
+        <% end %>
+        
+        <% if @part.is_consumable? %>
+          <span class="badge bg-info">Consumable</span>
+        <% else %>
+          <span class="badge bg-success">Reusable</span>
+        <% end %>
+        
+        <span class="badge bg-<%= @part.is_active ? 'success' : 'secondary' %>">
+          <%= @part.is_active ? 'Active' : 'Inactive' %>
+        </span>
+      </div>
+    </div>
+    
+    <div class="d-flex gap-2">
+      <%= link_to 'Edit', edit_vmcott_part_path(@part), class: 'btn btn-primary' %>
+      <%= link_to 'Back', vmcott_parts_path, class: 'btn btn-outline-secondary' %>
+    </div>
+  </div>
+
+  <!-- Stock Information Card -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Stock Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <!-- Stock Level Progress Bar -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span>Current Stock: <strong><%= @part.current_stock %></strong></span>
+              <span class="text-muted">Max: <%= @part.minimum_stock * 3 %></span>
+            </div>
+            
+            <% max_stock = [@part.current_stock, @part.minimum_stock * 3].max %>
+            <% percentage = (@part.current_stock.to_f / max_stock) * 100 %>
+            
+            <div class="progress" style="height: 20px;">
+              <div class="progress-bar bg-<%= @part.stock_status_color %>" 
+                   role="progressbar" 
+                   style="width: <%= percentage %>%"
+                   aria-valuenow="<%= @part.current_stock %>"
+                   aria-valuemin="0"
+                   aria-valuemax="<%= max_stock %>">
+                <%= @part.current_stock %>
+              </div>
+            </div>
+            
+            <div class="mt-2 d-flex justify-content-between">
+              <small class="text-muted">Reorder Point: <%= @part.reorder_point %></small>
+              <small class="text-muted">Minimum Stock: <%= @part.minimum_stock %></small>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <p class="mb-1"><strong>Current Stock:</strong> <%= @part.current_stock %></p>
+              <p class="mb-1"><strong>Minimum Stock:</strong> <%= @part.minimum_stock %></p>
+              <p class="mb-1"><strong>Reorder Point:</strong> <%= @part.reorder_point %></p>
+            </div>
+            <div class="col-md-6">
+              <p class="mb-1"><strong>Stock Status:</strong>
+                <span class="badge bg-<%= @part.stock_status_color %>">
+                  <%= @part.stock_status.titleize %>
+                </span>
+              </p>
+              <p class="mb-1"><strong>Stock Value:</strong> 
+                <%= number_to_currency(@part.stock_value) %>
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">Stock Statistics</h6>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Days of Supply</span>
+                <span class="fw-bold">
+                  <% days_supply = @part.days_of_supply %>
+                  <% if days_supply && days_supply > 0 %>
+                    <% if days_supply == Float::INFINITY %>
+                      ∞ days
+                    <% else %>
+                      <%= days_supply %> days
+                    <% end %>
+                  <% else %>
+                    N/A
+                  <% end %>
+                </span>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Avg. Monthly Usage</span>
+                <span class="fw-bold">
+                  <%= @part.average_monthly_consumption.round(2) %>
+                </span>
+              </div>
+              
+              <div class="d-flex justify-content-between mb-2">
+                <span>Upcoming Demand</span>
+                <span class="fw-bold">
+                  <%= @part.upcoming_demand %>
+                </span>
+              </div>
+              
+              <div class="d-flex justify-content-between">
+                <span>Suggested Reorder Qty</span>
+                <span class="fw-bold text-primary">
+                  <%= @part.suggested_reorder_quantity %>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pricing & Supplier Information -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Pricing Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-6">
+              <p class="mb-1 text-muted">Cost Price</p>
+              <h4><%= number_to_currency(@part.cost_price) %></h4>
+            </div>
+            <div class="col-6">
+              <p class="mb-1 text-muted">Sale Price</p>
+              <h4 class="text-success"><%= number_to_currency(@part.sale_price) %></h4>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <p class="mb-1 text-muted">Profit Margin</p>
+            <% margin = @part.profit_margin %>
+            <h4 class="<%= margin >= 0 ? 'text-success' : 'text-danger' %>">
+              <%= margin %>% 
+              <% if margin >= 0 %>
+                <small class="text-success">↑</small>
+              <% else %>
+                <small class="text-danger">↓</small>
+              <% end %>
+            </h4>
+          </div>
+          
+          <% if @part.price.present? && @part.price != @part.sale_price %>
+            <div class="alert alert-info">
+              <small>
+                <strong>Note:</strong> Manual price set at <%= number_to_currency(@part.price) %>
+                (Markup: <%= ((@part.price - @part.cost_price) / @part.cost_price * 100).round(2) if @part.cost_price %>%)
+              </small>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Supplier Information</h5>
+            <% if @part.supplier %>
+              <%= link_to 'View Supplier', supplier_path(@part.supplier), class: 'btn btn-sm btn-outline-primary' %>
+            <% end %>
+          </div>
+        </div>
+        <div class="card-body">
+          <% if @part.supplier %>
+            <h6 class="card-subtitle mb-3">
+              <%= @part.supplier.name %>
+            </h6>
+            
+            <div class="mb-3">
+              <% if @part.supplier.contact_person.present? %>
+                <p class="mb-1">
+                  <i class="fas fa-user me-2"></i>
+                  <%= @part.supplier.contact_person %>
+                </p>
+              <% end %>
+              
+              <% if @part.supplier.phone.present? %>
+                <p class="mb-1">
+                  <i class="fas fa-phone me-2"></i>
+                  <%= @part.supplier.phone %>
+                </p>
+              <% end %>
+              
+              <% if @part.supplier.email.present? %>
+                <p class="mb-1">
+                  <i class="fas fa-envelope me-2"></i>
+                  <%= @part.supplier.email %>
+                </p>
+              <% end %>
+            </div>
+            
+            <div class="mb-3">
+              <p class="mb-1">
+                <strong>Lead Time:</strong> 
+                <%= @part.lead_time_days %> days
+              </p>
+              <% if @part.supplier.payment_terms.present? %>
+                <p class="mb-1">
+                  <strong>Payment Terms:</strong> 
+                  <%= @part.supplier.payment_terms %>
+                </p>
+              <% end %>
+            </div>
+            
+            <% if @part.supplier.notes.present? %>
+              <div class="alert alert-light">
+                <small><%= @part.supplier.notes %></small>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-4">
+              <p class="text-muted">No supplier assigned</p>
+              <%= link_to 'Assign Supplier', edit_vmcott_part_path(@part), class: 'btn btn-sm btn-outline-secondary' %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">Detailed Information</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-8">
+          <h6 class="mb-3">Description</h6>
+          <% if @part.description.present? %>
+            <p><%= @part.description %></p>
+          <% else %>
+            <p class="text-muted">No description provided</p>
+          <% end %>
+          
+          <hr>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <p class="mb-2">
+                <strong>Category:</strong>
+                <%= @part.category.present? ? @part.category : 'N/A' %>
+              </p>
+              <p class="mb-2">
+                <strong>Unit of Measure:</strong>
+                <%= @part.unit_of_measure %>
+              </p>
+              <p class="mb-2">
+                <strong>Part Type:</strong>
+                <%= @part.is_consumable? ? 'Consumable' : 'Reusable' %>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <% if @part.location_in_warehouse.present? %>
+                <p class="mb-2">
+                  <strong>Location:</strong>
+                  <%= @part.location_in_warehouse %>
+                </p>
+              <% end %>
+              <p class="mb-2">
+                <strong>Created:</strong>
+                <%= @part.created_at.strftime('%Y-%m-%d') %>
+              </p>
+              <p class="mb-2">
+                <strong>Last Updated:</strong>
+                <%= @part.updated_at.strftime('%Y-%m-%d') %>
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="card bg-light">
+            <div class="card-body">
+              <h6 class="card-title">Recent Activity</h6>
+              
+              <% recent_transactions = @part.stock_history(days: 7).limit(5) %>
+              <% if recent_transactions.any? %>
+                <div class="timeline">
+                  <% recent_transactions.each do |transaction| %>
+                    <div class="timeline-item mb-3">
+                      <div class="timeline-indicator <%= transaction.quantity.positive? ? 'bg-success' : 'bg-danger' %>"></div>
+                      <div class="ms-4">
+                        <div class="d-flex justify-content-between">
+                          <strong><%= transaction.transaction_type.titleize %></strong>
+                          <span class="<%= transaction.quantity.positive? ? 'text-success' : 'text-danger' %>">
+                            <%= transaction.quantity.positive? ? '+' : '' %><%= transaction.quantity %>
+                          </span>
+                        </div>
+                        <small class="text-muted">
+                          <%= time_ago_in_words(transaction.created_at) %> ago
+                        </small>
+                        <% if transaction.notes.present? %>
+                          <p class="mb-0 small"><%= transaction.notes.truncate(50) %></p>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="text-muted mb-0">No recent activity</p>
+              <% end %>
+              
+              <%= link_to 'View Full History', vmcott_inventory_stock_history_path(@part), class: 'btn btn-sm btn-outline-primary w-100 mt-2' %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions Panel -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">Quick Actions</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <%= link_to 'Edit Part', edit_vmcott_part_path(@part), class: 'btn btn-outline-primary w-100' %>
+        </div>
+        
+        <div class="col-md-3">
+          <button type="button" class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#addStockModal">
+            <i class="fas fa-plus me-2"></i>Add Stock
+          </button>
+        </div>
+        
+        <div class="col-md-3">
+          <button type="button" class="btn btn-outline-warning w-100" data-bs-toggle="modal" data-bs-target="#removeStockModal">
+            <i class="fas fa-minus me-2"></i>Remove Stock
+          </button>
+        </div>
+        
+        <div class="col-md-3">
+          <%= link_to 'Create Purchase Request', vmcott_inventory_new_purchase_request_path(@part.id), 
+                      class: 'btn btn-outline-info w-100' %>
+        </div>
+        
+        <div class="col-md-3">
+          <%= link_to 'Stock History', vmcott_inventory_stock_history_path(@part), 
+            class: 'btn btn-outline-secondary w-100' %>
+        </div>
+        
+        <div class="col-md-3">
+          <%= link_to 'Create Internal PO', vmcott_new_internal_pos_from_part_path(@part.id), 
+            class: 'btn btn-outline-dark w-100' %>
+        </div>
+        
+        <div class="col-md-3">
+          <%= link_to 'Used in Jobs', '#', class: 'btn btn-outline-secondary w-100' %>
+        </div>
+        
+        <div class="col-md-3">
+          <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#deletePartModal">
+            <i class="fas fa-trash me-2"></i>Delete Part
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Stock Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Stock to <%= @part.name %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: adjust_stock_vmcott_part_path(@part), method: :post do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Quantity to Add</label>
+            <%= f.number_field :quantity, class: 'form-control', min: 1, required: true, value: 1 %>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Unit Price (optional)</label>
+            <%= f.number_field :unit_price, class: 'form-control', min: 0, step: '0.01', 
+                               placeholder: "Leave blank to use current cost price" %>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <%= f.text_area :notes, class: 'form-control', rows: 3, 
+                           placeholder: "Optional notes about this stock addition" %>
+          </div>
+          
+          <div class="alert alert-info">
+            <small>
+              <strong>Current Stock:</strong> <%= @part.current_stock %><br>
+              <strong>After Addition:</strong> <span id="newStockTotal"><%= @part.current_stock + 1 %></span>
+            </small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit 'Add Stock', class: 'btn btn-success' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Remove Stock Modal -->
+<div class="modal fade" id="removeStockModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Remove Stock from <%= @part.name %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: adjust_stock_vmcott_part_path(@part), method: :post do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Quantity to Remove</label>
+            <%= f.number_field :quantity, class: 'form-control', min: 1, max: @part.current_stock, 
+                               required: true, value: 1 %>
+            <small class="form-text text-muted">
+              Maximum available: <%= @part.current_stock %>
+            </small>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Reason</label>
+            <%= f.select :reason, 
+                ['Usage for Job', 'Damaged', 'Return to Supplier', 'Lost', 'Adjustment', 'Other'],
+                {}, class: 'form-control' %>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <%= f.text_area :notes, class: 'form-control', rows: 3, 
+                           placeholder: "Provide details about why stock is being removed" %>
+          </div>
+          
+          <div class="alert alert-warning">
+            <small>
+              <strong>Current Stock:</strong> <%= @part.current_stock %><br>
+              <strong>After Removal:</strong> <span id="newStockAfterRemoval"><%= @part.current_stock - 1 %></span>
+            </small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit 'Remove Stock', class: 'btn btn-warning' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Part Modal -->
+<div class="modal fade" id="deletePartModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">Delete Part</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger">
+          <h6 class="alert-heading">Warning!</h6>
+          <p class="mb-0">
+            Are you sure you want to delete <strong><%= @part.name %></strong>?
+            This action cannot be undone.
+          </p>
+        </div>
+        
+        <% if @part.current_stock > 0 %>
+          <div class="alert alert-warning">
+            <p class="mb-0">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              This part still has <%= @part.current_stock %> units in stock.
+              Deleting it will remove all stock information.
+            </p>
+          </div>
+        <% end %>
+        
+        <p>
+          <strong>Part Number:</strong> <%= @part.part_number || 'N/A' %><br>
+          <strong>Category:</strong> <%= @part.category || 'N/A' %><br>
+          <strong>Current Stock:</strong> <%= @part.current_stock %>
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <%= link_to 'Delete Permanently', vmcott_part_path(@part), 
+                    method: :delete, 
+                    class: 'btn btn-danger',
+                    data: { confirm: 'Are you absolutely sure? This cannot be undone.' } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Update the stock total when quantity changes in the add modal
+document.addEventListener('DOMContentLoaded', function() {
+  const addQuantityInput = document.querySelector('#addStockModal input[name="quantity"]');
+  const addStockTotalSpan = document.querySelector('#newStockTotal');
+  const currentStock = <%= @part.current_stock %>;
+  
+  if (addQuantityInput && addStockTotalSpan) {
+    addQuantityInput.addEventListener('input', function() {
+      const quantity = parseInt(this.value) || 0;
+      addStockTotalSpan.textContent = currentStock + quantity;
+    });
+  }
+  
+  // Update the stock total when quantity changes in the remove modal
+  const removeQuantityInput = document.querySelector('#removeStockModal input[name="quantity"]');
+  const removeStockTotalSpan = document.querySelector('#newStockAfterRemoval');
+  
+  if (removeQuantityInput && removeStockTotalSpan) {
+    removeQuantityInput.addEventListener('input', function() {
+      const quantity = parseInt(this.value) || 0;
+      removeStockTotalSpan.textContent = Math.max(0, currentStock - quantity);
+    });
+  }
+});
+</script>

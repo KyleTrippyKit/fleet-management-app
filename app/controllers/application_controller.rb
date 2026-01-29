@@ -27,12 +27,12 @@ class ApplicationController < ActionController::Base
   # ✅ ADDED: Set Current context for POS transactions
   around_action :set_current_context
   # ✅ ADDED: POS transaction current user setup
-  around_action :set_pos_transaction_current_user
+  around_action :set_pos_transaction_current_user, unless: :skip_pos_transaction_callback?
 
   # =====================================================
   # AFTER SIGN IN REDIRECT - THE FIX!
   # =====================================================
- def after_sign_in_path_for(resource)
+  def after_sign_in_path_for(resource)
     # Debug logging
     Rails.logger.info "=== AFTER SIGN IN REDIRECT ==="
     
@@ -363,6 +363,12 @@ class ApplicationController < ActionController::Base
   # Private Methods
   # =====================================================
   private
+
+  # NEW: Check if we should skip POS transaction callback
+  def skip_pos_transaction_callback?
+    # Skip for vmcott parts edit action to prevent template errors
+    controller_path == 'vmcott/parts' && action_name == 'edit'
+  end
 
   # Set Current context
   def set_current_context

@@ -22,7 +22,7 @@
         </div>
         <div>
           <%= link_to 'Edit', edit_supplier_path(@supplier), class: 'btn btn-warning' %>
-          <%= link_to 'Manage Inventory', update_stock_supplier_path(@supplier), class: 'btn btn-info' %>
+          <%= link_to 'Manage Stock', update_stock_supplier_path(@supplier), class: 'btn btn-info' %>
         </div>
       </div>
     </div>
@@ -156,6 +156,8 @@
                 class: 'btn btn-info' %>
             <%= link_to 'View All Invoices', invoices_supplier_path(@supplier), 
                 class: 'btn btn-outline-primary' %>
+            <%= link_to 'View Vendor Invoices', vendor_invoices_path(supplier_id: @supplier.id), 
+                class: 'btn btn-outline-info' %>
             <%= link_to 'Create Purchase Order', new_purchase_order_path(vendor: @supplier.name), 
                 class: 'btn btn-outline-success' %>
           </div>
@@ -171,15 +173,15 @@
           <div class="card-body">
             <%= form_with(model: [@supplier, VendorInvoice.new], 
                   url: upload_invoice_supplier_path(@supplier), 
-                  local: true) do |f| %>
+                  local: true, multipart: true) do |f| %>
               <div class="mb-3">
-                <%= f.label :invoice_number, 'Invoice Number', class: 'form-label' %>
+                <%= f.label :invoice_number, 'Invoice Number *', class: 'form-label' %>
                 <%= f.text_field :invoice_number, class: 'form-control', required: true %>
               </div>
               
               <div class="row mb-3">
                 <div class="col-md-6">
-                  <%= f.label :invoice_date, 'Invoice Date', class: 'form-label' %>
+                  <%= f.label :invoice_date, 'Invoice Date *', class: 'form-label' %>
                   <%= f.date_field :invoice_date, class: 'form-control', required: true, 
                         value: Date.today.to_s %>
                 </div>
@@ -191,7 +193,7 @@
               </div>
               
               <div class="mb-3">
-                <%= f.label :amount, 'Amount (TTD)', class: 'form-label' %>
+                <%= f.label :amount, 'Amount (TTD) *', class: 'form-label' %>
                 <%= f.number_field :amount, step: '0.01', class: 'form-control', required: true %>
               </div>
               
@@ -207,7 +209,7 @@
                 <%= f.label :invoice_scan, 'Upload Scanned Invoice', class: 'form-label' %>
                 <%= f.file_field :invoice_scan, class: 'form-control', 
                       accept: 'image/*,.pdf,.doc,.docx' %>
-                <div class="form-text">Upload PDF or image of the physical invoice</div>
+                <div class="form-text">Upload PDF or image of the physical invoice (max 10MB)</div>
               </div>
               
               <div class="mb-3">
@@ -231,12 +233,15 @@
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">Recent Invoices</h5>
-          <div>
+          <div class="d-flex gap-2">
             <input type="text" 
                    class="form-control form-control-sm" 
                    placeholder="Search invoices..."
                    id="invoice-search"
-                   data-supplier-id="<%= @supplier.id %>">
+                   data-controller="search"
+                   data-action="input->search#perform"
+                   data-search-url="<%= invoices_supplier_path(@supplier, format: :json) %>">
+            <%= link_to 'View All', invoices_supplier_path(@supplier), class: 'btn btn-sm btn-outline-primary' %>
           </div>
         </div>
         <div class="card-body p-0">
@@ -253,13 +258,13 @@
                   <th>Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="invoices-body">
                 <% @vendor_invoices.limit(10).each do |invoice| %>
                   <tr>
                     <td>
                       <strong><%= invoice.invoice_number %></strong>
                       <% if invoice.invoice_scan.attached? %>
-                        <i class="bi bi-paperclip text-muted ms-1"></i>
+                        <i class="bi bi-paperclip text-info ms-1" title="Has attached scan"></i>
                       <% end %>
                     </td>
                     <td><%= invoice.invoice_date.strftime('%d/%m/%Y') %></td>
@@ -286,14 +291,17 @@
                             <br><small class="text-danger">(<%= invoice.days_overdue %> days overdue)</small>
                           <% end %>
                         </span>
+                      <% else %>
+                        <span class="text-muted">—</span>
                       <% end %>
                     </td>
                     <td>
                       <div class="btn-group btn-group-sm">
-                        <%= link_to 'View', '#', class: 'btn btn-outline-primary' %>
+                        <%= link_to 'View', vendor_invoice_path(invoice), 
+                              class: 'btn btn-outline-primary' %>
                         <% if invoice.invoice_scan.attached? %>
                           <%= link_to 'Scan', rails_blob_path(invoice.invoice_scan, disposition: 'inline'),
-                              target: '_blank', class: 'btn btn-outline-info' %>
+                                target: '_blank', class: 'btn btn-outline-info' %>
                         <% end %>
                       </div>
                     </td>
@@ -315,8 +323,12 @@
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">Inventory Items from this Vendor</h5>
-          <%= link_to 'Add New Item', new_inventory_item_path(supplier_id: @supplier.id), 
-                class: 'btn btn-sm btn-primary' %>
+          <div>
+            <%= link_to 'Add New Item', new_inventory_item_path(supplier_id: @supplier.id), 
+                  class: 'btn btn-sm btn-primary' %>
+            <%= link_to 'Manage Stock', update_stock_supplier_path(@supplier), 
+                  class: 'btn btn-sm btn-info' %>
+          </div>
         </div>
         <div class="card-body p-0">
           <div class="table-responsive">
@@ -336,7 +348,11 @@
                 <% @parts.each do |part| %>
                   <tr>
                     <td>
-                      <strong><%= part.name %></strong>
+                      <% if part.persisted? && defined?(part_path) %>
+                        <%= link_to part.name, part_path(part) %>
+                      <% else %>
+                        <strong><%= part.name %></strong>
+                      <% end %>
                       <br><small class="text-muted"><%= part.category %></small>
                     </td>
                     <td><code><%= part.part_number %></code></td>
@@ -344,17 +360,21 @@
                       <span class="badge bg-<%= part.current_stock <= part.minimum_stock ? 'warning' : 'success' %>">
                         <%= part.current_stock %>
                       </span>
-                      <% if part.current_stock <= part.reorder_point %>
-                        <br><small class="text-danger">Reorder point: <%= part.reorder_point %></small>
+                      / <%= part.reorder_point %>
+                      <% if part.current_stock <= part.minimum_stock %>
+                        <br><small class="text-danger">Needs reorder!</small>
                       <% end %>
                     </td>
                     <td><%= number_to_currency(part.cost_price) if part.cost_price %></td>
                     <td><%= number_to_currency(part.sale_price) if part.sale_price %></td>
                     <td>
                       <% if part.cost_price && part.sale_price && part.cost_price > 0 %>
-                        <span class="badge bg-<%= part.profit_margin >= 20 ? 'success' : 'warning' %>">
-                          <%= number_to_percentage(part.profit_margin, precision: 0) %>
+                        <% profit_margin = ((part.sale_price - part.cost_price) / part.cost_price * 100).round(1) %>
+                        <span class="badge bg-<%= profit_margin >= 20 ? 'success' : 'warning' %>">
+                          <%= number_to_percentage(profit_margin, precision: 1) %>
                         </span>
+                      <% else %>
+                        <span class="badge bg-secondary">N/A</span>
                       <% end %>
                     </td>
                     <td>
@@ -367,30 +387,28 @@
               </tbody>
             </table>
           </div>
+          <% if @parts.empty? %>
+            <div class="text-center py-4">
+              <i class="bi bi-box text-muted fs-1 mb-3"></i>
+              <h5>No inventory items</h5>
+              <p class="text-muted">Add inventory items from this vendor</p>
+              <%= link_to 'Add First Item', new_inventory_item_path(supplier_id: @supplier.id), 
+                    class: 'btn btn-primary btn-sm' %>
+            </div>
+          <% end %>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<%# Helper method for status badge colors %>
-<% def invoice_status_badge_color(status) %>
-  <% case status %>
-  <% when 'paid' %> 'success'
-  <% when 'reviewed' %> 'info'
-  <% when 'pending' %> 'warning'
-  <% when 'disputed' %> 'danger'
-  <% else 'secondary' %>
-  <% end %>
-<% end %>
-
-<%# JavaScript for live invoice search %>
+<%# JavaScript for live invoice search - FIXED VERSION %>
 <%= javascript_tag do %>
   document.addEventListener('turbo:load', function() {
     const invoiceSearch = document.getElementById('invoice-search');
-    const supplierId = invoiceSearch?.dataset.supplierId;
+    const supplierId = <%= @supplier.id %>;
     
-    if (invoiceSearch && supplierId) {
+    if (invoiceSearch) {
       let searchTimeout;
       
       invoiceSearch.addEventListener('input', function(e) {
@@ -399,39 +417,73 @@
         
         searchTimeout = setTimeout(() => {
           if (query.length > 0) {
-            fetch(`/suppliers/${supplierId}/invoices?q=${encodeURIComponent(query)}`)
-              .then(response => response.json())
+            // Show loading
+            const tbody = document.getElementById('invoices-body');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3"><div class="spinner-border spinner-border-sm me-2"></div>Searching...</td></tr>';
+            
+            fetch(`/suppliers/${supplierId}/invoices.json?q=${encodeURIComponent(query)}`)
+              .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+              })
               .then(data => {
-                // Update table with search results
                 updateInvoiceTable(data);
+              })
+              .catch(error => {
+                console.error('Search error:', error);
+                const tbody = document.getElementById('invoices-body');
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Error loading invoices. Please try again.</td></tr>';
               });
           } else {
-            // Reload original invoices (first 10)
-            location.reload();
+            // Reload original invoices
+            window.location.reload();
           }
-        }, 300);
+        }, 500);
       });
     }
   });
   
   function updateInvoiceTable(invoices) {
-    const tbody = document.querySelector('#invoices-table tbody');
+    const tbody = document.getElementById('invoices-body');
     if (!tbody) return;
     
     tbody.innerHTML = '';
     
+    if (invoices.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No invoices found</td></tr>';
+      return;
+    }
+    
     invoices.forEach(invoice => {
+      const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+      const today = new Date();
+      const isOverdue = dueDate && dueDate < today && invoice.status !== 'paid';
+      const daysOverdue = isOverdue ? Math.floor((today - dueDate) / (1000 * 60 * 60 * 24)) : 0;
+      
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td><strong>${invoice.invoice_number}</strong></td>
-        <td>${new Date(invoice.invoice_date).toLocaleDateString()}</td>
-        <td>${invoice.amount.toFixed(2)}</td>
-        <td>${invoice.purchase_order_id ? 'Linked' : '—'}</td>
-        <td><span class="badge bg-${getStatusColor(invoice.status)}">${invoice.status}</span></td>
-        <td></td>
+        <td>
+          <strong>${invoice.invoice_number}</strong>
+        </td>
+        <td>${new Date(invoice.invoice_date).toLocaleDateString('en-GB')}</td>
+        <td>$${parseFloat(invoice.amount).toFixed(2)}</td>
+        <td>
+          ${invoice.purchase_order_id ? 
+            '<span class="badge bg-info">Linked</span>' : 
+            '<span class="text-muted">—</span>'}
+        </td>
+        <td>
+          <span class="badge bg-${getStatusColor(invoice.status)}">
+            ${invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+          </span>
+        </td>
+        <td>
+          ${dueDate ? new Date(invoice.due_date).toLocaleDateString('en-GB') : '—'}
+          ${isOverdue ? `<br><small class="text-danger">(${daysOverdue} days overdue)</small>` : ''}
+        </td>
         <td>
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary">View</button>
+            <a href="/vendor_invoices/${invoice.id}" class="btn btn-outline-primary">View</a>
           </div>
         </td>
       `;
