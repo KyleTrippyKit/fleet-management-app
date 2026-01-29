@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Usage Statistics: <%= @job_template.name %></title>
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.4; }
+      h1 { color: #333; border-bottom: 2px solid #666; padding-bottom: 10px; }
+      h2 { color: #555; margin-top: 20px; }
+      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      th { background-color: #f2f2f2; font-weight: bold; }
+      .stat-box { margin: 10px 0; padding: 10px; border: 1px solid #ddd; background: #f9f9f9; }
+      .total { font-weight: bold; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>Usage Statistics: <%= @job_template.name %></h1>
+    
+    <div class="stat-box">
+      <p><strong>Template Details:</strong> <%= @job_template.description %></p>
+      <p><strong>Category:</strong> <%= @job_template.category || 'Uncategorized' %></p>
+      <p><strong>Status:</strong> <%= @job_template.is_active ? 'Active' : 'Inactive' %></p>
+    </div>
+    
+    <h2>Summary Statistics</h2>
+    <table>
+      <tr>
+        <th>Total Uses</th>
+        <th>Unique Vehicles</th>
+        <th>Average per Month</th>
+        <th>First Used</th>
+        <th>Last Used</th>
+      </tr>
+      <tr>
+        <td class="total"><%= @usage_stats[:total_uses] %></td>
+        <td><%= @usage_stats[:unique_vehicles] %></td>
+        <td><%= @usage_stats[:average_per_month] %></td>
+        <td><%= @usage_stats[:first_used] ? @usage_stats[:first_used].strftime('%b %d, %Y') : 'N/A' %></td>
+        <td><%= @usage_stats[:last_used] ? @usage_stats[:last_used].strftime('%b %d, %Y') : 'Never' %></td>
+      </tr>
+    </table>
+    
+    <% if @monthly_usage.present? && @monthly_usage.any? %>
+      <h2>Monthly Usage (Last 6 Months)</h2>
+      <table>
+        <tr>
+          <th>Month</th>
+          <th>Usage Count</th>
+        </tr>
+        <% @monthly_usage.each do |month, count| %>
+          <tr>
+            <td><%= month %></td>
+            <td><%= count %></td>
+          </tr>
+        <% end %>
+      </table>
+    <% end %>
+    
+    <% if @usage_stats[:agencies_usage] && @usage_stats[:agencies_usage].any? %>
+      <h2>Usage by Agency</h2>
+      <table>
+        <tr>
+          <th>Agency</th>
+          <th>Usage Count</th>
+          <th>Percentage</th>
+        </tr>
+        <% total = @usage_stats[:agencies_usage].values.sum %>
+        <% @usage_stats[:agencies_usage].sort_by { |_, v| -v }.each do |agency, count| %>
+          <% percentage = (count.to_f / total * 100).round(1) %>
+          <tr>
+            <td><%= agency %></td>
+            <td><%= count %></td>
+            <td><%= percentage %>%</td>
+          </tr>
+        <% end %>
+      </table>
+    <% end %>
+    
+    <% if @recent_uses.present? && @recent_uses.any? %>
+      <h2>Recent Usage</h2>
+      <table>
+        <tr>
+          <th>Quotation</th>
+          <th>Vehicle</th>
+          <th>Date</th>
+        </tr>
+        <% @recent_uses.each do |use| %>
+          <tr>
+            <td>
+              <% if use.quotation %>
+                Quotation #<%= use.quotation.quote_number || use.quotation.id %>
+              <% else %>
+                N/A
+              <% end %>
+            </td>
+            <td>
+              <% if use.quotation&.vehicle %>
+                <%= use.quotation.vehicle.license_plate %>
+              <% else %>
+                N/A
+              <% end %>
+            </td>
+            <td><%= use.created_at.strftime('%b %d, %Y') %></td>
+          </tr>
+        <% end %>
+      </table>
+    <% end %>
+    
+    <div class="footer">
+      <p>Generated on: <%= Time.current.strftime('%B %d, %Y at %I:%M %p') %></p>
+      <p>Document ID: <%= SecureRandom.hex(8).upcase %></p>
+    </div>
+  </body>
+</html>

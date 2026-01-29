@@ -1,3 +1,4 @@
+# app/models/part.rb
 class Part < ApplicationRecord
   belongs_to :supplier, optional: true
   has_many :purchases
@@ -22,9 +23,6 @@ class Part < ApplicationRecord
   validates :cost_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :standard_markup_percentage, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   
-  # REMOVED: :price validation (using sale_price instead)
-  # REMOVED: :sale_price validation (only using cost_price + markup)
-  
   # Scopes for inventory management
   scope :active, -> { where(is_active: true) }
   scope :consumable, -> { where(is_consumable: true) }
@@ -44,6 +42,20 @@ class Part < ApplicationRecord
   
   # Callback to update current_stock after inventory transactions
   after_commit :recalculate_stock_from_transactions, if: :should_recalculate_stock?
+  
+  # ADDED: Method for displaying part name with number in dropdowns
+  def name_with_number
+    if part_number.present?
+      "#{name} (#{part_number})"
+    else
+      name
+    end
+  end
+  
+  # Alias for consistency
+  def display_name
+    name_with_number
+  end
   
   # Calculated selling price (cost + markup) - SINGLE SOURCE OF TRUTH
   def selling_price

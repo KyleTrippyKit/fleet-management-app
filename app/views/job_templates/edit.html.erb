@@ -1,0 +1,479 @@
+<%# app/views/job_templates/edit.html.erb - FIXED VERSION %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-warning text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="mb-0">
+                <i class="fas fa-edit me-2"></i>Edit Job Template: <%= @job_template.name %>
+              </h4>
+              <small class="opacity-75">Modify template details and parts</small>
+            </div>
+            <div>
+              <%= link_to 'Cancel', @job_template, class: 'btn btn-sm btn-outline-light' %>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <%= form_with(model: @job_template, local: true, html: { class: 'needs-validation', novalidate: true }) do |form| %>
+            <% if @job_template.errors.any? %>
+              <div class="alert alert-danger">
+                <h5><%= pluralize(@job_template.errors.count, "error") %> prohibited this job template from being saved:</h5>
+                <ul>
+                  <% @job_template.errors.full_messages.each do |message| %>
+                    <li><%= message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+            
+            <div class="row">
+              <div class="col-md-8">
+                <!-- Basic Information -->
+                <div class="card mb-4">
+                  <div class="card-header">
+                    <h5 class="mb-0">Basic Information</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-md-6 mb-3">
+                        <%= form.label :name, class: 'form-label' %>
+                        <%= form.text_field :name, class: 'form-control', required: true %>
+                        <div class="invalid-feedback">Please provide a template name.</div>
+                      </div>
+                      
+                      <div class="col-md-6 mb-3">
+                        <%= form.label :category, class: 'form-label' %>
+                        <%= form.text_field :category, class: 'form-control', list: 'categories' %>
+                        <datalist id="categories">
+                          <% if @categories.present? %>
+                            <% @categories.each do |category| %>
+                              <option value="<%= category %>">
+                            <% end %>
+                          <% end %>
+                        </datalist>
+                      </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <%= form.label :description, class: 'form-label' %>
+                      <%= form.text_area :description, class: 'form-control', rows: 3 %>
+                    </div>
+                    
+                    <div class="row">
+                      <div class="col-md-4 mb-3">
+                        <%= form.label :standard_hours, class: 'form-label' %>
+                        <div class="input-group">
+                          <%= form.number_field :standard_hours, class: 'form-control', step: '0.25', min: '0', value: @job_template.standard_hours || 1.0 %>
+                          <span class="input-group-text">hours</span>
+                        </div>
+                      </div>
+                      
+                      <div class="col-md-4 mb-3">
+                        <%= form.label :labor_rate_per_hour, 'Labor Rate', class: 'form-label' %>
+                        <div class="input-group">
+                          <span class="input-group-text">$</span>
+                          <%= form.number_field :labor_rate_per_hour, class: 'form-control', step: '0.01', min: '0', value: @job_template.labor_rate_per_hour || 150.00 %>
+                          <span class="input-group-text">/hour</span>
+                        </div>
+                      </div>
+                      
+                      <div class="col-md-4 mb-3">
+                        <%= form.label :is_active, 'Status', class: 'form-label d-block' %>
+                        <div class="form-check form-switch">
+                          <%= form.check_box :is_active, class: 'form-check-input', role: 'switch' %>
+                          <%= form.label :is_active, 'Active Template', class: 'form-check-label' %>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <label class="form-label">Procedures (one per line)</label>
+                      <% procedures_count = @job_template.procedures.present? ? @job_template.procedures.length : 3 %>
+                      <% procedures_count.times do |i| %>
+                        <div class="input-group mb-2">
+                          <span class="input-group-text"><%= i + 1 %></span>
+                          <input type="text" 
+                                 name="job_template[procedures][]" 
+                                 class="form-control" 
+                                 value="<%= @job_template.procedures[i] if @job_template.procedures.present? %>"
+                                 placeholder="Step <%= i + 1 %>">
+                        </div>
+                      <% end %>
+                      <button type="button" class="btn btn-sm btn-outline-secondary" id="add-procedure">
+                        <i class="fas fa-plus me-1"></i> Add Another Step
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Parts Selection -->
+                <div class="card mb-4">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Required Parts</h5>
+                    <button type="button" class="btn btn-sm btn-primary" id="add-part-row">
+                      <i class="fas fa-plus me-1"></i> Add Part
+                    </button>
+                  </div>
+                  <div class="card-body">
+                    <div id="parts-container">
+                      <% if @job_template.job_template_parts.any? %>
+                        <% @job_template.job_template_parts.each_with_index do |jtp, index| %>
+                          <div class="part-row row mb-3">
+                            <div class="col-md-5">
+                              <label class="form-label">Part</label>
+                              <%= select_tag "part_ids[]", 
+                                  options_from_collection_for_select(@parts, :id, :name_with_number, jtp.part_id),
+                                  class: 'form-control part-select',
+                                  include_blank: 'Select a part...',
+                                  required: true %>
+                            </div>
+                            <div class="col-md-2">
+                              <label class="form-label">Qty</label>
+                              <%= number_field_tag "part_quantities[]", jtp.quantity, class: 'form-control', min: 1, required: true %>
+                            </div>
+                            <div class="col-md-3">
+                              <label class="form-label">Required</label>
+                              <div class="form-check mt-2">
+                                <%= check_box_tag "part_required[]", '1', jtp.required, class: 'form-check-input' %>
+                                <label class="form-check-label">Required for job</label>
+                              </div>
+                            </div>
+                            <div class="col-md-2">
+                              <label class="form-label">&nbsp;</label>
+                              <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-part">
+                                <i class="fas fa-trash"></i>
+                              </button>
+                            </div>
+                            <div class="col-12 mt-2">
+                              <%= text_field_tag "part_notes[]", jtp.notes, class: 'form-control', placeholder: 'Notes (optional)' %>
+                            </div>
+                          </div>
+                        <% end %>
+                      <% else %>
+                        <div class="part-row row mb-3">
+                          <div class="col-md-5">
+                            <label class="form-label">Part</label>
+                            <%= select_tag "part_ids[]", 
+                                options_from_collection_for_select(@parts, :id, :name_with_number),
+                                class: 'form-control part-select',
+                                include_blank: 'Select a part...',
+                                required: true %>
+                          </div>
+                          <div class="col-md-2">
+                            <label class="form-label">Qty</label>
+                            <%= number_field_tag "part_quantities[]", 1, class: 'form-control', min: 1, required: true %>
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label">Required</label>
+                            <div class="form-check mt-2">
+                              <%= check_box_tag "part_required[]", '1', true, class: 'form-check-input' %>
+                              <label class="form-check-label">Required for job</label>
+                            </div>
+                          </div>
+                          <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-part">
+                              <i class="fas fa-trash"></i>
+                            </button>
+                          </div>
+                          <div class="col-12 mt-2">
+                            <%= text_field_tag "part_notes[]", nil, class: 'form-control', placeholder: 'Notes (optional)' %>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                    
+                    <% if @popular_parts.any? %>
+                      <div class="mt-4">
+                        <h6>Popular Parts</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                          <% @popular_parts.each do |part| %>
+                            <button type="button" class="btn btn-sm btn-outline-secondary add-popular-part" 
+                                    data-part-id="<%= part.id %>" 
+                                    data-part-name="<%= part.name %>">
+                              <%= part.name %><% if part.part_number.present? %> <small class="text-muted">(<%= part.part_number %>)</small><% end %>
+                            </button>
+                          <% end %>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-4">
+                <!-- Summary Card -->
+                <div class="card mb-4">
+                  <div class="card-header">
+                    <h5 class="mb-0">Template Summary</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-3">
+                      <h6>Labor Cost</h6>
+                      <div class="d-flex justify-content-between">
+                        <span>Hours × Rate:</span>
+                        <span id="labor-cost">$0.00</span>
+                      </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                      <h6>Parts Summary</h6>
+                      <div id="parts-summary">
+                        <p class="text-muted">No parts added</p>
+                      </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                      <h6>Total Estimated Cost</h6>
+                      <h4 id="total-cost" class="text-primary">$0.00</h4>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Actions Card -->
+                <div class="card">
+                  <div class="card-header">
+                    <h5 class="mb-0">Actions</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="d-grid gap-2">
+                      <%= form.submit 'Update Template', class: 'btn btn-warning' %>
+                      <%= link_to 'Preview Changes', '#', class: 'btn btn-outline-primary', id: 'preview-btn' %>
+                      <%= link_to 'Cancel', @job_template, class: 'btn btn-outline-secondary' %>
+                      <%= link_to 'Duplicate', duplicate_job_template_path(@job_template), 
+                          method: :post, 
+                          data: { confirm: 'Create a copy of this template?' },
+                          class: 'btn btn-outline-info' %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Add part row
+  document.getElementById('add-part-row').addEventListener('click', function() {
+    const container = document.getElementById('parts-container');
+    const newRow = document.createElement('div');
+    newRow.className = 'part-row row mb-3';
+    newRow.innerHTML = `
+      <div class="col-md-5">
+        <label class="form-label">Part</label>
+        <select name="part_ids[]" class="form-control part-select" required>
+          <option value="">Select a part...</option>
+          <% @parts.each do |part| %>
+            <option value="<%= part.id %>"><%= part.name %><% if part.part_number.present? %> (<%= part.part_number %>)<% end %></option>
+          <% end %>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Qty</label>
+        <input type="number" name="part_quantities[]" class="form-control" min="1" value="1" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Required</label>
+        <div class="form-check mt-2">
+          <input type="checkbox" name="part_required[]" value="1" class="form-check-input" checked>
+          <label class="form-check-label">Required for job</label>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">&nbsp;</label>
+        <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-part">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+      <div class="col-12 mt-2">
+        <input type="text" name="part_notes[]" class="form-control" placeholder="Notes (optional)">
+      </div>
+    `;
+    container.appendChild(newRow);
+    updateCosts();
+  });
+
+  // Remove part row
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.remove-part')) {
+      e.target.closest('.part-row').remove();
+      updateCosts();
+    }
+  });
+
+  // Add popular part
+  document.querySelectorAll('.add-popular-part').forEach(button => {
+    button.addEventListener('click', function() {
+      const partId = this.dataset.partId;
+      const partName = this.dataset.partName;
+      
+      // Check if part is already added
+      const existingSelects = document.querySelectorAll('.part-select');
+      for (let select of existingSelects) {
+        if (select.value === partId) {
+          alert('This part is already added to the template.');
+          return;
+        }
+      }
+      
+      // Add new row with this part selected
+      const container = document.getElementById('parts-container');
+      const newRow = document.createElement('div');
+      newRow.className = 'part-row row mb-3';
+      newRow.innerHTML = `
+        <div class="col-md-5">
+          <label class="form-label">Part</label>
+          <select name="part_ids[]" class="form-control part-select" required>
+            <option value="">Select a part...</option>
+            <% @parts.each do |part| %>
+              <option value="<%= part.id %>" ${part.id == partId ? 'selected' : ''}>
+                <%= part.name %><% if part.part_number.present? %> (<%= part.part_number %>)<% end %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Qty</label>
+          <input type="number" name="part_quantities[]" class="form-control" min="1" value="1" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Required</label>
+          <div class="form-check mt-2">
+            <input type="checkbox" name="part_required[]" value="1" class="form-check-input" checked>
+            <label class="form-check-label">Required for job</label>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-part">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        <div class="col-12 mt-2">
+          <input type="text" name="part_notes[]" class="form-control" placeholder="Notes (optional)">
+        </div>
+      `;
+      container.appendChild(newRow);
+      updateCosts();
+    });
+  });
+
+  // Add procedure row
+  document.getElementById('add-procedure').addEventListener('click', function() {
+    const container = this.previousElementSibling;
+    const procedureCount = container.querySelectorAll('input[type="text"]').length;
+    
+    const newInput = document.createElement('div');
+    newInput.className = 'input-group mb-2';
+    newInput.innerHTML = `
+      <span class="input-group-text">${procedureCount + 1}</span>
+      <input type="text" name="job_template[procedures][]" class="form-control" placeholder="Step ${procedureCount + 1}">
+    `;
+    
+    container.appendChild(newInput);
+  });
+
+  // Calculate costs
+  function updateCosts() {
+    const hours = parseFloat(document.querySelector('[name="job_template[standard_hours]"]').value) || 0;
+    const rate = parseFloat(document.querySelector('[name="job_template[labor_rate_per_hour]"]').value) || 0;
+    const laborCost = hours * rate;
+    
+    // Update labor cost display
+    document.getElementById('labor-cost').textContent = '$' + laborCost.toFixed(2);
+    
+    // Update parts summary
+    const partRows = document.querySelectorAll('.part-row');
+    let partsHtml = '';
+    let totalPartsCost = 0;
+    
+    partRows.forEach((row, index) => {
+      const partSelect = row.querySelector('.part-select');
+      const quantity = parseFloat(row.querySelector('[name="part_quantities[]"]').value) || 0;
+      
+      if (partSelect && partSelect.value) {
+        const partName = partSelect.options[partSelect.selectedIndex].text;
+        partsHtml += `<div class="small">${partName} × ${quantity}</div>`;
+        // Note: In a real app, you'd fetch part prices from the server
+        // For now, we'll just show the quantity
+      }
+    });
+    
+    if (partsHtml) {
+      document.getElementById('parts-summary').innerHTML = partsHtml;
+    } else {
+      document.getElementById('parts-summary').innerHTML = '<p class="text-muted">No parts added</p>';
+    }
+    
+    // Update total cost (labor only for now)
+    document.getElementById('total-cost').textContent = '$' + laborCost.toFixed(2);
+  }
+
+  // Listen for changes
+  document.querySelector('[name="job_template[standard_hours]"]').addEventListener('input', updateCosts);
+  document.querySelector('[name="job_template[labor_rate_per_hour]"]').addEventListener('input', updateCosts);
+  
+  // Initialize costs
+  updateCosts();
+  
+  // Form validation
+  const forms = document.querySelectorAll('.needs-validation');
+  Array.from(forms).forEach(form => {
+    form.addEventListener('submit', event => {
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    }, false);
+  });
+});
+</script>
+
+<style>
+.part-row {
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 1rem;
+}
+
+.part-row:last-child {
+  border-bottom: none;
+}
+
+.part-select {
+  max-width: 100%;
+}
+
+#preview-btn:hover {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.form-check-input:checked {
+  background-color: #198754;
+  border-color: #198754;
+}
+
+.input-group-text {
+  background-color: #f8f9fa;
+}
+
+.card {
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+</style>

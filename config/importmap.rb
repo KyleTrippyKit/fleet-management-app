@@ -17,3 +17,8 @@ pin "jquery", to: "jquery.js"
 
 # Add Bootstrap - Use the bundle version (includes Popper)
 pin "bootstrap", to: "https://ga.jspm.io/npm:bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+
+# FIXED: Chart libraries - REMOVE Chart.bundle, keep only chart.js
+pin "chartkick", to: "https://ga.jspm.io/npm:chartkick@5.0.1/dist/chartkick.esm.js"
+pin "chart.js", to: "https://ga.jspm.io/npm:chart.js@4.5.1/dist/chart.umd.js"
+# REMOVE THIS LINE: pin "Chart.bundle", to: "Chart.bundle.js"

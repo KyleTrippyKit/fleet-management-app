@@ -1,12 +1,22 @@
 <%# app/views/quotations/received.html.erb %>
 <h1>Quotations Received</h1>
 
+<!-- Debug info for development -->
+<% if Rails.env.development? %>
+  <div class="alert alert-info">
+    <strong>Debug Info:</strong><br>
+    Current User Agency: <%= current_user.agency&.code %><br>
+    Quotations Count: <%= @quotations.count %>
+  </div>
+<% end %>
+
 <% if @quotations.any? %>
   <table class="table">
     <thead>
       <tr>
         <th>Quote #</th>
         <th>Vendor</th>
+        <th>Vehicle</th>
         <th>Amount</th>
         <th>Date</th>
         <th>Status</th>
@@ -18,6 +28,7 @@
         <tr>
           <td><%= quote.quote_number %></td>
           <td><%= quote.vendor %></td>
+          <td><%= quote.vehicle&.license_plate || 'N/A' %></td>
           <td>$<%= number_with_precision(quote.amount, precision: 2) %></td>
           <td><%= quote.created_at.strftime('%b %d, %Y') %></td>
           <td><span class="badge bg-<%= quote.status == 'accepted' ? 'success' : 'warning' %>"><%= quote.status.humanize %></span></td>

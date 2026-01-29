@@ -7,6 +7,9 @@ class Quotation < ApplicationRecord
   belongs_to :created_by, class_name: 'User'
   belongs_to :rfq, optional: true
   
+  # ADDED: Direct agency association for receiving quotations
+  belongs_to :agency
+  
   # Detailed line items
   has_many :quotation_line_items, dependent: :destroy
   alias_method :line_items, :quotation_line_items
@@ -61,10 +64,10 @@ class Quotation < ApplicationRecord
     .where(status: [:draft, :sent, :pending_acceptance])
   }
   
-  # Agency scope
+  # Agency scope - UPDATED to include direct agency association
   scope :for_agency, ->(agency) {
     return all unless agency.present?
-    joins(:vehicle).where(vehicles: { agency_id: agency.id })
+    where("agency_id = ? OR (vehicle_id IS NOT NULL AND vehicles.agency_id = ?)", agency.id, agency.id)
   }
   
   # Vendor scope
@@ -84,8 +87,14 @@ class Quotation < ApplicationRecord
   before_save :update_amount_from_line_items, if: :line_items_changed?
   before_save :update_amount_from_jobs, if: :jobs_changed?
   before_save :update_status_timestamps
+  before_save :set_agency_from_vehicle, if: -> { agency_id.blank? && vehicle_id.present? }
   
   # Instance Methods
+  
+  # ADDED: Set agency from vehicle if not set
+  def set_agency_from_vehicle
+    self.agency = vehicle.agency if vehicle && vehicle.agency
+  end
   
   # ADDED: Validate that prices are present before conversion to PO
   def ensure_prices_present_before_conversion
@@ -400,16 +409,14 @@ class Quotation < ApplicationRecord
     events.sort_by { |e| e[:date] || Time.at(0) }
   end
   
-  def agency
-    vehicle&.agency
-  end
-  
-  def agency_code
-    agency&.code || vehicle&.service_owner
-  end
-  
+  # UPDATED: Now uses direct agency association
   def agency_name
-    agency&.name || vehicle&.service_owner || 'Fleet Management'
+    agency&.name || vehicle&.agency&.name || 'Fleet Management'
+  end
+  
+  # UPDATED: Now uses direct agency association
+  def agency_code
+    agency&.code || vehicle&.agency&.code
   end
   
   # Total labor cost from jobs

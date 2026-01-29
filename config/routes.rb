@@ -331,6 +331,7 @@ Rails.application.routes.draw do
       post :import_defaults
       post :bulk_add_to_quotation
       get :export
+      get :export_csv
     end
     
     member do
@@ -339,6 +340,7 @@ Rails.application.routes.draw do
       get :select_quotation
       post :add_to_quotation
       post :quick_add
+      get :download_pdf
     end
     
     resources :job_template_parts

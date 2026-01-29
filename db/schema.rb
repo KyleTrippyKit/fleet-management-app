@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_28_165017) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_29_161553) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -819,6 +819,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_28_165017) do
 
   create_table "quotations", force: :cascade do |t|
     t.datetime "accepted_at"
+    t.bigint "agency_id", null: false
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "converted_at"
     t.datetime "created_at", null: false
@@ -833,6 +834,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_28_165017) do
     t.date "valid_to"
     t.bigint "vehicle_id"
     t.string "vendor", null: false
+    t.index ["agency_id"], name: "index_quotations_on_agency_id"
     t.index ["created_by_id"], name: "index_quotations_on_created_by_id"
     t.index ["quote_number"], name: "index_quotations_on_quote_number", unique: true
     t.index ["rfq_id"], name: "index_quotations_on_rfq_id"
@@ -1189,6 +1191,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_28_165017) do
   add_foreign_key "quotation_jobs", "job_templates"
   add_foreign_key "quotation_jobs", "quotations"
   add_foreign_key "quotation_line_items", "quotations"
+  add_foreign_key "quotations", "agencies"
   add_foreign_key "quotations", "rfqs"
   add_foreign_key "quotations", "users", column: "created_by_id"
   add_foreign_key "quotations", "vehicles"

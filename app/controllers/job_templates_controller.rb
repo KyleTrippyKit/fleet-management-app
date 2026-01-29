@@ -1,10 +1,13 @@
 # app/controllers/job_templates_controller.rb
+require 'csv'  # Add CSV require at the top of the file
+
 class JobTemplatesController < ApplicationController
   before_action :authenticate_user!
   before_action :require_vmcott
   before_action :set_agency
-  before_action :set_job_template, only: [:show, :edit, :update, :destroy, :duplicate, :usage_stats, :select_quotation, :add_to_quotation, :quick_add]
+  before_action :set_job_template, only: [:show, :edit, :update, :destroy, :duplicate, :usage_stats, :select_quotation, :add_to_quotation, :quick_add, :download_pdf]
   before_action :set_pending_quotations, only: [:select_quotation, :add_to_quotation, :quick_add]
+  before_action :set_categories, only: [:new, :edit, :index]
 
   def index
     @job_templates = @agency.job_templates.includes(:parts)
@@ -48,6 +51,7 @@ class JobTemplatesController < ApplicationController
                          .group('parts.id')
                          .order('COUNT(job_template_parts.id) DESC')
                          .limit(10)
+    # Categories is now set via before_action :set_categories
   end
 
   def create
@@ -80,6 +84,7 @@ class JobTemplatesController < ApplicationController
       redirect_to @job_template, notice: 'Job template created successfully.'
     else
       @parts = Part.active.order(:name)
+      @categories = JobTemplate.distinct.pluck(:category).compact.sort
       render :new
     end
   end
@@ -90,6 +95,7 @@ class JobTemplatesController < ApplicationController
                          .group('parts.id')
                          .order('COUNT(job_template_parts.id) DESC')
                          .limit(10)
+    # Categories is now set via before_action :set_categories
   end
 
   def update
@@ -121,6 +127,7 @@ class JobTemplatesController < ApplicationController
       redirect_to @job_template, notice: 'Job template updated successfully.'
     else
       @parts = Part.active.order(:name)
+      @categories = JobTemplate.distinct.pluck(:category).compact.sort
       render :edit
     end
   end
@@ -163,16 +170,210 @@ class JobTemplatesController < ApplicationController
   end
 
   def usage_stats
-    @usage_count = @job_template.quotation_jobs.count
-    @recent_usage = @job_template.quotation_jobs
-                                 .includes(quotation: [:vehicle])
-                                 .order(created_at: :desc)
-                                 .limit(20)
+    @job_template = JobTemplate.find(params[:id])
     
-    # Calculate usage by month for chart
-    @monthly_usage = @job_template.quotation_jobs
-                                  .group_by_month(:created_at, last: 6, format: "%b %Y")
-                                  .count
+    # Get all quotation jobs using this template
+    quotation_jobs = @job_template.quotation_jobs
+    
+    total_uses = quotation_jobs.count
+    last_used = quotation_jobs.maximum(:created_at)
+    
+    # Calculate monthly average (last 12 months)
+    one_year_ago = 12.months.ago
+    recent_uses = quotation_jobs.where('created_at >= ?', one_year_ago)
+    months_count = 12
+    average_per_month = recent_uses.count.to_f / months_count
+    
+    # Get recent uses (last 5)
+    @recent_uses = quotation_jobs.includes(quotation: [:vehicle]).order(created_at: :desc).limit(5)
+    
+    # Monthly usage data for chart
+    @monthly_usage = quotation_jobs
+      .where('created_at >= ?', 6.months.ago)
+      .group_by_month(:created_at, format: "%b %Y")
+      .count
+    
+    # Get agencies usage by accessing vehicle.agency
+    agencies_usage = {}
+    
+    # Get agency usage through vehicle association
+    quotation_jobs.includes(quotation: [:vehicle]).each do |job|
+      if job.quotation && job.quotation.vehicle
+        vehicle = job.quotation.vehicle
+        if vehicle.agency
+          agency_name = vehicle.agency.name
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        elsif vehicle.service_owner.present?
+          # Use service_owner as fallback
+          agency_name = vehicle.service_owner
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        else
+          # Use generic agency name
+          agency_name = 'Unknown Agency'
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        end
+      else
+        # No vehicle associated
+        agency_name = 'No Vehicle'
+        agencies_usage[agency_name] ||= 0
+        agencies_usage[agency_name] += 1
+      end
+    end
+    
+    # Count unique vehicles
+    vehicle_ids = quotation_jobs.includes(quotation: :vehicle).map do |job|
+      job.quotation&.vehicle&.id
+    end.compact.uniq
+    
+    most_used_agency = agencies_usage.max_by { |_, count| count }
+    
+    @usage_stats = {
+      total_uses: total_uses,
+      last_used: last_used,
+      average_per_month: average_per_month.round(2),
+      most_used_in: most_used_agency ? "#{most_used_agency[0]} (#{most_used_agency[1]} uses)" : 'Quotations',
+      agencies_usage: agencies_usage,
+      usage_by_month: quotation_jobs.group_by_month(:created_at, format: "%b").count,
+      first_used: quotation_jobs.minimum(:created_at),
+      unique_vehicles: vehicle_ids.count
+    }
+    
+    render :usage_stats
+  end
+
+  def download_pdf
+    # FIX: Set @usage_stats before calling generate_pdf_content
+    # Get all quotation jobs using this template
+    quotation_jobs = @job_template.quotation_jobs
+    
+    total_uses = quotation_jobs.count
+    last_used = quotation_jobs.maximum(:created_at)
+    
+    # Calculate monthly average (last 12 months)
+    one_year_ago = 12.months.ago
+    recent_uses = quotation_jobs.where('created_at >= ?', one_year_ago)
+    months_count = 12
+    average_per_month = recent_uses.count.to_f / months_count
+    
+    # Monthly usage data
+    @monthly_usage = quotation_jobs
+      .where('created_at >= ?', 6.months.ago)
+      .group_by_month(:created_at, format: "%b %Y")
+      .count
+    
+    # Get agencies usage
+    agencies_usage = {}
+    quotation_jobs.includes(quotation: [:vehicle]).each do |job|
+      if job.quotation && job.quotation.vehicle
+        vehicle = job.quotation.vehicle
+        if vehicle.agency
+          agency_name = vehicle.agency.name
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        elsif vehicle.service_owner.present?
+          agency_name = vehicle.service_owner
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        else
+          agency_name = 'Unknown Agency'
+          agencies_usage[agency_name] ||= 0
+          agencies_usage[agency_name] += 1
+        end
+      else
+        agency_name = 'No Vehicle'
+        agencies_usage[agency_name] ||= 0
+        agencies_usage[agency_name] += 1
+      end
+    end
+    
+    # Count unique vehicles
+    vehicle_ids = quotation_jobs.includes(quotation: :vehicle).map do |job|
+      job.quotation&.vehicle&.id
+    end.compact.uniq
+    
+    most_used_agency = agencies_usage.max_by { |_, count| count }
+    
+    @usage_stats = {
+      total_uses: total_uses,
+      last_used: last_used,
+      average_per_month: average_per_month.round(2),
+      most_used_in: most_used_agency ? "#{most_used_agency[0]} (#{most_used_agency[1]} uses)" : 'Quotations',
+      agencies_usage: agencies_usage,
+      usage_by_month: quotation_jobs.group_by_month(:created_at, format: "%b").count,
+      first_used: quotation_jobs.minimum(:created_at),
+      unique_vehicles: vehicle_ids.count
+    }
+    
+    # Get recent uses
+    @recent_uses = quotation_jobs.includes(quotation: [:vehicle]).order(created_at: :desc).limit(5)
+    
+    respond_to do |format|
+      format.html { redirect_to usage_stats_job_template_path(@job_template) }
+      format.pdf do
+        # Create PDF content
+        pdf_content = generate_pdf_content
+        
+        # Send PDF as download
+        send_data pdf_content,
+                  filename: "#{@job_template.name.parameterize}-usage-stats-#{Date.today}.pdf",
+                  type: 'application/pdf',
+                  disposition: 'attachment'
+      end
+    end
+  end
+
+  def export_csv
+    @job_template = JobTemplate.find(params[:template_id]) if params[:template_id].present?
+    
+    if @job_template
+      # Export single template usage stats - FIXED: Store grouped data in variable first
+      usage_data = @job_template.quotation_jobs
+        .where('created_at >= ?', 6.months.ago)
+        .group_by_month(:created_at, format: "%b %Y")
+        .count
+      
+      csv_data = CSV.generate(headers: true) do |csv|
+        csv << ['Month', 'Usage Count']
+        usage_data.each do |month, count|
+          csv << [month, count]
+        end
+      end
+      
+      send_data csv_data,
+                filename: "#{@job_template.name.parameterize}-usage-#{Date.today}.csv",
+                type: 'text/csv',
+                disposition: 'attachment'
+    else
+      # Export all templates
+      @job_templates = @agency.job_templates.includes(:parts, :job_template_parts)
+      
+      csv_data = CSV.generate(headers: true) do |csv|
+        csv << ['Name', 'Description', 'Category', 'Standard Hours', 'Labor Rate', 'Status', 'Parts Count', 'Created At', 'Total Uses']
+        
+        @job_templates.each do |template|
+          total_uses = template.quotation_jobs.count
+          csv << [
+            template.name,
+            template.description,
+            template.category,
+            template.standard_hours,
+            template.labor_rate_per_hour,
+            template.is_active ? 'Active' : 'Inactive',
+            template.parts.count,
+            template.created_at.strftime('%Y-%m-%d'),
+            total_uses
+          ]
+        end
+      end
+      
+      send_data csv_data,
+                filename: "job-templates-#{Date.today}.csv",
+                type: 'text/csv',
+                disposition: 'attachment'
+    end
   end
 
   def categories
@@ -438,6 +639,11 @@ class JobTemplatesController < ApplicationController
     }
   end
 
+  # ADD THIS METHOD:
+  def set_categories
+    @categories = JobTemplate.distinct.pluck(:category).compact.sort
+  end
+
   def create_activity_log(message, metadata = {})
     return unless defined?(ActivityLog)
     ActivityLog.create!(
@@ -471,5 +677,64 @@ class JobTemplatesController < ApplicationController
     
     redirect_to root_path, 
                 alert: 'Access denied. Job templates are only accessible to VMCOTT users for managing maintenance workflows.'
+  end
+
+  def generate_pdf_content
+    # Create a simple PDF content (you can enhance this with Prawn gem)
+    # FIX: Check if @usage_stats exists
+    return "No usage data available" unless @usage_stats
+    
+    content = "Job Template Usage Statistics\n"
+    content += "=" * 60 + "\n\n"
+    content += "Template: #{@job_template.name}\n"
+    content += "Description: #{@job_template.description}\n"
+    content += "Category: #{@job_template.category || 'Uncategorized'}\n"
+    content += "Status: #{@job_template.is_active ? 'Active' : 'Inactive'}\n\n"
+    
+    content += "Usage Statistics:\n"
+    content += "-" * 40 + "\n"
+    content += "Total Uses: #{@usage_stats[:total_uses]}\n"
+    content += "Last Used: #{@usage_stats[:last_used] ? @usage_stats[:last_used].strftime('%B %d, %Y') : 'Never'}\n"
+    content += "Average per Month: #{@usage_stats[:average_per_month]}\n"
+    content += "Unique Vehicles: #{@usage_stats[:unique_vehicles]}\n"
+    content += "First Used: #{@usage_stats[:first_used] ? @usage_stats[:first_used].strftime('%B %d, %Y') : 'N/A'}\n\n"
+    
+    if defined?(@monthly_usage) && @monthly_usage.present? && @monthly_usage.any?
+      content += "Monthly Usage (Last 6 Months):\n"
+      content += "-" * 40 + "\n"
+      @monthly_usage.each do |month, count|
+        content += "#{month}: #{count} uses\n"
+      end
+      content += "\n"
+    end
+    
+    if @usage_stats[:agencies_usage] && @usage_stats[:agencies_usage].any?
+      content += "Usage by Agency:\n"
+      content += "-" * 40 + "\n"
+      @usage_stats[:agencies_usage].sort_by { |_, v| -v }.each do |agency, count|
+        percentage = (count.to_f / @usage_stats[:agencies_usage].values.sum * 100).round(1)
+        content += "#{agency}: #{count} uses (#{percentage}%)\n"
+      end
+      content += "\n"
+    end
+    
+    if defined?(@recent_uses) && @recent_uses.present? && @recent_uses.any?
+      content += "Recent Usage (Last 5):\n"
+      content += "-" * 40 + "\n"
+      @recent_uses.each do |use|
+        if use.quotation
+          content += "Quotation #{use.quotation.quote_number || use.quotation.id}"
+          if use.quotation.vehicle
+            content += " - Vehicle: #{use.quotation.vehicle.license_plate}"
+          end
+          content += " - #{use.created_at.strftime('%B %d, %Y')}\n"
+        end
+      end
+    end
+    
+    content += "\n\nGenerated on: #{Time.current.strftime('%B %d, %Y at %I:%M %p')}\n"
+    content += "=" * 60
+    
+    content
   end
 end

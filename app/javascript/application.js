@@ -13,6 +13,10 @@ import { Application } from "@hotwired/stimulus"
 import "@hotwired/turbo-rails"
 import "@nathanvda/cocoon"
 
+// FIXED: Import chart.js (NOT Chart.bundle)
+import "chart.js"
+import "chartkick"
+
 // Make jQuery globally available
 window.$ = window.jQuery = jQuery
 
@@ -20,7 +24,7 @@ window.$ = window.jQuery = jQuery
 const application = Application.start()
 window.Stimulus = application
 
-console.log("✅ Application loaded with Bootstrap, jQuery, Stimulus, Turbo, Cocoon")
+console.log("✅ Application loaded with Bootstrap, jQuery, Stimulus, Turbo, Cocoon, Chartkick")
 
 // Bootstrap is now available globally via the import
 // The bundle includes Popper.js automatically
@@ -68,6 +72,20 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("✅ jQuery loaded successfully")
   } else {
     console.error("❌ jQuery failed to load")
+  }
+  
+  // Check if Chartkick loaded
+  if (typeof Chartkick !== 'undefined') {
+    console.log("✅ Chartkick loaded successfully")
+  } else {
+    console.error("❌ Chartkick not loaded")
+  }
+  
+  // Check if Chart.js loaded
+  if (typeof Chart !== 'undefined') {
+    console.log("✅ Chart.js loaded successfully")
+  } else {
+    console.error("❌ Chart.js not loaded")
   }
 })
 

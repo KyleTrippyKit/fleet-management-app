@@ -16,19 +16,44 @@ class Agency < ApplicationRecord
   has_many :accounts, dependent: :destroy
   has_many :agency_settings, dependent: :destroy
   has_many :invoices, through: :vehicles
-  has_many :maintenance_requests, foreign_key: :requesting_agency_id, dependent: :destroy
-  has_many :processed_maintenance_requests, class_name: 'MaintenanceRequest', 
-           foreign_key: :processing_agency_id, dependent: :destroy
-  has_many :rfqs, foreign_key: :requesting_agency_id, dependent: :destroy
-  has_many :processed_rfqs, class_name: 'Rfq', foreign_key: :processing_agency_id, dependent: :destroy
-  has_many :quotations, through: :rfqs
+  
+  # Maintenance requests - use specific foreign keys
+  has_many :maintenance_requests, 
+           foreign_key: :requesting_agency_id, 
+           dependent: :destroy
+  has_many :processed_maintenance_requests, 
+           class_name: 'MaintenanceRequest', 
+           foreign_key: :processing_agency_id, 
+           dependent: :destroy
+  
+  # RFQs - use specific foreign keys
+  has_many :rfqs, 
+           foreign_key: :requesting_agency_id, 
+           dependent: :destroy
+  has_many :processed_rfqs, 
+           class_name: 'Rfq', 
+           foreign_key: :processing_agency_id, 
+           dependent: :destroy
+  
+  # QUOTATIONS - ADD THIS DIRECT ASSOCIATION (since quotations now have agency_id)
+  has_many :quotations, dependent: :destroy
+  
+  # Keep the through association as well for backward compatibility
+  has_many :quotations_through_rfqs, 
+           through: :rfqs, 
+           source: :quotations
+  
   has_many :purchase_orders, through: :vehicles
   has_many :job_templates, dependent: :destroy
   has_many :parts, through: :job_templates
-  has_many :access_logs, dependent: :destroy
+  
+  # Check if AccessLog model exists before including this association
+  # If AccessLog doesn't exist, comment this line out
+  # has_many :access_logs, dependent: :destroy
+  
   has_many :account_transactions, dependent: :destroy
-  has_many :monthly_statements, dependent: :destroy
-  has_many :payment_schedules, dependent: :destroy
+  # has_many :monthly_statements, dependent: :destroy
+  # has_many :payment_schedules, dependent: :destroy
   
   # Agency configuration hash for dynamic styling and information
   AGENCY_CONFIGURATIONS = {
@@ -336,6 +361,7 @@ class Agency < ApplicationRecord
     }
   end
   
+  # UPDATED: quotation_stats method to use direct association
   def quotation_stats
     {
       total: quotations.count,
@@ -387,6 +413,22 @@ class Agency < ApplicationRecord
   def active_cashier_sessions
     return [] unless has_pos_system?
     cashier_sessions.where(status: 0)  # Assuming 0 = active
+  end
+  
+  # NEW: Method to get recent quotations
+  def recent_quotations(limit = 10)
+    quotations.order(created_at: :desc).limit(limit)
+  end
+  
+  # NEW: Method to get quotations by status
+  def quotations_by_status(status)
+    quotations.where(status: status)
+  end
+  
+  # NEW: Method to get all quotations including those through RFQs
+  def all_quotations
+    # Combine direct quotations and those through RFQs
+    (quotations + quotations_through_rfqs).uniq
   end
   
   # Override to_s for better display
