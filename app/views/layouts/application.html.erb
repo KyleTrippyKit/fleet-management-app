@@ -1,3 +1,4 @@
+<!-- app/views/layouts/application.html.erb -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -427,6 +428,12 @@
         font-size: 14px;
         z-index: 1000;
       }
+      
+      /* Modal Container Styling */
+      #modal-container {
+        position: relative;
+        z-index: 1055;
+      }
     </style>
     
     <!-- Force PTSC Blue Styles -->
@@ -475,6 +482,11 @@
 
   <body class="<%= 'gantt-page' if content_for?(:gantt_page) %>" data-controller="theme">
     <!-- Theme Preview Alert will be inserted here -->
+    
+    <!-- Modal Container (MOVED BEFORE yield) -->
+    <div id="modal-container"></div>
+
+    <!-- MAIN CONTENT - THIS WAS MISSING -->
     <%= yield %>
 
     <!-- NO Bootstrap JS here - it's already loaded in the HEAD -->
@@ -499,6 +511,54 @@
         if (typeof Chartkick !== 'undefined' && typeof Chart !== 'undefined') {
           console.log('📊 Turbo: Chartkick and Chart.js are ready to use');
         }
+      });
+    </script>
+    
+    <!-- ADD THIS SCRIPT FOR MODAL HANDLING -->
+    <script>
+      // Modal handling for invoice upload
+      document.addEventListener('DOMContentLoaded', function() {
+        // Handle modal trigger
+        const modalTriggers = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#uploadInvoiceModal"]');
+        
+        modalTriggers.forEach(trigger => {
+          trigger.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.getAttribute('href');
+            
+            fetch(url, {
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+              }
+            })
+            .then(response => response.text())
+            .then(html => {
+              // Remove any existing modal
+              const existingModal = document.getElementById('uploadInvoiceModal');
+              if (existingModal) {
+                existingModal.remove();
+              }
+              
+              // Append new modal to body
+              document.body.insertAdjacentHTML('beforeend', html);
+              
+              // Initialize and show modal
+              const modalElement = document.getElementById('uploadInvoiceModal');
+              const modal = new bootstrap.Modal(modalElement);
+              modal.show();
+              
+              // Clean up when modal is hidden
+              modalElement.addEventListener('hidden.bs.modal', function() {
+                modalElement.remove();
+              });
+            })
+            .catch(error => {
+              console.error('Error loading modal:', error);
+              alert('Error loading upload form. Please try again.');
+            });
+          });
+        });
       });
     </script>
   </body>

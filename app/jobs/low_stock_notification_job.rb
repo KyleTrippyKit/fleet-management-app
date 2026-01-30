@@ -2,14 +2,20 @@
 class LowStockNotificationJob < ApplicationJob
   queue_as :default
 
-  def perform
-    low_stock_parts = Part.below_reorder_point
+  def perform(part_id)
+    part = Part.find_by(id: part_id)
+    return unless part
     
-    low_stock_parts.each do |part|
-      # Send email notification
+    # Only notify if stock is actually low
+    return unless part.current_stock <= part.reorder_point
+    
+    # Send email notification if configured
+    if defined?(InventoryMailer) && InventoryMailer.respond_to?(:low_stock_alert)
       InventoryMailer.low_stock_alert(part).deliver_later
-      
-      # Create notification for VMCOTT users
+    end
+    
+    # Create notification for VMCOTT users if Notification model exists
+    if defined?(Notification)
       User.where(agency: Agency.find_by(code: 'VMCOTT')).each do |user|
         Notification.create!(
           user: user,

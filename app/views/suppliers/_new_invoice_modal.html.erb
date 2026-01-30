@@ -1,0 +1,60 @@
+<!-- app/views/suppliers/_new_invoice_modal.html.erb -->
+<div class="modal fade" id="uploadInvoiceModal" tabindex="-1" aria-labelledby="uploadInvoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="uploadInvoiceModalLabel">Upload New Invoice for <%= @supplier.name %></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <%= form_with(model: [@supplier, @vendor_invoice], url: upload_invoice_supplier_path(@supplier), 
+                      local: true, html: { class: 'space-y-4', multipart: true }) do |f| %>
+          
+          <div class="form-group">
+            <%= f.label :invoice_number, "Invoice Number *", class: "form-label" %>
+            <%= f.text_field :invoice_number, class: "form-control", required: true %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :invoice_date, "Invoice Date *", class: "form-label" %>
+            <%= f.date_field :invoice_date, class: "form-control", required: true, value: Date.today %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :amount, "Amount *", class: "form-label" %>
+            <%= f.number_field :amount, step: "0.01", class: "form-control", required: true %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :due_date, "Due Date", class: "form-label" %>
+            <%= f.date_field :due_date, class: "form-control", value: 30.days.from_now %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :description, "Description", class: "form-label" %>
+            <%= f.text_area :description, class: "form-control", rows: 3 %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :purchase_order_id, "Link to Purchase Order (Optional)", class: "form-label" %>
+            <%= f.select :purchase_order_id, 
+                  options_for_select(@purchase_orders.map { |po| ["PO ##{po.po_number} - #{po.created_at.to_date}", po.id] }, @vendor_invoice.purchase_order_id),
+                  { include_blank: 'Select Purchase Order...' },
+                  class: "form-control" %>
+          </div>
+          
+          <div class="form-group">
+            <%= f.label :invoice_scan, "Upload Invoice Scan (PDF/Image) *", class: "form-label" %>
+            <%= f.file_field :invoice_scan, class: "form-control", accept: ".pdf,.jpg,.jpeg,.png", required: true %>
+            <small class="form-text text-muted">Max file size: 10MB. Supported formats: PDF, JPG, PNG</small>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <%= f.submit "Upload Invoice", class: "btn btn-primary" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

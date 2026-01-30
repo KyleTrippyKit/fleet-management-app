@@ -32,14 +32,15 @@ class PurchaseOrdersController < ApplicationController
       return
     end
     
-    # Check if PO already exists
-    if @quotation.purchase_orders.any?
-      redirect_to @quotation.purchase_orders.first, 
+    # If a PO was already created from the quotation (preferred path), just show it.
+    if @quotation.purchase_order.present?
+      redirect_to purchase_order_path(@quotation.purchase_order),
                   notice: 'Purchase order already exists for this quotation.'
       return
     end
     
-    # Create new PO from quotation with accepted items only
+    # Fallback: Create a new PO from quotation (legacy path).
+    # NOTE: Item-level acceptance is handled in QuotationsController#convert_to_po.
     @purchase_order = PurchaseOrder.new(
       vehicle: @quotation.vehicle,
       vendor: @quotation.vendor,
@@ -51,7 +52,7 @@ class PurchaseOrdersController < ApplicationController
       quotation_id: @quotation.id
     )
     
-    # Add quotation line items (all accepted by default for now)
+    # Add quotation line items (accepted by default in fallback)
     @quotation.quotation_line_items.each do |line_item|
       @purchase_order.purchase_order_items.build(
         description: line_item.description,
@@ -62,7 +63,7 @@ class PurchaseOrdersController < ApplicationController
       )
     end
     
-    # Add quotation jobs and their parts
+    # Add quotation jobs and their parts (accepted by default in fallback)
     if @quotation.respond_to?(:quotation_jobs)
       @quotation.quotation_jobs.each do |job|
         @purchase_order.purchase_order_items.build(

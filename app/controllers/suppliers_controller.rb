@@ -155,7 +155,12 @@ class SuppliersController < ApplicationController
     # Get available purchase orders for this supplier
     @purchase_orders = @supplier.purchase_orders.where(status: ['approved', 'ordered'])
     
-    render 'new_invoice', layout: false
+    # Return just the modal HTML for AJAX requests
+    if request.xhr?
+      render partial: 'new_invoice_modal', layout: false
+    else
+      render 'new_invoice', layout: false
+    end
   end
   
   # POST /suppliers/1/upload_invoice - FIXED FILE UPLOAD
@@ -163,33 +168,36 @@ class SuppliersController < ApplicationController
     @vendor_invoice = @supplier.vendor_invoices.new(vendor_invoice_params)
     @vendor_invoice.user = current_user
     
-    # FIXED: Check if invoice_scan is present in params
     invoice_scan_file = params[:vendor_invoice][:invoice_scan] if params[:vendor_invoice]
     
     if @vendor_invoice.valid?
-      ActiveRecord::Base.transaction do
-        @vendor_invoice.save!
-        
-        # FIXED: Attach file if present
-        if invoice_scan_file.present?
-          @vendor_invoice.invoice_scan.attach(invoice_scan_file)
+      begin
+        ActiveRecord::Base.transaction do
+          @vendor_invoice.save!
+          
+          if invoice_scan_file.present?
+            @vendor_invoice.invoice_scan.attach(invoice_scan_file)
+          end
+          
+          if @vendor_invoice.purchase_order
+            update_inventory_from_po(@vendor_invoice.purchase_order, @vendor_invoice)
+          end
         end
         
-        # If linked to PO, update inventory
-        if @vendor_invoice.purchase_order
-          update_inventory_from_po(@vendor_invoice.purchase_order, @vendor_invoice)
-        end
-        
-        # Create audit log
+        # MOVE AUDIT LOG OUTSIDE TRANSACTION
         create_invoice_audit(@vendor_invoice, 'uploaded')
+        
+        redirect_to invoices_supplier_path(@supplier), 
+                    notice: "Invoice #{@vendor_invoice.invoice_number} uploaded successfully."
+      rescue => e
+        flash[:alert] = "Failed to upload invoice: #{e.message}"
+        @purchase_orders = @supplier.purchase_orders.where(status: ['approved', 'ordered'])
+        render :new_invoice, layout: false
       end
-      
-      redirect_to invoices_supplier_path(@supplier), 
-                  notice: "Invoice #{@vendor_invoice.invoice_number} uploaded successfully."
     else
       @purchase_orders = @supplier.purchase_orders.where(status: ['approved', 'ordered'])
       flash[:alert] = "Failed to upload invoice: #{@vendor_invoice.errors.full_messages.join(', ')}"
-      render :new_invoice
+      render :new_invoice, layout: false
     end
   end
   
@@ -211,6 +219,9 @@ class SuppliersController < ApplicationController
     else
       return redirect_to invoices_supplier_path(@supplier), alert: "Invalid action."
     end
+    
+    # Create audit log for the action
+    create_invoice_audit(@vendor_invoice, action)
     
     redirect_to invoices_supplier_path(@supplier), notice: message
   end
@@ -327,7 +338,7 @@ class SuppliersController < ApplicationController
     params.require(:supplier).permit(
       :name, :address, :email, :phone, :contact_person,
       :payment_terms, :notes, :is_active,
-      :tax_id, :website, :bank_account_details  # Added more fields
+      :tax_id, :website, :bank_account_details
     )
   end
   
@@ -374,17 +385,26 @@ class SuppliersController < ApplicationController
   
   def create_invoice_audit(vendor_invoice, action)
     # Create audit log for invoice actions
+    # FIXED: Changed from `resource: vendor_invoice` to use `resource_type` and `resource_id`
     AccessLog.create!(
-      user: current_user,
+      user_id: current_user.id,
       action: "invoice_#{action}",
-      resource: vendor_invoice,
-      outcome: 'success',
+      resource_type: 'VendorInvoice',
+      resource_id: vendor_invoice.id,
       details: {
         invoice_number: vendor_invoice.invoice_number,
         amount: vendor_invoice.amount,
-        supplier_id: vendor_invoice.supplier_id
-      }
+        supplier_id: vendor_invoice.supplier_id,
+        outcome: 'success'
+      }.to_json,  # Convert hash to JSON string for text column
+      ip_address: request.remote_ip,
+      user_agent: request.user_agent,
+      agency_id: current_user.agency_id,  # Use existing column
+      accessed_at: Time.current  # Use existing column
     )
+  rescue => e
+    # Log error but don't break the main flow
+    Rails.logger.error "Failed to create access log: #{e.message}"
   end
   
   def require_vmcott_user

@@ -836,9 +836,30 @@ class QuotationsController < ApplicationController
   def convert_to_po
     # Authorization
     return redirect_to @quotation, alert: 'Access denied' unless can_accept_items?
+
+    # Allow a one-click full reject from the accept-items screen
+    if params[:reject_all].present?
+      @quotation.update(status: 'rejected', rejected_at: Time.current)
+      return redirect_to quotations_received_path, notice: 'Quotation rejected.'
+    end
     
-    # Get accepted items from params or session
-    accepted_items = params[:accepted_items] || session["quotation_#{@quotation.id}_accepted_items"] || {}
+    # Normalize accepted items (the accept_items form posts flat arrays)
+    accepted_items = {
+      line_items: Array(params[:accepted_line_items]).map(&:to_s),
+      jobs: Array(params[:accepted_jobs]).map(&:to_s),
+      job_parts: Array(params[:accepted_job_parts]).map(&:to_s)
+    }
+
+    # Back-compat: if older clients stored acceptance in session
+    session_items = session["quotation_#{@quotation.id}_accepted_items"]
+    if accepted_items.values.all?(&:blank?) && session_items.present?
+      accepted_items = session_items
+    end
+
+    # Guard: must accept at least one thing
+    if accepted_items.values.all?(&:blank?)
+      return redirect_to accept_items_quotation_path(@quotation), alert: 'Please select at least one item to create a purchase order.'
+    end
     
     # Create purchase order with accepted items only
     @purchase_order = create_po_from_accepted_items(@quotation, accepted_items, current_user)

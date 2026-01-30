@@ -1,17 +1,15 @@
-# app/mailers/quotation_mailer.rb
 class QuotationMailer < ApplicationMailer
-  def quotation_sent(quotation, recipient)
+  def quotation_submitted(quotation)
     @quotation = quotation
-    @recipient = recipient
-    @agency = quotation.rfq&.requesting_agency
-    @rfq = quotation.rfq
-    
-    subject = "New Quotation #{@quotation.quote_number} from VMCOTT"
-    
+
+    recipients = []
+    if quotation.agency&.respond_to?(:users)
+      recipients.concat(quotation.agency.users.pluck(:email))
+    end
+
     mail(
-      to: @recipient.email,
-      subject: subject,
-      cc: 'quotations@vmcott.gov.tt'
+      to: recipients.uniq.presence || 'no-reply@vmcott.local',
+      subject: "Quotation Received: #{quotation.quote_number}"
     )
   end
 end

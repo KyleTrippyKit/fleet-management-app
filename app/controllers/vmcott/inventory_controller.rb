@@ -498,18 +498,11 @@ module Vmcott
         adjustment_type = params[:adjustment_type]
         notes = params[:notes]
         
-        if adjustment_type == 'add'
-          if @part.adjust_stock(quantity, :add, notes)
-            flash[:notice] = "Stock increased by #{quantity} units"
-          else
-            flash[:alert] = "Failed to adjust stock"
-          end
-        elsif adjustment_type == 'subtract'
-          if @part.adjust_stock(quantity, :subtract, notes)
-            flash[:notice] = "Stock decreased by #{quantity} units"
-          else
-            flash[:alert] = "Failed to adjust stock: #{@part.errors.full_messages.join(', ')}"
-          end
+        # Use the reliable method we just created
+        if @part.reliable_adjust_stock(quantity, adjustment_type.to_sym, notes, current_user)
+          flash[:success] = "Stock adjusted successfully. New quantity: #{@part.current_stock}"
+        else
+          flash[:alert] = "Failed to adjust stock: #{@part.errors.full_messages.join(', ')}"
         end
         
         redirect_to vmcott_inventory_dashboard_path

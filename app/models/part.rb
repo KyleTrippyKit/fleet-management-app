@@ -163,15 +163,18 @@ class Part < ApplicationRecord
   
   # Updated: Stock management using inventory_transactions methods
   def update_stock(quantity, transaction_type: 'adjustment', user: nil, agency: nil, reference: nil, notes: nil)
-    transaction = inventory_transactions.create!(
-      quantity: quantity,
-      transaction_type: transaction_type,
-      user: user || User.current,
-      agency: agency || supplier&.agency || Agency.first,
-      reference: reference,
-      notes: notes,
-      unit_price: cost_price
-    )
+  # Get agency from user or use default
+  effective_agency = agency || user&.agency || Agency.first
+  
+  transaction = inventory_transactions.create!(
+    quantity: quantity,
+    transaction_type: transaction_type,
+    user: user,
+    agency: effective_agency,  # FIXED: Use effective_agency
+    reference: reference,
+    notes: notes,
+    unit_price: cost_price
+  )
     
     # Immediately recalculate stock
     recalculate_stock_from_transactions
