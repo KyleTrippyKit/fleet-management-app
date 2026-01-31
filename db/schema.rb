@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_30_010448) do
+ActiveRecord::Schema[8.1].define(version: 2026_01_31_074213) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -361,6 +361,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_30_010448) do
     t.index ["part_id"], name: "index_job_template_parts_on_part_id"
   end
 
+  create_table "job_template_vehicle_applications", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "job_template_id", null: false
+    t.string "make", null: false
+    t.string "model", null: false
+    t.datetime "updated_at", null: false
+    t.integer "year", null: false
+    t.index ["job_template_id", "make", "model", "year"], name: "idx_jtva_unique", unique: true
+    t.index ["job_template_id"], name: "index_job_template_vehicle_applications_on_job_template_id"
+    t.index ["make", "model", "year"], name: "idx_on_make_model_year_3cb4a043c7"
+  end
+
   create_table "job_templates", force: :cascade do |t|
     t.bigint "agency_id", null: false
     t.string "category"
@@ -526,7 +538,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_30_010448) do
     t.index ["agency_id"], name: "index_payables_on_agency_id"
     t.index ["due_date"], name: "index_payables_on_due_date"
     t.index ["invoice_id"], name: "index_payables_on_invoice_id"
-    t.index ["purchase_order_id"], name: "index_payables_on_purchase_order_id"
+    t.index ["purchase_order_id"], name: "index_payables_on_purchase_order_id", unique: true
     t.index ["reference_number"], name: "index_payables_on_reference_number", unique: true
     t.index ["status"], name: "index_payables_on_status"
     t.index ["vendor_id"], name: "index_payables_on_vendor_id"
@@ -1022,6 +1034,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_30_010448) do
     t.index ["time_zone"], name: "index_users_on_time_zone"
   end
 
+  create_table "vehicle_catalog_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "make", null: false
+    t.string "model", null: false
+    t.datetime "updated_at", null: false
+    t.string "vehicle_type"
+    t.integer "year_from"
+    t.integer "year_to"
+    t.index ["make", "model"], name: "index_vehicle_catalog_entries_on_make_and_model", unique: true
+    t.index ["make"], name: "index_vehicle_catalog_entries_on_make"
+    t.index ["model"], name: "index_vehicle_catalog_entries_on_model"
+  end
+
   create_table "vehicle_documents", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "doc_type"
@@ -1151,6 +1176,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_30_010448) do
   add_foreign_key "invoices", "vehicles"
   add_foreign_key "job_template_parts", "job_templates"
   add_foreign_key "job_template_parts", "parts"
+  add_foreign_key "job_template_vehicle_applications", "job_templates"
   add_foreign_key "job_templates", "agencies"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"

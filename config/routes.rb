@@ -69,6 +69,11 @@ Rails.application.routes.draw do
   get 'agency/:id/maintenance', to: 'vehicles#maintenance_dashboard', as: :agency_maintenance
 
   # ========================
+  # Vehicle Catalog Entries
+  # ========================
+  resources :vehicle_catalog_entries, only: [:index, :create]
+
+  # ========================
   # ALERT SYSTEM ROUTES
   # ========================
   resources :alerts do
@@ -281,6 +286,7 @@ Rails.application.routes.draw do
       get :maintenance_dashboard
       get :export_csv
       get :themes
+      get :catalog_search
     end
   end
 
@@ -370,9 +376,10 @@ Rails.application.routes.draw do
       post :submit_to_agency
       post :duplicate
       post :reject
+      get  :accept_items
+      post :accept_items_submit
       get :email
-      get :print  # Add this for printing quotations
-      get :accept_items, as: 'accept_items'                     # Agency accepts specific items
+      get :print                                                 # Agency accepts specific items
       post :reject_items, as: 'reject_items'                     # Agency rejects specific items
       post :convert_to_po, as: 'convert_to_po'                    # Creates PO from accepted items
       get :acceptance_summary, as: 'acceptance_summary'
@@ -385,7 +392,8 @@ Rails.application.routes.draw do
       get 'inventory_status', to: 'quotations#inventory_status'
       post 'create_purchase_request', to: 'quotations#create_purchase_request'
     end
-    
+
+    resources :purchase_orders, only: [:index, :show]
     resources :quotation_jobs do
       resources :quotation_job_parts
     end

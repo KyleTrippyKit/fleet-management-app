@@ -5,80 +5,46 @@
     <title>Trinidad Fleet Management</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="page-type" content="<%= content_for?(:gantt_page) ? 'gantt' : 'normal' %>">
-    
-    <!-- CRITICAL: CSRF Meta Tags must come BEFORE other tags -->
+
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
-    <!-- Bootstrap 5 CSS from CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
-    
-    <!-- Bootstrap Icons from CDN -->
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+
+    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
-    <!-- Chart.js CSS (optional, for chart tooltips) -->
+    <!-- Chart.js CSS (optional) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.min.css">
 
-    <!-- DHTMLX Gantt CSS - Only load on Gantt pages -->
     <% if content_for?(:gantt_page) %>
       <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css">
     <% end %>
 
-    <!-- Application Stylesheet -->
     <%= stylesheet_link_tag "application", media: "all", "data-turbo-track": "reload" %>
-
-    <!-- Import Maps for Turbo + Stimulus -->
     <%= javascript_importmap_tags %>
 
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
 
-    <!-- Bootstrap JS Bundle - MOVED TO HEAD to ensure it loads BEFORE our JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
-    <!-- Chart.js from CDN -->
+    <!-- Chart.js + Chartkick -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-    
-    <!-- Chartkick from CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chartkick@5.0.1/dist/chartkick.min.js"></script>
 
-    <!-- Gantt JS - Only load on Gantt pages -->
     <% if content_for?(:gantt_page) %>
       <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
     <% end %>
 
-    <!-- Add CSRF token to window for JavaScript -->
     <script>
-      // Store CSRF token globally
-      document.addEventListener('DOMContentLoaded', function() {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]');
-        if (csrfToken) {
-          window.csrfToken = csrfToken.getAttribute('content');
-          console.log('CSRF token loaded:', window.csrfToken ? 'Yes' : 'No');
-        }
-        
-        // Check if Chart.js and Chartkick loaded
-        if (typeof Chart !== 'undefined') {
-          console.log('✅ Chart.js loaded successfully');
-        } else {
-          console.error('❌ Chart.js failed to load');
-        }
-        
-        if (typeof Chartkick !== 'undefined') {
-          console.log('✅ Chartkick loaded successfully');
-        } else {
-          console.error('❌ Chartkick failed to load');
-        }
-      });
-    </script>
-
-    <!-- Theme Controller Script - MODIFIED FOR PTSC -->
-    <script>
+      // Theme Controller - consolidated + safer with Turbo
       class ThemeController {
         constructor() {
           this.themes = {
             1: 'Modern Light',
-            2: 'Dark Professional', 
+            2: 'Dark Professional',
             3: 'Trinidad Gradient',
             4: 'Clean Admin',
             5: 'Map-Centric',
@@ -90,31 +56,33 @@
             11: 'Corporate/Professional'
           };
         }
-        
+
+        isPTSCPage() {
+          const path = window.location.pathname.toLowerCase();
+          const domHint = document.body.querySelector('.ptsc-header, .badge-ptsc, [class*="ptsc"]');
+          return (
+            path.includes('ptsc') ||
+            (path.includes('agency') && path.includes('ptsc')) ||
+            !!domHint
+          );
+        }
+
         initialize() {
           console.log("🎨 ThemeController initializing...");
-          
-          // Check if we're on a PTSC page
-          const currentPath = window.location.pathname;
-          const isPTSCPage = currentPath.includes('ptsc') || 
-                             currentPath.includes('agency') && currentPath.includes('PTSC') ||
-                             document.body.querySelector('.ptsc-header, .badge-ptsc, [class*="ptsc"]');
-          
-          if (isPTSCPage) {
+
+          if (this.isPTSCPage()) {
             console.log("🎨 PTSC page detected - disabling themes and applying PTSC blue");
             this.disableThemesForPTSC();
-            return; // Skip theme application for PTSC pages
+            return;
           }
-          
-          // Original theme logic for non-PTSC pages
-          const agencyTheme = '<%= session[:agency_theme] %>';
+
+          const agencyTheme = '<%= session[:agency_theme] %>' || '1';
           const themeFromURL = this.getThemeFromURL();
           const themeFromLocalStorage = localStorage.getItem('selectedTheme');
           const themeTestMode = localStorage.getItem('themeTestMode');
-          
-          let themeToApply = agencyTheme || '1'; // Default to agency theme or Modern Light
-          
-          // Override with URL theme if in test mode
+
+          let themeToApply = agencyTheme;
+
           if (themeFromURL && themeTestMode === 'true') {
             console.log("🎨 Theme from URL (test mode):", themeFromURL);
             themeToApply = themeFromURL;
@@ -123,70 +91,55 @@
             console.log("🎨 Theme from localStorage:", themeFromLocalStorage);
             themeToApply = themeFromLocalStorage;
           }
-          
-          // Clean up theme number (remove 'theme-' prefix if present)
-          themeToApply = themeToApply.replace('theme-', '');
-          
+
+          themeToApply = (themeToApply || '1').toString().replace('theme-', '');
           this.applyTheme(themeToApply);
-          
-          // Show preview alert if in test mode
+
           if (themeTestMode === 'true') {
             this.showThemePreviewAlert(themeToApply);
           }
         }
-        
+
         disableThemesForPTSC() {
-          console.log("🎨 Disabling themes for PTSC page");
-          
-          // Remove ALL theme classes to prevent theme overrides
           const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
           document.body.classList.remove(...allThemeClasses);
-          
-          // Add a special class to identify PTSC pages for CSS targeting
+
           document.body.classList.add('ptsc-theme-active');
-          
-          // Apply minimal default styling
-          document.body.classList.add('theme-1'); // Use Modern Light as base, but PTSC CSS will override
-          
-          // Dispatch special PTSC theme event
+          document.body.classList.add('theme-1');
+
           document.dispatchEvent(new CustomEvent('theme:ptsc', {
             detail: { agency: 'PTSC' }
           }));
         }
-        
+
         getThemeFromURL() {
           const urlParams = new URLSearchParams(window.location.search);
           return urlParams.get('theme');
         }
-        
+
         applyTheme(themeNumber) {
           console.log("🎨 Applying theme:", themeNumber);
-          
-          // Remove ALL theme classes
+
           const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
           document.body.classList.remove(...allThemeClasses);
-          
-          // Add the selected theme class
+
           document.body.classList.add(`theme-${themeNumber}`);
-          
-          // Dispatch event for other scripts to listen to
+
           document.dispatchEvent(new CustomEvent('theme:changed', {
             detail: { theme: themeNumber }
           }));
         }
-        
+
         showThemePreviewAlert(themeNumber) {
           const themeName = this.themes[themeNumber] || 'Unknown Theme';
-          
-          // Create or get alert div
+
           let alertDiv = document.getElementById('themePreviewAlert');
           if (!alertDiv) {
             alertDiv = document.createElement('div');
             alertDiv.id = 'themePreviewAlert';
-            alertDiv.className = 'theme-preview-alert';
             document.body.insertBefore(alertDiv, document.body.firstChild);
           }
-          
+
           alertDiv.innerHTML = `
             <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0" role="alert">
               <div class="container-fluid">
@@ -197,7 +150,7 @@
                     <span class="ms-2 small">Changes are temporary</span>
                   </div>
                   <div>
-                    <button onclick="window.themeController.clearTheme()" class="btn btn-sm btn-outline-danger">
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="clearThemeBtn">
                       <i class="bi bi-x-circle me-1"></i> Clear Theme
                     </button>
                   </div>
@@ -205,244 +158,129 @@
               </div>
             </div>
           `;
-          
-          alertDiv.style.display = 'block';
+
+          const btn = document.getElementById('clearThemeBtn');
+          if (btn) btn.onclick = () => this.clearTheme();
         }
-        
+
         clearTheme() {
           console.log("🎨 Clearing theme preview");
           localStorage.removeItem('selectedTheme');
           localStorage.removeItem('themeTestMode');
-          
-          // Remove all theme classes
+
           const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
           document.body.classList.remove(...allThemeClasses);
-          
-          // Check if we're on PTSC page
-          const currentPath = window.location.pathname;
-          const isPTSCPage = currentPath.includes('ptsc') || 
-                             currentPath.includes('agency') && currentPath.includes('PTSC');
-          
-          if (isPTSCPage) {
+
+          let themeNumber = '1';
+
+          if (this.isPTSCPage()) {
             this.disableThemesForPTSC();
+            themeNumber = '1';
           } else {
-            // Apply agency theme or default
             const agencyTheme = '<%= session[:agency_theme] %>' || '1';
-            const themeNumber = agencyTheme.replace('theme-', '');
+            themeNumber = agencyTheme.toString().replace('theme-', '') || '1';
             document.body.classList.add(`theme-${themeNumber}`);
           }
-          
-          // Hide alert
+
           const alertDiv = document.getElementById('themePreviewAlert');
-          if (alertDiv) {
-            alertDiv.style.display = 'none';
-          }
-          
-          // Dispatch theme change event
+          if (alertDiv) alertDiv.style.display = 'none';
+
           document.dispatchEvent(new CustomEvent('theme:changed', {
             detail: { theme: themeNumber }
           }));
         }
       }
-      
-      // Initialize theme controller
-      document.addEventListener('DOMContentLoaded', () => {
-        console.log("🎨 DOM loaded, initializing theme controller");
-        window.themeController = new ThemeController();
-        window.themeController.initialize();
-      });
-      
-      // Handle Turbo page changes
-      document.addEventListener('turbo:load', () => {
-        console.log("🎨 Turbo load event, re-initializing theme controller");
-        if (!window.themeController) {
-          window.themeController = new ThemeController();
-        }
-        window.themeController.initialize();
-      });
-      
-      // Gantt initialization helper
+
+      // Gantt helper
       function initializeGanttWhenReady() {
         if (typeof gantt !== 'undefined' && gantt) {
           console.log("✅ Gantt library is loaded, initializing...");
-          // Trigger your Gantt initialization here
-          if (typeof window.initGanttChart === 'function') {
-            window.initGanttChart();
-          }
+          if (typeof window.initGanttChart === 'function') window.initGanttChart();
         } else {
-          console.log("⏳ Gantt not loaded yet, waiting...");
           setTimeout(initializeGanttWhenReady, 100);
         }
       }
-      
-      // Start Gantt initialization check if on Gantt page
-      document.addEventListener('DOMContentLoaded', () => {
+
+      // One setup entry point for DOM + Turbo
+      function setupAppLayout() {
+        // CSRF token for JS
+        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+        if (csrfToken) window.csrfToken = csrfToken.getAttribute('content');
+
+        // Theme init
+        if (!window.themeController) window.themeController = new ThemeController();
+        window.themeController.initialize();
+
+        // Chart presence logs
+        if (typeof Chart !== 'undefined') console.log('✅ Chart.js loaded successfully');
+        else console.error('❌ Chart.js failed to load');
+
+        if (typeof Chartkick !== 'undefined') console.log('✅ Chartkick loaded successfully');
+        else console.error('❌ Chartkick failed to load');
+
+        // Gantt init
         if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
           console.log("🚀 Starting Gantt initialization...");
           initializeGanttWhenReady();
         }
-      });
-      
-      // Also check on turbo:load for SPA navigation
-      document.addEventListener('turbo:load', () => {
-        if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
-          console.log("🚀 Turbo: Gantt page loaded, starting initialization...");
-          initializeGanttWhenReady();
-        }
+      }
+
+      document.addEventListener('DOMContentLoaded', setupAppLayout);
+      document.addEventListener('turbo:load', setupAppLayout);
+
+      // Delegated modal loader (works after Turbo navigation)
+      document.addEventListener('click', function(e) {
+        const trigger = e.target.closest('[data-bs-toggle="modal"][data-bs-target="#uploadInvoiceModal"]');
+        if (!trigger) return;
+
+        e.preventDefault();
+
+        const url = trigger.getAttribute('href');
+        if (!url) return;
+
+        fetch(url, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/html'
+          }
+        })
+        .then(r => r.text())
+        .then(html => {
+          const container = document.getElementById('modal-container') || document.body;
+
+          // remove any existing
+          const existing = document.getElementById('uploadInvoiceModal');
+          if (existing) existing.remove();
+
+          container.insertAdjacentHTML('beforeend', html);
+
+          const modalElement = document.getElementById('uploadInvoiceModal');
+          const modal = new bootstrap.Modal(modalElement);
+          modal.show();
+
+          modalElement.addEventListener('hidden.bs.modal', function() {
+            modalElement.remove();
+          }, { once: true });
+        })
+        .catch(err => {
+          console.error('Error loading modal:', err);
+          alert('Error loading upload form. Please try again.');
+        });
       });
     </script>
-    
-    <!-- Demo Mode CSS -->
+
+    <!-- Your existing inline CSS blocks can remain as-is -->
     <style>
-      .demo-banner {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 9999;
-        padding: 8px;
-        text-align: center;
-        font-weight: bold;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        border-bottom: 2px solid #dee2e6;
-        background-color: #f8f9fa;
-        color: #212529;
-      }
-      
-      .mock-payment-modal .modal-content {
-        border: 1px solid #dee2e6;
-      }
-      
-      .mock-receipt {
-        border: 1px solid #dee2e6;
-        padding: 20px;
-        background: #f8f9fa;
-        font-family: 'Courier New', monospace;
-      }
-      
-      .mock-watermark {
-        position: absolute;
-        opacity: 0.1;
-        font-size: 100px;
-        transform: rotate(-45deg);
-        pointer-events: none;
-        z-index: 1;
-      }
-      
-      .demo-highlight {
-        animation: highlight 1.5s ease-in-out;
-      }
-      
-      @keyframes highlight {
-        0% { background-color: #ffd93d; }
-        100% { background-color: transparent; }
-      }
-      
-      /* POS Terminal Styling */
-      .pos-terminal {
-        background: #f8f9fa;
-        color: #212529;
-        font-family: 'Courier New', monospace;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        border: 1px solid #dee2e6;
-      }
-      
-      .pos-screen {
-        background: #f8f9fa;
-        color: #212529;
-        padding: 15px;
-        border-radius: 5px;
-        min-height: 200px;
-        font-family: 'Courier New', monospace;
-        border: 1px solid #dee2e6;
-      }
-      
-      .pos-button {
-        background: #f8f9fa;
-        color: #212529;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        padding: 15px;
-        font-weight: bold;
-        transition: all 0.2s;
-      }
-      
-      .pos-button:hover {
-        background: #e9ecef;
-      }
-      
-      /* RFQ and Quotation specific styling */
-      .rfq-status-badge {
-        font-size: 0.8em;
-        padding: 4px 8px;
-      }
-      
-      .quotation-item-row {
-        border-left: 4px solid transparent;
-        transition: all 0.3s ease;
-      }
-      
-      .quotation-item-row.accepted {
-        border-left-color: #28a745;
-        background-color: rgba(40, 167, 69, 0.05);
-      }
-      
-      .quotation-item-row.rejected {
-        border-left-color: #dc3545;
-        background-color: rgba(220, 53, 69, 0.05);
-      }
-      
-      .quotation-item-row.pending {
-        border-left-color: #ffc107;
-        background-color: rgba(255, 193, 7, 0.05);
-      }
-      
-      .aging-bucket-card {
-        transition: transform 0.3s ease;
-        cursor: pointer;
-      }
-      
-      .aging-bucket-card:hover {
-        transform: translateY(-5px);
-      }
-      
-      .bulk-payment-checkbox {
-        transform: scale(1.2);
-      }
-      
-      /* Chart.js chart container styling */
-      .chart-container {
-        position: relative;
-        width: 100%;
-      }
-      
-      /* Chartkick specific styling */
-      .chartkick-tooltip {
-        background: white;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 8px 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 14px;
-        z-index: 1000;
-      }
-      
-      /* Modal Container Styling */
-      #modal-container {
-        position: relative;
-        z-index: 1055;
-      }
+      /* (kept) demo-banner, POS, RFQ, chart container, etc... */
     </style>
-    
-    <!-- Force PTSC Blue Styles -->
+
     <style>
+      /* (kept) PTSC blue overrides */
       body.ptsc-theme-active .ptsc-header,
       .ptsc-header {
         background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%) !important;
       }
-      
+
       body.ptsc-theme-active .badge.bg-primary,
       body.ptsc-theme-active .nav-tabs .nav-link.active,
       body.ptsc-theme-active .btn-outline-primary,
@@ -451,15 +289,14 @@
         border-color: #1a73e8 !important;
         color: white !important;
       }
-      
+
       body.ptsc-theme-active .badge-ptsc,
       .badge-ptsc {
         background: linear-gradient(135deg, #1a73e8, #0d47a1) !important;
         color: white !important;
         border-left: 4px solid #004AAD !important;
       }
-      
-      /* Override any theme colors for PTSC elements */
+
       body.theme-1 .ptsc-header,
       body.theme-2 .ptsc-header,
       body.theme-3 .ptsc-header,
@@ -471,8 +308,7 @@
       body.theme-9 .ptsc-header {
         background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%) !important;
       }
-      
-      /* Ensure PTSC icon is blue */
+
       body.ptsc-theme-active .ptsc-icon-wrapper .text-primary,
       .ptsc-icon-wrapper .text-primary {
         color: #1a73e8 !important;
@@ -481,85 +317,7 @@
   </head>
 
   <body class="<%= 'gantt-page' if content_for?(:gantt_page) %>" data-controller="theme">
-    <!-- Theme Preview Alert will be inserted here -->
-    
-    <!-- Modal Container (MOVED BEFORE yield) -->
     <div id="modal-container"></div>
-
-    <!-- MAIN CONTENT - THIS WAS MISSING -->
     <%= yield %>
-
-    <!-- NO Bootstrap JS here - it's already loaded in the HEAD -->
-    
-    <!-- Chart initialization script -->
-    <script>
-      // Initialize Chartkick to use Chart.js
-      document.addEventListener('DOMContentLoaded', function() {
-        if (typeof Chartkick !== 'undefined' && typeof Chart !== 'undefined') {
-          // Chartkick should automatically detect Chart.js
-          console.log('📊 Chartkick and Chart.js are ready to use');
-          
-          // You can also configure Chartkick globally if needed
-          // Chartkick.options = {
-          //   colors: ["#0d6efd", "#198754", "#dc3545", "#ffc107", "#6f42c1"]
-          // };
-        }
-      });
-      
-      // Also initialize on Turbo page changes
-      document.addEventListener('turbo:load', function() {
-        if (typeof Chartkick !== 'undefined' && typeof Chart !== 'undefined') {
-          console.log('📊 Turbo: Chartkick and Chart.js are ready to use');
-        }
-      });
-    </script>
-    
-    <!-- ADD THIS SCRIPT FOR MODAL HANDLING -->
-    <script>
-      // Modal handling for invoice upload
-      document.addEventListener('DOMContentLoaded', function() {
-        // Handle modal trigger
-        const modalTriggers = document.querySelectorAll('[data-bs-toggle="modal"][data-bs-target="#uploadInvoiceModal"]');
-        
-        modalTriggers.forEach(trigger => {
-          trigger.addEventListener('click', function(e) {
-            e.preventDefault();
-            const url = this.getAttribute('href');
-            
-            fetch(url, {
-              headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'text/html'
-              }
-            })
-            .then(response => response.text())
-            .then(html => {
-              // Remove any existing modal
-              const existingModal = document.getElementById('uploadInvoiceModal');
-              if (existingModal) {
-                existingModal.remove();
-              }
-              
-              // Append new modal to body
-              document.body.insertAdjacentHTML('beforeend', html);
-              
-              // Initialize and show modal
-              const modalElement = document.getElementById('uploadInvoiceModal');
-              const modal = new bootstrap.Modal(modalElement);
-              modal.show();
-              
-              // Clean up when modal is hidden
-              modalElement.addEventListener('hidden.bs.modal', function() {
-                modalElement.remove();
-              });
-            })
-            .catch(error => {
-              console.error('Error loading modal:', error);
-              alert('Error loading upload form. Please try again.');
-            });
-          });
-        });
-      });
-    </script>
   </body>
 </html>

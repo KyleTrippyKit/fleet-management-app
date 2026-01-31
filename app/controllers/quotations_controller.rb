@@ -1,3 +1,4 @@
+# app/controllers/quotations_controller.rb
 require 'csv'
 
 class QuotationsController < ApplicationController
@@ -49,8 +50,7 @@ class QuotationsController < ApplicationController
     
     # FIXED: Use direct agency association
     @quotations = Quotation.where(agency_id: current_user.agency_id)
-                          .where(vendor: 'VMCOTT')
-                          .where.not(status: 'draft')
+                          .where.not(status: Quotation.statuses[:draft])
                           .order(created_at: :desc)
                           .page(params[:page])
     
@@ -321,7 +321,7 @@ class QuotationsController < ApplicationController
     
     # Update quotation status
     if @quotation.update(status: 'pending_acceptance')
-      redirect_to convert_to_po_quotation_path(@quotation), 
+      redirect_to purchase_order_path(@purchase_order), 
                   notice: 'Items accepted. Ready to create purchase order.'
     else
       redirect_to accept_items_quotation_path(@quotation), 
@@ -410,8 +410,14 @@ class QuotationsController < ApplicationController
     # Load RFQ if exists
     @rfq = @quotation.rfq
     
-    # Load job templates - FIXED: Use current_user's agency_id directly
-    @job_templates = JobTemplate.where(agency_id: current_user.agency_id).active
+    # Load job templates - FIXED: Filter by vehicle year
+    base = JobTemplate.where(agency_id: current_user.agency_id).active
+    
+    if @quotation.vehicle.present?
+      @job_templates = base.for_vehicle_exact_year(@quotation.vehicle)
+    else
+      @job_templates = base.none
+    end
     
     # Load existing quotation jobs
     @quotation_jobs = @quotation.quotation_jobs
@@ -629,6 +635,11 @@ class QuotationsController < ApplicationController
         @quotation.amount = line_items_total.to_f + jobs_total + parts_total
       end
       
+      # ✅ CHANGE 1: FORCE AGAIN right before save (prevents override surprises)
+      if current_user.agency&.code == 'VMCOTT'
+        @quotation.vendor = 'VMCOTT'
+      end
+      
       if @quotation.save
         # Handle different save actions
         case params[:commit]
@@ -705,9 +716,10 @@ class QuotationsController < ApplicationController
     check_edit_permission
     
     begin
-      # FORCE VENDOR TO BE VMCOTT IF UPDATING FROM VMCOTT AGENCY
       quotation_params_hash = quotation_params
-      if current_user.agency&.code == 'VMCOTT' && quotation_params_hash[:vendor].blank?
+      
+      # ✅ CHANGE 2: ALWAYS force vendor for VMCOTT (not only if blank)
+      if current_user.agency&.code == 'VMCOTT'
         quotation_params_hash[:vendor] = 'VMCOTT'
       end
       
@@ -834,53 +846,107 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/convert_to_po
   def convert_to_po
-    # Authorization
+    # Authorization check - MUST BE FIRST
     return redirect_to @quotation, alert: 'Access denied' unless can_accept_items?
 
-    # Allow a one-click full reject from the accept-items screen
+    # Reject entire quotation shortcut
     if params[:reject_all].present?
-      @quotation.update(status: 'rejected', rejected_at: Time.current)
-      return redirect_to quotations_received_path, notice: 'Quotation rejected.'
-    end
-    
-    # Normalize accepted items (the accept_items form posts flat arrays)
-    accepted_items = {
-      line_items: Array(params[:accepted_line_items]).map(&:to_s),
-      jobs: Array(params[:accepted_jobs]).map(&:to_s),
-      job_parts: Array(params[:accepted_job_parts]).map(&:to_s)
-    }
+      @quotation.update!(
+        status: 'rejected',
+        rejected_at: Time.current
+      )
 
-    # Back-compat: if older clients stored acceptance in session
-    session_items = session["quotation_#{@quotation.id}_accepted_items"]
-    if accepted_items.values.all?(&:blank?) && session_items.present?
-      accepted_items = session_items
+      redirect_to received_quotations_path,
+        alert: 'Quotation rejected.'
+      return
     end
 
-    # Guard: must accept at least one thing
-    if accepted_items.values.all?(&:blank?)
-      return redirect_to accept_items_quotation_path(@quotation), alert: 'Please select at least one item to create a purchase order.'
-    end
-    
-    # Create purchase order with accepted items only
-    @purchase_order = create_po_from_accepted_items(@quotation, accepted_items, current_user)
-    
-    if @purchase_order.persisted?
-      @quotation.update(
+    accepted_line_item_ids = Array(params[:accepted_line_items]).map(&:to_i)
+    accepted_job_ids       = Array(params[:accepted_jobs]).map(&:to_i)
+    accepted_part_ids      = Array(params[:accepted_job_parts]).map(&:to_i)
+
+    ActiveRecord::Base.transaction do
+      # 1️⃣ Create Purchase Order (REQUIRED FIELDS) - Using improved PO number format
+      purchase_order = PurchaseOrder.create!(
+        quotation_id: @quotation.id,
+        vendor:       @quotation.vendor,
+        vehicle_id:   @quotation.vehicle_id,
+        created_by_id: current_user.id,
+        po_number:    generate_readable_po_number,  # Improved format
+        amount:       0, # recalculated below
+        status:       'draft'
+      )
+
+      total_amount = 0
+
+      # 2️⃣ Line Items → PO Items
+      @quotation.quotation_line_items.where(id: accepted_line_item_ids).each do |li|
+        line_total = li.quantity.to_f * li.unit_price.to_f
+
+        PurchaseOrderItem.create!(
+          purchase_order_id: purchase_order.id,
+          description: li.description,
+          quantity: li.quantity,
+          unit_price: li.unit_price,
+          total_price: line_total
+        )
+
+        total_amount += line_total
+      end
+
+      # 3️⃣ Jobs (labor)
+      @quotation.quotation_jobs.where(id: accepted_job_ids).each do |job|
+        labor = job.total_labor_cost.to_f
+
+        PurchaseOrderItem.create!(
+          purchase_order_id: purchase_order.id,
+          description: "Labor: #{job.name}",
+          quantity: 1,
+          unit_price: labor,
+          total_price: labor
+        )
+
+        total_amount += labor
+      end
+
+      # 4️⃣ Parts
+      QuotationJobPart.where(id: accepted_part_ids).each do |jp|
+        part_total = jp.total_price || (jp.quantity.to_f * jp.unit_price.to_f)
+
+        PurchaseOrderItem.create!(
+          purchase_order_id: purchase_order.id,
+          part_id: jp.part_id,
+          description: jp.part&.name || "Part",
+          quantity: jp.quantity,
+          unit_price: jp.unit_price,
+          total_price: part_total
+        )
+
+        total_amount += part_total
+      end
+
+      # 5️⃣ Finalize PO + Quotation
+      purchase_order.update!(amount: total_amount)
+
+      @quotation.update!(
         status: 'accepted',
         accepted_at: Time.current,
-        purchase_order_id: @purchase_order.id
+        purchase_order_id: purchase_order.id  # Link quotation to PO
       )
-      
-      # Clear session data
+
+      # 6️⃣ Clean up session data
       session.delete("quotation_#{@quotation.id}_accepted_items")
       session.delete("quotation_#{@quotation.id}_rejected_items")
       
-      redirect_to from_quotation_purchase_orders_path(quotation_id: @quotation.id), 
-                  notice: 'Purchase order created from accepted items.'
-    else
-      redirect_to accept_items_quotation_path(@quotation), 
-                  alert: "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
+      # ✅ Redirect to created purchase order
+      redirect_to purchase_order_path(purchase_order),
+        notice: 'Purchase Order created successfully.'
     end
+
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error(e.message)
+    redirect_back fallback_location: received_quotations_path,
+      alert: "Failed to create Purchase Order: #{e.record.errors.full_messages.join(', ')}"
   end
 
   # GET /quotations/1/duplicate
@@ -935,7 +1001,7 @@ class QuotationsController < ApplicationController
       format.html { render :print, layout: false }
       format.pdf do
         render pdf: "quotation-#{@quotation.quote_number}",
-               template: 'quotations/print',
+               template: 'quotations/show',
                layout: 'pdf',
                page_size: 'A4',
                disposition: 'inline'
@@ -1350,8 +1416,8 @@ class QuotationsController < ApplicationController
       safe_params[attr] = raw_params[attr] if raw_params.key?(attr)
     end
     
-    # FORCE VENDOR TO BE VMCOTT FOR VMCOTT USERS
-    if current_user.agency&.code == 'VMCOTT' && safe_params[:vendor].blank?
+    # ✅ CHANGE 3: Force vendor ALWAYS for VMCOTT users (even if not blank)
+    if current_user.agency&.code == 'VMCOTT'
       safe_params[:vendor] = 'VMCOTT'
     end
     
@@ -1502,8 +1568,16 @@ class QuotationsController < ApplicationController
     total
   end
 
+  # Generate readable PO number (e.g., PO-20240226-ABCD)
+  def generate_readable_po_number
+    date_part = Time.current.strftime('%Y%m%d')
+    random_part = SecureRandom.hex(2).upcase  # 4 characters
+    "PO-#{date_part}-#{random_part}"
+  end
+
+  # Keep original for backward compatibility
   def generate_po_number
-    "PO-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+    generate_readable_po_number
   end
 
   def calculate_accepted_total_from_session(accepted_items)

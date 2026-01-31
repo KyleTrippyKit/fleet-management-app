@@ -3,6 +3,8 @@ class PurchaseOrderItem < ApplicationRecord
   belongs_to :purchase_order
   belongs_to :part, optional: true
   has_many :vendor_invoice_items, dependent: :nullify
+  after_save :recalc_po_total
+  after_destroy :recalc_po_total
   
   validates :description, presence: true
   validates :quantity, presence: true, numericality: { greater_than: 0 }
@@ -83,6 +85,10 @@ class PurchaseOrderItem < ApplicationRecord
     else
       'not_invoiced'
     end
+  end
+  
+  def recalc_po_total
+    purchase_order.update_total_amount if purchase_order.respond_to?(:update_total_amount)
   end
   
   # NEW: Invoicing status badge class

@@ -1,45 +1,86 @@
 <%# app/views/quotations/received.html.erb %>
-<h1>Quotations Received</h1>
 
-<!-- Debug info for development -->
+<h1 class="mb-4">Quotations Received</h1>
+
+<%# ---------------- Development Debug ---------------- %>
 <% if Rails.env.development? %>
   <div class="alert alert-info">
-    <strong>Debug Info:</strong><br>
-    Current User Agency: <%= current_user.agency&.code %><br>
-    Quotations Count: <%= @quotations.count %>
+    <strong>Debug Info</strong><br>
+    Current User Agency: <%= current_user.agency&.code || "N/A" %><br>
+    Quotations Count: <%= @quotations.size %>
   </div>
 <% end %>
 
 <% if @quotations.any? %>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Quote #</th>
-        <th>Vendor</th>
-        <th>Vehicle</th>
-        <th>Amount</th>
-        <th>Date</th>
-        <th>Status</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @quotations.each do |quote| %>
-        <tr>
-          <td><%= quote.quote_number %></td>
-          <td><%= quote.vendor %></td>
-          <td><%= quote.vehicle&.license_plate || 'N/A' %></td>
-          <td>$<%= number_with_precision(quote.amount, precision: 2) %></td>
-          <td><%= quote.created_at.strftime('%b %d, %Y') %></td>
-          <td><span class="badge bg-<%= quote.status == 'accepted' ? 'success' : 'warning' %>"><%= quote.status.humanize %></span></td>
-          <td>
-            <%= link_to 'Review', quotation_path(quote), class: 'btn btn-sm btn-primary' %>
-            <%= link_to 'Accept Items', accept_items_quotation_path(quote), class: 'btn btn-sm btn-success' %>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
+  <div class="card">
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Quote #</th>
+            <th>Vendor</th>
+            <th>Vehicle</th>
+            <th class="text-end">Amount</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% @quotations.each do |quote| %>
+            <tr>
+              <td class="fw-semibold">
+                <%= quote.quote_number %>
+              </td>
+
+              <td>
+                <%= quote.vendor || "—" %>
+              </td>
+
+              <td>
+                <%= quote.vehicle&.license_plate || "N/A" %>
+              </td>
+
+              <td class="text-end">
+                $<%= number_with_precision(quote.amount.to_f, precision: 2) %>
+              </td>
+
+              <td>
+                <%= quote.created_at.strftime('%b %d, %Y') %>
+              </td>
+
+              <td>
+                <% status_class =
+                    case quote.status
+                    when "accepted" then "success"
+                    when "sent"     then "primary"
+                    when "rejected" then "danger"
+                    else "warning"
+                    end
+                %>
+
+                <span class="badge bg-<%= status_class %>">
+                  <%= quote.status.humanize %>
+                </span>
+              </td>
+
+              <td class="text-end">
+                <%= link_to "Review & Select Items",
+                    accept_items_quotation_path(quote),
+                    class: "btn btn-sm btn-primary" %>
+
+                <%= link_to "View",
+                    quotation_path(quote),
+                    class: "btn btn-sm btn-outline-secondary ms-1" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 <% else %>
   <div class="alert alert-info">
     No quotations received yet.

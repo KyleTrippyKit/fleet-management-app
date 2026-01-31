@@ -10,14 +10,11 @@ class PurchaseOrdersController < ApplicationController
   def index
     @purchase_orders = fetch_purchase_orders
     @agencies = Agency.all if current_user.admin?
-    
+
     # Fix any nil statuses in the collection (temporary fix)
     @purchase_orders.each do |po|
       if po.status.nil? || po.payment_status.nil?
-        po.update_columns(
-          status: 'draft', 
-          payment_status: 'unpaid'
-        ) if po.persisted?
+        po.update_columns(status: 'draft', payment_status: 'unpaid') if po.persisted?
       end
     end
   end
@@ -25,22 +22,18 @@ class PurchaseOrdersController < ApplicationController
   # GET /purchase_orders/from_quotation/:quotation_id
   def from_quotation
     @quotation = Quotation.find(params[:quotation_id])
-    
-    # Authorization - only agency finance can create PO from quotation
+
     unless current_user.finance? || current_user.admin?
       redirect_to @quotation, alert: 'Access denied. Finance role required.'
       return
     end
-    
-    # If a PO was already created from the quotation (preferred path), just show it.
+
     if @quotation.purchase_order.present?
       redirect_to purchase_order_path(@quotation.purchase_order),
                   notice: 'Purchase order already exists for this quotation.'
       return
     end
-    
-    # Fallback: Create a new PO from quotation (legacy path).
-    # NOTE: Item-level acceptance is handled in QuotationsController#convert_to_po.
+
     @purchase_order = PurchaseOrder.new(
       vehicle: @quotation.vehicle,
       vendor: @quotation.vendor,
@@ -51,8 +44,7 @@ class PurchaseOrdersController < ApplicationController
       po_number: generate_po_number,
       quotation_id: @quotation.id
     )
-    
-    # Add quotation line items (accepted by default in fallback)
+
     @quotation.quotation_line_items.each do |line_item|
       @purchase_order.purchase_order_items.build(
         description: line_item.description,
@@ -62,8 +54,7 @@ class PurchaseOrdersController < ApplicationController
         is_accepted: true
       )
     end
-    
-    # Add quotation jobs and their parts (accepted by default in fallback)
+
     if @quotation.respond_to?(:quotation_jobs)
       @quotation.quotation_jobs.each do |job|
         @purchase_order.purchase_order_items.build(
@@ -73,7 +64,7 @@ class PurchaseOrdersController < ApplicationController
           notes: job.description,
           is_accepted: true
         )
-        
+
         job.quotation_job_parts.each do |job_part|
           @purchase_order.purchase_order_items.build(
             part_id: job_part.part_id,
@@ -86,37 +77,33 @@ class PurchaseOrdersController < ApplicationController
         end
       end
     end
-    
+
     if @purchase_order.save
-      # Update quotation status
       @quotation.update(status: 'accepted', accepted_at: Time.current)
-      
-      redirect_to @purchase_order, 
-                  notice: 'Purchase order created from accepted quotation items.'
+      redirect_to @purchase_order, notice: 'Purchase order created from accepted quotation items.'
     else
-      redirect_to accept_items_quotation_path(@quotation), 
+      redirect_to accept_items_quotation_path(@quotation),
                   alert: "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
     end
   end
 
   # GET /purchase_orders/awaiting_acceptance
   def awaiting_acceptance
-    # For VMCOTT to see POs that need acknowledgment/action
     return redirect_to purchase_orders_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
-    
+
     @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
-                                   .where.not(acceptance_status: 'acknowledged')
-                                   .order(created_at: :desc)
-                                   .includes(:vehicle, :created_by)
-                                   .page(params[:page])
-    
+                                    .where.not(acceptance_status: 'acknowledged')
+                                    .order(created_at: :desc)
+                                    .includes(:vehicle, :created_by)
+                                    .page(params[:page])
+
     render :awaiting_acceptance
   end
 
   # POST /purchase_orders/:id/acknowledge_acceptance
   def acknowledge_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
-    
+
     if @purchase_order.update(acceptance_status: 'acknowledged')
       redirect_to @purchase_order, notice: 'Purchase order acceptance acknowledged.'
     else
@@ -127,26 +114,24 @@ class PurchaseOrdersController < ApplicationController
   # POST /purchase_orders/:id/create_vmcott_pos
   def create_vmcott_pos
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
-    
-    # Check if internal POS already exists
+
     if @purchase_order.internal_pos.present?
-      redirect_to vmcott_internal_pos_path(@purchase_order.internal_pos), 
+      redirect_to vmcott_internal_pos_path(@purchase_order.internal_pos),
                   notice: 'Internal POS already exists for this PO.'
       return
     end
-    
-    # Create internal POS
+
     @internal_pos = InternalPos.create!(
       purchase_order: @purchase_order,
       vehicle: @purchase_order.vehicle,
       work_order_number: InternalPos.generate_work_order_number,
-      assigned_to: current_user, # Default to current user, can be changed later
+      assigned_to: current_user,
       priority: 'normal',
       status: 'pending',
       created_by: current_user,
       notes: "Created from PO #{@purchase_order.po_number}"
     )
-    
+
     redirect_to from_po_vmcott_internal_pos_path(purchase_order_id: @purchase_order.id),
                 notice: 'Internal POS created. Please assign technician and complete details.'
   end
@@ -157,23 +142,22 @@ class PurchaseOrdersController < ApplicationController
     @rejected_items = @purchase_order.purchase_order_items.where(is_accepted: false)
     @accepted_total = @accepted_items.sum(&:total_price)
     @rejected_total = @rejected_items.sum(&:total_price)
-    
+
     render :acceptance_details
   end
 
   # PATCH /purchase_orders/:id/update_item_acceptance
   def update_item_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
-    
+
     item = @purchase_order.purchase_order_items.find(params[:item_id])
-    
+
     if item.update(is_accepted: params[:accepted], rejection_reason: params[:reason])
-      # Recalculate PO amount
       @purchase_order.recalculate_amount!
-      
+
       if request.xhr?
-        render json: { 
-          success: true, 
+        render json: {
+          success: true,
           accepted_total: @purchase_order.accepted_items_total,
           rejected_total: @purchase_order.rejected_items_total
         }
@@ -194,20 +178,11 @@ class PurchaseOrdersController < ApplicationController
   def show
     @purchase_order_items = @purchase_order.purchase_order_items
     @invoices = @purchase_order.invoices
-    
-    # SAFELY load payable - check if association exists
-    if @purchase_order.respond_to?(:payable)
-      @payable = @purchase_order.payable
-    else
-      @payable = Payable.find_by(purchase_order_id: @purchase_order.id) if defined?(Payable)
-    end
-    
-    # FIX: Use safe approach for payment histories
-    # Try association first, fallback to direct query if it fails
+    @payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+
     begin
       @payment_histories = @purchase_order.payment_histories.order(created_at: :desc)
     rescue ActiveRecord::StatementInvalid => e
-      # If association fails due to missing column, use direct query
       Rails.logger.warn "Payment histories association failed: #{e.message}"
       @payment_histories = []
     end
@@ -216,7 +191,7 @@ class PurchaseOrdersController < ApplicationController
   def new
     @purchase_order = PurchaseOrder.new
     @purchase_order.purchase_order_items.build
-    
+
     if params[:vehicle_id].present?
       @vehicle = Vehicle.find_by(id: params[:vehicle_id])
       @purchase_order.vehicle = @vehicle if @vehicle
@@ -258,15 +233,7 @@ class PurchaseOrdersController < ApplicationController
 
   def approve
     if @purchase_order.approve!(current_user)
-      # Try to create payable using model method
-      if @purchase_order.respond_to?(:create_payable!)
-        @purchase_order.create_payable!
-      elsif defined?(Payable)
-        # Fallback: create payable directly
-        payable = Payable.create_from_purchase_order(@purchase_order)
-        @purchase_order.update(payable_id: payable.id) if payable.persisted?
-      end
-      
+      @purchase_order.payable
       redirect_to @purchase_order, notice: 'Approved successfully and payable created.'
     else
       redirect_to @purchase_order, alert: 'Could not approve purchase order.'
@@ -280,15 +247,10 @@ class PurchaseOrdersController < ApplicationController
       redirect_to @purchase_order, alert: 'Could not reject purchase order.'
     end
   end
-  
+
   def cancel
     if @purchase_order.cancel!(params[:reason])
-      # Cancel associated payable if exists
-      if defined?(Payable) && @purchase_order.payable_id
-        payable = Payable.find_by(id: @purchase_order.payable_id)
-        payable&.update(status: 'cancelled')
-      end
-      
+      @purchase_order.payable&.update(status: 'cancelled') if @purchase_order.respond_to?(:payable)
       redirect_to @purchase_order, notice: 'Cancelled successfully.'
     else
       redirect_to @purchase_order, alert: 'Could not cancel purchase order.'
@@ -313,10 +275,9 @@ class PurchaseOrdersController < ApplicationController
 
   def mark_paid
     begin
-      # Extract card details if provided
       card_type = params[:card_type]
       last_four_digits = params[:last_four_digits]
-      
+
       if @purchase_order.mark_as_paid!(
         reference: params[:payment_reference],
         method: params[:payment_method],
@@ -325,23 +286,8 @@ class PurchaseOrdersController < ApplicationController
         last_four_digits: last_four_digits,
         card_type: card_type
       )
-        # Record payment in payable if exists
-        if defined?(Payable)
-          payable = if @purchase_order.respond_to?(:payable)
-                      @purchase_order.payable
-                    else
-                      Payable.find_by(purchase_order_id: @purchase_order.id)
-                    end
-          
-          if payable
-            payable.record_payment(
-              @purchase_order.amount,
-              params[:payment_method],
-              params[:payment_reference]
-            )
-          end
-        end
-        
+        payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+        payable&.record_payment(@purchase_order.amount, params[:payment_method], params[:payment_reference])
         redirect_to @purchase_order, notice: 'Marked as paid successfully.'
       else
         redirect_to @purchase_order, alert: 'Could not mark as paid.'
@@ -352,41 +298,23 @@ class PurchaseOrdersController < ApplicationController
       redirect_to @purchase_order, alert: "Error: #{e.message}"
     end
   end
-  
+
   def record_payment
-    # Check if Payable model is defined
-    unless defined?(Payable)
-      redirect_to @purchase_order, alert: 'Accounting system not yet configured.'
-      return
-    end
-    
-    # Find payable
-    payable = if @purchase_order.respond_to?(:payable)
-                @purchase_order.payable
-              else
-                Payable.find_by(purchase_order_id: @purchase_order.id)
-              end
-    
+    payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
     unless payable
       redirect_to @purchase_order, alert: 'No payable record found for this purchase order.'
       return
     end
-    
-    payment_params = params.require(:payment).permit(
-      :amount, :payment_method, :reference_number, :payment_date, :notes
-    )
-    
+
+    payment_params = params.require(:payment).permit(:amount, :payment_method, :reference_number, :payment_date, :notes)
+
     if payable.record_payment(
       payment_params[:amount].to_d,
       payment_params[:payment_method],
       payment_params[:reference_number],
       Date.parse(payment_params[:payment_date] || Date.current.to_s)
     )
-      # Update purchase order payment status if fully paid
-      if payable.amount_due <= 0
-        @purchase_order.update(payment_status: 'completed', paid_at: Time.current)
-      end
-      
+      @purchase_order.update(payment_status: 'completed', paid_at: Time.current) if payable.amount_due <= 0
       redirect_to @purchase_order, notice: 'Payment recorded successfully.'
     else
       flash.now[:alert] = 'Failed to record payment.'
@@ -394,16 +322,11 @@ class PurchaseOrdersController < ApplicationController
     end
   end
 
-  # Trinidad Payment Methods
   def payment
-    # Show payment page
-    unless @purchase_order.can_initiate_payment?
-      redirect_to @purchase_order, alert: 'This purchase order cannot be paid at this time.'
-    end
+    redirect_to @purchase_order, alert: 'This purchase order cannot be paid at this time.' unless @purchase_order.can_initiate_payment?
   end
 
   def process_payment
-    # Process Trinidad card payment
     card_details = {
       number: params[:card_number],
       expiry_month: params[:expiry_month],
@@ -442,23 +365,8 @@ class PurchaseOrdersController < ApplicationController
 
   def complete_payment
     if @purchase_order.complete_trinidad_payment!
-      # Record payment in payable if exists
-      if defined?(Payable)
-        payable = if @purchase_order.respond_to?(:payable)
-                    @purchase_order.payable
-                  else
-                    Payable.find_by(purchase_order_id: @purchase_order.id)
-                  end
-        
-        if payable
-          payable.record_payment(
-            @purchase_order.amount,
-            @purchase_order.payment_method,
-            @purchase_order.payment_reference
-          )
-        end
-      end
-      
+      payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+      payable&.record_payment(@purchase_order.amount, @purchase_order.payment_method, @purchase_order.payment_reference)
       redirect_to @purchase_order, notice: 'Payment completed successfully.'
     else
       redirect_to @purchase_order, alert: 'Could not complete payment.'
@@ -466,51 +374,31 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def payment_summary
-    # Show payment summary
-    if defined?(Payable)
-      @payable = if @purchase_order.respond_to?(:payable)
-                   @purchase_order.payable
-                 else
-                   Payable.find_by(purchase_order_id: @purchase_order.id)
-                 end
-      @account_transactions = @payable&.account_transactions || []
-    else
-      @payable = nil
-      @account_transactions = []
-    end
+    @payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+    @account_transactions = @payable&.account_transactions || []
   end
 
-  # NEW: Payment audits method
   def payment_audits
     @payment_audits = @purchase_order.payment_audits.order(created_at: :desc)
     render partial: 'payment_audits' if request.xhr?
   end
 
-  # NEW: Analytics methods
   def analytics
     @time_range = params[:time_range] || '30_days'
     @agency_id = params[:agency_id]
-    
-    case @time_range
-    when '7_days'
-      @start_date = 7.days.ago
-    when '30_days'
-      @start_date = 30.days.ago
-    when '90_days'
-      @start_date = 90.days.ago
-    when 'custom'
-      @start_date = Date.parse(params[:start_date]) if params[:start_date].present?
-      @end_date = Date.parse(params[:end_date]) if params[:end_date].present?
-    end
-    
+
+    @start_date =
+      case @time_range
+      when '7_days' then 7.days.ago
+      when '30_days' then 30.days.ago
+      when '90_days' then 90.days.ago
+      when 'custom' then (Date.parse(params[:start_date]) if params[:start_date].present?)
+      end
+
+    @end_date = (Date.parse(params[:end_date]) if @time_range == 'custom' && params[:end_date].present?) || Time.current
     @start_date ||= 30.days.ago
-    @end_date ||= Time.current
-    
-    @stats = PurchaseOrder.trinidad_payment_stats(
-      time_range: @start_date..@end_date,
-      agency_id: @agency_id
-    )
-    
+
+    @stats = PurchaseOrder.trinidad_payment_stats(time_range: @start_date..@end_date, agency_id: @agency_id)
     @agencies = Agency.all if current_user.admin?
   end
 
@@ -518,76 +406,35 @@ class PurchaseOrdersController < ApplicationController
     @start_date = params[:start_date] || Date.current.beginning_of_month
     @end_date = params[:end_date] || Date.current
     @agency_id = params[:agency_id]
-    
-    # This would call the PaymentReconciliation service
-    # @report = PaymentReconciliation.generate_reconciliation_report(
-    #   start_date: @start_date,
-    #   end_date: @end_date,
-    #   agency_id: @agency_id
-    # )
-    
     @agencies = Agency.all if current_user.admin?
   end
 
   def compliance_reports
-    @purchase_orders = PurchaseOrder
-      .trinidad_card_payments
-      .order(created_at: :desc)
-      .page(params[:page]).per(20)
-    
-    if params[:agency_id].present?
-      @purchase_orders = @purchase_orders.for_agency(params[:agency_id])
-    end
-    
+    @purchase_orders = PurchaseOrder.trinidad_card_payments.order(created_at: :desc).page(params[:page]).per(20)
+    @purchase_orders = @purchase_orders.for_agency(params[:agency_id]) if params[:agency_id].present?
     @agencies = Agency.all if current_user.admin?
   end
 
   def vendor_analysis
     @vendor = params[:vendor]
-    
+
     if @vendor.present?
-      @purchase_orders = PurchaseOrder
-        .trinidad_card_payments
-        .where(vendor: @vendor)
-        .order(created_at: :desc)
-        .page(params[:page]).per(20)
+      @purchase_orders = PurchaseOrder.trinidad_card_payments.where(vendor: @vendor).order(created_at: :desc).page(params[:page]).per(20)
     end
-    
-    # Top vendors
-    @top_vendors = PurchaseOrder
-      .trinidad_card_payments
-      .group(:vendor)
-      .order('sum_amount desc')
-      .limit(10)
-      .sum(:amount)
+
+    @top_vendors = PurchaseOrder.trinidad_card_payments.group(:vendor).order('sum_amount desc').limit(10).sum(:amount)
   end
 
   def export_reconciliation
-    start_date = Date.parse(params[:start_date])
-    end_date = Date.parse(params[:end_date])
-    
-    # This would generate a CSV report
-    # csv_data = generate_reconciliation_csv(start_date, end_date, params[:agency_id])
-    
-    # respond_to do |format|
-    #   format.csv do
-    #     send_data csv_data, filename: "reconciliation-#{start_date}-to-#{end_date}.csv"
-    #   end
-    # end
-    
     redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon'
   end
 
   def needs_payment
-    @purchase_orders = PurchaseOrder.needs_payment
-                                    .for_agency(current_user.agency_id)
-                                    .recent
-                                    .page(params[:page]).per(20)
+    @purchase_orders = PurchaseOrder.needs_payment.for_agency(current_user.agency_id).recent.page(params[:page]).per(20)
     render :index
   end
 
   def convert_to_invoice
-    # Check if invoice already exists
     if @purchase_order.invoices.exists?
       redirect_to @purchase_order, alert: 'An invoice already exists for this purchase order.'
       return
@@ -604,52 +451,23 @@ class PurchaseOrdersController < ApplicationController
       created_by: current_user,
       notes: "Converted from Purchase Order #{@purchase_order.po_number}"
     )
-    
-    # Create payable for invoice if PO had one
-    if defined?(Payable)
-      if @purchase_order.respond_to?(:payable) && @purchase_order.payable
-        payable = Payable.create_from_invoice(@invoice)
-        @invoice.update(payable_id: payable.id) if payable.persisted?
-      else
-        # Try to find payable by purchase order ID
-        payable = Payable.find_by(purchase_order_id: @purchase_order.id)
-        if payable
-          payable.update(invoice_id: @invoice.id)
-          @invoice.update(payable_id: payable.id)
-        else
-          # Create new payable
-          payable = Payable.create_from_invoice(@invoice)
-          @invoice.update(payable_id: payable.id) if payable.persisted?
-        end
-      end
-    end
-    
+
     redirect_to @invoice, notice: 'Purchase order converted to invoice successfully.'
   rescue => e
     redirect_to @purchase_order, alert: "Could not convert to invoice: #{e.message}"
   end
 
   def print
-    # Set up data for the print view
     @purchase_order_items = @purchase_order.purchase_order_items
-    
+
     respond_to do |format|
-      format.html do
-        # Render HTML version for browser preview
-        render :print
-      end
+      format.html { render :print }
       format.pdf do
-        # Use the model's PDF generation method with fallback
         begin
-          # First try to use the model's to_pdf method
           if @purchase_order.respond_to?(:to_pdf)
             pdf = @purchase_order.to_pdf
-            send_data pdf,
-                      filename: @purchase_order.pdf_filename,
-                      type: 'application/pdf',
-                      disposition: 'inline'
+            send_data pdf, filename: @purchase_order.pdf_filename, type: 'application/pdf', disposition: 'inline'
           else
-            # Fallback to the old WickedPDF render method
             render pdf: "PO-#{@purchase_order.po_number}",
                    template: 'purchase_orders/print',
                    layout: 'pdf',
@@ -658,16 +476,13 @@ class PurchaseOrdersController < ApplicationController
                    show_as_html: params[:debug].present?
           end
         rescue => e
-          # If PDF generation fails, show error and fall back to HTML
           Rails.logger.error "PDF generation failed: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          
+
           if request.format.pdf?
-            # If PDF was requested but failed, redirect to HTML version
-            redirect_to print_purchase_order_path(@purchase_order, format: :html), 
+            redirect_to print_purchase_order_path(@purchase_order, format: :html),
                         alert: "PDF generation failed: #{e.message}. Showing HTML version instead."
           else
-            # Just render HTML
             render :print
           end
         end
@@ -675,28 +490,18 @@ class PurchaseOrdersController < ApplicationController
     end
   end
 
-  # Reports
   def reports
-    @start_date = params[:start_date] || 30.days.ago.to_date
-    @end_date = params[:end_date] || Date.today
+    @start_date = (params[:start_date] || 30.days.ago.to_date)
+    @end_date = (params[:end_date] || Date.today)
     @agency_id = params[:agency_id]
     @vendor = params[:vendor]
     @status = params[:status]
 
     @purchase_orders = PurchaseOrder.joins(:vehicle)
                                     .where(created_at: @start_date.beginning_of_day..@end_date.end_of_day)
-    
-    if @agency_id.present?
-      @purchase_orders = @purchase_orders.where(vehicles: { agency_id: @agency_id })
-    end
-    
-    if @vendor.present?
-      @purchase_orders = @purchase_orders.where('vendor ILIKE ?', "%#{@vendor}%")
-    end
-    
-    if @status.present?
-      @purchase_orders = @purchase_orders.where(status: @status)
-    end
+    @purchase_orders = @purchase_orders.where(vehicles: { agency_id: @agency_id }) if @agency_id.present?
+    @purchase_orders = @purchase_orders.where('vendor ILIKE ?', "%#{@vendor}%") if @vendor.present?
+    @purchase_orders = @purchase_orders.where(status: @status) if @status.present?
 
     @summary = {
       total_orders: @purchase_orders.count,
@@ -711,23 +516,17 @@ class PurchaseOrdersController < ApplicationController
   def export
     @purchase_orders = fetch_purchase_orders
     respond_to do |format|
-      format.csv do
-        send_data @purchase_orders.to_csv, filename: "purchase_orders-#{Date.today}.csv"
-      end
+      format.csv { send_data @purchase_orders.to_csv, filename: "purchase_orders-#{Date.today}.csv" }
     end
   end
 
   def pending_approval
-    @purchase_orders = PurchaseOrder.pending_approval
-                                    .for_agency(current_user.agency_id)
-                                    .recent
-                                    .page(params[:page]).per(20)
+    @purchase_orders = PurchaseOrder.pending_approval.for_agency(current_user.agency_id).recent.page(params[:page]).per(20)
     render :index
   end
 
   def bulk_approve
     purchase_order_ids = params[:purchase_order_ids]
-    
     if purchase_order_ids.blank?
       redirect_to pending_approval_purchase_orders_path, alert: 'No purchase orders selected.'
       return
@@ -735,22 +534,13 @@ class PurchaseOrdersController < ApplicationController
 
     approved_count = 0
     failed_count = 0
-    
+
     purchase_order_ids.each do |id|
       purchase_order = PurchaseOrder.find_by(id: id)
       next unless purchase_order && purchase_order.pending_approval?
-      
+
       if purchase_order.approve!(current_user)
-        # Create payable for each approved PO if Payable model exists
-        if defined?(Payable)
-          if purchase_order.respond_to?(:create_payable!)
-            purchase_order.create_payable!
-          else
-            payable = Payable.create_from_purchase_order(purchase_order)
-            purchase_order.update(payable_id: payable.id) if payable.persisted?
-          end
-        end
-        
+        purchase_order.ensure_payable!
         approved_count += 1
       else
         failed_count += 1
@@ -776,43 +566,22 @@ class PurchaseOrdersController < ApplicationController
 
   def fetch_purchase_orders
     base_scope = PurchaseOrder.recent.includes(:vehicle, :created_by, :approved_by)
-    
-    # Safely include payable if association exists
-    if PurchaseOrder.reflect_on_association(:payable)
-      base_scope = base_scope.includes(:payable)
-    end
-    
-    if current_user.admin?
-      base_scope = base_scope.all
-    else
-      base_scope = base_scope.for_agency(current_user.agency_id)
-    end
-    
-    # Apply filters
-    if params[:status].present?
-      base_scope = base_scope.where(status: params[:status])
-    end
-    
-    if params[:payment_status].present?
-      base_scope = base_scope.where(payment_status: params[:payment_status])
-    end
-    
-    if params[:payment_method].present?
-      base_scope = base_scope.where(payment_method: params[:payment_method])
-    end
-    
-    if params[:date_from].present?
-      base_scope = base_scope.where('created_at >= ?', params[:date_from])
-    end
-    
-    if params[:date_to].present?
-      base_scope = base_scope.where('created_at <= ?', params[:date_to])
-    end
-    
-    if params[:vendor].present?
-      base_scope = base_scope.where('vendor ILIKE ?', "%#{params[:vendor]}%")
-    end
-    
+    base_scope = base_scope.includes(:payable) if PurchaseOrder.reflect_on_association(:payable)
+
+    base_scope =
+      if current_user.admin?
+        base_scope.all
+      else
+        base_scope.for_agency(current_user.agency_id)
+      end
+
+    base_scope = base_scope.where(status: params[:status]) if params[:status].present?
+    base_scope = base_scope.where(payment_status: params[:payment_status]) if params[:payment_status].present?
+    base_scope = base_scope.where(payment_method: params[:payment_method]) if params[:payment_method].present?
+    base_scope = base_scope.where('created_at >= ?', params[:date_from]) if params[:date_from].present?
+    base_scope = base_scope.where('created_at <= ?', params[:date_to]) if params[:date_to].present?
+    base_scope = base_scope.where('vendor ILIKE ?', "%#{params[:vendor]}%") if params[:vendor].present?
+
     base_scope.page(params[:page]).per(20)
   end
 
@@ -820,34 +589,25 @@ class PurchaseOrdersController < ApplicationController
     params.require(:purchase_order).permit(
       :vehicle_id, :vendor, :amount, :notes, :payment_terms,
       purchase_order_items_attributes: [
-        :id, :part_id, :description, :quantity, :unit_price, :total_price, 
+        :id, :part_id, :description, :quantity, :unit_price, :total_price,
         :is_accepted, :rejection_reason, :_destroy
       ]
     )
   end
 
   def check_edit_permission
-    unless @purchase_order.editable?
-      redirect_to @purchase_order, alert: 'This purchase order cannot be edited.'
-    end
+    redirect_to @purchase_order, alert: 'This purchase order cannot be edited.' unless @purchase_order.editable?
   end
 
   def require_supervisor
-    unless current_user.supervisor? || current_user.admin?
-      redirect_to root_path, alert: 'Unauthorized - Supervisor access required'
-    end
+    redirect_to root_path, alert: 'Unauthorized - Supervisor access required' unless current_user.supervisor? || current_user.admin?
   end
 
   def require_finance
-    unless current_user.finance? || current_user.admin?
-      redirect_to root_path, alert: 'Unauthorized - Finance access required'
-    end
+    redirect_to root_path, alert: 'Unauthorized - Finance access required' unless current_user.finance? || current_user.admin?
   end
 
-  # Helper methods for RFQ workflow
   def calculate_accepted_total(quotation)
-    # In a real implementation, this would calculate based on accepted items
-    # For now, return the full amount
     quotation.amount
   end
 

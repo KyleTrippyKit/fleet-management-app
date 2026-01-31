@@ -1,10 +1,12 @@
-# app/models/vehicle.rb
 class Vehicle < ApplicationRecord
   has_many :alerts, dependent: :destroy
   # ------------------------------------------------------------
   # Virtual attributes for form handling
   # ------------------------------------------------------------
   attr_accessor :remove_primary_photo
+  # Virtual attributes for form UI helpers (not DB columns)
+  attr_accessor :make_model_ui, :license_registration_ui
+
   
   # ------------------------------------------------------------
   # Associations
@@ -26,20 +28,25 @@ class Vehicle < ApplicationRecord
   TT_PRIMARY_PREFIXES  = %w[P H T G].freeze
   TT_SPECIAL_PREFIXES  = %w[CD RR D R].freeze
 
+  # ----------------------------
+  # Normalization / cleanup
+  # ----------------------------
   before_validation :normalize_license_plate
+  before_validation :sync_registration_number_from_license_plate
+  before_validation :normalize_vehicle_fields
+  before_validation :sync_service_owner_from_agency
 
   # ------------------------------------------------------------
   # Validations
   # ------------------------------------------------------------
-  validates :make, :model, :vehicle_type, :license_plate, :registration_number, presence: true
+  validates :agency_id, presence: true
+  validates :make, :model, :vehicle_type, :license_plate, presence: true
   validates :chassis_number, :serial_number, :year_of_manufacture, presence: true
-  validates :license_plate, :registration_number, uniqueness: true
+
+  validates :license_plate, uniqueness: true
+  validates :registration_number, uniqueness: true, allow_blank: true
   
   # Service owner validation - now derived from agency
-  # Keep this for backward compatibility but also validate agency presence
-  validates :agency, presence: true
-  
-  # Optional: If you want to maintain service_owner string for backward compatibility
   validate :service_owner_matches_agency
   
   validates :license_plate, format: {
@@ -57,19 +64,17 @@ class Vehicle < ApplicationRecord
   end
 
   # ------------------------------------------------------------
-  # Service Owner Compatibility Methods
+  # Service Owner Lock (derived from agency)
   # ------------------------------------------------------------
+
+  # Always expose service_owner as the agency code (backward compatible reads)
   def service_owner
-    # Return agency code for backward compatibility
     agency&.code || self[:service_owner]
   end
-  
+
+  # NEVER lookup agency based on service_owner input
+  # Just store the raw value (legacy) but do not trust it for logic
   def service_owner=(value)
-    # Set agency based on service_owner for backward compatibility
-    if value.present?
-      self.agency = Agency.find_by(code: value) if agency.nil? || agency.code != value
-    end
-    # Also store in service_owner column for backward compatibility
     self[:service_owner] = value
   end
   
@@ -80,6 +85,62 @@ class Vehicle < ApplicationRecord
 
   def license_plate_with_details
     "#{license_plate} - #{make} #{model} (#{year_of_manufacture})"
+  end
+
+  # ------------------------------------------------------------
+  # License plate normalization and sync
+  # ------------------------------------------------------------
+  def normalize_license_plate
+    return if license_plate.blank?
+
+    plate = license_plate.to_s.strip.upcase.gsub(/\s+/, "").gsub(/[^A-Z0-9]/, "")
+    prefix  = plate[/\A[A-Z]+/]
+    numbers = plate[/\d+/]
+    return if prefix.blank? || numbers.blank?
+
+    prefix = prefix[0,3] if prefix.length > 3
+    self.license_plate = "#{prefix}-#{numbers}"
+  end
+
+  def sync_registration_number_from_license_plate
+    # If user only enters plate, keep legacy field populated
+    self.registration_number = license_plate if registration_number.blank? && license_plate.present?
+  end
+
+  # Wherever you display registration_number, always fall back safely:
+  def registration_or_plate
+    registration_number.presence || license_plate
+  end
+
+  # ----------------------------
+  # Normalization helpers
+  # ----------------------------
+  def normalize_vehicle_fields
+    # Trim spaces everywhere
+    self.make = make.to_s.strip if make.present?
+    self.model = model.to_s.strip if model.present?
+
+    # Standardize plate formatting (common approach) - keep our TT format logic
+    self.license_plate = license_plate.to_s.strip.upcase if license_plate.present?
+
+    # Registration can be optional; if present, normalize it
+    self.registration_number = registration_number.to_s.strip.upcase if registration_number.present?
+
+    # Optional normalizations
+    self.color = color.to_s.strip if color.present?
+    self.vehicle_type = vehicle_type.to_s.strip if vehicle_type.present?
+
+    # If you're now using body_style as drive type
+    self.body_style = body_style.to_s.strip.upcase if body_style.present?
+
+    self.fuel_type = fuel_type.to_s.strip if fuel_type.present?
+    self.transmission = transmission.to_s.strip if transmission.present?
+  end
+
+  # This is the "lock" - sync service_owner from agency
+  def sync_service_owner_from_agency
+    return unless agency
+    self[:service_owner] = agency.code.to_s.strip
   end
 
   # ------------------------------------------------------------
@@ -100,14 +161,14 @@ class Vehicle < ApplicationRecord
   
   # Active vehicles available for assignment
   scope :active, -> {
-  # Temporary fix: return all vehicles for now
-  # We'll fix the SQL issue separately
-  all
-  # Original problematic code:
-  # left_joins(:maintenances)
-  #   .where("maintenances.status IS NULL OR maintenances.status NOT IN (?)", ['Pending', 'In Progress'])
-  #   .distinct
-}
+    # Temporary fix: return all vehicles for now
+    # We'll fix the SQL issue separately
+    all
+    # Original problematic code:
+    # left_joins(:maintenances)
+    #   .where("maintenances.status IS NULL OR maintenances.status NOT IN (?)", ['Pending', 'In Progress'])
+    #   .distinct
+  }
   
   # Available for assignment (not assigned to any driver OR assigned to specific driver for editing)
   scope :available_for_assignment, ->(current_driver_id = nil) {
@@ -263,7 +324,7 @@ class Vehicle < ApplicationRecord
 
     {
       id: "vehicle_#{id}",
-      name: "#{make} #{model} (#{registration_number})",
+      name: "#{make} #{model} (#{registration_or_plate})",
       start: start_dates.min.to_s,
       end: end_dates.max.to_s,
       parent: "0",
@@ -272,7 +333,7 @@ class Vehicle < ApplicationRecord
       details: {
         service_owner: service_owner_display,
         agency: agency&.name,
-        registration_number: registration_number,
+        registration_number: registration_or_plate,
         current_driver: current_driver_name,
         license_plate: license_plate,
         vehicle_type: vehicle_type,
@@ -335,30 +396,20 @@ class Vehicle < ApplicationRecord
   end
 
   def full_display_name
-    "#{make} #{model} (#{registration_number})"
+    "#{make} #{model} (#{registration_or_plate})"
   end
 
   def display_with_owner
-    "#{make} #{model} (#{registration_number}) - #{service_owner_display}"
+    "#{make} #{model} (#{registration_or_plate}) - #{service_owner_display}"
   end
 
   def display_with_agency
     "#{make} #{model} (#{license_plate}) - #{agency&.name}"
   end
 
-  # ------------------------------------------------------------
-  # License plate normalization
-  # ------------------------------------------------------------
-  def normalize_license_plate
-    return if license_plate.blank?
-
-    plate = license_plate.to_s.strip.upcase.gsub(/\s+/, "").gsub(/[^A-Z0-9]/, "")
-    prefix  = plate[/\A[A-Z]+/]
-    numbers = plate[/\d+/]
-    return if prefix.blank? || numbers.blank?
-
-    prefix = prefix[0,3] if prefix.length > 3
-    self.license_plate = "#{prefix}-#{numbers}"
+  # Simple display name without plate
+  def simple_display_name
+    [make, model].compact.join(" ")
   end
 
   # ------------------------------------------------------------
@@ -382,7 +433,7 @@ class Vehicle < ApplicationRecord
     utilization = ((hours_sum / (total_days * 24.0)) * 100).round(1)
 
     {
-      name: "#{make} #{model} (#{registration_number || 'N/A'})",
+      name: "#{make} #{model} (#{registration_or_plate || 'N/A'})",
       agency: agency&.name,
       distance_km: distance_sum,
       hours_plied: hours_sum,

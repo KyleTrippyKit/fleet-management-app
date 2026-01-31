@@ -42,7 +42,7 @@ class Quotation < ApplicationRecord
   
   # Validations
   validates :quote_number, presence: true, uniqueness: true
-  validates :amount, presence: true, numericality: { greater_than: 0 }
+  validates :amount, presence: true, numericality: { greater_than: 0 }, unless: :draft?
   validates :vendor, presence: true
   validates :valid_from, :valid_to, presence: true
   validate :valid_date_range

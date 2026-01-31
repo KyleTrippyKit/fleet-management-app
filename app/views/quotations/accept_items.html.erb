@@ -1,170 +1,493 @@
 <%# app/views/quotations/accept_items.html.erb %>
-<div class="container mt-4">
-  <h1>Review Quotation: <%= @quotation.quote_number %></h1>
-  
-  <div class="alert alert-info">
-    <h5>Instructions:</h5>
-    <p>Review the quotation items below. Check the boxes for items you want to accept. 
-       Items left unchecked will be excluded from the purchase order.</p>
+
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Review Quotation</h1>
+    <div class="text-muted">
+      Select what you want to accept. Anything not selected will be excluded from the Purchase Order.
+    </div>
   </div>
-  
-  <%= form_with(url: convert_to_po_quotation_path(@quotation), method: :post, class: 'mb-4') do |f| %>
-    
-    <!-- Line Items Section -->
-    <% if @line_items.any? %>
-      <div class="card mb-4">
-        <div class="card-header">
-          <h5>Parts & Materials</h5>
-        </div>
-        <div class="card-body">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Accept</th>
-                <th>Description</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Total</th>
-                <th>Specifications</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @line_items.each do |item| %>
-                <tr>
-                  <td>
-                    <%= check_box_tag "accepted_line_items[]", item.id, true, 
-                        class: 'form-check-input item-checkbox' %>
-                  </td>
-                  <td><%= item.description %></td>
-                  <td><%= item.quantity %></td>
-                  <td>$<%= number_with_precision(item.unit_price, precision: 2) %></td>
-                  <td>$<%= number_with_precision(item.total_price, precision: 2) %></td>
-                  <td><small class="text-muted"><%= item.specifications %></small></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    <% end %>
-    
-    <!-- Jobs Section -->
-    <% if @quotation_jobs&.any? %>
-      <div class="card mb-4">
-        <div class="card-header">
-          <h5>Labor & Services</h5>
-        </div>
-        <div class="card-body">
-          <% @quotation_jobs.each do |job| %>
-            <div class="mb-4 border-bottom pb-3">
-              <div class="d-flex align-items-center mb-2">
-                <%= check_box_tag "accepted_jobs[]", job.id, true, 
-                    class: 'form-check-input job-checkbox me-2',
-                    data: { job_id: job.id } %>
-                <h6 class="mb-0"><%= job.name %></h6>
-                <span class="badge bg-info ms-2">$<%= number_with_precision(job.total_labor_cost, precision: 2) %></span>
-              </div>
-              <p class="text-muted"><%= job.description %></p>
-              
-              <!-- Job Parts -->
-              <% if job.quotation_job_parts.any? %>
-                <div class="ms-4">
-                  <h6 class="text-muted mb-2">Required Parts:</h6>
-                  <table class="table table-sm">
-                    <thead>
-                      <tr>
-                        <th>Accept</th>
-                        <th>Part</th>
-                        <th>Qty</th>
-                        <th>Unit Price</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <% job.quotation_job_parts.each do |part| %>
-                        <tr>
-                          <td>
-                            <%= check_box_tag "accepted_job_parts[]", part.id, true, 
-                                class: 'form-check-input part-checkbox',
-                                data: { job_id: job.id } %>
-                          </td>
-                          <td><%= part.part&.name || "Part" %></td>
-                          <td><%= part.quantity %></td>
-                          <td>$<%= number_with_precision(part.unit_price, precision: 2) %></td>
-                          <td>$<%= number_with_precision(part.total_price, precision: 2) %></td>
-                        </tr>
-                      <% end %>
-                    </tbody>
-                  </table>
-                </div>
-              <% end %>
-            </div>
+
+  <div class="text-end">
+    <div class="fw-semibold h5 text-primary"><%= @quotation.quote_number %></div>
+    <div class="text-muted small">
+      Vendor: <span class="badge bg-info"><%= @quotation.vendor %></span> |
+      Status: <span class="badge bg-<%= @quotation.respond_to?(:status_color) ? @quotation.status_color : 'secondary' %>"><%= @quotation.status.to_s.humanize %></span>
+    </div>
+  </div>
+</div>
+
+<!-- Quotation Summary Card -->
+<div class="card mb-3 shadow-sm">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="text-muted small">Vehicle</div>
+        <div class="fw-semibold">
+          <% if @quotation.vehicle %>
+            <%= @quotation.vehicle.license_plate %>
+            <small class="text-muted d-block"><%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %></small>
+          <% else %>
+            <span class="text-danger">N/A</span>
           <% end %>
         </div>
       </div>
-    <% end %>
-    
-    <!-- Summary -->
-    <div class="card">
-      <div class="card-header">
-        <h5>Summary</h5>
+
+      <div class="col-md-4">
+        <div class="text-muted small">Agency</div>
+        <div class="fw-semibold">
+          <%= @quotation.agency&.code || @quotation.agency&.name || "N/A" %>
+        </div>
       </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <table class="table">
-              <tr>
-                <th>Vendor:</th>
-                <td><%= @quotation.vendor %></td>
-              </tr>
-              <tr>
-                <th>Vehicle:</th>
-                <td>
-                  <%= @quotation.vehicle&.license_plate %>
-                  <%= @quotation.vehicle&.make %> <%= @quotation.vehicle&.model %>
-                </td>
-              </tr>
-              <tr>
-                <th>Valid Until:</th>
-                <td><%= @quotation.valid_to.strftime('%b %d, %Y') %></td>
-              </tr>
-            </table>
-          </div>
-          <div class="col-md-6">
-            <div class="alert alert-warning">
-              <h6>Quotation Total: $<%= number_with_precision(@quotation.amount, precision: 2) %></h6>
-              <p class="mb-0">Accepted items total will be calculated when you proceed.</p>
-            </div>
+
+      <div class="col-md-4">
+        <div class="text-muted small">Quoted Amount</div>
+        <div class="fw-semibold h5 text-success">
+          $<%= number_with_precision(@quotation.amount.to_f, precision: 2) %>
+        </div>
+      </div>
+
+      <% if @quotation.notes.present? %>
+        <div class="col-12">
+          <div class="text-muted small">Notes</div>
+          <div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">
+            <%= @quotation.notes %>
           </div>
         </div>
-        
-        <!-- Action Buttons -->
-        <div class="d-flex justify-content-between">
-          <%= link_to 'Back to Quotation', quotation_path(@quotation), class: 'btn btn-secondary' %>
-          <div>
-            <%= f.submit 'Reject All', name: 'reject_all', class: 'btn btn-danger me-2', 
-                  data: { confirm: 'Are you sure you want to reject this entire quotation?' } %>
-            <%= f.submit 'Create Purchase Order', class: 'btn btn-success',
-                  data: { confirm: 'Create purchase order with selected items only?' } %>
-          </div>
+      <% end %>
+
+      <div class="col-md-6">
+        <div class="text-muted small">Valid From</div>
+        <div class="fw-semibold"><%= (@quotation.valid_from&.strftime('%b %d, %Y') || 'N/A') %></div>
+      </div>
+      <div class="col-md-6">
+        <div class="text-muted small">Valid To</div>
+        <div class="fw-semibold <%= 'text-danger' if @quotation.valid_to && @quotation.valid_to < Date.today %>">
+          <%= (@quotation.valid_to&.strftime('%b %d, %Y') || 'N/A') %>
+          <% if @quotation.valid_to && @quotation.valid_to < Date.today %>
+            <small class="badge bg-danger ms-1">Expired</small>
+          <% end %>
         </div>
       </div>
     </div>
-  <% end %>
+  </div>
 </div>
 
+<%# IMPORTANT: data-turbo=false avoids Turbo swallowing redirects %>
+<%= form_with url: convert_to_po_quotation_path(@quotation),
+              method: :post,
+              class: "accept-items-form",
+              data: { turbo: false } do %>
+
+  <%# Allows controller to know which submit happened %>
+  <%= hidden_field_tag :action_source, "accept_items" %>
+
+  <!-- Line Items Section -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
+      <div class="fw-semibold h6 mb-0">
+        <i class="fas fa-box me-2"></i>Line Items
+        <span class="badge bg-secondary"><%= @line_items&.count || 0 %></span>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('accepted_line_items[]', true)">
+          <i class="fas fa-check-square me-1"></i>Select All
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('accepted_line_items[]', false)">
+          <i class="fas fa-square me-1"></i>Clear
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <% if @line_items.present? && @line_items.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 52px;" class="text-center">Accept</th>
+                <th>Description</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @line_items.each do |li| %>
+                <% qty = li.quantity.to_f %>
+                <% unit = li.unit_price.to_f %>
+                <% total = qty * unit %>
+
+                <tr data-line-item="1" data-qty="<%= qty %>" data-unit="<%= unit %>">
+                  <td class="text-center align-middle">
+                    <input class="form-check-input line-item-checkbox"
+                           type="checkbox"
+                           name="accepted_line_items[]"
+                           value="<%= li.id %>"
+                           checked
+                           onchange="updateSelectionSummary()">
+                  </td>
+
+                  <td class="align-middle">
+                    <div class="fw-semibold"><%= li.description.presence || "Line Item" %></div>
+                    <% if li.specifications.present? %>
+                      <div class="text-muted small"><%= li.specifications %></div>
+                    <% end %>
+                  </td>
+
+                  <td class="text-end align-middle">
+                    <span class="badge bg-primary rounded-pill"><%= qty %></span>
+                  </td>
+
+                  <td class="text-end align-middle">
+                    $<%= number_with_precision(unit, precision: 2) %>
+                  </td>
+
+                  <td class="text-end align-middle fw-bold line-item-total">
+                    $<%= number_with_precision(total, precision: 2) %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot class="table-light">
+              <% subtotal = @line_items.sum { |x| x.quantity.to_f * x.unit_price.to_f } %>
+              <tr>
+                <td colspan="4" class="text-end"><strong>Subtotal:</strong></td>
+                <td class="text-end fw-bold" id="line-items-subtotal">
+                  $<%= number_with_precision(subtotal, precision: 2) %>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      <% else %>
+        <div class="p-4 text-center text-muted">
+          <i class="fas fa-box-open fa-2x mb-2"></i>
+          <div>No line items found.</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Jobs & Parts Section -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
+      <div class="fw-semibold h6 mb-0">
+        <i class="fas fa-tools me-2"></i>Jobs & Parts
+        <span class="badge bg-secondary"><%= @quotation_jobs&.count || 0 %></span>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('accepted_jobs[]', true)">
+          <i class="fas fa-check-square me-1"></i>Select All Jobs
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('accepted_jobs[]', false)">
+          <i class="fas fa-square me-1"></i>Clear Jobs
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <% if @quotation_jobs.present? && @quotation_jobs.any? %>
+        <% @quotation_jobs.each do |job| %>
+          <% labor = job.total_labor_cost.to_f %>
+
+          <div class="border rounded p-3 mb-3 bg-white job-block" data-job-block="1" data-job-id="<%= job.id %>" data-labor="<%= labor %>">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div class="d-flex align-items-start gap-2">
+                <div class="pt-1">
+                  <input class="form-check-input job-checkbox"
+                         type="checkbox"
+                         name="accepted_jobs[]"
+                         value="<%= job.id %>"
+                         checked
+                         data-job-id="<%= job.id %>"
+                         onchange="syncJobParts(<%= job.id %>); updateSelectionSummary()">
+                </div>
+
+                <div>
+                  <div class="fw-semibold h6"><%= job.name.presence || "Job" %></div>
+                  <% if job.description.present? %>
+                    <div class="text-muted small"><%= job.description %></div>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="text-end">
+                <div class="text-muted small">Labor Cost</div>
+                <div class="fw-semibold h5 text-info job-labor">
+                  $<%= number_with_precision(labor, precision: 2) %>
+                </div>
+              </div>
+            </div>
+
+            <% parts = job.quotation_job_parts.includes(:part) rescue job.quotation_job_parts %>
+            <% if parts.present? && parts.any? %>
+              <div class="mt-3 pt-3 border-top">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                  <div class="text-muted small">
+                    <i class="fas fa-cogs me-1"></i>Parts for this job
+                    <span class="badge bg-secondary ms-1"><%= parts.count %></span>
+                  </div>
+
+                  <div class="d-flex gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            onclick="togglePartsForJob(<%= job.id %>, true)">
+                      <i class="fas fa-check-square me-1"></i>Select All Parts
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            onclick="togglePartsForJob(<%= job.id %>, false)">
+                      <i class="fas fa-square me-1"></i>Clear Parts
+                    </button>
+                  </div>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 52px;" class="text-center">Accept</th>
+                        <th>Part</th>
+                        <th class="text-end">Qty</th>
+                        <th class="text-end">Unit</th>
+                        <th class="text-end">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% parts.each do |jp| %>
+                        <% pqty = jp.quantity.to_f %>
+                        <% punit = jp.unit_price.to_f %>
+                        <% ptotal = (jp.total_price.present? ? jp.total_price.to_f : (pqty * punit)) %>
+
+                        <tr class="part-row"
+                            data-part-row="1"
+                            data-job-id="<%= job.id %>"
+                            data-qty="<%= pqty %>"
+                            data-unit="<%= punit %>"
+                            data-total="<%= ptotal %>">
+
+                          <td class="text-center align-middle">
+                            <input class="form-check-input part-checkbox"
+                                   type="checkbox"
+                                   name="accepted_job_parts[]"
+                                   value="<%= jp.id %>"
+                                   checked
+                                   data-job-id="<%= job.id %>"
+                                   onchange="updateSelectionSummary()">
+                          </td>
+
+                          <td class="align-middle">
+                            <div class="fw-semibold">
+                              <%= jp.part&.name || "Part" %>
+                              <% if jp.part&.part_number.present? %>
+                                <span class="text-muted small">(<%= jp.part.part_number %>)</span>
+                              <% end %>
+                            </div>
+
+                            <% if jp.part&.current_stock %>
+                              <div class="text-muted small">
+                                Stock:
+                                <span class="<%= jp.part.current_stock.to_i >= jp.quantity.to_i ? 'text-success' : 'text-danger' %>">
+                                  <%= jp.part.current_stock %>
+                                </span>
+                              </div>
+                            <% end %>
+                          </td>
+
+                          <td class="text-end align-middle">
+                            <span class="badge bg-primary rounded-pill"><%= pqty %></span>
+                          </td>
+                          <td class="text-end align-middle">$<%= number_with_precision(punit, precision: 2) %></td>
+                          <td class="text-end align-middle fw-bold">$<%= number_with_precision(ptotal, precision: 2) %></td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                    <tfoot class="table-light">
+                      <% parts_sub = parts.sum { |x| (x.total_price.present? ? x.total_price.to_f : (x.quantity.to_f * x.unit_price.to_f)) } %>
+                      <tr>
+                        <td colspan="4" class="text-end"><strong>Parts Subtotal:</strong></td>
+                        <td class="text-end fw-bold">
+                          $<%= number_with_precision(parts_sub, precision: 2) %>
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            <% else %>
+              <div class="mt-2 text-muted small text-center py-2">
+                <i class="fas fa-box-open me-1"></i>No parts for this job.
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="p-4 text-center text-muted">
+          <i class="fas fa-tools fa-2x mb-2"></i>
+          <div>No jobs found on this quotation.</div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Selection Summary & Actions -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-light">
+      <h6 class="mb-0">Selection Summary</h6>
+    </div>
+
+    <div class="card-body">
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="text-muted">Line Items Selected:</span>
+            <span class="fw-bold" id="selected-line-items-count">0</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <span class="text-muted">Jobs Selected:</span>
+            <span class="fw-bold" id="selected-jobs-count">0</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted">Parts Selected:</span>
+            <span class="fw-bold" id="selected-parts-count">0</span>
+          </div>
+        </div>
+
+        <div class="col-md-8">
+          <div class="alert alert-info mb-0">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>Estimated Accepted Total:</strong>
+                <div class="h4 mb-0" id="estimated-total">$0.00</div>
+              </div>
+              <div class="text-muted small text-end">
+                <div>Original: $<%= number_with_precision(@quotation.amount.to_f, precision: 2) %></div>
+                <div id="discount-percentage">0% accepted</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-between flex-wrap gap-2 pt-3 border-top">
+        <%= link_to received_quotations_path, class: "btn btn-outline-secondary" do %>
+          <i class="fas fa-arrow-left me-2"></i>Back to Quotations
+        <% end %>
+
+        <div class="d-flex gap-2">
+          <%= button_to "Reject Entire Quotation",
+                convert_to_po_quotation_path(@quotation, reject_all: 1),
+                method: :post,
+                class: "btn btn-outline-danger",
+                form: { data: { turbo: false } },
+                data: { confirm: "Are you sure you want to reject this entire quotation? This cannot be undone." } %>
+
+          <button type="submit" class="btn btn-success btn-lg">
+            <i class="fas fa-file-invoice-dollar me-2"></i>
+            Create Purchase Order From Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
 <script>
-  // Add JavaScript to manage checkboxes
   document.addEventListener('DOMContentLoaded', function() {
-    // When job checkbox is unchecked, uncheck all its parts
-    document.querySelectorAll('.job-checkbox').forEach(function(checkbox) {
-      checkbox.addEventListener('change', function() {
-        const jobId = this.dataset.jobId;
-        const partCheckboxes = document.querySelectorAll(`.part-checkbox[data-job-id="${jobId}"]`);
-        partCheckboxes.forEach(function(partCheckbox) {
-          partCheckbox.checked = this.checked;
-        }.bind(this));
-      });
+    updateSelectionSummary();
+
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', updateSelectionSummary);
     });
   });
+
+  function toggleAll(fieldName, checked) {
+    document.querySelectorAll('input[name="' + fieldName + '"]').forEach(cb => {
+      cb.checked = checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+
+    if (fieldName === "accepted_jobs[]") {
+      document.querySelectorAll(".job-checkbox").forEach(jobCb => {
+        const jobId = jobCb.getAttribute("data-job-id");
+        syncJobParts(jobId);
+      });
+    }
+  }
+
+  function togglePartsForJob(jobId, checked) {
+    document.querySelectorAll('.part-checkbox[data-job-id="' + jobId + '"]').forEach(cb => {
+      cb.checked = checked;
+      cb.dispatchEvent(new Event('change'));
+    });
+  }
+
+  function syncJobParts(jobId) {
+    const jobCb = document.querySelector('.job-checkbox[data-job-id="' + jobId + '"]');
+    const parts = document.querySelectorAll('.part-checkbox[data-job-id="' + jobId + '"]');
+
+    if (!jobCb) return;
+
+    if (!jobCb.checked) {
+      parts.forEach(cb => {
+        cb.checked = false;
+        cb.dispatchEvent(new Event('change'));
+      });
+    }
+  }
+
+  function moneyToFloat(text) {
+    if (!text) return 0;
+    return parseFloat(text.replace(/[$,]/g, '').trim()) || 0;
+  }
+
+  function updateSelectionSummary() {
+    const lineItemsSelected = document.querySelectorAll('input[name="accepted_line_items[]"]:checked').length;
+    const jobsSelected      = document.querySelectorAll('input[name="accepted_jobs[]"]:checked').length;
+    const partsSelected     = document.querySelectorAll('input[name="accepted_job_parts[]"]:checked').length;
+
+    document.getElementById('selected-line-items-count').textContent = lineItemsSelected;
+    document.getElementById('selected-jobs-count').textContent = jobsSelected;
+    document.getElementById('selected-parts-count').textContent = partsSelected;
+
+    let estimatedTotal = 0;
+
+    // Line items totals: use row dataset qty/unit (reliable)
+    document.querySelectorAll('input[name="accepted_line_items[]"]:checked').forEach(cb => {
+      const row = cb.closest('tr');
+      if (!row) return;
+      const qty  = parseFloat(row.getAttribute('data-qty')) || 0;
+      const unit = parseFloat(row.getAttribute('data-unit')) || 0;
+      estimatedTotal += (qty * unit);
+    });
+
+    // Jobs labor: use job block dataset labor
+    document.querySelectorAll('input[name="accepted_jobs[]"]:checked').forEach(cb => {
+      const jobId = cb.getAttribute('data-job-id');
+      const block = document.querySelector('.job-block[data-job-id="' + jobId + '"]');
+      if (!block) return;
+      const labor = parseFloat(block.getAttribute('data-labor')) || 0;
+      estimatedTotal += labor;
+    });
+
+    // Parts totals: use row dataset total
+    document.querySelectorAll('input[name="accepted_job_parts[]"]:checked').forEach(cb => {
+      const row = cb.closest('tr');
+      if (!row) return;
+      const total = parseFloat(row.getAttribute('data-total')) || 0;
+      estimatedTotal += total;
+    });
+
+    document.getElementById('estimated-total').textContent =
+      '$' + estimatedTotal.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+
+    const originalTotal = <%= @quotation.amount.to_f %>;
+    const acceptancePercentage = originalTotal > 0 ? (estimatedTotal / originalTotal * 100) : 0;
+
+    document.getElementById('discount-percentage').textContent =
+      Math.round(acceptancePercentage) + '% accepted';
+  }
 </script>

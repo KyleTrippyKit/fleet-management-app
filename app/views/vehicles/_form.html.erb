@@ -1,9 +1,9 @@
-<%# app/views/vehicles/_form.html.erb %>
+<%# File: app/views/vehicles/_form.html.erb %>
 <%= form_with(model: vehicle, local: true, html: { multipart: true, class: "needs-validation" }) do |form| %>
   <% if vehicle.errors.any? %>
     <div class="alert alert-danger">
       <h5><%= pluralize(vehicle.errors.count, "error") %> prevented this vehicle from saving:</h5>
-      <ul>
+      <ul class="mb-0">
         <% vehicle.errors.full_messages.each do |msg| %>
           <li><%= msg %></li>
         <% end %>
@@ -14,7 +14,7 @@
   <div class="row g-3">
     <!-- Left Column -->
     <div class="col-md-6">
-      <!-- Add Agency field here for VMCOTT users -->
+      <%# Agency selection only for VMCOTT %>
       <% if current_user.agency.code == "VMCOTT" %>
         <div class="mb-3">
           <%= form.label :agency_id, "Agency", class: "form-label" %>
@@ -24,7 +24,6 @@
           <small class="text-muted">Select which agency this vehicle belongs to</small>
         </div>
       <% else %>
-        <!-- Non-VMCOTT users: agency is automatically their own -->
         <div class="mb-3">
           <label class="form-label">Agency</label>
           <input type="text" class="form-control" value="<%= current_user.agency.name %>" readonly>
@@ -33,100 +32,141 @@
         </div>
       <% end %>
 
+      <%# MAKE + MODEL AUTOCOMPLETE (Stimulus) %>
+      <div class="mb-3 position-relative"
+           data-controller="vehicle-catalog"
+           data-vehicle-catalog-url-value="/vehicles/catalog_search">
+
+        <%= form.label :make_model_ui, "Make & Model", class: "form-label" %>
+
+        <%= form.text_field :make_model_ui,
+              value: [vehicle.make, vehicle.model].compact.join(" "),
+              class: "form-control",
+              placeholder: "Start typing e.g. Toyota Hilux",
+              autocomplete: "off",
+              data: {
+                "vehicle-catalog-target": "query",
+                action: "input->vehicle-catalog#search keydown->vehicle-catalog#keydown blur->vehicle-catalog#blur"
+              } %>
+
+        <%# Dropdown results container (required target) %>
+        <div data-vehicle-catalog-target="results"
+             class="list-group position-absolute w-100 shadow"
+             style="display:none; z-index:2000; max-height:260px; overflow:auto;">
+        </div>
+
+        <%# Optional status/debug line (target exists in controller; safe if unused) %>
+        <small data-vehicle-catalog-target="status" class="text-muted d-block mt-1"></small>
+
+        <%# Hidden DB fields that are filled by JS OR server-side parsing %>
+        <%= form.hidden_field :make,  value: vehicle.make,  data: { "vehicle-catalog-target": "make" } %>
+        <%= form.hidden_field :model, value: vehicle.model, data: { "vehicle-catalog-target": "model" } %>
+
+        <small class="text-muted d-block mt-1">
+          Type 2+ letters. Use ↑/↓ then Enter, or click a suggestion.
+          If typing manually, use a space between make and model (e.g. <strong>Toyota Hilux</strong>).
+        </small>
+      </div>
+
+      <%# Vehicle Type dropdown (can be auto-filled if blank) %>
       <div class="mb-3">
-        <%= form.label :make %>
-        <%= form.text_field :make, class: "form-control", required: true %>
+        <%= form.label :vehicle_type, class: "form-label" %>
+        <%= form.select :vehicle_type,
+              (@vehicle_types || []).map { |t| [t, t] },
+              { include_blank: "Select vehicle type" },
+              class: "form-select",
+              data: { "vehicle-catalog-target": "type" } %>
+        <small class="text-muted">Optional (auto-filled from catalog if available).</small>
       </div>
 
       <div class="mb-3">
-        <%= form.label :model %>
-        <%= form.text_field :model, class: "form-control", required: true %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :vehicle_type %>
-        <%= form.text_field :vehicle_type, class: "form-control", required: true %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :color %>
+        <%= form.label :color, class: "form-label" %>
         <%= form.text_field :color, class: "form-control" %>
       </div>
 
       <div class="mb-3">
-        <%= form.label :year_of_manufacture %>
-        <%= form.number_field :year_of_manufacture, class: "form-control", min: 1900, max: Time.now.year %>
+        <%= form.label :year_of_manufacture, class: "form-label" %>
+        <%= form.number_field :year_of_manufacture, class: "form-control", min: 1900, max: Time.current.year %>
       </div>
 
       <div class="mb-3">
-        <%= form.label :chassis_number %>
+        <%= form.label :chassis_number, class: "form-label" %>
         <%= form.text_field :chassis_number, class: "form-control" %>
       </div>
 
       <div class="mb-3">
-        <%= form.label :serial_number %>
+        <%= form.label :serial_number, class: "form-label" %>
         <%= form.text_field :serial_number, class: "form-control" %>
       </div>
 
       <div class="mb-3">
-        <%= form.label :engine_number %>
+        <%= form.label :engine_number, class: "form-label" %>
         <%= form.text_field :engine_number, class: "form-control" %>
       </div>
 
+      <%# Fuel type dropdown %>
       <div class="mb-3">
-        <%= form.label :fuel_type %>
-        <%= form.text_field :fuel_type, class: "form-control" %>
+        <%= form.label :fuel_type, class: "form-label" %>
+        <%= form.select :fuel_type,
+              VehiclesController::FUEL_TYPES.map { |t| [t, t] },
+              { include_blank: "Select fuel type" },
+              class: "form-select" %>
+      </div>
+
+      <%# Transmission dropdown %>
+      <div class="mb-3">
+        <%= form.label :transmission, class: "form-label" %>
+        <%= form.select :transmission,
+              VehiclesController::TRANSMISSIONS.map { |t| [t, t] },
+              { include_blank: "Select transmission" },
+              class: "form-select" %>
+      </div>
+
+      <%# Drive Type dropdown (stored in body_style for now) %>
+      <div class="mb-3">
+        <%= form.label :body_style, "Drive Type", class: "form-label" %>
+        <%= form.select :body_style,
+              VehiclesController::DRIVE_TYPES.map { |t| [t, t] },
+              { include_blank: "Select drive type" },
+              class: "form-select" %>
+        <small class="text-muted">Stored in “body_style” for now (rename to drive_type later if desired).</small>
       </div>
 
       <div class="mb-3">
-        <%= form.label :transmission %>
-        <%= form.text_field :transmission, class: "form-control" %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :body_style %>
-        <%= form.text_field :body_style, class: "form-control" %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :modifications %>
+        <%= form.label :modifications, class: "form-label" %>
         <%= form.text_area :modifications, class: "form-control", rows: 3 %>
       </div>
     </div>
 
     <!-- Right Column -->
     <div class="col-md-6">
+      <%# Combined License + Registration UI field (parsed server-side into license_plate + registration_number) %>
       <div class="mb-3">
-        <%= form.label :license_plate %>
-        <%= form.text_field :license_plate, class: "form-control", required: true %>
+        <%= form.label :license_registration_ui, "License / Registration", class: "form-label" %>
+        <%= form.text_field :license_registration_ui,
+              value: [vehicle.license_plate, vehicle.registration_number].compact.join(" / "),
+              class: "form-control",
+              placeholder: "e.g. PDM 1234 / REG-88991" %>
+
+        <%= form.hidden_field :license_plate, value: vehicle.license_plate %>
+        <%= form.hidden_field :registration_number, value: vehicle.registration_number %>
+
+        <small class="text-muted d-block mt-1">
+          Format: <strong>PLATE / REG</strong> (registration optional).
+        </small>
+      </div>
+
+      <%# Service owner is auto-assigned in controller %>
+      <div class="mb-3">
+        <label class="form-label">Service Owner</label>
+        <input type="text" class="form-control" value="<%= (vehicle.service_owner.presence || current_user.agency.code) %>" readonly>
+        <small class="text-muted">Auto-assigned based on logged-in agency.</small>
+        <%= form.hidden_field :service_owner, value: (vehicle.service_owner.presence || current_user.agency.code) %>
       </div>
 
       <div class="mb-3">
-        <%= form.label :registration_number %>
-        <%= form.text_field :registration_number, class: "form-control", required: true %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :service_owner %>
-        <%= form.select :service_owner,
-                        ["PTSC", "Police", "Fire Service"],
-                        { prompt: "Select Owner" },
-                        class: "form-select",
-                        required: true,
-                        data: { controller: "agency-assign" } %>
-        <small class="text-muted">Selecting a service owner will auto-assign agency</small>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :mileage %>
-        <%= form.number_field :mileage, class: "form-control" %>
-      </div>
-
-      <div class="mb-3">
-        <%= form.label :driver_id, "Driver" %>
-        <%= form.collection_select :driver_id, Driver.all, :id, :name, 
-              { include_blank: "Select Driver" }, 
-              class: "form-select" %>
+        <%= form.label :mileage, class: "form-label" %>
+        <%= form.number_field :mileage, class: "form-control", placeholder: "e.g. 125000" %>
       </div>
 
       <!-- Primary Photo Upload -->
@@ -138,12 +178,12 @@
             Upload a clear photo of the vehicle. Will be used instead of placeholder.
           </div>
         </div>
-        
+
         <% if vehicle.persisted? && vehicle.primary_photo.attached? %>
           <div class="current-photo mb-3">
             <p class="text-muted mb-2">Current photo:</p>
             <div class="d-flex align-items-center gap-3">
-              <%= image_tag vehicle.primary_photo.variant(resize_to_limit: [200, 150]), 
+              <%= image_tag vehicle.primary_photo.variant(resize_to_limit: [200, 150]),
                     class: "img-thumbnail" %>
               <div class="form-check">
                 <%= form.check_box :remove_primary_photo, class: "form-check-input" %>
@@ -157,29 +197,26 @@
       <!-- Gallery Photos Upload -->
       <div class="mb-3">
         <%= form.label :gallery_photos, "Additional Photos", class: "form-label" %>
-        <%= form.file_field :gallery_photos, 
-              multiple: true, 
-              class: "form-control", 
-              accept: "image/*" %>
+        <%= form.file_field :gallery_photos, multiple: true, class: "form-control", accept: "image/*" %>
         <div class="form-text">
           Upload additional photos (interior, engine, documents, etc.)
         </div>
-        
+
         <% if vehicle.persisted? && vehicle.gallery_photos.attached? %>
           <div class="mt-3">
             <p class="text-muted mb-2">Current gallery photos:</p>
             <div class="d-flex flex-wrap gap-3">
               <% vehicle.gallery_photos.each do |photo| %>
                 <div class="position-relative">
-                  <%= image_tag photo.variant(resize_to_limit: [100, 75]), 
+                  <%= image_tag photo.variant(resize_to_limit: [100, 75]),
                         class: "img-thumbnail" %>
                   <div class="form-check mt-1">
-                    <%= check_box_tag "remove_gallery_photo_ids[]", 
-                          photo.id, 
-                          false, 
+                    <%= check_box_tag "remove_gallery_photo_ids[]",
+                          photo.id,
+                          false,
                           class: "form-check-input" %>
-                    <%= label_tag "remove_gallery_photo_ids_#{photo.id}", 
-                          "Remove", 
+                    <%= label_tag "remove_gallery_photo_ids_#{photo.id}",
+                          "Remove",
                           class: "form-check-label" %>
                   </div>
                 </div>
