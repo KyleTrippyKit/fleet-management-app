@@ -404,33 +404,64 @@ class QuotationsController < ApplicationController
   end
 
   # GET /quotations/1/assign_jobs - For VMCOTT to assign jobs to line items
-  def assign_jobs
-    return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
-    
-    # Load RFQ if exists
-    @rfq = @quotation.rfq
-    
-    # Load job templates - FIXED: Filter by vehicle year
-    base = JobTemplate.where(agency_id: current_user.agency_id).active
-    
-    if @quotation.vehicle.present?
-      @job_templates = base.for_vehicle_exact_year(@quotation.vehicle)
-    else
-      @job_templates = base.none
-    end
-    
-    # Load existing quotation jobs
-    @quotation_jobs = @quotation.quotation_jobs
-    
-    # Load RFQ line items for assignment
-    if @rfq
-      @rfq_line_items = @rfq.rfq_line_items
-    else
-      @rfq_line_items = []
-    end
-    
-    render :assign_jobs
+  # app/controllers/quotations_controller.rb - Update the assign_jobs method
+
+def assign_jobs
+  return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
+  
+  # Load RFQ if exists
+  @rfq = @quotation.rfq
+  
+  # Load job templates - FILTER FOR GENERAL SERVICES ONLY (no parts required)
+  base = JobTemplate.where(agency_id: current_user.agency_id).active
+  
+  # Filter 1: Show only job templates with specific names indicating general services
+  general_service_names = [
+    'Basic Oil Change Service',
+    'Complete Vehicle Diagnostic',
+    'Windshield Replacement',
+    'Complete Interior Detail',
+    'Full Service - 10,000km',
+    'Major Service - 50,000km'
+  ]
+  
+  # Filter 2: Or templates with specific categories
+  general_service_categories = [
+    'Preventive Maintenance',
+    'General Service',
+    'Diagnostic',
+    'Interior',
+    'Cleaning'
+  ]
+  
+  # Combine filters
+  @job_templates = base.where(
+    "name IN (?) OR category IN (?) OR 
+     name ILIKE ANY (array[?])",
+    general_service_names,
+    general_service_categories,
+    ['%oil change%', '%inspection%', '%diagnostic%', '%service%', '%detail%', '%cleaning%']
+  )
+  
+  # Alternative: Filter by having no parts or minimal parts
+  # @job_templates = @job_templates.left_joins(:job_template_parts)
+  #                                .group('job_templates.id')
+  #                                .having('COUNT(job_template_parts.id) <= 2')
+  
+  Rails.logger.info "DEBUG: Loaded #{@job_templates.count} general service job templates"
+  
+  # Load existing quotation jobs
+  @quotation_jobs = @quotation.quotation_jobs
+  
+  # Load RFQ line items for assignment
+  if @rfq
+    @rfq_line_items = @rfq.rfq_line_items
+  else
+    @rfq_line_items = []
   end
+  
+  render :assign_jobs
+end
 
   # PATCH /quotations/1/update_jobs - Update job assignments
   def update_jobs

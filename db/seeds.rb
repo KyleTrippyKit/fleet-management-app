@@ -490,6 +490,49 @@ else
   puts "⚠ VehicleCatalogEntry model not found. Skipping catalog build."
 end
 
+# ============================================================
+# ✅ IMPORTING TT VEHICLE CATALOG CSV (NEW SECTION)
+# ============================================================
+puts "\n=== IMPORTING TT VEHICLE CATALOG CSV ==="
+csv_path = Rails.root.join("db/data/vehicle_catalog_tt.csv")
+
+if File.exist?(csv_path) && defined?(VehicleCatalogEntry)
+  require "csv"
+  
+  imported_count = 0
+  skipped_count = 0
+  
+  puts "Reading CSV from: #{csv_path}"
+  
+  CSV.foreach(csv_path, headers: true) do |row|
+    make = row["make"].to_s.strip
+    model = row["model"].to_s.strip
+    next if make.blank? || model.blank?
+
+    begin
+      entry = VehicleCatalogEntry.find_or_create_by!(make: make, model: model) do |e|
+        e.vehicle_type = row["vehicle_type"].to_s.strip.presence
+        e.year_from = row["year_from"].to_i if row["year_from"].present?
+        e.year_to = row["year_to"].to_i if row["year_to"].present?
+      end
+      
+      if entry.previously_new_record?
+        imported_count += 1
+        puts "  Added: #{make} #{model}" if imported_count % 50 == 0
+      else
+        skipped_count += 1
+      end
+    rescue StandardError => e
+      puts "  ✗ Error importing #{make} #{model}: #{e.message}"
+    end
+  end
+  
+  puts "✓ CSV import complete. Imported: #{imported_count}, Skipped (existing): #{skipped_count}"
+  puts "  Total catalog entries: #{VehicleCatalogEntry.count}"
+else
+  puts "⚠️ No CSV found at #{csv_path} (or model missing). Skipping catalog CSV import."
+end
+
 puts "\n=== CREATING DRIVERS ==="
 
 drivers_data = [
@@ -1003,4 +1046,5 @@ puts "=" * 50
 puts "\n🎉 DATABASE SEEDED SUCCESSFULLY!"
 puts "\nAll vehicles have location data including GPS coordinates (if columns exist)."
 puts "Vehicle catalog has been generated for autocomplete (make/model search)."
+puts "TT Vehicle Catalog CSV has been imported (if file exists)."
 puts "PTSC POS system is fully set up with routes and fare rules."

@@ -1,23 +1,23 @@
-// app/javascript/controllers/vehicle_catalog_controller.js
+// File: app/javascript/controllers/vehicle_catalog_controller.js
+// Replace the ENTIRE file with this (copy/paste).
+
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["query", "results", "make", "model", "type", "status"]
-
-  static values = {
-    url: { type: String, default: "/vehicles/catalog_search" }
-  }
+  static values = { url: { type: String, default: "/vehicles/catalog_search" } }
 
   connect() {
     this.timeout = null
     this.activeIndex = -1
     this.items = []
     this.hideResults()
+    console.log("✅ vehicle-catalog connected", { url: this.urlValue })
   }
 
-  // ====================================================
-  // EVENTS
-  // ====================================================
+  // -------------------------
+  // Events
+  // -------------------------
   search() {
     clearTimeout(this.timeout)
 
@@ -27,9 +27,7 @@ export default class extends Controller {
       return
     }
 
-    this.timeout = setTimeout(() => {
-      this.fetchResults(q)
-    }, 200)
+    this.timeout = setTimeout(() => this.fetchResults(q), 150)
   }
 
   keydown(event) {
@@ -57,21 +55,22 @@ export default class extends Controller {
   }
 
   blur() {
-    // allow click selection before clearing
+    // Let click selection happen first
     setTimeout(() => {
       this.applyManualEntryToHiddenFields()
       this.clearResults()
     }, 150)
   }
 
-  // ====================================================
-  // NETWORK
-  // ====================================================
+  // -------------------------
+  // Network
+  // -------------------------
   async fetchResults(q) {
     try {
       const url = `${this.urlValue}?q=${encodeURIComponent(q)}`
-      const res = await fetch(url, { headers: { Accept: "application/json" } })
+      console.log("🔎 fetching:", url)
 
+      const res = await fetch(url, { headers: { Accept: "application/json" } })
       if (!res.ok) {
         this.setStatus(`Search failed (${res.status})`)
         this.clearResults()
@@ -80,15 +79,22 @@ export default class extends Controller {
 
       const data = await res.json()
       this.renderResults(Array.isArray(data) ? data : [])
+
+      if (!data || data.length === 0) {
+        this.setStatus("No match found — you can still type manually (e.g. Toyota Hilux).")
+      } else {
+        this.setStatus("")
+      }
     } catch (e) {
+      console.error("❌ catalog fetch error:", e)
       this.setStatus("Catalog search error")
       this.clearResults()
     }
   }
 
-  // ====================================================
-  // RENDERING
-  // ====================================================
+  // -------------------------
+  // Rendering
+  // -------------------------
   renderResults(items) {
     this.items = items || []
     this.activeIndex = -1
@@ -132,16 +138,9 @@ export default class extends Controller {
   }
 
   highlightActive() {
-    const nodes = Array.from(
-      this.resultsTarget.querySelectorAll(".list-group-item")
-    )
-
-    nodes.forEach((node, idx) =>
-      node.classList.toggle("active", idx === this.activeIndex)
-    )
-
-    const active = nodes[this.activeIndex]
-    if (active) active.scrollIntoView({ block: "nearest" })
+    const nodes = Array.from(this.resultsTarget.querySelectorAll(".list-group-item"))
+    nodes.forEach((node, idx) => node.classList.toggle("active", idx === this.activeIndex))
+    nodes[this.activeIndex]?.scrollIntoView({ block: "nearest" })
   }
 
   pickActive() {
@@ -150,15 +149,15 @@ export default class extends Controller {
     if (item) this.pick(item)
   }
 
-  // ====================================================
-  // SELECTION / FIELD FILL
-  // ====================================================
+  // -------------------------
+  // Selection / Field fill
+  // -------------------------
   pick(item) {
     if (this.hasQueryTarget) {
       this.queryTarget.value = `${item.make} ${item.model}`.trim()
     }
 
-    if (this.hasMakeTarget)  this.makeTarget.value  = item.make  || ""
+    if (this.hasMakeTarget) this.makeTarget.value = item.make || ""
     if (this.hasModelTarget) this.modelTarget.value = item.model || ""
 
     if (this.hasTypeTarget && item.vehicle_type && !this.typeTarget.value) {
@@ -175,20 +174,20 @@ export default class extends Controller {
     const raw = (this.queryTarget.value || "").trim().replace(/\s+/g, " ")
     if (!raw) return
 
-    // don't overwrite dropdown selection
-    if (
-      this.hasMakeTarget && this.makeTarget.value &&
-      this.hasModelTarget && this.modelTarget.value
-    ) return
-
+    // Always try to populate make/model from what user typed.
+    // If only one word provided, we still populate model with "Unknown" via server logic,
+    // but we keep model blank here (server will fix safely).
     const parts = raw.split(" ", 2)
-    if (this.hasMakeTarget)  this.makeTarget.value  = parts[0] || ""
-    if (this.hasModelTarget) this.modelTarget.value = parts[1] || ""
+    const makePart = (parts[0] || "").trim()
+    const modelPart = (parts[1] || "").trim()
+
+    if (this.hasMakeTarget) this.makeTarget.value = makePart
+    if (this.hasModelTarget) this.modelTarget.value = modelPart
   }
 
-  // ====================================================
-  // HELPERS
-  // ====================================================
+  // -------------------------
+  // Helpers
+  // -------------------------
   clearResults() {
     this.items = []
     this.activeIndex = -1

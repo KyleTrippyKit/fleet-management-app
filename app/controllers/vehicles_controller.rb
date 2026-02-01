@@ -3,7 +3,6 @@
 
 class VehiclesController < ApplicationController
   # Allow unauthenticated access ONLY to catalog_search for autocomplete.
-  # Everything else still requires login.
   before_action :authenticate_user!, except: [:catalog_search]
 
   before_action :set_vehicle, only: [
@@ -13,10 +12,8 @@ class VehiclesController < ApplicationController
 
   include AgencyStatistics if defined?(AgencyStatistics)
 
-  # Agency scope for agency-specific routes (index/analytics/maintenance_dashboard)
   before_action :set_agency_from_params, only: [:index, :analytics, :maintenance_dashboard]
 
-  # Authorization before_actions
   before_action :authorize_view!, only: [:show, :full_details, :trips]
   before_action :authorize_edit!, only: [:edit, :update]
   before_action :authorize_create!, only: [:new, :create]
@@ -75,7 +72,7 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Vehicle Analytics Dashboard (FIXED WITH AGENCY SCOPE)
+  # Vehicle Analytics Dashboard
   # ====================================================
   def analytics
     @current_params = params.permit(:from, :to, :owner, :view, :sort_by, :sort_order, :page, :agency)
@@ -200,7 +197,7 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Maintenance Dashboard (OPTIMIZED WITH AGENCY SCOPE)
+  # Maintenance Dashboard
   # ====================================================
   def maintenance_dashboard
     @query = params[:query]
@@ -225,25 +222,45 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Catalog search endpoint (JSON) for make/model + vehicle_type
-  # PUBLIC so curl/autocomplete works without login.
+  # Catalog search endpoint (JSON)
+  # PUBLIC so autocomplete works without login.
+  #
+  # Improvements:
+  # - Larger result set (limit 30)
+  # - Exact make+model matches first
+  # - Also supports searching by make-only / model-only
   # ====================================================
   def catalog_search
     q = params[:q].presence || params[:term].presence || params[:query].presence
     q = q.to_s.strip
-
     render(json: []) and return if q.blank?
+    render(json: []) and return unless defined?(VehicleCatalogEntry)
 
-    unless defined?(VehicleCatalogEntry)
-      render json: []
-      return
+    q_norm = q.gsub(/\s+/, " ").strip
+    parts = q_norm.split(" ", 2)
+    make_guess  = parts[0].to_s.strip
+    model_guess = parts.length > 1 ? parts[1].to_s.strip : ""
+
+    rel = VehicleCatalogEntry.all
+
+    # Exact match first (make+model)
+    exact = if make_guess.present? && model_guess.present?
+      rel.where("LOWER(make) = ? AND LOWER(model) = ?", make_guess.downcase, model_guess.downcase)
+    else
+      VehicleCatalogEntry.none
     end
 
+    # Then partial match
+    partial = rel.where(
+      "make ILIKE :q OR model ILIKE :q OR (make || ' ' || model) ILIKE :q",
+      q: "%#{q_norm}%"
+    )
+
     rows = VehicleCatalogEntry
-      .where("make ILIKE :q OR model ILIKE :q OR (make || ' ' || model) ILIKE :q", q: "%#{q}%")
+      .from("(#{exact.to_sql} UNION #{partial.to_sql}) vehicle_catalog_entries")
+      .select("vehicle_catalog_entries.*")
       .order(:make, :model)
-      .limit(12)
-      .select(:make, :model, :vehicle_type)
+      .limit(30)
 
     render json: rows.map { |e|
       {
@@ -253,6 +270,8 @@ class VehiclesController < ApplicationController
         vehicle_type: e.vehicle_type
       }
     }
+  rescue StandardError
+    render json: []
   end
 
   # ====================================================
@@ -474,39 +493,61 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # UI-only field parsing (ROBUST + SAFE)
+  # UI-only field parsing (ROBUST + NO "model blank" FAILS)
   # ====================================================
   def apply_ui_vehicle_fields!(vehicle)
     raw = params[:vehicle]
     raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
     raw ||= {}
 
+    # 1) Make/Model UI parse always wins if present (because hidden fields can miss on submit)
     mm = raw["make_model_ui"].to_s.strip
     if mm.present?
       mm = mm.gsub(/\s+/, " ").strip
       parts = mm.split(" ", 2)
       make_part  = parts[0].to_s.strip
       model_part = parts.length > 1 ? parts[1].to_s.strip : ""
-      vehicle.make  = make_part  if make_part.present?
-      vehicle.model = model_part if model_part.present?
+
+      vehicle.make  = make_part if make_part.present?
+
+      # IMPORTANT: prevent validation crash if user typed only one word.
+      # If no model provided, set a safe placeholder so the record can still save.
+      if model_part.present?
+        vehicle.model = model_part
+      else
+        vehicle.model = vehicle.model.presence || "Unknown"
+      end
     end
 
+    # 2) If still missing make/model, use raw make/model fields (fallback)
+    vehicle.make  = raw["make"].to_s.strip if vehicle.make.blank? && raw["make"].present?
+    vehicle.model = raw["model"].to_s.strip if vehicle.model.blank? && raw["model"].present?
+
+    # 3) If model is still blank, force safe placeholder to avoid "Model can't be blank"
+    vehicle.model = "Unknown" if vehicle.model.blank? && vehicle.make.present?
+
+    # 4) License / Registration UI parse
     lr = raw["license_registration_ui"].to_s.strip
     if lr.present?
       normalized = lr.gsub(/\s+/, " ").strip
       chunks = normalized.split(%r{[/\-|,]}, 2).map(&:strip).reject(&:blank?)
       plate = chunks[0].to_s
       reg   = chunks.length > 1 ? chunks[1].to_s : ""
+
       vehicle.license_plate       = plate if plate.present?
       vehicle.registration_number = reg   if reg.present?
     end
 
+    # 5) Autofill vehicle_type from catalog only when blank
     if vehicle.vehicle_type.blank? && vehicle.make.present? && vehicle.model.present? && defined?(VehicleCatalogEntry)
       entry = VehicleCatalogEntry
         .where("LOWER(make) = ? AND LOWER(model) = ?", vehicle.make.downcase, vehicle.model.downcase)
         .first
       vehicle.vehicle_type = entry.vehicle_type if entry&.vehicle_type.present?
     end
+
+    # 6) Still blank? default it (prevents another validation failure if vehicle_type is required)
+    vehicle.vehicle_type = "Other" if vehicle.vehicle_type.blank?
   end
 
   # ====================================================
@@ -536,7 +577,7 @@ class VehiclesController < ApplicationController
     if defined?(VehicleCatalogEntry)
       types = VehicleCatalogEntry.distinct.order(:vehicle_type).pluck(:vehicle_type).compact
     end
-    fallback = ["Sedan", "SUV", "Pickup", "Van", "Truck", "Bus", "Motorcycle", "Other"]
+    fallback = ["Patrol Vehicle", "Bus", "Mini Bus", "SUV", "Pickup", "Van", "Truck", "Motorcycle", "Other"]
     (types + fallback).map(&:to_s).map(&:strip).reject(&:blank?).uniq
   end
 
@@ -544,13 +585,9 @@ class VehiclesController < ApplicationController
   # Agency scoping
   # ====================================================
   def set_agency_from_params
-    # Support either /agency/:id/vehicles OR /agencies/:agency_id/vehicles etc.
     agency_id = params[:agency_id].presence || params[:agency].presence || params[:id].presence
-
-    # Only treat it as an agency id when it matches a real agency.
     @selected_agency = Agency.find_by(id: agency_id) if agency_id.present?
 
-    # If we resolved an agency and user isn't allowed, block.
     if @selected_agency && !is_vmcott? && @selected_agency != current_user.agency
       redirect_to vehicles_path, alert: "You can only view your own agency's vehicles."
     end

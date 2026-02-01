@@ -42,33 +42,30 @@
         <%= form.text_field :make_model_ui,
               value: [vehicle.make, vehicle.model].compact.join(" "),
               class: "form-control",
-              placeholder: "Start typing e.g. Toyota Hilux",
+              placeholder: "Start typing e.g. Toyota Hilux, Nissan Navara, Higer KLQ",
               autocomplete: "off",
               data: {
                 "vehicle-catalog-target": "query",
                 action: "input->vehicle-catalog#search keydown->vehicle-catalog#keydown blur->vehicle-catalog#blur"
               } %>
 
-        <%# Dropdown results container (required target) %>
         <div data-vehicle-catalog-target="results"
              class="list-group position-absolute w-100 shadow"
              style="display:none; z-index:2000; max-height:260px; overflow:auto;">
         </div>
 
-        <%# Optional status/debug line (target exists in controller; safe if unused) %>
         <small data-vehicle-catalog-target="status" class="text-muted d-block mt-1"></small>
 
-        <%# Hidden DB fields that are filled by JS OR server-side parsing %>
         <%= form.hidden_field :make,  value: vehicle.make,  data: { "vehicle-catalog-target": "make" } %>
         <%= form.hidden_field :model, value: vehicle.model, data: { "vehicle-catalog-target": "model" } %>
 
         <small class="text-muted d-block mt-1">
           Type 2+ letters. Use ↑/↓ then Enter, or click a suggestion.
-          If typing manually, use a space between make and model (e.g. <strong>Toyota Hilux</strong>).
+          If typing manually, separate make and model with a space (e.g. <strong>Toyota Hilux</strong>).
         </small>
       </div>
 
-      <%# Vehicle Type dropdown (can be auto-filled if blank) %>
+      <%# Vehicle Type dropdown %>
       <div class="mb-3">
         <%= form.label :vehicle_type, class: "form-label" %>
         <%= form.select :vehicle_type,
@@ -104,7 +101,6 @@
         <%= form.text_field :engine_number, class: "form-control" %>
       </div>
 
-      <%# Fuel type dropdown %>
       <div class="mb-3">
         <%= form.label :fuel_type, class: "form-label" %>
         <%= form.select :fuel_type,
@@ -113,7 +109,6 @@
               class: "form-select" %>
       </div>
 
-      <%# Transmission dropdown %>
       <div class="mb-3">
         <%= form.label :transmission, class: "form-label" %>
         <%= form.select :transmission,
@@ -122,14 +117,14 @@
               class: "form-select" %>
       </div>
 
-      <%# Drive Type dropdown (stored in body_style for now) %>
+      <%# Drive Type dropdown (stored in body_style column) %>
       <div class="mb-3">
         <%= form.label :body_style, "Drive Type", class: "form-label" %>
         <%= form.select :body_style,
               VehiclesController::DRIVE_TYPES.map { |t| [t, t] },
               { include_blank: "Select drive type" },
               class: "form-select" %>
-        <small class="text-muted">Stored in “body_style” for now (rename to drive_type later if desired).</small>
+        <small class="text-muted">Choose how the vehicle drives (FWD/RWD/4WD/AWD).</small>
       </div>
 
       <div class="mb-3">
@@ -140,23 +135,23 @@
 
     <!-- Right Column -->
     <div class="col-md-6">
-      <%# Combined License + Registration UI field (parsed server-side into license_plate + registration_number) %>
+      <%# Combined License + Registration UI field %>
       <div class="mb-3">
-        <%= form.label :license_registration_ui, "License / Registration", class: "form-label" %>
+        <%= form.label :license_registration_ui, "License Plate / Registration (Optional)", class: "form-label" %>
         <%= form.text_field :license_registration_ui,
               value: [vehicle.license_plate, vehicle.registration_number].compact.join(" / "),
               class: "form-control",
-              placeholder: "e.g. PDM 1234 / REG-88991" %>
+              placeholder: "e.g. PDL-1234 / REG-88991 (REG optional)" %>
 
         <%= form.hidden_field :license_plate, value: vehicle.license_plate %>
         <%= form.hidden_field :registration_number, value: vehicle.registration_number %>
 
         <small class="text-muted d-block mt-1">
-          Format: <strong>PLATE / REG</strong> (registration optional).
+          Trinidad examples: <strong>PDL-1234</strong>, <strong>HBA-55</strong>, <strong>TCD-9</strong>, <strong>CD-12</strong>.
+          You can enter just the plate, or plate + registration separated by <strong>/</strong>.
         </small>
       </div>
 
-      <%# Service owner is auto-assigned in controller %>
       <div class="mb-3">
         <label class="form-label">Service Owner</label>
         <input type="text" class="form-control" value="<%= (vehicle.service_owner.presence || current_user.agency.code) %>" readonly>

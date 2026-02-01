@@ -748,7 +748,6 @@ class PurchaseOrder < ApplicationRecord
       elsif self.class.column_names.include?("total_amount")
         update_column(:total_amount, total)
       end
-    end
   end
 
 

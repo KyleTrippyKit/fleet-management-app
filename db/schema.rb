@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_31_074213) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_01_020539) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -387,6 +387,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_31_074213) do
     t.datetime "updated_at", null: false
     t.index ["agency_id", "name"], name: "index_job_templates_on_agency_id_and_name", unique: true
     t.index ["category"], name: "index_job_templates_on_category"
+  end
+
+  create_table "ledger_entries", force: :cascade do |t|
+    t.string "account_code", null: false
+    t.string "account_name", null: false
+    t.bigint "agency_id", null: false
+    t.datetime "created_at", null: false
+    t.decimal "credit", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "debit", precision: 12, scale: 2, default: "0.0", null: false
+    t.date "entry_date", null: false
+    t.bigint "invoice_id", null: false
+    t.string "memo"
+    t.bigint "posted_by_id"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["agency_id"], name: "index_ledger_entries_on_agency_id"
+    t.index ["invoice_id", "account_code"], name: "index_ledger_entries_on_invoice_id_and_account_code"
+    t.index ["invoice_id"], name: "index_ledger_entries_on_invoice_id"
+    t.index ["vehicle_id"], name: "index_ledger_entries_on_vehicle_id"
   end
 
   create_table "maintenance_parts", force: :cascade do |t|
@@ -1178,6 +1197,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_31_074213) do
   add_foreign_key "job_template_parts", "parts"
   add_foreign_key "job_template_vehicle_applications", "job_templates"
   add_foreign_key "job_templates", "agencies"
+  add_foreign_key "ledger_entries", "agencies"
+  add_foreign_key "ledger_entries", "invoices"
+  add_foreign_key "ledger_entries", "users", column: "posted_by_id"
+  add_foreign_key "ledger_entries", "vehicles"
   add_foreign_key "maintenance_parts", "maintenances"
   add_foreign_key "maintenance_parts", "parts"
   add_foreign_key "maintenance_requests", "agencies", column: "processing_agency_id"

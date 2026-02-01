@@ -1,0 +1,134 @@
+<%# app/views/quotations/agency_inbox.html.erb %>
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+              <i class="bi bi-inbox"></i> Quotation Inbox - <%= @agency.name %>
+            </h4>
+            <span class="badge bg-light text-dark">
+              <%= @agency.code %>
+            </span>
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <!-- Stats -->
+          <div class="row mb-4">
+            <div class="col-md-4">
+              <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                  <h3 class="mb-0"><%= @stats[:total] %></h3>
+                  <p class="mb-0">Total Quotations</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                  <h3 class="mb-0"><%= @stats[:pending] %></h3>
+                  <p class="mb-0">Pending Review</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                  <h3 class="mb-0"><%= @stats[:recently_received] %></h3>
+                  <p class="mb-0">New (Last 24h)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Quotations Table -->
+          <% if @quotations.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="bg-light">
+                  <tr>
+                    <th>Quote #</th>
+                    <th>Vehicle</th>
+                    <th>Amount</th>
+                    <th>Received</th>
+                    <th>Valid Until</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @quotations.each do |quotation| %>
+                    <tr>
+                      <td>
+                        <strong><%= quotation.quote_number %></strong>
+                        <br>
+                        <small class="text-muted">Vendor: <%= quotation.vendor %></small>
+                      </td>
+                      <td>
+                        <%= quotation.vehicle&.license_plate || 'N/A' %>
+                        <br>
+                        <small class="text-muted">
+                          <%= quotation.vehicle&.make %> <%= quotation.vehicle&.model %>
+                        </small>
+                      </td>
+                      <td class="fw-bold">
+                        TTD <%= number_to_currency(quotation.amount, unit: '') %>
+                      </td>
+                      <td>
+                        <%= time_ago_in_words(quotation.sent_at) %> ago
+                        <br>
+                        <small><%= quotation.sent_at.strftime('%b %d, %Y') %></small>
+                      </td>
+                      <td>
+                        <%= quotation.valid_to.strftime('%b %d, %Y') %>
+                        <br>
+                        <% if quotation.valid_to < Date.today %>
+                          <span class="badge bg-danger">Expired</span>
+                        <% elsif quotation.valid_to < Date.today + 7.days %>
+                          <span class="badge bg-warning text-dark">Expiring Soon</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to quotation_path(quotation), 
+                                class: 'btn btn-outline-primary', 
+                                title: 'Review' do %>
+                            <i class="bi bi-eye"></i> Review
+                          <% end %>
+                          
+                          <%= link_to accept_items_quotation_path(quotation), 
+                                class: 'btn btn-outline-success', 
+                                title: 'Accept Items' do %>
+                            <i class="bi bi-check-circle"></i> Accept
+                          <% end %>
+                          
+                          <%= link_to print_quotation_path(quotation, format: :pdf), 
+                                class: 'btn btn-outline-dark',
+                                target: '_blank',
+                                title: 'Print' do %>
+                            <i class="bi bi-printer"></i>
+                          <% end %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="d-flex justify-content-center mt-4">
+              <%= paginate @quotations %>
+            </div>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="bi bi-inbox fa-3x text-muted mb-3"></i>
+              <h4 class="text-muted">No quotations in inbox</h4>
+              <p class="text-muted">Quotations from VMCOTT will appear here when submitted.</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

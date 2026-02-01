@@ -1,4 +1,6 @@
-<!-- app/views/layouts/application.html.erb -->
+<!-- File: app/views/layouts/application.html.erb -->
+<!-- Replace the ENTIRE file with this (copy/paste). -->
+<!-- ✅ OPTION A: Importmap + Stimulus (no JS bundling) -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -15,27 +17,19 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
-    <!-- Chart.js CSS (optional) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.min.css">
-
     <% if content_for?(:gantt_page) %>
       <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css">
     <% end %>
 
     <%= stylesheet_link_tag "application", media: "all", "data-turbo-track": "reload" %>
+
+    <!-- ✅ Importmap entrypoint (loads app/javascript/application.js which loads Turbo + Stimulus controllers) -->
     <%= javascript_importmap_tags %>
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
 
-    <!-- Bootstrap JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-
-    <!-- Chart.js + Chartkick -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartkick@5.0.1/dist/chartkick.min.js"></script>
-
     <% if content_for?(:gantt_page) %>
-      <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js"></script>
+      <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js" crossorigin="anonymous"></script>
     <% end %>
 
     <script>
@@ -158,7 +152,6 @@
               </div>
             </div>
           `;
-
           const btn = document.getElementById('clearThemeBtn');
           if (btn) btn.onclick = () => this.clearTheme();
         }
@@ -211,13 +204,6 @@
         if (!window.themeController) window.themeController = new ThemeController();
         window.themeController.initialize();
 
-        // Chart presence logs
-        if (typeof Chart !== 'undefined') console.log('✅ Chart.js loaded successfully');
-        else console.error('❌ Chart.js failed to load');
-
-        if (typeof Chartkick !== 'undefined') console.log('✅ Chartkick loaded successfully');
-        else console.error('❌ Chartkick failed to load');
-
         // Gantt init
         if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
           console.log("🚀 Starting Gantt initialization...");
@@ -238,6 +224,7 @@
         const url = trigger.getAttribute('href');
         if (!url) return;
 
+        // Prefer Bootstrap from importmap (window.bootstrap). If not present, this will throw with a clear console error.
         fetch(url, {
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
@@ -248,14 +235,19 @@
         .then(html => {
           const container = document.getElementById('modal-container') || document.body;
 
-          // remove any existing
           const existing = document.getElementById('uploadInvoiceModal');
           if (existing) existing.remove();
 
           container.insertAdjacentHTML('beforeend', html);
 
           const modalElement = document.getElementById('uploadInvoiceModal');
-          const modal = new bootstrap.Modal(modalElement);
+          if (!window.bootstrap || !window.bootstrap.Modal) {
+            console.error("❌ Bootstrap JS not available. Ensure importmap pins bootstrap and app/javascript/application.js imports it.");
+            alert("Bootstrap JS not loaded. Check console.");
+            return;
+          }
+
+          const modal = new window.bootstrap.Modal(modalElement);
           modal.show();
 
           modalElement.addEventListener('hidden.bs.modal', function() {
