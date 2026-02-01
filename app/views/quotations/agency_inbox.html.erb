@@ -54,6 +54,8 @@
                     <th>Amount</th>
                     <th>Received</th>
                     <th>Valid Until</th>
+                    <th>Status</th>
+                    <th>Sent/Draft</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -87,6 +89,29 @@
                           <span class="badge bg-danger">Expired</span>
                         <% elsif quotation.valid_to < Date.today + 7.days %>
                           <span class="badge bg-warning text-dark">Expiring Soon</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <span class="badge bg-<%= 
+                          case quotation.status
+                          when 'sent' then 'warning'
+                          when 'accepted' then 'success'
+                          when 'rejected' then 'danger'
+                          else 'secondary'
+                          end
+                        %>">
+                          <%= quotation.status.titleize %>
+                        </span>
+                      </td>
+                      <td>
+                        <% if quotation.sent? %>
+                          <span class="badge bg-success">Sent</span>
+                        <% else %>
+                          <span class="badge bg-secondary">Draft</span>
+                        <% end %>
+                        
+                        <% if quotation.sent? %>
+                          <i class="bi bi-lock text-muted ms-1" title="Locked"></i>
                         <% end %>
                       </td>
                       <td>

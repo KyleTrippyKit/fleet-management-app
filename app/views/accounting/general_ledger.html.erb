@@ -1,0 +1,64 @@
+<h3 class="mb-3">General Ledger</h3>
+
+<%= form_with url: general_ledger_path, method: :get, local: true, class: "row g-2 mb-3" do %>
+  <div class="col-auto">
+    <%= label_tag :date_from, "From", class: "form-label" %>
+    <%= date_field_tag :date_from, @date_from, class: "form-control" %>
+  </div>
+  <div class="col-auto">
+    <%= label_tag :date_to, "To", class: "form-label" %>
+    <%= date_field_tag :date_to, @date_to, class: "form-control" %>
+  </div>
+  <div class="col-auto">
+    <%= label_tag :account_code, "Account", class: "form-label" %>
+    <%= select_tag :account_code,
+      options_for_select(@accounts.map { |a| ["#{a.account_code} - #{a.account_name}", a.account_code] }, @account_code),
+      include_blank: "All Accounts",
+      class: "form-select" %>
+  </div>
+  <div class="col-auto align-self-end">
+    <%= submit_tag "Run", class: "btn btn-primary" %>
+  </div>
+<% end %>
+
+<div class="card">
+  <div class="card-body">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Account</th>
+          <th>Memo</th>
+          <th>Ref</th>
+          <th class="text-end">Debit</th>
+          <th class="text-end">Credit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @entries.each do |e| %>
+          <tr>
+            <td><%= e.entry_date %></td>
+            <td><%= "#{e.account_code} - #{e.account_name}" %></td>
+            <td><%= e.memo %></td>
+            <td>
+              <% if e.invoice_id.present? && respond_to?(:invoice_path) %>
+                <%= link_to "INV #{e.invoice_id}", invoice_path(e.invoice_id) %>
+              <% else %>
+                —
+              <% end %>
+            </td>
+            <td class="text-end"><%= number_to_currency(e.debit) %></td>
+            <td class="text-end"><%= number_to_currency(e.credit) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot>
+        <tr class="fw-bold">
+          <td colspan="4">Totals</td>
+          <td class="text-end"><%= number_to_currency(@totals[:debit]) %></td>
+          <td class="text-end"><%= number_to_currency(@totals[:credit]) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

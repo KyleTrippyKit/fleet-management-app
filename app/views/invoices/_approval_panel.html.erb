@@ -1,0 +1,90 @@
+<%# app/views/invoices/_approval_panel.html.erb %>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-start justify-content-between gap-3">
+      <div>
+        <h5 class="mb-1">Approval & Posting</h5>
+        <div class="text-muted small">
+          Approving posts this invoice to the ledger using double-entry accounting.
+        </div>
+      </div>
+
+      <div class="text-end">
+        <% if @invoice.approved_at.present? %>
+          <span class="badge bg-success">APPROVED</span>
+        <% elsif @invoice.status.to_s == "pending" %>
+          <span class="badge bg-warning text-dark">PENDING</span>
+        <% else %>
+          <span class="badge bg-secondary"><%= @invoice.status.to_s.upcase %></span>
+        <% end %>
+      </div>
+    </div>
+
+    <hr class="my-3" />
+
+    <% amt = @invoice.amount.to_f %>
+
+    <div class="row g-2">
+      <div class="col-md-6">
+        <div class="border rounded p-2">
+          <div class="small text-muted">Will post (Debit)</div>
+          <div class="fw-semibold">6000 — Repairs &amp; Maintenance</div>
+          <div class="text-end fw-bold"><%= number_to_currency(amt) %></div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="border rounded p-2">
+          <div class="small text-muted">Will post (Credit)</div>
+          <div class="fw-semibold">2000 — Accounts Payable</div>
+          <div class="text-end fw-bold"><%= number_to_currency(amt) %></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex flex-wrap gap-2 align-items-center">
+      <% can_approve = policy(@invoice).approve? rescue (current_user.finance? || current_user.admin?) %>
+
+      <% if @invoice.approved_at.present? %>
+        <div class="small text-muted">
+          Approved by
+          <strong><%= User.find_by(id: @invoice.approved_by_id)&.name || "User ##{@invoice.approved_by_id}" %></strong>
+          on <%= @invoice.approved_at.strftime("%d %b %Y %I:%M %p") %>
+        </div>
+
+        <%# Optional: link to general ledger filtered by invoice if you add that param later %>
+        <%#= link_to "View Ledger Entries", general_ledger_path(invoice_id: @invoice.id), class: "btn btn-sm btn-outline-primary" if respond_to?(:general_ledger_path) %>
+
+      <% else %>
+
+        <% disabled_reason =
+            if @invoice.status.to_s != "pending"
+              "Only pending invoices can be approved."
+            elsif @invoice.paid_at.present?
+              "Paid invoices cannot be approved."
+            elsif @invoice.disputed_at.present?
+              "Disputed invoices cannot be approved."
+            elsif amt <= 0
+              "Invoice amount must be greater than 0."
+            end %>
+
+        <% if can_approve && disabled_reason.blank? %>
+          <%= button_to "Approve & Post to Ledger",
+                approve_invoice_path(@invoice),
+                method: :post,
+                class: "btn btn-success",
+                form: { data: { turbo_confirm: "Approve invoice #{@invoice.invoice_number} and post to ledger?" } } %>
+        <% else %>
+          <button class="btn btn-secondary" disabled>
+            Approve &amp; Post to Ledger
+          </button>
+          <div class="small text-danger mt-1">
+            <%= disabled_reason.presence || "You are not authorized to approve invoices." %>
+          </div>
+        <% end %>
+
+      <% end %>
+    </div>
+  </div>
+</div>

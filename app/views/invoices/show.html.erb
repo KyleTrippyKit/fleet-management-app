@@ -1,5 +1,7 @@
-<%# app/views/invoices/show.html.erb - UPDATED WITH SYNC FUNCTIONALITY %>
+<%# app/views/invoices/show.html.erb - COMPLETE VERSION WITH APPROVAL %>
 <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
+
+<%= render "approval_panel" %>
 
 <%# Breadcrumb Navigation %>
 <nav aria-label="breadcrumb" class="mb-4">
@@ -120,7 +122,7 @@
                     <span class="badge bg-danger me-2">
                       <i class="bi bi-exclamation-triangle-fill me-1"></i>
                       QuickBooks - Error
-                    </span>
+                    end
                   <% end %>
                 <% else %>
                   <span class="badge bg-light text-dark border me-2">
@@ -133,6 +135,13 @@
                   <span class="badge bg-success me-2">
                     <i class="bi bi-credit-card me-1"></i>
                     POS Payment
+                  </span>
+                <% end %>
+                
+                <% if @invoice.approved? %>
+                  <span class="badge bg-success me-2">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Approved
                   </span>
                 <% end %>
               </div>
@@ -191,6 +200,16 @@
                           <td class="text-muted">Invoice Type:</td>
                           <td class="fw-bold"><%= @invoice.category.present? ? @invoice.category.humanize : 'Vehicle Services' %></td>
                         </tr>
+                        <% if @invoice.approved? %>
+                          <tr>
+                            <td class="text-muted">Approved By:</td>
+                            <td class="fw-bold"><%= @invoice.approved_by&.name %></td>
+                          </tr>
+                          <tr>
+                            <td class="text-muted">Approved At:</td>
+                            <td class="fw-bold"><%= @invoice.approved_at&.strftime("%d %B, %Y") %></td>
+                          </tr>
+                        <% end %>
                       </tbody>
                     </table>
                   </div>
@@ -282,44 +301,42 @@
                       <% end %>
                     </div>
 
-                    <!-- Integration Information -->
+                    <!-- Approval Section -->
                     <div class="col-12">
-                      <h6 class="text-uppercase text-muted small fw-bold mb-3">INTEGRATION INFORMATION</h6>
+                      <h6 class="text-uppercase text-muted small fw-bold mb-3">ACCOUNTING APPROVAL</h6>
                       <div class="card border-success">
                         <div class="card-header bg-success bg-opacity-10 border-success py-2">
-                          <h6 class="mb-0 fw-bold"><i class="bi bi-plugin me-2"></i>System Integrations</h6>
+                          <h6 class="mb-0 fw-bold"><i class="bi bi-check-circle me-2"></i>Ledger Posting</h6>
                         </div>
                         <div class="card-body">
-                          <ul class="mb-0 small">
-                            <li>
-                              <strong>QuickBooks:</strong> 
-                              <% if @invoice.quickbooks_id %>
-                                Synced (<%= @invoice.quickbooks_id %>)
-                                <% if @invoice.last_sync_at %>
-                                  <br><small class="text-muted">Last sync: <%= @invoice.last_sync_at.strftime("%d %b %Y %H:%M") %></small>
-                                  <% if @invoice.recently_synced?(24) %>
-                                    <span class="badge bg-success ms-1">Recent</span>
-                                  <% elsif @invoice.sync_stale? %>
-                                    <span class="badge bg-warning ms-1">Stale</span>
-                                  <% end %>
+                          <% if @invoice.approved? %>
+                            <p class="mb-2"><strong>✅ Invoice Approved</strong></p>
+                            <p class="mb-1 small">Approved by: <%= @invoice.approved_by&.name %></p>
+                            <p class="mb-3 small">Approved on: <%= @invoice.approved_at&.strftime("%d %b %Y %H:%M") %></p>
+                            
+                            <% if @invoice.ledger_entries.any? %>
+                              <p class="mb-1"><strong>Ledger Entries Created:</strong></p>
+                              <ul class="mb-0 small">
+                                <% @invoice.ledger_entries.each do |entry| %>
+                                  <li><%= entry.account_code %> - <%= entry.account_name %>: <%= number_to_currency(entry.debit.positive? ? entry.debit : entry.credit) %></li>
                                 <% end %>
-                              <% else %>
-                                Not synced
-                              <% end %>
-                            </li>
-                            <li>
-                              <strong>POS System:</strong> 
-                              <%= @invoice.pos_transaction ? "Payment recorded" : "No POS payment" %>
-                            </li>
-                            <li>
-                              <strong>Purchase Order:</strong> 
-                              <%= @invoice.purchase_order ? @invoice.purchase_order.po_number : "No PO linked" %>
-                            </li>
-                            <li>
-                              <strong>Maintenance:</strong> 
-                              <%= @invoice.maintenance ? "Work order linked" : "No maintenance link" %>
-                            </li>
-                          </ul>
+                              </ul>
+                            <% end %>
+                          <% else %>
+                            <p class="mb-3">This invoice requires accounting approval and ledger posting.</p>
+                            <% if @invoice.pending? && (current_user.finance? || current_user.admin?) %>
+                              <%= button_to "✅ Approve & Post to Ledger",
+                                    approve_invoice_path(@invoice),
+                                    method: :patch,
+                                    class: "btn btn-success w-100",
+                                    data: { turbo_confirm: "Approve this invoice and post to ledger?" } %>
+                            <% else %>
+                              <p class="text-muted mb-0 text-center">
+                                <i class="bi bi-clock fs-4"></i><br>
+                                Awaiting finance approval
+                              </p>
+                            <% end %>
+                          <% end %>
                         </div>
                       </div>
                     </div>
@@ -449,9 +466,12 @@
                 <% end %>
                 
                 <% if @invoice.pending? && current_user.can_pay_invoices? %>
-                  <%= link_to 'Record Payment', '#recordPaymentModal', 
-                        class: 'btn btn-success',
-                        data: { bs_toggle: 'modal' } %>
+                  <button type="button" 
+                          class="btn btn-success" 
+                          data-bs-toggle="modal" 
+                          data-bs-target="#recordPaymentModal">
+                    <i class="bi bi-credit-card me-2"></i>Record Payment
+                  </button>
                 <% end %>
                 
                 <% if @invoice.pending? && current_user.can_dispute_invoices? %>
@@ -463,19 +483,12 @@
                   </button>
                 <% end %>
                 
-                <% if @invoice.quickbooks_id.blank? && current_user.can_sync_quickbooks? %>
-                  <%= button_to sync_to_quickbooks_invoice_path(@invoice), 
-                        method: :post,
-                        class: 'btn btn-outline-primary',
-                        data: { confirm: 'Sync this invoice with QuickBooks?' } do %>
-                    <i class="bi bi-arrow-repeat me-2"></i>Sync to QuickBooks
-                  <% end %>
-                <% elsif @invoice.sync_stale? && current_user.can_sync_quickbooks? %>
-                  <%= button_to sync_to_quickbooks_invoice_path(@invoice), 
-                        method: :post,
-                        class: 'btn btn-outline-warning',
-                        data: { confirm: 'Re-sync this stale invoice with QuickBooks?' } do %>
-                    <i class="bi bi-arrow-repeat me-2"></i>Re-sync to QuickBooks
+                <% if !@invoice.approved? && @invoice.pending? && (current_user.finance? || current_user.admin?) %>
+                  <%= button_to approve_invoice_path(@invoice), 
+                        method: :patch,
+                        class: 'btn btn-success',
+                        data: { turbo_confirm: 'Approve this invoice and post to ledger?' } do %>
+                    <i class="bi bi-check-circle me-2"></i>Approve & Post to Ledger
                   <% end %>
                 <% end %>
                 
@@ -494,7 +507,7 @@
                   <h5 class="modal-title">Record Payment</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <%= form_with url: create_transaction_invoice_path(@invoice), method: :post do |f| %>
+                <%= form_with url: record_payment_invoice_path(@invoice), method: :post do |f| %>
                   <div class="modal-body">
                     <div class="mb-3">
                       <label class="form-label">Payment Amount (TTD)</label>
@@ -508,11 +521,6 @@
                                                 ['Bank Transfer', 'bank_transfer'], 
                                                 ['Credit Card', 'credit_card']]), 
                             {}, class: 'form-select' %>
-                    </div>
-                    <div class="mb-3">
-                      <label class="form-label">Reference Number</label>
-                      <%= f.text_field :reference_number, class: 'form-control', 
-                            placeholder: 'PAY-20240101-001' %>
                     </div>
                     <div class="mb-3">
                       <label class="form-label">Notes</label>
@@ -552,6 +560,51 @@
                   </div>
                 <% end %>
               </div>
+            </div>
+          </div>
+
+          <!-- Ledger Entries -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-light py-3">
+              <h5 class="mb-0 fw-bold">
+                <i class="bi bi-journal me-2"></i>
+                LEDGER ENTRIES
+              </h5>
+            </div>
+            <div class="card-body">
+              <% if @invoice.ledger_entries.any? %>
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th class="text-end">Debit</th>
+                      <th class="text-end">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% @invoice.ledger_entries.each do |e| %>
+                      <tr>
+                        <td><%= e.account_code %> – <%= e.account_name %></td>
+                        <td class="text-end"><%= number_to_currency(e.debit) %></td>
+                        <td class="text-end"><%= number_to_currency(e.credit) %></td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              <% else %>
+                <p class="text-muted mb-0 text-center">
+                  <i class="bi bi-journal-x fs-4"></i><br>
+                  No ledger entries yet.
+                </p>
+                <% if @invoice.pending? && (current_user.finance? || current_user.admin?) %>
+                  <div class="text-center mt-3">
+                    <%= button_to "Post to Ledger", approve_invoice_path(@invoice),
+                          method: :patch,
+                          class: "btn btn-outline-success btn-sm",
+                          data: { turbo_confirm: "Approve and post to ledger?" } %>
+                  </div>
+                <% end %>
+              <% end %>
             </div>
           </div>
 
@@ -624,38 +677,6 @@
               </table>
             </div>
           </div>
-
-          <!-- Related Documents -->
-          <div class="card border-0 shadow-sm">
-            <div class="card-header bg-light py-3">
-              <h5 class="mb-0 fw-bold">
-                <i class="bi bi-paperclip me-2"></i>
-                RELATED DOCUMENTS
-              </h5>
-            </div>
-            <div class="card-body">
-              <ul class="list-group list-group-flush">
-                <% if @invoice.purchase_order %>
-                  <li class="list-group-item px-0">
-                    <%= link_to @invoice.purchase_order.po_number, @invoice.purchase_order, class: 'text-decoration-none' %>
-                    <small class="text-muted d-block">Purchase Order</small>
-                  </li>
-                <% end %>
-                <% if @invoice.maintenance %>
-                  <li class="list-group-item px-0">
-                    <%= link_to "Maintenance ##{@invoice.maintenance.id}", @invoice.maintenance, class: 'text-decoration-none' %>
-                    <small class="text-muted d-block">Maintenance Record</small>
-                  </li>
-                <% end %>
-                <% if @invoice.pos_transaction %>
-                  <li class="list-group-item px-0">
-                    <%= link_to "POS ##{@invoice.pos_transaction.id}", @invoice.pos_transaction, class: 'text-decoration-none' %>
-                    <small class="text-muted d-block">POS Transaction</small>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -721,46 +742,5 @@
     font-size: 0.9rem;
     padding: 0.5rem 1rem;
     border-radius: 20px;
-  }
-  
-  /* Sync badges */
-  .sync-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-  }
-  
-  .sync-recent { background-color: #d1e7dd; color: #0f5132; }
-  .sync-stale { background-color: #fff3cd; color: #664d03; }
-  .sync-failed { background-color: #f8d7da; color: #842029; }
-  .sync-success { background-color: #d1e7dd; color: #0f5132; }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .agency-header-card .col-md-8,
-    .agency-header-card .col-md-4 {
-      width: 100%;
-      border: none !important;
-    }
-  }
-  
-  /* Print styles for browser print */
-  @media print {
-    .btn, .action-buttons, .card:last-child, .breadcrumb, nav {
-      display: none !important;
-    }
-    
-    .card {
-      border: 1px solid #000 !important;
-      break-inside: avoid;
-    }
-    
-    .alert {
-      border: 1px solid #000 !important;
-    }
-    
-    a[href]::after {
-      content: none !important;
-    }
   }
 </style>

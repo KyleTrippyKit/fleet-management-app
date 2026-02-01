@@ -12,6 +12,11 @@ class JobTemplate < ApplicationRecord
   validates :name, presence: true, uniqueness: { scope: :agency_id }
   validates :agency_id, presence: true
 
+  # LABOR-ONLY templates (no required parts)
+  scope :labor_only, -> {
+    left_outer_joins(:job_template_parts)
+      .where(job_template_parts: { id: nil })
+  }
   scope :active, -> { where(is_active: true) }
   scope :by_category, ->(category) { where(category: category) }
 

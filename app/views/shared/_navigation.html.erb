@@ -1,187 +1,100 @@
-<%# app/views/shared/_navigation.html.erb - COMPLETE WITH INVENTORY & VENDOR MANAGEMENT %>
+<%# app/views/shared/_navigation.html.erb - SLIM WORKFLOW NAV (PRODUCTION) %>
+
 <div class="mb-4">
   <div class="card border-0 shadow-sm nav-card">
     <div class="card-body p-3">
       <div class="d-flex flex-wrap align-items-center justify-content-between">
         <div class="d-flex flex-wrap gap-2">
+
           <% nav_items = [] %>
+          <% agency = current_user.agency %>
+          <% agency_code = agency&.code %>
 
-          <!-- ============================= -->
-          <!-- DASHBOARD (Agency-specific) -->
-          <!-- ============================= -->
-          <% case current_user.agency&.code %>
-          <% when 'PTSC' %>
-            <% nav_items << ["📊 PTSC Dashboard", ptsc_dashboard_path] if can_access_dashboard? %>
-          <% when 'TTPS' %>
-            <% nav_items << ["📊 TTPS Dashboard", ttps_dashboard_path] if can_access_dashboard? %>
-          <% when 'TTDF' %>
-            <% nav_items << ["📊 TTDF Dashboard", ttdf_dashboard_path] if can_access_dashboard? %>
-          <% when 'VMCOTT' %>
-            <% nav_items << ["📊 VMCOTT Dashboard", vmcott_dashboard_path] if can_access_dashboard? %>
-          <% else %>
-            <% nav_items << ["📊 Main Dashboard", main_dashboard_path] if can_access_dashboard? %>
+          <% is_admin   = current_user.admin? %>
+          <% is_finance = current_user.finance? || is_admin %>
+          <% is_ops     = current_user.fleet_manager? || current_user.supervisor? || is_admin %>
+
+          <!-- ================= DASHBOARD ================= -->
+          <% if can_access_dashboard? %>
+            <% nav_items << case agency_code
+              when "PTSC"   then ["📊 Dashboard", ptsc_dashboard_path]
+              when "TTPS"   then ["📊 Dashboard", ttps_dashboard_path]
+              when "TTDF"   then ["📊 Dashboard", ttdf_dashboard_path]
+              when "VMCOTT" then ["📊 Dashboard", vmcott_dashboard_path]
+              else ["📊 Dashboard", main_dashboard_path]
+            end %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- AGENCY-SPECIFIC RFQ WORKFLOW -->
-          <!-- ============================= -->
-          <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
-            <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
-              <!-- Agency fleet managers/supervisors can create RFQs -->
-              <% nav_items << ["📝 New RFQ", new_agency_rfq_path(current_user.agency)] %>
-              <% nav_items << ["📨 Sent RFQs", sent_rfqs_path] %>
-            <% end %>
-            
-            <% if current_user.finance? || current_user.admin? %>
-              <!-- Agency finance reviews received quotations -->
-              <% nav_items << ["📋 Quotations Received", received_quotations_path] %>
-            <% end %>
+          <!-- ================= RFQ WORKFLOW ================= -->
+          <% if agency_code.present? && agency_code != "VMCOTT" && is_ops %>
+            <% nav_items << ["📝 New RFQ", new_agency_rfq_path(agency)] if respond_to?(:new_agency_rfq_path) %>
+            <% nav_items << ["📨 Sent RFQs", sent_rfqs_path] if respond_to?(:sent_rfqs_path) %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- VMCOTT-SPECIFIC WORKFLOW -->
-          <!-- ============================= -->
-          <% if current_user.agency.present? && current_user.agency.code == 'VMCOTT' %>
-            <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
-              <% nav_items << ["📥 RFQ Inbox", vmcott_rfq_inbox_path] %>
-              <% nav_items << ["📊 Quotation Workspace", vmcott_quotation_workspace_path] %>
-              <% nav_items << ["🔧 Job Templates", job_templates_path] %>
-              <% nav_items << ["🧾 Internal POS", vmcott_internal_pos_path] %>
-              
-              <!-- ============================= -->
-              <!-- VMCOTT INVENTORY MANAGEMENT -->
-              <!-- ============================= -->
-              <% nav_items << ["📦 Inventory", vmcott_inventory_dashboard_path] %>
-              <% nav_items << ["🔴 Low Stock", vmcott_inventory_low_stock_path] %>
-              <% nav_items << ["🛢️ Consumables", vmcott_inventory_consumables_path] %>
-              
-              <!-- ADDED: Suppliers/Vendors Section -->
-              <% nav_items << ["🏢 Suppliers", suppliers_path] %>
-              
-              <!-- ADDED: VMCOTT Inventory Management Links -->
-              <% nav_items << ["🧾 Vendor Invoices", vendor_invoices_path] %>
-              
-              <!-- Add Parts management link -->
-              <% nav_items << ["🔧 Parts Management", vmcott_parts_path] %>
-            <% end %>
-            
-            <% if current_user.finance? || current_user.admin? %>
-              <% nav_items << ["⚙️ Labor Rates", vmcott_labor_rates_path] %>
-              <% nav_items << ["💰 Invoice Aging", aging_report_invoices_path] %>
-              <% nav_items << ["💵 Monthly Statements", monthly_statements_path] %>
+          <% if agency_code != "VMCOTT" && is_finance %>
+            <% nav_items << ["📋 Quotations Received", received_quotations_path] if respond_to?(:received_quotations_path) %>
+          <% end %>
+
+          <% if agency_code == "VMCOTT" && is_ops %>
+            <% nav_items << ["📥 RFQ Inbox", vmcott_rfq_inbox_path] if respond_to?(:vmcott_rfq_inbox_path) %>
+            <% nav_items << ["📊 Quotation Workspace", vmcott_quotation_workspace_path] if respond_to?(:vmcott_quotation_workspace_path) %>
+            <% nav_items << ["🔧 Job Templates", job_templates_path] if respond_to?(:job_templates_path) %>
+          <% end %>
+
+          <!-- ================= OPERATIONS ================= -->
+          <% if is_ops %>
+            <% if agency_code != "VMCOTT" && agency.present? %>
+              <% nav_items << ["🚗 My Fleet", agency_vehicles_path(agency)] if respond_to?(:agency_vehicles_path) %>
+              <% nav_items << ["⚙️ Maintenance", maintenances_path] if respond_to?(:maintenances_path) %>
+              <% nav_items << ["🚨 Alerts", alerts_path] if respond_to?(:alerts_path) %>
+            <% elsif agency_code == "VMCOTT" %>
+              <% nav_items << ["🚗 All Fleets", vehicles_path] if respond_to?(:vehicles_path) %>
             <% end %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- FLEET MANAGEMENT -->
-          <!-- ============================= -->
-          <% if current_user.fleet_manager? || current_user.supervisor? || current_user.admin? %>
-            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
-              <!-- Agencies see their own fleet -->
-              <% nav_items << ["🚗 My Fleet", agency_vehicles_path(current_user.agency)] %>
-              <% nav_items << ["👥 Drivers", drivers_path] %>
-              <% nav_items << ["⚙️ Maintenance", maintenances_path] %>
-              <% nav_items << ["🚨 Alerts", alerts_path] %>
-            <% elsif current_user.agency.present? && current_user.agency.code == 'VMCOTT' %>
-              <!-- VMCOTT sees all fleets -->
-              <% nav_items << ["🚗 All Fleets", vehicles_path] %>
-            <% end %>
+          <!-- ================= VMCOTT INVENTORY ================= -->
+          <% if agency_code == "VMCOTT" && (is_ops || is_finance) %>
+            <% nav_items << ["📦 Inventory", vmcott_inventory_dashboard_path] if respond_to?(:vmcott_inventory_dashboard_path) %>
+            <% nav_items << ["🔧 Parts", vmcott_parts_path] if respond_to?(:vmcott_parts_path) %>
+            <% nav_items << ["🏢 Suppliers", suppliers_path] if respond_to?(:suppliers_path) %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- ANALYTICS -->
-          <!-- ============================= -->
-          <% if (current_user.fleet_manager? || current_user.supervisor? || current_user.admin?) && current_user.agency_id.present? %>
-            <% if current_user.agency.code != 'VMCOTT' %>
-              <!-- Agencies see their own analytics -->
-              <% nav_items << ["📈 Analytics", agency_analytics_path(current_user.agency)] %>
-            <% else %>
-              <!-- VMCOTT sees all analytics -->
-              <% nav_items << ["📈 All Analytics", analytics_path] %>
-            <% end %>
+          <!-- ================= FINANCE ================= -->
+          <% if is_finance %>
+            <% nav_items << ["🧾 Invoices", invoices_path] if respond_to?(:invoices_path) %>
+            <% nav_items << ["⏳ Invoice Aging", aging_report_invoices_path] if respond_to?(:aging_report_invoices_path) %>
+            <% nav_items << ["🧾 POS", pos_transactions_path] if respond_to?(:pos_transactions_path) %>
+            <% nav_items << ["📋 Purchase Orders", purchase_orders_path] if respond_to?(:purchase_orders_path) %>
+            <% nav_items << ["📄 Quotations", quotations_path] if respond_to?(:quotations_path) %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- FINANCIAL MODULES -->
-          <!-- ============================= -->
-          <% if current_user.finance? || current_user.admin? %>
-            <!-- Shared across all agencies -->
-            <% nav_items << ["🧾 Agency Invoices", invoices_path] %>
-            <% nav_items << ["📋 Purchase Orders", purchase_orders_path] %>
-            <% nav_items << ["📄 Quotations", quotations_path] %>
-            <% nav_items << ["💳 Transactions", transactions_path] %>
-            
-            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
-              <!-- Agency finance sees their POS -->
-              <% nav_items << ["🧾 POS", pos_transactions_path] %>
-            <% end %>
+          <!-- ================= ACCOUNTING ================= -->
+          <% if is_finance %>
+            <% nav_items << ["📘 Ledger", ledger_entries_path] if respond_to?(:ledger_entries_path) %>
+            <% nav_items << ["📗 General Ledger", general_ledger_path] if respond_to?(:general_ledger_path) %>
+            <% nav_items << ["📙 Trial Balance", trial_balance_path] if respond_to?(:trial_balance_path) %>
+            <% nav_items << ["📊 QuickBooks", quickbooks_dashboard_path] if respond_to?(:quickbooks_dashboard_path) %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- PAYMENT & AGING MODULES -->
-          <!-- ============================= -->
-          <% if current_user.finance? || current_user.admin? %>
-            <% if current_user.agency.present? && current_user.agency.code != 'VMCOTT' %>
-              <!-- Agency finance sees payment tools -->
-              <% nav_items << ["💰 Invoice Aging", aging_report_invoices_path] %>
-              <% nav_items << ["💸 Bulk Payments", bulk_payment_interface_path] %>
-              <% nav_items << ["📊 Payment Dashboard", payment_dashboard_path] %>
-            <% end %>
-          <% end %>
-
-          <!-- ============================= -->
-          <!-- ACCOUNTING SYSTEM -->
-          <!-- ============================= -->
-          <% if current_user.finance? || current_user.admin? %>
-            <!-- Only accessible to finance users -->
-            <% nav_items << ["📒 Accounting", accounting_dashboard_path] %>
-            <% nav_items << ["📊 Accounts Payable", accounts_payable_index_path] %>
-            <% nav_items << ["💵 Monthly Statements", monthly_statements_path] %>
-            <% nav_items << ["🏦 Bank Reconciliation", bank_reconciliation_path] %>
-            
-            <% if current_user.agency_id.present? %>
-              <% nav_items << ["📊 QuickBooks", quickbooks_dashboard_path] %>
-            <% end %>
-          <% end %>
-
-          <!-- ============================= -->
-          <!-- ADMIN TOOLS -->
-          <!-- ============================= -->
-          <% if current_user.admin? %>
-            <% nav_items << ["🚀 Quick Reports", quick_reports_path] %>
-            <% nav_items << ["🎨 Themes", themes_vehicles_path] %>
-            <% nav_items << ["👥 User Management", admin_users_path] if respond_to?(:admin_users_path) %>
-          <% end %>
-
-          <!-- ============================= -->
-          <!-- DRIVER-SPECIFIC VIEW -->
-          <!-- ============================= -->
+          <!-- ================= DRIVER ================= -->
           <% if current_user.driver? %>
-            <% nav_items << ["🚗 My Vehicle", my_vehicle_drivers_path] %>
-            <% nav_items << ["📋 My Trips", my_trips_drivers_path] %>
-            <% nav_items << ["📝 Report Issue", new_issue_drivers_path] %>
+            <% nav_items << ["🚗 My Vehicle", my_vehicle_drivers_path] if respond_to?(:my_vehicle_drivers_path) %>
+            <% nav_items << ["📋 My Trips", my_trips_drivers_path] if respond_to?(:my_trips_drivers_path) %>
+            <% nav_items << ["📝 Report Issue", new_issue_drivers_path] if respond_to?(:new_issue_drivers_path) %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- RENDER NAVIGATION -->
-          <!-- ============================= -->
-          <% nav_items.uniq.each do |label, path| %>
-            <% if show_nav_item?(label, path) %>
-              <%= link_to label, path,
-                class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-medium #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" %>
-            <% end %>
+          <!-- ================= RENDER ================= -->
+          <% nav_items.compact.uniq.each do |label, path| %>
+            <%= link_to label, path,
+              class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-medium #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" %>
           <% end %>
 
-          <!-- ============================= -->
-          <!-- LOGOUT BUTTON IN NAVBAR -->
-          <!-- ============================= -->
-          <% if user_signed_in? %>
-            <%= button_to "/logout",
-                method: :get,
-                class: "nav-option btn btn-sm btn-outline-danger rounded-pill px-3 py-2 fw-medium",
-                form: { "data-turbo" => "false" } do %>
-              <i class="bi bi-box-arrow-right me-1"></i>Logout
-            <% end %>
+          <!-- ================= LOGOUT ================= -->
+          <%= button_to "/logout",
+            method: :get,
+            class: "nav-option btn btn-sm btn-outline-danger rounded-pill px-3 py-2 fw-medium",
+            form: { "data-turbo" => "false" } do %>
+            <i class="bi bi-box-arrow-right me-1"></i> Logout
           <% end %>
 
         </div>

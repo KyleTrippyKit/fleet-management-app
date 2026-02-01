@@ -1,285 +1,198 @@
-<%# app/views/quotations/assign_jobs.html.erb - SIMPLIFIED VERSION %>
 <div class="container-fluid mt-4">
   <div class="row">
     <div class="col-md-12">
+
       <div class="card">
-        <div class="card-header bg-primary text-white">
-          <div class="d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">
-              <i class="bi bi-wrench"></i> Assign Jobs to Quotation
-            </h4>
-            <span class="badge bg-light text-dark">
-              Quote: <%= @quotation.quote_number || 'New Quotation' %>
-            </span>
-          </div>
+        <div class="card-header bg-primary text-white d-flex justify-content-between">
+          <h4 class="mb-0">
+            <i class="bi bi-wrench"></i> Assign Jobs to Quotation
+          </h4>
+          <span class="badge bg-light text-dark">
+            Quote: <%= @quotation.quote_number %>
+          </span>
         </div>
-        
+
         <div class="card-body">
-          <!-- Simple Instructions -->
-          <div class="alert alert-info mb-4">
-            <h5><i class="bi bi-info-circle"></i> Job Assignment (Optional)</h5>
-            <p class="mb-0">
-              You can assign job templates to organize your quotation items. This step is optional.
-              If you don't want to assign jobs, simply click "Continue to Pricing" below.
-            </p>
+
+          <!-- INFO -->
+          <div class="alert alert-info">
+            <strong>Optional step.</strong>
+            Assign job templates that match the vehicle.
+            You may continue without selecting any jobs.
           </div>
 
-          <!-- Job Templates Section (Collapsible) -->
-          <div class="card mb-4">
-            <div class="card-header bg-info text-white" style="cursor: pointer;" 
-                 data-bs-toggle="collapse" data-bs-target="#jobTemplatesSection">
-              <h5 class="mb-0 d-flex justify-content-between align-items-center">
-                <span>
-                  <i class="bi bi-clipboard-check"></i> Available Job Templates
-                </span>
-                <span class="badge bg-light text-dark">
-                  <%= @job_templates.count %> available
-                </span>
-              </h5>
-            </div>
-            
-            <div class="collapse" id="jobTemplatesSection">
-              <div class="card-body">
-                <% if @job_templates.any? %>
-                  <p class="text-muted mb-3">
-                    Select job templates to automatically assign labor rates and parts.
-                  </p>
-                  
-                  <div class="row" id="job-templates-container">
-                    <% @job_templates.each do |template| %>
-                      <div class="col-md-6 mb-3">
-                        <div class="card job-template-card h-100">
-                          <div class="card-body">
-                            <div class="form-check">
-                              <%= check_box_tag "job_template_#{template.id}", 
-                                    template.id, 
-                                    false, 
-                                    class: 'form-check-input job-template-checkbox',
-                                    data: {
-                                      name: template.name,
-                                      description: template.description,
-                                      hours: template.standard_hours,
-                                      rate: template.labor_rate_per_hour
-                                    } %>
-                              <%= label_tag "job_template_#{template.id}", 
-                                    template.name, 
-                                    class: 'form-check-label fw-bold' %>
-                            </div>
-                            <p class="card-text mt-2">
-                              <%= template.description.presence || 'No description' %>
-                            </p>
-                            <div class="row small text-muted">
-                              <div class="col-6">
-                                <i class="bi bi-clock"></i> <%= template.standard_hours %> hrs
-                              </div>
-                              <div class="col-6 text-end">
-                                <i class="bi bi-currency-dollar"></i> <%= template.labor_rate_per_hour %>/hr
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+          <!-- VEHICLE -->
+          <div class="mb-3 text-muted">
+            <strong>Vehicle:</strong>
+            <%= @vehicle&.year_of_manufacture %>
+            <%= @vehicle&.make %>
+            <%= @vehicle&.model %>
+          </div>
+
+          <!-- JOB TEMPLATES -->
+          <div class="row">
+
+            <% if @job_templates.any? %>
+              <% @job_templates.each do |template| %>
+                <% inventory = template.inventory_status %>
+                <% can_use = inventory[:can_fulfill] %>
+
+                <div class="col-md-6 mb-4">
+                  <div class="card h-100 <%= can_use ? '' : 'border-danger opacity-75' %>">
+
+                    <div class="card-body">
+
+                      <!-- HEADER -->
+                      <div class="form-check mb-2">
+                        <%= check_box_tag(
+                              'job_assignments[]',
+                              template.id,
+                              false,
+                              class: 'form-check-input',
+                              disabled: !can_use
+                            ) %>
+                        <%= label_tag nil, template.name, class: 'fw-bold' %>
                       </div>
-                    <% end %>
-                  </div>
-                <% else %>
-                  <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> No job templates found.
-                  </div>
-                <% end %>
-              </div>
-            </div>
-          </div>
 
-          <!-- Selected Jobs Display (Only if jobs are selected) -->
-          <div class="card mb-4" id="selectedJobsSection" style="display: none;">
-            <div class="card-header bg-success text-white">
-              <h5 class="mb-0">
-                <i class="bi bi-list-check"></i> Selected Jobs
-                <span class="badge bg-light text-dark float-end" id="selected-jobs-count">
-                  0 jobs
-                </span>
-              </h5>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-sm" id="assigned-jobs-table">
-                  <thead>
-                    <tr>
-                      <th>Job Name</th>
-                      <th>Hours</th>
-                      <th>Rate/Hour</th>
-                      <th>Labor Cost</th>
-                    </tr>
-                  </thead>
-                  <tbody id="assigned-jobs-body">
-                    <!-- Jobs will be populated dynamically -->
-                  </tbody>
-                  <tfoot>
-                    <tr class="table-secondary">
-                      <td colspan="3" class="text-end fw-bold">Total Labor Cost:</td>
-                      <td class="fw-bold" id="total-labor-cost">$0.00</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          </div>
+                      <p class="text-muted mb-2">
+                        <%= template.description.presence || 'No description' %>
+                      </p>
 
-          <!-- Summary Section -->
-          <div class="row mt-4">
-            <div class="col-md-6">
-              <div class="card">
-                <div class="card-header bg-secondary text-white">
-                  <h6 class="mb-0">RFQ Information</h6>
+                      <div class="small mb-3">
+                        ⏱ <%= template.standard_hours %> hrs |
+                        💲 <%= number_to_currency(template.labor_rate_per_hour) %>/hr
+                      </div>
+
+                      <!-- PARTS MODAL TRIGGER -->
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#partsModal_<%= template.id %>">
+                        View Included Parts
+                      </button>
+
+                      <!-- OUT OF STOCK -->
+                      <% unless can_use %>
+                        <div class="alert alert-warning mt-3 small">
+                          <strong>Out of stock.</strong>
+                          Required parts are missing.
+                        </div>
+
+                        <%= link_to(
+                              'Create Purchase Request',
+                              create_purchase_request_quotation_path(@quotation),
+                              method: :post,
+                              class: 'btn btn-sm btn-outline-danger'
+                            ) %>
+                      <% end %>
+
+                    </div>
+                  </div>
                 </div>
-                <div class="card-body">
-                  <p><strong>RFQ Number:</strong> <%= @rfq&.rfq_number || 'N/A' %></p>
-                  <p><strong>Agency:</strong> <%= @rfq&.requesting_agency&.name || 'N/A' %></p>
-                  <p><strong>Vehicle:</strong> <%= @rfq&.vehicle&.license_plate || 'N/A' %></p>
-                  <p><strong>Items to Quote:</strong> <%= @quotation.quotation_line_items.count %></p>
+
+                <!-- PARTS MODAL -->
+                <div class="modal fade"
+                     id="partsModal_<%= template.id %>"
+                     tabindex="-1"
+                     aria-hidden="true">
+                  <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+
+                      <div class="modal-header">
+                        <h5 class="modal-title">
+                          Included Parts – <%= template.name %>
+                        </h5>
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="modal"></button>
+                      </div>
+
+                      <div class="modal-body">
+
+                        <% if inventory[:parts].any? %>
+                          <table class="table table-sm">
+                            <thead>
+                              <tr>
+                                <th>Part</th>
+                                <th>Required</th>
+                                <th>Available</th>
+                                <th>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <% inventory[:parts].each do |p| %>
+                                <tr>
+                                  <td><%= p[:name] %></td>
+                                  <td><%= p[:required] %></td>
+                                  <td><%= p[:available] %></td>
+                                  <td>
+                                    <% if p[:available] >= p[:required] %>
+                                      <span class="badge bg-success">
+                                        In Stock
+                                      </span>
+                                    <% else %>
+                                      <span class="badge bg-danger">
+                                        Short <%= p[:required] - p[:available] %>
+                                      </span>
+                                    <% end %>
+                                  </td>
+                                </tr>
+                              <% end %>
+                            </tbody>
+                          </table>
+                        <% else %>
+                          <p class="text-muted">
+                            This job template does not require any parts.
+                          </p>
+                        <% end %>
+
+                      </div>
+
+                      <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal">
+                          Close
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+
+              <% end %>
+            <% else %>
+              <div class="col-12">
+                <div class="alert alert-warning">
+                  No job templates match this vehicle.
+                  You may continue without assigning jobs.
                 </div>
               </div>
-            </div>
-            <div class="col-md-6">
-              <div class="card">
-                <div class="card-header bg-dark text-white">
-                  <h6 class="mb-0">Next Steps</h6>
-                </div>
-                <div class="card-body">
-                  <p class="mb-3">
-                    After clicking "Continue to Pricing", you'll be able to:
-                  </p>
-                  <ul class="mb-0">
-                    <li>Set prices for all quotation items</li>
-                    <li>Add custom line items</li>
-                    <li>Configure taxes and discounts</li>
-                    <li>Review the quotation before submission</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card-footer">
-          <div class="d-flex justify-content-between">
-            <%= link_to 'Cancel', vmcott_rfq_inbox_path, 
-                  class: 'btn btn-secondary' %>
-            <%= form_with url: update_jobs_quotation_path(@quotation), method: :patch, id: 'job-assignment-form' do |f| %>
-              <%= hidden_field_tag :job_assignments, '', id: 'hidden-job-assignments' %>
-              <%= f.submit 'Continue to Pricing', 
-                    class: 'btn btn-primary btn-lg',
-                    id: 'continue-to-pricing-btn' %>
             <% end %>
+
           </div>
         </div>
+
+        <!-- FOOTER -->
+        <div class="card-footer d-flex justify-content-between">
+          <%= link_to 'Cancel',
+                vmcott_rfq_inbox_path,
+                class: 'btn btn-secondary' %>
+
+          <%= form_with(
+                url: update_jobs_quotation_path(@quotation),
+                method: :patch
+              ) do %>
+            <%= submit_tag(
+                  'Continue to Pricing',
+                  class: 'btn btn-primary btn-lg'
+                ) %>
+          <% end %>
+        </div>
+
       </div>
+
     </div>
   </div>
 </div>
-
-<%= javascript_tag do %>
-  document.addEventListener('DOMContentLoaded', function() {
-    const assignedJobs = [];
-    
-    // Handle job template selection
-    document.querySelectorAll('.job-template-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', function() {
-        const jobId = this.value;
-        const jobData = {
-          template_id: jobId,
-          name: this.dataset.name,
-          description: this.dataset.description,
-          hours: parseFloat(this.dataset.hours) || 0,
-          rate: parseFloat(this.dataset.rate) || 0
-        };
-        
-        if (this.checked) {
-          // Check if already added
-          if (!assignedJobs.find(job => job.template_id === jobId)) {
-            assignedJobs.push(jobData);
-          }
-        } else {
-          // Remove from assigned jobs
-          const index = assignedJobs.findIndex(job => job.template_id === jobId);
-          if (index > -1) {
-            assignedJobs.splice(index, 1);
-          }
-        }
-        
-        updateSelectedJobsDisplay();
-      });
-    });
-    
-    // Update selected jobs display
-    function updateSelectedJobsDisplay() {
-      const selectedSection = document.getElementById('selectedJobsSection');
-      const jobsCount = assignedJobs.length;
-      
-      if (jobsCount > 0) {
-        selectedSection.style.display = 'block';
-        document.getElementById('selected-jobs-count').textContent = jobsCount + ' job(s)';
-        
-        // Update jobs table
-        updateJobsTable();
-      } else {
-        selectedSection.style.display = 'none';
-      }
-      
-      // Update hidden field
-      document.getElementById('hidden-job-assignments').value = JSON.stringify(assignedJobs);
-    }
-    
-    // Update jobs table
-    function updateJobsTable() {
-      const tbody = document.getElementById('assigned-jobs-body');
-      tbody.innerHTML = '';
-      
-      let totalLaborCost = 0;
-      
-      assignedJobs.forEach((job, index) => {
-        const laborCost = job.hours * job.rate;
-        totalLaborCost += laborCost;
-        
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>
-            <strong>${job.name}</strong>
-            <br><small class="text-muted">${job.description}</small>
-          </td>
-          <td>${job.hours.toFixed(1)}</td>
-          <td>$${job.rate.toFixed(2)}</td>
-          <td>$${laborCost.toFixed(2)}</td>
-        `;
-        tbody.appendChild(row);
-      });
-      
-      // Update total
-      document.getElementById('total-labor-cost').textContent = '$' + totalLaborCost.toFixed(2);
-    }
-    
-    // Initialize
-    updateSelectedJobsDisplay();
-  });
-<% end %>
-
-<style>
-.job-template-card {
-  border: 2px solid #dee2e6;
-  transition: all 0.3s ease;
-}
-
-.job-template-card:hover {
-  border-color: #0d6efd;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-  transform: translateY(-2px);
-}
-
-.job-template-card .form-check-input {
-  transform: scale(1.2);
-}
-
-.job-template-card .form-check-label {
-  cursor: pointer;
-}
-</style>

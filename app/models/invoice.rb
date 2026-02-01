@@ -1,71 +1,52 @@
-# app/models/invoice.rb - COMPLETE REVISED VERSION (SCHEMA-CORRECT)
-#
-# IMPORTANT:
-# - Your DB schema DOES NOT have: approved_by_id, approved_at, aging_reviewed_by_id, aging_reviewed_at,
-#   last_payment_date, dispute_reason, rfq_id, quotation_id, payable polymorphic columns, payment_schedules.invoice_id.
-# - This file aligns STRICTLY with the schema you pasted, while still supporting an "approve!" workflow
-#   by using reviewed_by_id/reviewed_at as the approver fields (and exposing approved_by/approved_at as aliases).
-
+# app/models/invoice.rb
 class Invoice < ApplicationRecord
-  # For time_ago_in_words / number_to_currency used in model methods
   include ActionView::Helpers::DateHelper
   include ActionView::Helpers::NumberHelper
 
-  # ========================
-  # Associations (schema-backed only)
-  # ========================
-  belongs_to :vehicle # schema: vehicle_id null: false
+  # ==========================================================
+  # ASSOCIATIONS (schema-correct)
+  # ==========================================================
+  belongs_to :vehicle
   belongs_to :maintenance, optional: true
   belongs_to :purchase_order, optional: true
   belongs_to :pos_transaction, optional: true
   belongs_to :supplier, optional: true
   belongs_to :account, optional: true
 
-  # User references (schema-backed)
-  belongs_to :created_by,  class_name: "User", optional: true, foreign_key: :created_by_id
-  belongs_to :received_by, class_name: "User", optional: true, foreign_key: :received_by_id
-  belongs_to :reviewed_by, class_name: "User", optional: true, foreign_key: :reviewed_by_id
-  belongs_to :paid_by,     class_name: "User", optional: true, foreign_key: :paid_by_id
-  belongs_to :disputed_by, class_name: "User", optional: true, foreign_key: :disputed_by_id
+  belongs_to :created_by,  class_name: "User", optional: true
+  belongs_to :received_by, class_name: "User", optional: true
+  belongs_to :reviewed_by, class_name: "User", optional: true
+  belongs_to :paid_by,     class_name: "User", optional: true
+  belongs_to :disputed_by, class_name: "User", optional: true
 
-  # Accounting
   has_many :ledger_entries, dependent: :destroy
-
-  # Payments
   has_many :transactions, dependent: :destroy
   has_many :payment_histories, dependent: :destroy
-
-  # Activity logs
   has_many :activity_logs, as: :record, dependent: :destroy
 
-  # Agency delegation through vehicle
-  delegate :agency, to: :vehicle, allow_nil: true
-  delegate :agency_id, to: :vehicle, allow_nil: true
-  delegate :agency_code, to: :vehicle, allow_nil: true
+  delegate :agency, :agency_id, to: :vehicle, allow_nil: true
 
-  # ========================
-  # Validations
-  # ========================
+  # ==========================================================
+  # VALIDATIONS
+  # ==========================================================
   validates :invoice_number, presence: true, uniqueness: true
-  validates :vendor, presence: true
-  validates :invoice_date, :due_date, presence: true
-  validates :amount, presence: true, numericality: { greater_than: 0 }
-  validates :status, presence: true
+  validates :vehicle_id, :invoice_date, :due_date, :vendor, presence: true
+  validates :amount, numericality: { greater_than: 0 }
 
-  # ========================
-  # Enums (string-backed)
-  # ========================
+  # ==========================================================
+  # ENUMS
+  # ==========================================================
   enum :status, {
     draft: "draft",
     pending: "pending",
     reviewed: "reviewed",
-    approved: "approved",           # allowed even though no approved_by_id column (we alias to reviewed_by)
+    approved: "approved",
     paid: "paid",
     overdue: "overdue",
     disputed: "disputed",
     cancelled: "cancelled",
     partially_paid: "partially_paid"
-  }, default: "pending" # schema default is pending; keep consistent
+  }, default: "pending"
 
   enum :category, {
     maintenance: "maintenance",
@@ -74,20 +55,10 @@ class Invoice < ApplicationRecord
     fuel: "fuel",
     insurance: "insurance",
     licensing: "licensing",
-    cleaning: "cleaning",
-    tires: "tires",
-    electrical: "electrical",
-    mechanical: "mechanical",
-    body_work: "body_work",
     other: "other"
   }, default: "maintenance"
 
-  enum :priority, {
-    low: "low",
-    medium: "medium",
-    high: "high",
-    critical: "critical"
-  }, default: "medium"
+  enum :priority, { low: "low", medium: "medium", high: "high", critical: "critical" }, default: "medium"
 
   enum :aging_bucket, {
     current: "current",
@@ -112,11 +83,12 @@ class Invoice < ApplicationRecord
     on_receipt: "on_receipt"
   }, default: "net_30"
 
-  # ========================
-  # Scopes
-  # ========================
+  # ==========================================================
+  # SCOPES (combined from both versions)
+  # ==========================================================
   scope :overdue_scope, -> {
-    where("due_date < ? AND status IN (?)", Date.current, %w[draft pending reviewed approved partially_paid])
+    where("due_date < ? AND status IN (?)",
+          Date.current, %w[draft pending reviewed approved partially_paid])
   }
 
   scope :pending_scope, -> { where(status: %w[draft pending]) }
@@ -135,8 +107,13 @@ class Invoice < ApplicationRecord
   scope :over_90_aging, -> { where(aging_bucket: "over_90_days") }
   scope :by_aging_bucket, ->(bucket) { where(aging_bucket: bucket) }
 
-  scope :for_agency, ->(agency) { joins(:vehicle).where(vehicles: { agency_id: agency.id }) }
-  scope :by_service_owner, ->(service_owner) { joins(:vehicle).where(vehicles: { service_owner: service_owner }) }
+  scope :for_agency, ->(agency) {
+    joins(:vehicle).where(vehicles: { agency_id: agency.id })
+  }
+  
+  scope :by_service_owner, ->(service_owner) { 
+    joins(:vehicle).where(vehicles: { service_owner: service_owner }) 
+  }
 
   scope :with_quickbooks, -> { where.not(quickbooks_id: nil) }
   scope :without_quickbooks, -> { where(quickbooks_id: nil) }
@@ -170,21 +147,36 @@ class Invoice < ApplicationRecord
   scope :high_priority, -> { where(priority: %w[high critical]) }
   scope :critical_priority, -> { where(priority: "critical") }
 
-  # ========================
-  # Search
-  # ========================
+  # ==========================================================
+  # SEARCH
+  # ==========================================================
   def self.search(query)
     return all if query.blank?
 
     joins(:vehicle).where(
-      "invoices.invoice_number ILIKE :q OR invoices.vendor ILIKE :q OR invoices.notes ILIKE :q OR vehicles.license_plate ILIKE :q",
+      "invoices.invoice_number ILIKE :q
+       OR invoices.vendor ILIKE :q
+       OR invoices.notes ILIKE :q
+       OR vehicles.license_plate ILIKE :q",
       q: "%#{query}%"
     )
   end
 
-  # ========================
+  # ==========================================================
+  # DISPLAY HELPERS
+  # ==========================================================
+  def vehicle_display
+    return "No vehicle assigned" unless vehicle
+    "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model}"
+  end
+
+  def agency_name
+    agency&.name || service_owner || vendor
+  end
+
+  # ==========================================================
   # UI Helpers
-  # ========================
+  # ==========================================================
   def status_badge_class
     case status
     when "paid" then "bg-success"
@@ -247,15 +239,54 @@ class Invoice < ApplicationRecord
     end
   end
 
-  # ========================
-  # Core Methods
-  # ========================
-  def service_owner
-    vehicle&.service_owner
+  # ==========================================================
+  # PAYMENT HELPERS
+  # ==========================================================
+  def total_payments_received
+    payment_histories.sum(:amount) + transactions.sum(:amount)
   end
 
-  def agency_name
-    agency&.name || service_owner || vendor
+  def balance_due
+    amount - total_payments_received
+  end
+
+  def paid_in_full?
+    balance_due <= 0.01
+  end
+
+  def partially_paid_amountwise?
+    total_payments_received.positive? && !paid_in_full?
+  end
+
+  def payment_status
+    if paid_in_full?
+      "Paid in Full"
+    elsif partially_paid_amountwise?
+      "Partially Paid"
+    else
+      "Unpaid"
+    end
+  end
+
+  def payment_percentage
+    return 100 if amount.zero?
+    pct = (total_payments_received / amount) * 100
+    pct > 100 ? 100 : pct.round(2)
+  end
+
+  # ==========================================================
+  # VAT (DISPLAY ONLY)
+  # ==========================================================
+  def vat_rate = 0.125
+  def vat_amount = (amount * vat_rate).round(2)
+  def total_with_vat = (amount + vat_amount).round(2)
+  def subtotal = amount
+
+  # ==========================================================
+  # CORE METHODS
+  # ==========================================================
+  def service_owner
+    vehicle&.service_owner
   end
 
   def days_until_due
@@ -287,57 +318,14 @@ class Invoice < ApplicationRecord
     !paid? && !cancelled? && due_date.present? && due_date < Date.current
   end
 
-  def vehicle_display
-    return "No vehicle assigned" unless vehicle
-    "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model}"
-  end
-
   def aging_days
     return nil unless invoice_date
     (Date.current - invoice_date).to_i
   end
 
-  # ========================
-  # Payments
-  # ========================
-  def total_payments_received
-    ph = payment_histories.respond_to?(:completed) ? payment_histories.completed : payment_histories
-    tx = transactions.respond_to?(:completed) ? transactions.completed : transactions
-    ph.sum(:amount) + tx.sum(:amount)
-  end
-
-  def balance_due
-    amount - total_payments_received
-  end
-
-  def paid_in_full?
-    balance_due <= 0.01
-  end
-
-  # NOTE: Rails already defines partially_paid? from enum; this is "has any payment but not paid in full"
-  def partially_paid_amountwise?
-    total_payments_received.positive? && !paid_in_full?
-  end
-
-  def payment_status
-    if paid_in_full?
-      "Paid in Full"
-    elsif partially_paid_amountwise?
-      "Partially Paid"
-    else
-      "Unpaid"
-    end
-  end
-
-  def payment_percentage
-    return 100 if amount.zero?
-    pct = (total_payments_received / amount) * 100
-    pct > 100 ? 100 : pct.round(2)
-  end
-
-  # ========================
-  # Integrations
-  # ========================
+  # ==========================================================
+  # INTEGRATIONS
+  # ==========================================================
   def quickbooks_synced?
     quickbooks_id.present?
   end
@@ -362,9 +350,9 @@ class Invoice < ApplicationRecord
     ledger_entries.any?
   end
 
-  # ========================
-  # Supplier Helpers
-  # ========================
+  # ==========================================================
+  # SUPPLIER HELPERS
+  # ==========================================================
   def supplier_name
     supplier&.name || vendor
   end
@@ -381,41 +369,21 @@ class Invoice < ApplicationRecord
     supplier&.phone
   end
 
-  # ========================
-  # VAT (for display; does not rewrite stored totals)
-  # ========================
-  def vat_rate
-    0.125
-  end
-
-  def vat_amount
-    (amount * vat_rate).round(2)
-  end
-
-  def total_with_vat
-    (amount + vat_amount).round(2)
-  end
-
-  def subtotal
-    amount
-  end
-
-  # ========================
-  # APPROVAL WORKFLOW (SCHEMA-CORRECT)
-  # ========================
-  # - We keep status "approved"
-  # - We store "who approved" in reviewed_by_id and reviewed_at (since schema has those)
-  # - We expose approved_by / approved_at as aliases, so views can still show “Approved By”
+  # ==========================================================
+  # APPROVAL WORKFLOW (CORRECT + SAFE)
+  # ==========================================================
   def approve!(user:)
     raise "Invoice already approved" if approved?
     raise "Cannot approve cancelled invoice" if cancelled?
+    raise "Invoice amount must be greater than zero" if amount.to_f <= 0
 
-    transaction do
-      # Use reviewed_by/reviewed_at columns as the approver fields
-      self.reviewed_by = user
-      self.reviewed_at = Time.current
-      self.status = "approved"
-      save!
+    ApplicationRecord.transaction do
+      # mark approved (schema-safe)
+      update!(
+        reviewed_by: user,
+        reviewed_at: Time.current,
+        status: "approved"
+      )
 
       post_ledger_entries!(user)
 
@@ -426,25 +394,31 @@ class Invoice < ApplicationRecord
         record: self
       ) if defined?(ActivityLog)
     end
+
+    true
   end
 
-  # Aliases for UI (NO DB columns required)
-  def approved_by
-    reviewed_by
+  # aliases for UI
+  def approved_by = reviewed_by
+  def approved_at = reviewed_at
+
+  # ==========================================================
+  # REVIEW & STATUS HELPERS
+  # ==========================================================
+  def reviewed?
+    reviewed_by.present? || status == "reviewed"
   end
 
-  def approved_at
-    self[:reviewed_at]
+  def reviewer
+    reviewed_by || received_by
   end
 
-  # ========================
-  # Ledger Posting
-  # ========================
+  # ==========================================================
+  # LEDGER POSTING (DOUBLE ENTRY)
+  # ==========================================================
   def post_ledger_entries!(user)
-    # Prevent double-posting
-    return if LedgerEntry.exists?(invoice_id: id)
+    return if ledger_entries.exists?
 
-    # You can change account codes/names later via Accounts table if desired
     LedgerEntry.create!(
       agency_id: agency_id,
       vehicle_id: vehicle_id,
@@ -472,25 +446,9 @@ class Invoice < ApplicationRecord
     )
   end
 
-  # ========================
-  # Review & Status helpers
-  # ========================
-  def reviewed?
-    reviewed_by.present? || status == "reviewed"
-  end
-
-  def reviewer
-    reviewed_by || received_by
-  end
-
-  # Keep name same as your earlier usage
-  def reviewed_at
-    self[:reviewed_at] || received_at
-  end
-
-  # ========================
-  # Sync-related Methods
-  # ========================
+  # ==========================================================
+  # SYNC-RELATED METHODS
+  # ==========================================================
   def recently_synced?(hours = 24)
     last_sync_at.present? && last_sync_at > hours.hours.ago
   end
@@ -540,9 +498,9 @@ class Invoice < ApplicationRecord
     end
   end
 
-  # ========================
-  # Integration Badges
-  # ========================
+  # ==========================================================
+  # INTEGRATION BADGES
+  # ==========================================================
   def integration_badges
     badges = []
 
@@ -597,22 +555,15 @@ class Invoice < ApplicationRecord
     badges
   end
 
-  # ========================
-  # Mark Methods (schema-safe)
-  # ========================
+  # ==========================================================
+  # STATUS TRANSITIONS
+  # ==========================================================
   def mark_as_paid(user = nil)
     update!(
       status: "paid",
       paid_by: user,
       paid_at: Time.current
     )
-
-    ActivityLog.create!(
-      user: user,
-      action: "invoice_paid",
-      description: "Invoice #{invoice_number} marked as paid",
-      record: self
-    ) if defined?(ActivityLog)
   end
 
   def mark_as_reviewed(user = nil)
@@ -621,13 +572,6 @@ class Invoice < ApplicationRecord
       reviewed_by: user,
       reviewed_at: Time.current
     )
-
-    ActivityLog.create!(
-      user: user,
-      action: "invoice_reviewed",
-      description: "Invoice #{invoice_number} reviewed",
-      record: self
-    ) if defined?(ActivityLog)
   end
 
   def mark_as_disputed(user = nil)
@@ -636,18 +580,11 @@ class Invoice < ApplicationRecord
       disputed_by: user,
       disputed_at: Time.current
     )
-
-    ActivityLog.create!(
-      user: user,
-      action: "invoice_disputed",
-      description: "Invoice #{invoice_number} disputed",
-      record: self
-    ) if defined?(ActivityLog)
   end
 
-  # ========================
-  # Payment Timeline
-  # ========================
+  # ==========================================================
+  # PAYMENT TIMELINE
+  # ==========================================================
   def payment_timeline
     timeline = []
 
@@ -689,9 +626,9 @@ class Invoice < ApplicationRecord
     payment_histories.order(payment_date: :desc).limit(count)
   end
 
-  # ========================
-  # QuickBooks Sync (mock)
-  # ========================
+  # ==========================================================
+  # QUICKBOOKS SYNC (MOCK)
+  # ==========================================================
   def sync_to_quickbooks
     return { success: true, message: "Already synced" } if quickbooks_id.present?
 
@@ -722,9 +659,9 @@ class Invoice < ApplicationRecord
     { success: false, error: "QuickBooks sync error: #{e.message}" }
   end
 
-  # ========================
-  # Text Export
-  # ========================
+  # ==========================================================
+  # TEXT EXPORT
+  # ==========================================================
   def to_text
     content = +"=" * 50 + "\n"
     content << "INVOICE RECEIPT\n"
@@ -777,9 +714,9 @@ class Invoice < ApplicationRecord
     content
   end
 
-  # ========================
-  # Progress & Status
-  # ========================
+  # ==========================================================
+  # PROGRESS & STATUS
+  # ==========================================================
   def payment_progress
     {
       percentage: payment_percentage,
@@ -854,9 +791,9 @@ class Invoice < ApplicationRecord
     t.sort_by { |ev| ev[:date] || Time.at(0) }.reverse
   end
 
-  # ========================
-  # Update Methods
-  # ========================
+  # ==========================================================
+  # UPDATE METHODS
+  # ==========================================================
   def update_aging_information
     return unless overdue?
     update_columns(
@@ -875,28 +812,19 @@ class Invoice < ApplicationRecord
     end
   end
 
-  # ========================
-  # Callbacks
-  # ========================
-  before_save :update_status_based_on_due_date
+  # ==========================================================
+  # CALLBACKS
+  # ==========================================================
+  before_save :update_overdue_status
   before_save :link_supplier
   after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
   after_save :check_status_change_for_logs, if: :saved_change_to_status?
 
   private
 
-  def update_status_based_on_due_date
-    # Keep overdue status consistent
+  def update_overdue_status
     if due_date.present? && due_date < Date.current && !paid? && !cancelled?
-      self.status = "overdue" if %w[pending draft reviewed approved partially_paid].include?(status)
-      self.days_overdue = calculate_days_overdue
-      self.aging_bucket = calculate_aging_bucket
-    end
-
-    # Auto mark paid if balance is cleared (optional behavior; comment out if you dislike it)
-    if paid_in_full? && status != "paid"
-      self.status = "paid"
-      self.paid_at ||= Time.current
+      self.status = "overdue" if %w[pending reviewed approved partially_paid].include?(status)
     end
   end
 

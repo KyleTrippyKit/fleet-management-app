@@ -8,6 +8,9 @@ class LedgerEntry < ApplicationRecord
   validates :entry_date, :account_code, :account_name, presence: true
   validate :must_have_debit_or_credit
 
+  scope :debits,  -> { where("debit > 0") }
+  scope :credits, -> { where("credit > 0") }
+
   private
 
   def must_have_debit_or_credit

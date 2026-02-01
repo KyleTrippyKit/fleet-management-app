@@ -403,74 +403,42 @@ Rails.application.routes.draw do
   get 'vmcott/quotation_workspace', to: 'quotations#workspace', as: 'vmcott_quotation_workspace'
 
   # ========================
-  # COMPREHENSIVE INVOICE ROUTES with Aging
-  # ========================
-  resources :invoices do
-    collection do
-      get :reports
-      get :dashboard
-      get :summary
-      get :bulk_actions
-      post :process_bulk
-      post :sync_quickbooks
-      get :aging_report, as: 'aging_report'                     # NEW: Aging report
-      get :bulk_payment_view, as: 'bulk_payment_view'           # NEW: Bulk payment view
-      post :process_bulk_payment, as: 'process_bulk_payment'    # NEW: Process bulk payments
-      get :payment_schedule, as: 'payment_schedule'             # NEW: Payment scheduling
-      post :schedule_payments, as: 'schedule_payments'          # NEW: Schedule payments
-      get :overdue_summary, as: 'overdue_summary'               # NEW: Overdue summary
-      get :vendor_aging, as: 'vendor_aging'                     # NEW: Vendor aging
-    end
-    
-    member do
-      get :print, defaults: { format: :pdf }
-      get :download
-      post :mark_as_reviewed
-      post :mark_as_paid
-      post :dispute
-      get :payment_history
-      post :sync_to_quickbooks
-      post :create_transaction
-      post :create_pos_transaction
-      get :payment_timeline
-      post :record_payment
-      post :mark_as_aging_reviewed, as: 'mark_as_aging_reviewed' # NEW: Mark aging as reviewed
-      get :payment_schedule_options, as: 'payment_schedule_options' # NEW: Payment schedule options
-    end
+# COMPREHENSIVE INVOICE ROUTES with Aging
+# ========================
+resources :invoices do
+  collection do
+    get :reports
+    get :dashboard
+    get :summary
+    get :bulk_actions
+    post :process_bulk
+    post :sync_quickbooks
+    get :aging_report, as: 'aging_report'                     # NEW: Aging report
+    get :bulk_payment_view, as: 'bulk_payment_view'           # NEW: Bulk payment view
+    post :process_bulk_payment, as: 'process_bulk_payment'    # NEW: Process bulk payments
+    get :payment_schedule, as: 'payment_schedule'             # NEW: Payment scheduling
+    post :schedule_payments, as: 'schedule_payments'          # NEW: Schedule payments
+    get :overdue_summary, as: 'overdue_summary'               # NEW: Overdue summary
+    get :vendor_aging, as: 'vendor_aging'                     # NEW: Vendor aging
   end
-
-  # ========================
-  # PAYMENT HISTORY ROUTES
-  # ========================
-  resources :payment_histories, only: [:index, :show] do
-    collection do
-      get 'agency/:agency_id', to: 'payment_histories#agency_index', as: :agency
-      get :reports
-      get :summary
-      get :export_csv
-      get :dashboard
-    end
+  
+  member do
+    get :print, defaults: { format: :pdf }
+    get :download
+    post :mark_as_reviewed
+    post :mark_as_paid
+    post :approve                                            # ✅ ADDED: Approve invoice
+    post :dispute
+    get :payment_history
+    post :sync_to_quickbooks
+    post :create_transaction
+    post :create_pos_transaction
+    get :payment_timeline
+    post :record_payment
+    post :mark_as_aging_reviewed, as: 'mark_as_aging_reviewed' # NEW: Mark aging as reviewed
+    get :payment_schedule_options, as: 'payment_schedule_options' # NEW: Payment schedule options
   end
-
-  # ========================
-  # REGULAR TRANSACTIONS ROUTES
-  # ========================
-  resources :transactions do
-    collection do
-      get :reports
-      get :export
-      get :reconcile
-      post :process_reconciliation
-      get :dashboard
-    end
-    
-    member do
-      post :void
-      post :refund
-      get :receipt
-      post :sync_to_quickbooks
-    end
-  end
+end
 
   # ========================
   # ENHANCED PURCHASE ORDERS ROUTES with Acceptance Workflow & Inventory Integration
@@ -729,6 +697,16 @@ Rails.application.routes.draw do
   get 'accounting-dashboard/accounts-payable', to: 'accounting_dashboard#accounts_payable', as: 'accounts_payable_dashboard'
   get 'accounting-dashboard/cash-flow', to: 'accounting_dashboard#cash_flow', as: 'cash_flow_dashboard'
   get 'accounting-dashboard/financial-reports', to: 'accounting_dashboard#financial_reports', as: 'financial_reports_dashboard'
+
+  # ========================
+  # Accounting Routes (Added as requested)
+  # ========================
+  get "/accounting/general_ledger", to: "accounting#general_ledger", as: :general_ledger
+  get "/accounting/trial_balance",  to: "accounting#trial_balance",  as: :trial_balance
+  get "/accounting/trial_balance.csv", to: "accounting#trial_balance", defaults: { format: :csv }
+  get "/accounting/trial_balance.pdf", to: "accounting#trial_balance", defaults: { format: :pdf }
+  get "/general_ledger", to: "accounting#general_ledger"
+  get "/trial_balance",  to: "accounting#trial_balance"
 
   # ========================
   # QUICKBOOKS INTEGRATION ROUTES

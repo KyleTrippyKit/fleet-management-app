@@ -1,0 +1,90 @@
+<h3 class="mb-3">Trial Balance</h3>
+
+<%= form_with url: trial_balance_path,
+              method: :get,
+              local: true,
+              class: "row g-2 mb-3" do %>
+
+  <div class="col-auto">
+    <%= label_tag :date_from, "From", class: "form-label" %>
+    <%= date_field_tag :date_from, @date_from, class: "form-control" %>
+  </div>
+
+  <div class="col-auto">
+    <%= label_tag :date_to, "To", class: "form-label" %>
+    <%= date_field_tag :date_to, @date_to, class: "form-control" %>
+  </div>
+
+  <div class="col-auto align-self-end">
+    <%= submit_tag "Run", class: "btn btn-primary" %>
+  </div>
+
+  <div class="col-auto align-self-end">
+    <%= link_to "⬇ Export CSV",
+      trial_balance_path(
+        date_from: @date_from,
+        date_to:   @date_to,
+        format:    :csv
+      ),
+      class: "btn btn-outline-secondary" %>
+  </div>
+
+  <div class="col-auto align-self-end">
+    <%= link_to "⬇ Export PDF",
+      trial_balance_path(
+        date_from: @date_from,
+        date_to:   @date_to,
+        format:    :pdf
+      ),
+      class: "btn btn-outline-primary",
+      target: "_blank",
+      rel: "noopener" %>
+  </div>
+<% end %>
+
+<div class="card">
+  <div class="card-body">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Name</th>
+          <th class="text-end">Debit</th>
+          <th class="text-end">Credit</th>
+          <th class="text-end">Balance</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <% @trial_rows.each do |r| %>
+          <tr>
+            <td><%= r[:account_code] %></td>
+            <td><%= r[:account_name] %></td>
+            <td class="text-end"><%= number_to_currency(r[:total_debit]) %></td>
+            <td class="text-end"><%= number_to_currency(r[:total_credit]) %></td>
+            <td class="text-end"><%= number_to_currency(r[:balance]) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+
+      <tfoot>
+        <tr class="fw-bold">
+          <td colspan="2">Totals</td>
+          <td class="text-end">
+            <%= number_to_currency(@grand_totals[:debit]) %>
+          </td>
+          <td class="text-end">
+            <%= number_to_currency(@grand_totals[:credit]) %>
+          </td>
+          <td class="text-end">
+            <% if @grand_totals[:balanced?] %>
+              <span class="badge bg-success">Balanced</span>
+            <% else %>
+              <span class="badge bg-danger">Not Balanced</span>
+            <% end %>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
