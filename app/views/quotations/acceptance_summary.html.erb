@@ -1,0 +1,292 @@
+<%# app/views/quotations/acceptance_summary.html.erb %>
+
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="mb-1">Acceptance Summary</h1>
+    <div class="text-muted">
+      Review what you accepted before confirming. This will mark the quotation as <strong>Accepted</strong> and create a Purchase Order.
+    </div>
+  </div>
+
+  <div class="text-end">
+    <div class="fw-semibold h5 text-primary"><%= @quotation.quote_number %></div>
+    <div class="text-muted small">
+      Vendor: <span class="badge bg-info"><%= @quotation.vendor %></span> |
+      Status: <span class="badge bg-<%= @quotation.respond_to?(:status_color) ? @quotation.status_color : 'secondary' %>"><%= @quotation.status.to_s.humanize %></span>
+    </div>
+  </div>
+</div>
+
+<!-- Quotation Summary Card -->
+<div class="card mb-3 shadow-sm">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="text-muted small">Vehicle</div>
+        <div class="fw-semibold">
+          <% if @quotation.vehicle %>
+            <%= @quotation.vehicle.license_plate %>
+            <small class="text-muted d-block"><%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %></small>
+          <% else %>
+            <span class="text-danger">N/A</span>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="text-muted small">Agency</div>
+        <div class="fw-semibold">
+          <%= @quotation.agency&.code || @quotation.agency&.name || "N/A" %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="text-muted small">Original Quoted Amount</div>
+        <div class="fw-semibold h5 text-success">
+          $<%= number_with_precision(@quotation.amount.to_f, precision: 2) %>
+        </div>
+      </div>
+
+      <% if @quotation.notes.present? %>
+        <div class="col-12">
+          <div class="text-muted small">Notes</div>
+          <div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">
+            <%= @quotation.notes %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<% if accepted_line_ids.empty? && accepted_job_ids.empty? && accepted_part_ids.empty? %>
+  <div class="alert alert-warning">
+    No items were selected. Please go back and choose at least one line item / job / part.
+  </div>
+<% end %>
+
+<% line_items = @quotation.quotation_line_items.where(id: accepted_line_ids) %>
+<% jobs = @quotation.respond_to?(:quotation_jobs) ? @quotation.quotation_jobs.where(id: accepted_job_ids) : [] %>
+<% parts = @quotation.respond_to?(:quotation_job_parts) ? @quotation.quotation_job_parts.where(id: accepted_part_ids) : [] %>
+
+<div class="row g-3">
+  <!-- Accepted Items -->
+  <div class="col-lg-8">
+    <!-- Accepted Line Items -->
+    <div class="card mb-3 shadow-sm">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <div class="fw-semibold">
+          <i class="fas fa-box me-2"></i>Accepted Line Items
+        </div>
+        <span class="badge bg-secondary"><%= line_items.size %></span>
+      </div>
+
+      <div class="card-body p-0">
+        <% if line_items.any? %>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Description</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Unit Price</th>
+                  <th class="text-end">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% line_items.each do |li| %>
+                  <% qty = li.quantity.to_f %>
+                  <% unit = li.unit_price.to_f %>
+                  <% total = qty * unit %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= li.description.presence || "Line Item" %></div>
+                      <% if li.specifications.present? %>
+                        <div class="text-muted small"><%= li.specifications %></div>
+                      <% end %>
+                    </td>
+                    <td class="text-end"><span class="badge bg-primary rounded-pill"><%= qty %></span></td>
+                    <td class="text-end">$<%= number_with_precision(unit, precision: 2) %></td>
+                    <td class="text-end fw-bold">$<%= number_with_precision(total, precision: 2) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+              <tfoot class="table-light">
+                <% sub = line_items.sum { |x| x.quantity.to_f * x.unit_price.to_f } %>
+                <tr>
+                  <td colspan="3" class="text-end"><strong>Subtotal:</strong></td>
+                  <td class="text-end fw-bold">$<%= number_with_precision(sub, precision: 2) %></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        <% else %>
+          <div class="p-4 text-center text-muted">
+            <i class="fas fa-box-open fa-2x mb-2"></i>
+            <div>No line items were selected.</div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Accepted Jobs -->
+    <div class="card mb-3 shadow-sm">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <div class="fw-semibold">
+          <i class="fas fa-tools me-2"></i>Accepted Jobs
+        </div>
+        <span class="badge bg-secondary"><%= jobs.size %></span>
+      </div>
+
+      <div class="card-body">
+        <% if jobs.any? %>
+          <% jobs.each do |job| %>
+            <% labor = job.total_labor_cost.to_f %>
+            <div class="border rounded p-3 mb-3 bg-white">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                  <div class="fw-semibold h6 mb-1"><%= job.name.presence || "Job" %></div>
+                  <% if job.description.present? %>
+                    <div class="text-muted small"><%= job.description %></div>
+                  <% end %>
+                </div>
+                <div class="text-end">
+                  <div class="text-muted small">Labor</div>
+                  <div class="fw-semibold h5 text-info">$<%= number_with_precision(labor, precision: 2) %></div>
+                </div>
+              </div>
+
+              <% job_parts = job.quotation_job_parts.where(id: accepted_part_ids) rescue [] %>
+              <% if job_parts.present? && job_parts.any? %>
+                <div class="mt-3 pt-3 border-top">
+                  <div class="text-muted small mb-2">
+                    <i class="fas fa-cogs me-1"></i>Accepted Parts for this Job
+                    <span class="badge bg-secondary ms-1"><%= job_parts.count %></span>
+                  </div>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Part</th>
+                          <th class="text-end">Qty</th>
+                          <th class="text-end">Unit</th>
+                          <th class="text-end">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% job_parts.each do |jp| %>
+                          <% pqty = jp.quantity.to_f %>
+                          <% punit = jp.unit_price.to_f %>
+                          <% ptotal = (jp.total_price.present? ? jp.total_price.to_f : (pqty * punit)) %>
+
+                          <tr>
+                            <td class="align-middle">
+                              <div class="fw-semibold">
+                                <%= jp.part&.name || "Part" %>
+                                <% if jp.part&.part_number.present? %>
+                                  <span class="text-muted small">(<%= jp.part.part_number %>)</span>
+                                <% end %>
+                              </div>
+                            </td>
+                            <td class="text-end"><span class="badge bg-primary rounded-pill"><%= pqty %></span></td>
+                            <td class="text-end">$<%= number_with_precision(punit, precision: 2) %></td>
+                            <td class="text-end fw-bold">$<%= number_with_precision(ptotal, precision: 2) %></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                      <tfoot class="table-light">
+                        <% ps = job_parts.sum { |x| x.total_price.present? ? x.total_price.to_f : (x.quantity.to_f * x.unit_price.to_f) } %>
+                        <tr>
+                          <td colspan="3" class="text-end"><strong>Parts Subtotal:</strong></td>
+                          <td class="text-end fw-bold">$<%= number_with_precision(ps, precision: 2) %></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              <% else %>
+                <div class="mt-2 text-muted small">
+                  No parts were selected for this job.
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="p-4 text-center text-muted">
+            <i class="fas fa-tools fa-2x mb-2"></i>
+            <div>No jobs were selected.</div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Totals / Actions -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-light">
+        <div class="fw-semibold">Totals</div>
+      </div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted">Accepted Total</span>
+          <span class="fw-bold text-success">
+            $<%= number_with_precision(@accepted_total.to_f, precision: 2) %>
+          </span>
+        </div>
+
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted">Rejected / Excluded</span>
+          <span class="fw-bold text-danger">
+            $<%= number_with_precision(@rejected_total.to_f, precision: 2) %>
+          </span>
+        </div>
+
+        <hr>
+
+        <% orig = @quotation.amount.to_f %>
+        <% pct = orig > 0 ? ((@accepted_total.to_f / orig) * 100.0) : 0 %>
+
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">% Accepted</span>
+          <span class="fw-bold"><%= pct.round(0) %>%</span>
+        </div>
+
+        <div class="alert alert-warning mt-3 mb-0">
+          <div class="small">
+            Confirming will:
+            <ul class="mb-0">
+              <li>Mark quotation as <strong>Accepted</strong></li>
+              <li>Create a <strong>Purchase Order</strong> from selected items</li>
+              <li>Clear the stored selection session</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-grid gap-2">
+      <%= link_to accept_items_quotation_path(@quotation),
+                  class: "btn btn-outline-secondary",
+                  data: { turbo: false } do %>
+        <i class="fas fa-arrow-left me-2"></i>Back to Selection
+      <% end %>
+
+      <%= button_to send_acceptance_quotation_path(@quotation),
+                    method: :post,
+                    class: "btn btn-success btn-lg",
+                    form: { data: { turbo: false } },
+                    data: { confirm: "Confirm acceptance and create Purchase Order?" } do %>
+        <i class="fas fa-check-circle me-2"></i>Confirm Acceptance & Create PO
+      <% end %>
+
+      <%= button_to "Reject Entire Quotation",
+            convert_to_po_quotation_path(@quotation, reject_all: 1),
+            method: :post,
+            class: "btn btn-outline-danger",
+            form: { data: { turbo: false } },
+            data: { confirm: "Reject entire quotation? This cannot be undone." } %>
+    </div>
+  </div>
+</div>

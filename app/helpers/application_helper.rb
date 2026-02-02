@@ -1,5 +1,6 @@
-# app/helpers/application_helper.rb
 module ApplicationHelper
+  include Ransack::Helpers::FormHelper
+  
   # Generate a sortable link for table headers with Turbo support
   def sortable(column, title = nil)
     title ||= column.titleize

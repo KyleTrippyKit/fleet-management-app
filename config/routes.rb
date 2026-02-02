@@ -377,11 +377,9 @@ Rails.application.routes.draw do
       post :duplicate
       post :reject
       get  :accept_items
-      post :accept_items_submit
       get :email
       get :print                                                 # Agency accepts specific items
-      post :reject_items, as: 'reject_items'                     # Agency rejects specific items
-      post :convert_to_po, as: 'convert_to_po'                    # Creates PO from accepted items
+      post :reject_items, as: 'reject_items'                     # Agency rejects specific items                  # Creates PO from accepted items
       get :acceptance_summary, as: 'acceptance_summary'
       post :send_acceptance, as: 'send_acceptance'                  # Agency sends acceptance back
       post :process_item_acceptance, as: 'process_item_acceptance'  # Process item acceptance

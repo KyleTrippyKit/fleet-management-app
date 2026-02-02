@@ -227,6 +227,23 @@ class Vehicle < ApplicationRecord
   end
 
   # ------------------------------------------------------------
+  # ✅ ADDED: Icon method for Bootstrap Icons
+  # ------------------------------------------------------------
+  # Returns a Bootstrap Icons suffix (used like: "bi-<suffix>")
+  def icon
+    # Pick an icon based on vehicle_type / body_style / make etc.
+    vt = (vehicle_type.presence || body_style.presence || "").to_s.downcase
+
+    return "truck" if vt.include?("truck") || vt.include?("lorry") || vt.include?("tipper")
+    return "bus-front" if vt.include?("bus") || vt.include?("coach") || vt.include?("maxi")
+    return "bicycle" if vt.include?("bike") || vt.include?("bicycle")
+    return "motorcycle" if vt.include?("motorcycle") || vt.include?("bike")
+
+    # default
+    "car-front"
+  end
+
+  # ------------------------------------------------------------
   # Status methods
   # ------------------------------------------------------------
   def status

@@ -107,7 +107,8 @@
               <% else %>
                 <%= f.collection_select :vehicle_id, @vehicles, :id, :license_plate_with_details, 
                       { include_blank: 'Select Vehicle' }, 
-                      class: 'form-select gov-select' %>
+                      class: 'form-select gov-select',
+                      disabled: @quotation.sent? %>
               <% end %>
               <small class="form-text text-muted">
                 <i class="fas fa-car"></i> RFQ Reference: <%= @rfq&.vehicle&.license_plate || 'Not specified' %>
@@ -135,7 +136,8 @@
               <div class="input-group">
                 <span class="input-group-text gov-input-prefix"><i class="fas fa-calendar-alt"></i></span>
                 <%= f.date_field :valid_from, class: 'form-control gov-date-input', required: true, 
-                      value: @quotation.valid_from || Date.today, min: Date.today, max: 1.year.from_now.to_date %>
+                      value: @quotation.valid_from || Date.today, min: Date.today, max: 1.year.from_now.to_date,
+                      disabled: @quotation.sent? %>
               </div>
             </div>
           </div>
@@ -146,7 +148,8 @@
               <div class="input-group">
                 <span class="input-group-text gov-input-prefix"><i class="fas fa-clock"></i></span>
                 <%= f.date_field :valid_to, class: 'form-control gov-date-input', required: true, 
-                      value: @quotation.valid_to || (Date.today + 30.days), min: Date.tomorrow, max: 2.years.from_now.to_date %>
+                      value: @quotation.valid_to || (Date.today + 30.days), min: Date.tomorrow, max: 2.years.from_now.to_date,
+                      disabled: @quotation.sent? %>
               </div>
               <small class="form-text text-muted">Standard: 30 days from quotation date</small>
             </div>
@@ -159,7 +162,8 @@
                 <span class="input-group-text gov-input-prefix"><i class="fas fa-hashtag"></i></span>
                 <%= f.text_field :quote_number, class: 'form-control gov-input', required: true,
                       value: @quotation.quote_number || "VMC-QTN-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(3).upcase}",
-                      pattern: '^[A-Z0-9-]{5,}$', title: 'Format: VMC-QTN-YYYYMMDD-XXX' %>
+                      pattern: '^[A-Z0-9-]{5,}$', title: 'Format: VMC-QTN-YYYYMMDD-XXX',
+                      disabled: @quotation.sent? %>
               </div>
               <small class="form-text text-muted">Format: VMC-QTN-YYYYMMDD-XXX</small>
             </div>
@@ -184,7 +188,7 @@
     </div>
 
     <!-- NEW SECTION: Job Template Selection (For VMCOTT only) -->
-    <% if current_user.agency&.code == 'VMCOTT' && @labor_job_templates.present? %>
+    <% if current_user.agency&.code == 'VMCOTT' && @labor_job_templates.present? && !@quotation.sent? %>
       <div class="form-section mb-4 gov-section">
         <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #ff6b35; border-bottom: 2px solid #dee2e6;">
           <h4 style="color: #2c3e50; font-weight: 700;">
@@ -299,7 +303,8 @@
                         <strong><%= job.object.name %></strong>
                         <%= job.hidden_field :name %>
                       <% else %>
-                        <%= job.text_field :name, class: 'form-control gov-input', placeholder: "Job Name", required: true %>
+                        <%= job.text_field :name, class: 'form-control gov-input', placeholder: "Job Name", required: true,
+                              disabled: @quotation.sent? %>
                       <% end %>
                     </div>
                   </td>
@@ -309,7 +314,8 @@
                         <%= job.object.description %>
                         <%= job.hidden_field :description %>
                       <% else %>
-                        <%= job.text_area :description, class: 'form-control gov-textarea', rows: 1, placeholder: "Job Description" %>
+                        <%= job.text_area :description, class: 'form-control gov-textarea', rows: 1, placeholder: "Job Description",
+                              disabled: @quotation.sent? %>
                       <% end %>
                     </div>
                   </td>
@@ -319,7 +325,8 @@
                         <%= job.object.estimated_hours %>
                         <%= job.hidden_field :estimated_hours %>
                       <% else %>
-                        <%= job.number_field :estimated_hours, class: 'form-control gov-input', step: '0.25', min: '0.25', value: job.object.estimated_hours || 1 %>
+                        <%= job.number_field :estimated_hours, class: 'form-control gov-input', step: '0.25', min: '0.25', 
+                              value: job.object.estimated_hours || 1, disabled: @quotation.sent? %>
                       <% end %>
                     </div>
                   </td>
@@ -331,7 +338,8 @@
                       <% else %>
                         <div class="input-group input-group-sm">
                           <span class="input-group-text gov-currency-sm">$</span>
-                          <%= job.number_field :labor_rate_per_hour, class: 'form-control form-control-sm', step: '0.01', min: '0', value: job.object.labor_rate_per_hour || 100 %>
+                          <%= job.number_field :labor_rate_per_hour, class: 'form-control form-control-sm', step: '0.01', min: '0', 
+                                value: job.object.labor_rate_per_hour || 100, disabled: @quotation.sent? %>
                         </div>
                       <% end %>
                     </div>
@@ -348,8 +356,9 @@
                     </div>
                   </td>
                   <td class="text-center">
-                    <% unless job.object.persisted? %>
-                      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="<%= job.index %>">
+                    <% unless job.object.persisted? && !@quotation.sent? %>
+                      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="<%= job.index %>"
+                              <%= 'disabled' if @quotation.sent? %>>
                         <span style="font-size: 14px; pointer-events: none;">✕</span>
                       </button>
                     <% end %>
@@ -394,165 +403,167 @@
     <!-- END OF JOBS SECTION -->
 
     <!-- Section 2: Inventory Parts for Quotation - UPDATED TO USE INVENTORY PARTS -->
-    <div class="form-section mb-4 gov-section">
-      <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #28a745; border-bottom: 2px solid #dee2e6;">
-        <h4 style="color: #2c3e50; font-weight: 700;">
-          <i class="fas fa-boxes me-2" style="color: #28a745;"></i>SECTION 2: PARTS FROM INVENTORY
-        </h4>
-        <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
-          Select parts from inventory to include in this quotation (excluding VAT 12.5%)
-        </p>
-      </div>
-      
-      <!-- Parts Search and Selection Panel -->
-      <div class="section-body">
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <div class="input-group mb-3">
-              <span class="input-group-text gov-input-prefix"><i class="fas fa-search"></i></span>
-              <input type="text" id="parts-search" class="form-control gov-input" 
-                     placeholder="Search parts by name or part number...">
-              <button class="btn btn-outline-secondary" type="button" id="clear-search">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="d-flex justify-content-end">
-              <div class="btn-group" role="group">
-                <button type="button" class="btn btn-outline-secondary" id="show-in-stock">
-                  <i class="fas fa-check-circle"></i> In Stock Only
-                </button>
-                <button type="button" class="btn btn-outline-secondary" id="show-low-stock">
-                  <i class="fas fa-exclamation-triangle"></i> Low Stock
-                </button>
-                <button type="button" class="btn btn-outline-secondary" id="show-all-parts">
-                  <i class="fas fa-list"></i> All Parts
+    <% if !@quotation.sent? %>
+      <div class="form-section mb-4 gov-section">
+        <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #28a745; border-bottom: 2px solid #dee2e6;">
+          <h4 style="color: #2c3e50; font-weight: 700;">
+            <i class="fas fa-boxes me-2" style="color: #28a745;"></i>SECTION 2: PARTS FROM INVENTORY
+          </h4>
+          <p class="section-subtitle" style="color: #6c757d; font-size: 0.9em;">
+            Select parts from inventory to include in this quotation (excluding VAT 12.5%)
+          </p>
+        </div>
+        
+        <!-- Parts Search and Selection Panel -->
+        <div class="section-body">
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="input-group mb-3">
+                <span class="input-group-text gov-input-prefix"><i class="fas fa-search"></i></span>
+                <input type="text" id="parts-search" class="form-control gov-input" 
+                       placeholder="Search parts by name or part number...">
+                <button class="btn btn-outline-secondary" type="button" id="clear-search">
+                  <i class="fas fa-times"></i>
                 </button>
               </div>
             </div>
+            <div class="col-md-6">
+              <div class="d-flex justify-content-end">
+                <div class="btn-group" role="group">
+                  <button type="button" class="btn btn-outline-secondary" id="show-in-stock">
+                    <i class="fas fa-check-circle"></i> In Stock Only
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary" id="show-low-stock">
+                    <i class="fas fa-exclamation-triangle"></i> Low Stock
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary" id="show-all-parts">
+                    <i class="fas fa-list"></i> All Parts
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <!-- Parts Selection Grid -->
-        <div class="parts-grid mb-4" style="border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto; background: #f8f9fa;">
-          <div class="row" id="parts-grid-container">
-            <% if @parts.present? %>
-              <% @parts.each do |part| %>
-                <div class="col-md-4 mb-3 part-card" 
-                     data-part-id="<%= part.id %>"
-                     data-part-name="<%= part.name %>"
-                     data-part-number="<%= part.part_number %>"
-                     data-part-description="<%= part.description %>"
-                     data-unit-price="<%= part.selling_price %>"
-                     data-current-stock="<%= part.current_stock %>"
-                     data-stock-status="<%= part.stock_status %>">
-                  <div class="card h-100 border <%= part.stock_status == 'out_of_stock' ? 'border-danger' : part.stock_status == 'low_stock' ? 'border-warning' : 'border-success' %>">
-                    <div class="card-body">
-                      <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="card-title mb-0" style="font-size: 0.9rem;">
-                          <strong><%= part.name %></strong>
-                        </h6>
-                        <span class="badge <%= part.stock_status == 'out_of_stock' ? 'bg-danger' : part.stock_status == 'low_stock' ? 'bg-warning' : 'bg-success' %>">
-                          <%= part.current_stock %> in stock
-                        </span>
-                      </div>
-                      
-                      <% if part.part_number.present? %>
-                        <small class="text-muted d-block mb-2">
-                          <i class="fas fa-hashtag"></i> <%= part.part_number %>
-                        </small>
-                      <% end %>
-                      
-                      <% if part.description.present? %>
-                        <p class="card-text" style="font-size: 0.8rem; color: #6c757d;">
-                          <%= truncate(part.description, length: 60) %>
-                        </p>
-                      <% end %>
-                      
-                      <div class="mt-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                          <div>
-                            <strong style="color: #28a745; font-size: 0.9rem;">
-                              <%= number_to_currency(part.selling_price) %>
-                            </strong>
-                            <br>
-                            <small class="text-muted">
-                              Cost: <%= number_to_currency(part.cost_price) %>
-                            </small>
+          
+          <!-- Parts Selection Grid -->
+          <div class="parts-grid mb-4" style="border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; max-height: 300px; overflow-y: auto; background: #f8f9fa;">
+            <div class="row" id="parts-grid-container">
+              <% if @parts.present? %>
+                <% @parts.each do |part| %>
+                  <div class="col-md-4 mb-3 part-card" 
+                       data-part-id="<%= part.id %>"
+                       data-part-name="<%= part.name %>"
+                       data-part-number="<%= part.part_number %>"
+                       data-part-description="<%= part.description %>"
+                       data-unit-price="<%= part.selling_price %>"
+                       data-current-stock="<%= part.current_stock %>"
+                       data-stock-status="<%= part.stock_status %>">
+                    <div class="card h-100 border <%= part.stock_status == 'out_of_stock' ? 'border-danger' : part.stock_status == 'low_stock' ? 'border-warning' : 'border-success' %>">
+                      <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <h6 class="card-title mb-0" style="font-size: 0.9rem;">
+                            <strong><%= part.name %></strong>
+                          </h6>
+                          <span class="badge <%= part.stock_status == 'out_of_stock' ? 'bg-danger' : part.stock_status == 'low_stock' ? 'bg-warning' : 'bg-success' %>">
+                            <%= part.current_stock %> in stock
+                          </span>
+                        </div>
+                        
+                        <% if part.part_number.present? %>
+                          <small class="text-muted d-block mb-2">
+                            <i class="fas fa-hashtag"></i> <%= part.part_number %>
+                          </small>
+                        <% end %>
+                        
+                        <% if part.description.present? %>
+                          <p class="card-text" style="font-size: 0.8rem; color: #6c757d;">
+                            <%= truncate(part.description, length: 60) %>
+                          </p>
+                        <% end %>
+                        
+                        <div class="mt-2">
+                          <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                              <strong style="color: #28a745; font-size: 0.9rem;">
+                                <%= number_to_currency(part.selling_price) %>
+                              </strong>
+                              <br>
+                              <small class="text-muted">
+                                Cost: <%= number_to_currency(part.cost_price) %>
+                              </small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary add-part-btn" 
+                                    data-part-id="<%= part.id %>"
+                                    <%= 'disabled' if part.stock_status == 'out_of_stock' %>>
+                              <i class="fas fa-plus"></i> Add
+                            </button>
                           </div>
-                          <button type="button" class="btn btn-sm btn-outline-primary add-part-btn" 
-                                  data-part-id="<%= part.id %>"
-                                  <%= 'disabled' if part.stock_status == 'out_of_stock' %>>
-                            <i class="fas fa-plus"></i> Add
-                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
+                <% end %>
+              <% else %>
+                <div class="col-12 text-center py-4">
+                  <i class="fas fa-box-open fa-2x text-muted mb-3"></i>
+                  <p class="text-muted">No parts found in inventory. Please add parts first.</p>
                 </div>
               <% end %>
-            <% else %>
-              <div class="col-12 text-center py-4">
-                <i class="fas fa-box-open fa-2x text-muted mb-3"></i>
-                <p class="text-muted">No parts found in inventory. Please add parts first.</p>
-              </div>
-            <% end %>
+            </div>
           </div>
-        </div>
-        
-        <!-- Selected Parts Table -->
-        <div class="table-responsive">
-          <table class="table gov-pricing-table">
-            <thead>
-              <tr class="table-header">
-                <th width="5%" class="text-center" style="background: #DA291C; color: white;">
-                  <i class="fas fa-hashtag"></i>
-                </th>
-                <th width="30%" style="background: #DA291C; color: white;">PART / DESCRIPTION</th>
-                <th width="10%" class="text-center" style="background: #DA291C; color: white;">STOCK</th>
-                <th width="10%" class="text-center" style="background: #DA291C; color: white;">QUANTITY</th>
-                <th width="15%" class="text-center" style="background: #DA291C; color: white;">UNIT PRICE (TTD)</th>
-                <th width="15%" class="text-center" style="background: #28a745; color: white;">SUBTOTAL (TTD)</th>
-                <th width="15%" class="text-center" style="background: #007bff; color: white;">VAT 12.5%</th>
-              </tr>
-            </thead>
-            <tbody id="parts-table-body">
-              <!-- Parts will be dynamically added here -->
-            </tbody>
-            <tfoot id="parts-table-footer" style="display: none;">
-              <tr class="table-footer-subtotal">
-                <td colspan="5" class="text-end" style="font-weight: bold; background: #f8f9fa;">
-                  PARTS SUBTOTAL (excluding VAT):
-                </td>
-                <td id="parts-subtotal" class="text-end" style="font-weight: bold; background: #f8f9fa;">
-                  $0.00
-                </td>
-                <td id="parts-vat" class="text-end" style="font-weight: bold; background: #f8f9fa;">
-                  $0.00
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        
-        <div class="text-center mt-3">
-          <button type="button" id="add-custom-part" class="btn btn-outline-secondary gov-btn">
-            <i class="fas fa-plus-circle me-1"></i> ADD CUSTOM ITEM (Non-inventory)
-          </button>
-        </div>
-        
-        <div class="calculation-note mt-3">
-          <div class="alert alert-info gov-alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Inventory Integration:</strong> Parts are selected from your current inventory. 
-            Prices are based on current selling price (cost + markup).
-            <br>
-            <small class="text-muted">Out of stock parts cannot be added to quotations.</small>
+          
+          <!-- Selected Parts Table -->
+          <div class="table-responsive">
+            <table class="table gov-pricing-table">
+              <thead>
+                <tr class="table-header">
+                  <th width="5%" class="text-center" style="background: #DA291C; color: white;">
+                    <i class="fas fa-hashtag"></i>
+                  </th>
+                  <th width="30%" style="background: #DA291C; color: white;">PART / DESCRIPTION</th>
+                  <th width="10%" class="text-center" style="background: #DA291C; color: white;">STOCK</th>
+                  <th width="10%" class="text-center" style="background: #DA291C; color: white;">QUANTITY</th>
+                  <th width="15%" class="text-center" style="background: #DA291C; color: white;">UNIT PRICE (TTD)</th>
+                  <th width="15%" class="text-center" style="background: #28a745; color: white;">SUBTOTAL (TTD)</th>
+                  <th width="15%" class="text-center" style="background: #007bff; color: white;">VAT 12.5%</th>
+                </tr>
+              </thead>
+              <tbody id="parts-table-body">
+                <!-- Parts will be dynamically added here -->
+              </tbody>
+              <tfoot id="parts-table-footer" style="display: none;">
+                <tr class="table-footer-subtotal">
+                  <td colspan="5" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                    PARTS SUBTOTAL (excluding VAT):
+                  </td>
+                  <td id="parts-subtotal" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                    $0.00
+                  </td>
+                  <td id="parts-vat" class="text-end" style="font-weight: bold; background: #f8f9fa;">
+                    $0.00
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          <div class="text-center mt-3">
+            <button type="button" id="add-custom-part" class="btn btn-outline-secondary gov-btn">
+              <i class="fas fa-plus-circle me-1"></i> ADD CUSTOM ITEM (Non-inventory)
+            </button>
+          </div>
+          
+          <div class="calculation-note mt-3">
+            <div class="alert alert-info gov-alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              <strong>Inventory Integration:</strong> Parts are selected from your current inventory. 
+              Prices are based on current selling price (cost + markup).
+              <br>
+              <small class="text-muted">Out of stock parts cannot be added to quotations.</small>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    <% end %>
 
     <!-- Section 3: Terms & Conditions - Trinidad Government Format -->
     <div class="form-section mb-4 gov-section">
@@ -570,7 +581,8 @@
           <div class="input-group">
             <span class="input-group-text gov-input-prefix"><i class="fas fa-sticky-note"></i></span>
             <%= f.text_area :notes, rows: 4, class: 'form-control gov-textarea', 
-                  placeholder: "Enter any special terms, delivery conditions, payment terms, warranty information, or additional notes as per Government procurement regulations..." %>
+                  placeholder: "Enter any special terms, delivery conditions, payment terms, warranty information, or additional notes as per Government procurement regulations...",
+                  disabled: @quotation.sent? %>
           </div>
           <small class="form-text text-muted">
             <i class="fas fa-info-circle"></i> Maximum 2000 characters. These terms will form part of the contract.
@@ -582,7 +594,8 @@
             <i class="fas fa-check-circle me-2"></i>STANDARD GOVERNMENT TERMS
           </h6>
           <div class="form-check gov-checkbox mb-3">
-            <%= f.check_box :include_vat, class: 'gov-checkbox-input', checked: true, id: 'include_vat' %>
+            <%= f.check_box :include_vat, class: 'gov-checkbox-input', checked: true, id: 'include_vat',
+                  disabled: @quotation.sent? %>
             <label class="gov-checkbox-label" for="include_vat">
               <span class="checkbox-text">
                 <strong>VAT Compliance:</strong> All prices exclude VAT 12.5%. VAT will be added as per Government regulations.
@@ -591,7 +604,8 @@
           </div>
           
           <div class="form-check gov-checkbox mb-3">
-            <%= f.check_box :prices_valid, class: 'gov-checkbox-input', checked: true, id: 'prices_valid' %>
+            <%= f.check_box :prices_valid, class: 'gov-checkbox-input', checked: true, id: 'prices_valid',
+                  disabled: @quotation.sent? %>
             <label class="gov-checkbox-label" for='prices_valid'>
               <span class="checkbox-text">
                 <strong>Price Validity:</strong> Quoted prices are firm and valid for the period specified above.
@@ -601,7 +615,8 @@
           
           <!-- DELIVERY HELPER CHECKBOX - THIS REPLACES delivery_included -->
           <div class="form-check gov-checkbox mb-3">
-            <input type="checkbox" class="gov-checkbox-input" id="notes_delivery">
+            <input type="checkbox" class="gov-checkbox-input" id="notes_delivery"
+                   <%= 'disabled' if @quotation.sent? %>>
             <label class="gov-checkbox-label" for="notes_delivery">
               <span class="checkbox-text">
                 <strong>Delivery/Installation Included:</strong> Check if price includes delivery and installation
@@ -800,18 +815,24 @@
             <i class="fas fa-times-circle me-2"></i> CANCEL
           <% end %>
           
-          <%= f.button type: 'submit', name: 'commit', value: 'draft', 
-                class: 'btn gov-btn gov-btn-warning', data: { disable_with: 'Saving Draft...' } do %>
-            <i class="fas fa-save me-2"></i> SAVE DRAFT
-          <% end %>
-          
-          <%= f.button type: 'submit', name: 'commit', value: 'submit', 
-                class: 'btn gov-btn gov-btn-primary', 
-                data: { 
-                  disable_with: 'Submitting...',
-                  confirm: 'Are you sure you want to submit this quotation to the agency? This action cannot be undone and will notify the agency immediately.' 
-                } do %>
-            <i class="fas fa-paper-plane me-2"></i> SUBMIT TO AGENCY
+          <% if !@quotation.sent? %>
+            <%= f.button type: 'submit', name: 'commit', value: 'draft', 
+                  class: 'btn gov-btn gov-btn-warning', data: { disable_with: 'Saving Draft...' } do %>
+              <i class="fas fa-save me-2"></i> SAVE DRAFT
+            <% end %>
+            
+            <%= f.button type: 'submit', name: 'commit', value: 'submit', 
+                  class: 'btn gov-btn gov-btn-primary', 
+                  data: { 
+                    disable_with: 'Submitting...',
+                    confirm: 'Are you sure you want to submit this quotation to the agency? This action cannot be undone and will notify the agency immediately.' 
+                  } do %>
+              <i class="fas fa-paper-plane me-2"></i> SUBMIT TO AGENCY
+            <% end %>
+          <% else %>
+            <div class="alert alert-info">
+              <i class="fas fa-lock me-2"></i> This quotation has been submitted and is locked for editing.
+            </div>
           <% end %>
         </div>
         <small class="text-muted d-block mt-2">
@@ -1122,6 +1143,12 @@
   background: #fff;
 }
 
+.gov-input:disabled, .gov-select:disabled, .gov-textarea:disabled, .gov-date-input:disabled {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .gov-input-display {
   padding: 12px;
   border-radius: 4px;
@@ -1265,6 +1292,11 @@
 .gov-checkbox-input:checked {
   background-color: #DA291C;
   border-color: #DA291C;
+}
+
+.gov-checkbox-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .gov-checkbox-label {
@@ -1520,6 +1552,16 @@
   outline-offset: 2px;
 }
 
+.remove-job-from-table-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.remove-job-from-table-btn:disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+}
+
 .remove-job-from-table-btn span {
   font-size: 14px;
   pointer-events: none;
@@ -1707,6 +1749,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const customItems = new Map();
   let customItemCounter = 0;
   
+  // Check if quotation is sent
+  const quotationSent = <%= @quotation.sent?.to_json || false %>;
+  
   // Initialize with existing jobs from the form
   const existingJobRows = document.querySelectorAll('.job-row');
   existingJobRows.forEach((row, index) => {
@@ -1776,9 +1821,11 @@ document.addEventListener('DOMContentLoaded', function() {
             <strong>${job.name}</strong>
             ${job.templateId ? '<span class="badge bg-info ms-2">Template</span>' : ''}
           </div>
+          ${!quotationSent ? `
           <button type="button" class="btn btn-sm btn-danger remove-selected-job-btn" data-index="${index}" title="Remove job" style="min-width: 28px; padding: 4px 8px; cursor: pointer; z-index: 100; position: relative;">
             <span style="font-size: 12px; pointer-events: none;">✕</span>
           </button>
+          ` : ''}
         </div>
         <div class="job-details">
           <small class="text-muted d-block">${job.description || 'No description'}</small>
@@ -1801,6 +1848,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add job from template
   function addJobFromTemplate(templateId, name, description, hours, rate) {
     console.log("=== ADDING JOB FROM TEMPLATE ===");
+    
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
     
     // Check if already added (by templateId)
     for (const [index, job] of selectedJobs) {
@@ -1863,40 +1916,42 @@ document.addEventListener('DOMContentLoaded', function() {
       row: newRow
     });
     
-    // Add event listeners to new inputs
-    const hoursInput = newRow.querySelector('.job-hours-input');
-    const rateInput = newRow.querySelector('.job-rate-input');
-    
-    if (hoursInput) {
-      hoursInput.addEventListener('input', function() {
-        updateJobTotal(newRow);
-        calculateAllTotals();
-      });
-    }
-    
-    if (rateInput) {
-      rateInput.addEventListener('input', function() {
-        updateJobTotal(newRow);
-        calculateAllTotals();
-      });
-    }
-    
-    // Add direct click handler to remove button using a closure
-    const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
-    if (removeBtn) {
-      (function(currentIndex) {
-        removeBtn.addEventListener('click', function(e) {
-          console.log("DIRECT CLICK HANDLER: Remove button clicked for job:", currentIndex);
-          e.preventDefault();
-          e.stopPropagation();
-          removeJob(currentIndex);
-        });
-      })(jobCounter);
+    // Add event listeners to new inputs (only if not sent)
+    if (!quotationSent) {
+      const hoursInput = newRow.querySelector('.job-hours-input');
+      const rateInput = newRow.querySelector('.job-rate-input');
       
-      // Make sure button is visible and clickable
-      removeBtn.style.cursor = 'pointer';
-      removeBtn.style.position = 'relative';
-      removeBtn.style.zIndex = '100';
+      if (hoursInput) {
+        hoursInput.addEventListener('input', function() {
+          updateJobTotal(newRow);
+          calculateAllTotals();
+        });
+      }
+      
+      if (rateInput) {
+        rateInput.addEventListener('input', function() {
+          updateJobTotal(newRow);
+          calculateAllTotals();
+        });
+      }
+      
+      // Add direct click handler to remove button using a closure
+      const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
+      if (removeBtn) {
+        (function(currentIndex) {
+          removeBtn.addEventListener('click', function(e) {
+            console.log("DIRECT CLICK HANDLER: Remove button clicked for job:", currentIndex);
+            e.preventDefault();
+            e.stopPropagation();
+            removeJob(currentIndex);
+          });
+        })(jobCounter);
+        
+        // Make sure button is visible and clickable
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.position = 'relative';
+        removeBtn.style.zIndex = '100';
+      }
     }
     
     // Initialize the job total calculation
@@ -1943,6 +1998,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Remove job
   function removeJob(jobIndex) {
     console.log("=== REMOVING JOB ===");
+    
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
     
     if (!selectedJobs.has(jobIndex)) {
       console.log("Job index not found in selectedJobs:", jobIndex);
@@ -1995,6 +2056,12 @@ document.addEventListener('DOMContentLoaded', function() {
   // Add part from inventory
   function addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus) {
     console.log("=== ADDING PART FROM INVENTORY ===");
+    
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
     
     // Check if already added
     if (selectedParts.has(partId)) {
@@ -2064,28 +2131,30 @@ document.addEventListener('DOMContentLoaded', function() {
       row: newRow
     });
     
-    // Add event listener to quantity input
-    const quantityInput = newRow.querySelector('.part-quantity-input');
-    if (quantityInput) {
-      quantityInput.addEventListener('input', function() {
-        const newQuantity = parseInt(this.value) || 1;
-        if (newQuantity > maxQuantity) {
-          this.value = maxQuantity;
-          alert(`Maximum quantity available: ${maxQuantity}`);
-        }
-        updatePartTotal(partId);
-        calculateAllTotals();
-      });
-    }
-    
-    // Add event listener to remove button
-    const removeBtn = newRow.querySelector('.remove-part-btn');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        removePart(partId);
-      });
+    // Add event listener to quantity input (only if not sent)
+    if (!quotationSent) {
+      const quantityInput = newRow.querySelector('.part-quantity-input');
+      if (quantityInput) {
+        quantityInput.addEventListener('input', function() {
+          const newQuantity = parseInt(this.value) || 1;
+          if (newQuantity > maxQuantity) {
+            this.value = maxQuantity;
+            alert(`Maximum quantity available: ${maxQuantity}`);
+          }
+          updatePartTotal(partId);
+          calculateAllTotals();
+        });
+      }
+      
+      // Add event listener to remove button
+      const removeBtn = newRow.querySelector('.remove-part-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          removePart(partId);
+        });
+      }
     }
     
     // Update part counter
@@ -2131,6 +2200,12 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Remove part
   function removePart(partId) {
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
+    
     if (!selectedParts.has(partId)) return;
     
     const part = selectedParts.get(partId);
@@ -2174,6 +2249,12 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Add custom item
   function addCustomItem() {
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
+    
     const partsTableBody = document.getElementById('parts-table-body');
     const customItemTemplate = document.getElementById('custom-item-template');
     
@@ -2259,6 +2340,12 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Remove custom item
   function removeCustomItem(index) {
+    // Check if quotation is sent
+    if (quotationSent) {
+      alert('This quotation has been submitted and cannot be edited.');
+      return;
+    }
+    
     if (!customItems.has(index)) return;
     
     const item = customItems.get(index);
@@ -2415,6 +2502,13 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
       console.log("Form submit validation");
       
+      // Check if quotation is sent
+      if (quotationSent) {
+        e.preventDefault();
+        alert('This quotation has been submitted and cannot be edited.');
+        return false;
+      }
+      
       // Check if we have at least jobs OR parts
       const hasJobs = selectedJobs.size > 0;
       const hasParts = selectedParts.size > 0;
@@ -2538,6 +2632,12 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         e.stopPropagation();
         
+        // Check if quotation is sent
+        if (quotationSent) {
+          alert('This quotation has been submitted and cannot be edited.');
+          return;
+        }
+        
         const card = addBtn.closest('.template-card');
         if (!card) return;
         
@@ -2570,6 +2670,12 @@ document.addEventListener('DOMContentLoaded', function() {
       if (addPartBtn) {
         e.preventDefault();
         e.stopPropagation();
+        
+        // Check if quotation is sent
+        if (quotationSent) {
+          alert('This quotation has been submitted and cannot be edited.');
+          return;
+        }
         
         const card = addPartBtn.closest('.part-card');
         if (!card) return;
@@ -2615,6 +2721,12 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         e.stopPropagation();
         
+        // Check if quotation is sent
+        if (quotationSent) {
+          alert('This quotation has been submitted and cannot be edited.');
+          return;
+        }
+        
         const row = tableRemoveBtn.closest('.job-row');
         if (!row) {
           console.error("Could not find job row");
@@ -2634,6 +2746,12 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         e.stopPropagation();
         
+        // Check if quotation is sent
+        if (quotationSent) {
+          alert('This quotation has been submitted and cannot be edited.');
+          return;
+        }
+        
         const jobIndex = parseInt(panelRemoveBtn.getAttribute('data-index'));
         console.log("Removing job index via delegation:", jobIndex);
         removeJob(jobIndex);
@@ -2646,21 +2764,26 @@ document.addEventListener('DOMContentLoaded', function() {
   function init() {
     console.log("Initializing quotation form - WITH INVENTORY PARTS");
     
-    // Attach listeners
-    attachTemplateListeners();
-    attachPartsListeners();
-    setupRemoveButtonDelegation();
-    setupPartsSearch();
-    setupPartsFilter();
-    setupFormValidation();
-    
-    // Custom item button
-    const addCustomPartBtn = document.getElementById('add-custom-part');
-    if (addCustomPartBtn) {
-      addCustomPartBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        addCustomItem();
-      });
+    // Attach listeners (only if not sent)
+    if (!quotationSent) {
+      attachTemplateListeners();
+      attachPartsListeners();
+      setupRemoveButtonDelegation();
+      setupPartsSearch();
+      setupPartsFilter();
+      setupFormValidation();
+      
+      // Custom item button
+      const addCustomPartBtn = document.getElementById('add-custom-part');
+      if (addCustomPartBtn) {
+        addCustomPartBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          addCustomItem();
+        });
+      }
+    } else {
+      // Disable all interactive elements if quotation is sent
+      console.log("Quotation is sent - disabling interactive elements");
     }
     
     // Update displays

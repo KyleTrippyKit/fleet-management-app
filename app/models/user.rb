@@ -82,6 +82,28 @@ class User < ApplicationRecord
     # Return the stored time_zone or default to UTC
     self[:time_zone].presence || "UTC"
   end
+
+  # ========================
+  # INITIALS METHOD
+  # ========================
+  def initials
+    base = name.presence || email.to_s
+    parts = base.strip.split(/\s+/)
+
+    # If a real name exists: "Justin Ramdin" => "JR"
+    if name.present? && parts.length >= 2
+      return (parts.first[0].to_s + parts.last[0].to_s).upcase
+    end
+
+    # If only one word name: "Justin" => "JU"
+    if name.present? && parts.length == 1
+      return parts.first[0, 2].to_s.upcase
+    end
+
+    # Fallback to email: "kyle@..." => "KY"
+    user_part = email.to_s.split("@").first.to_s
+    user_part[0, 2].to_s.upcase
+  end
   
   # ========================
   # SYSTEM USER METHOD (Added for PaymentAudit)
@@ -724,11 +746,6 @@ class User < ApplicationRecord
 
   def can_view_route_reports?
     ptsc_staff? || fleet_manager? || finance? || admin?
-  end
-
-  # Display name for receipts
-  def display_name
-    name.presence || email.split('@').first.titleize
   end
 
   # Current user context for callbacks

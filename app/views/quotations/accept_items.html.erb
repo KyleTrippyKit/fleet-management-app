@@ -73,13 +73,15 @@
   </div>
 </div>
 
-<%# IMPORTANT: data-turbo=false avoids Turbo swallowing redirects %>
-<%= form_with url: convert_to_po_quotation_path(@quotation),
+<%# FIX: Add authenticity_token param to form_with %>
+<%= form_with url: process_item_acceptance_quotation_path(@quotation),
               method: :post,
+              local: true,
+              authenticity_token: true,
               class: "accept-items-form",
               data: { turbo: false } do %>
-
-  <%# Allows controller to know which submit happened %>
+  
+  <%# Allows controller to know which submit happened (optional) %>
   <%= hidden_field_tag :action_source, "accept_items" %>
 
   <!-- Line Items Section -->
@@ -378,18 +380,22 @@
         <% end %>
 
         <div class="d-flex gap-2">
-          <%= button_to "Reject Entire Quotation",
-                convert_to_po_quotation_path(@quotation, reject_all: 1),
-                method: :post,
-                class: "btn btn-outline-danger",
-                form: { data: { turbo: false } },
-                data: { confirm: "Are you sure you want to reject this entire quotation? This cannot be undone." } %>
+          <%# Reject is separate button_to (separate form) - good %>
+          <%= link_to "Reject Entire Quotation",
+            convert_to_po_quotation_path(@quotation, reject_all: 1),
+            data: { turbo_method: :post, turbo_confirm: "Are you sure you want to reject this entire quotation? This cannot be undone." },
+            class: "btn btn-outline-danger" %>
 
+          <%# This now saves selection -> redirects to summary (B flow) %>
           <button type="submit" class="btn btn-success btn-lg">
-            <i class="fas fa-file-invoice-dollar me-2"></i>
-            Create Purchase Order From Selected
+            <i class="fas fa-check-circle me-2"></i>
+            Review Acceptance Summary
           </button>
         </div>
+      </div>
+
+      <div class="text-muted small mt-2">
+        After clicking <strong>Review Acceptance Summary</strong>, you'll confirm acceptance and the system will create the Purchase Order.
       </div>
     </div>
   </div>
@@ -437,11 +443,6 @@
         cb.dispatchEvent(new Event('change'));
       });
     }
-  }
-
-  function moneyToFloat(text) {
-    if (!text) return 0;
-    return parseFloat(text.replace(/[$,]/g, '').trim()) || 0;
   }
 
   function updateSelectionSummary() {
