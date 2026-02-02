@@ -1,4 +1,3 @@
-# app/controllers/purchase_orders_controller.rb
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
   before_action :set_purchase_order, except: [:index, :new, :create, :from_quotation, :awaiting_acceptance]
@@ -91,11 +90,12 @@ class PurchaseOrdersController < ApplicationController
   def awaiting_acceptance
     return redirect_to purchase_orders_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
+    # ✅ FIXED: Use acceptance_acknowledged_at instead of invalid enum value
     @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
-                                    .where.not(acceptance_status: 'acknowledged')
-                                    .order(created_at: :desc)
-                                    .includes(:vehicle, :created_by)
-                                    .page(params[:page])
+                                  .where(acceptance_acknowledged_at: nil)
+                                  .order(created_at: :desc)
+                                  .includes(:vehicle, :created_by)
+                                  .page(params[:page])
 
     render :awaiting_acceptance
   end
@@ -104,7 +104,8 @@ class PurchaseOrdersController < ApplicationController
   def acknowledge_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
-    if @purchase_order.update(acceptance_status: 'acknowledged')
+    # ✅ FIXED: Use acceptance_acknowledged_at instead of invalid enum value
+    if @purchase_order.update(acceptance_acknowledged_at: Time.current)
       redirect_to @purchase_order, notice: 'Purchase order acceptance acknowledged.'
     else
       redirect_to @purchase_order, alert: 'Failed to acknowledge acceptance.'
@@ -140,8 +141,8 @@ class PurchaseOrdersController < ApplicationController
   def acceptance_details
     @accepted_items = @purchase_order.purchase_order_items.where(is_accepted: true)
     @rejected_items = @purchase_order.purchase_order_items.where(is_accepted: false)
-    @accepted_total = @accepted_items.sum(&:total_price)
-    @rejected_total = @rejected_items.sum(&:total_price)
+    @accepted_total = @accepted_items.sum(:total_price)
+    @rejected_total = @rejected_items.sum(:total_price)
 
     render :acceptance_details
   end
@@ -180,12 +181,13 @@ class PurchaseOrdersController < ApplicationController
     @invoices = @purchase_order.invoices
     @payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
 
-    begin
-      @payment_histories = @purchase_order.payment_histories.order(created_at: :desc)
-    rescue ActiveRecord::StatementInvalid => e
-      Rails.logger.warn "Payment histories association failed: #{e.message}"
-      @payment_histories = []
-    end
+    # ✅ FIXED: Set payment_audits and payment_histories with limits
+    @payment_histories = @purchase_order.payment_histories.order(created_at: :desc).limit(100)
+    @payment_audits = @purchase_order.payment_audits.order(created_at: :asc)
+  rescue ActiveRecord::StatementInvalid => e
+    Rails.logger.warn "Payment histories association failed: #{e.message}"
+    @payment_histories = []
+    @payment_audits = []
   end
 
   def new
@@ -558,8 +560,21 @@ class PurchaseOrdersController < ApplicationController
 
   private
 
+  # ✅ FIXED: Eager loading to prevent N+1 queries
   def set_purchase_order
-    @purchase_order = PurchaseOrder.find(params[:id])
+    @purchase_order =
+      PurchaseOrder.includes(
+        :vehicle,
+        :created_by,
+        :approved_by,
+        :rejected_by,
+        :supplier,
+        :payable,
+        :invoices,
+        :payment_histories,
+        :payment_audits,
+        purchase_order_items: [:part, :vendor_invoice_items]
+      ).find(params[:id])
   rescue ActiveRecord::RecordNotFound
     redirect_to purchase_orders_path, alert: 'Purchase order not found.'
   end

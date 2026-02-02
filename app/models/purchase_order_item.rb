@@ -1,10 +1,7 @@
-# app/models/purchase_order_item.rb
 class PurchaseOrderItem < ApplicationRecord
   belongs_to :purchase_order
   belongs_to :part, optional: true
   has_many :vendor_invoice_items, dependent: :nullify
-  after_save :recalc_po_total
-  after_destroy :recalc_po_total
   
   validates :description, presence: true
   validates :quantity, presence: true, numericality: { greater_than: 0 }
@@ -34,22 +31,54 @@ class PurchaseOrderItem < ApplicationRecord
       .having("COALESCE(SUM(vendor_invoice_items.quantity), 0) >= purchase_order_items.quantity")
   }
 
-  before_save :calculate_total
-  after_save :update_purchase_order_total
-  after_destroy :update_purchase_order_total
+  # ✅ FIXED: Safe, non-recursive callbacks
+  before_validation :compute_total_price
+  after_save :sync_purchase_order_rollups
+  after_destroy :sync_purchase_order_rollups
   
-  # NEW: Validate that quantity doesn't exceed available stock when part is consumable
-  validate :check_stock_availability, if: -> { part.present? && part.is_consumable? && purchase_order&.pending? }
+  # ✅ FIXED: Use correct status check
+  validate :check_stock_availability, if: -> { part.present? && part.is_consumable? && purchase_order&.pending_approval? }
 
-  def calculate_total
-    self.total_price = quantity * unit_price if quantity && unit_price
+  # ✅ FIXED: Calculate total
+  def compute_total_price
+    q = quantity.to_f
+    u = unit_price.to_f
+    self.total_price = (q * u).round(2)
   end
-  
-  def update_purchase_order_total
-    purchase_order.update_total_amount if purchase_order.persisted?
+
+  # ✅ FIXED: Optimized rollup without loading PO object
+  def sync_purchase_order_rollups
+    return unless purchase_order_id.present?
+
+    # ✅ fast, single SQL sum for amount
+    total = PurchaseOrderItem.where(purchase_order_id: purchase_order_id)
+      .sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
+
+    # ✅ update amount without triggering callbacks on PO
+    PurchaseOrder.where(id: purchase_order_id).update_all(amount: total)
+
+    # ✅ recompute acceptance without loading PO (all in SQL)
+    total_items    = PurchaseOrderItem.where(purchase_order_id: purchase_order_id).count
+    accepted_items = PurchaseOrderItem.where(purchase_order_id: purchase_order_id, is_accepted: true).count
+    rejected_items = PurchaseOrderItem.where(purchase_order_id: purchase_order_id, is_accepted: false).count
+
+    new_status =
+      if total_items == 0
+        'pending_acceptance'
+      elsif accepted_items == total_items
+        'fully_accepted'
+      elsif rejected_items == total_items
+        'fully_rejected'
+      elsif accepted_items > 0
+        'partially_accepted'
+      else
+        'pending_acceptance'
+      end
+
+    PurchaseOrder.where(id: purchase_order_id).update_all(acceptance_status: new_status)
   end
-  
-  # NEW: Check if there's enough stock before creating PO item
+
+  # ✅ FIXED: Check if there's enough stock before creating PO item
   def check_stock_availability
     if quantity > part.current_stock
       errors.add(:quantity, "exceeds available stock. Only #{part.current_stock} available.")
@@ -85,10 +114,6 @@ class PurchaseOrderItem < ApplicationRecord
     else
       'not_invoiced'
     end
-  end
-  
-  def recalc_po_total
-    purchase_order.update_total_amount if purchase_order.respond_to?(:update_total_amount)
   end
   
   # NEW: Invoicing status badge class

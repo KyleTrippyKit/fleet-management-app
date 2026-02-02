@@ -1,4 +1,3 @@
-# app/models/purchase_order.rb
 class PurchaseOrder < ApplicationRecord
   # -------------------------
   # Associations
@@ -93,12 +92,13 @@ class PurchaseOrder < ApplicationRecord
   # RFQ WORKFLOW METHODS
   # -------------------------
 
+  # ✅ FIXED: Use SQL sums instead of Ruby sums
   def accepted_items_total
-    purchase_order_items.where(is_accepted: true).sum(&:total_price)
+    purchase_order_items.where(is_accepted: true).sum(:total_price)
   end
 
   def rejected_items_total
-    purchase_order_items.where(is_accepted: false).sum(&:total_price)
+    purchase_order_items.where(is_accepted: false).sum(:total_price)
   end
 
   def recalculate_amount!
@@ -145,7 +145,7 @@ class PurchaseOrder < ApplicationRecord
         end
       end
 
-      po.update_acceptance_status
+      po.recompute_acceptance_status!
       po
     end
   end
@@ -255,6 +255,28 @@ class PurchaseOrder < ApplicationRecord
     notify_vendor_of_acceptance if fully_accepted? && saved_change_to_acceptance_status?
   end
 
+  # ✅ NEW: Safe recomputation method (no recursion)
+  def recompute_acceptance_status!
+    total_items    = purchase_order_items.count
+    accepted_items = purchase_order_items.accepted.count
+    rejected_items = purchase_order_items.rejected.count
+
+    new_status =
+      if total_items == 0
+        'pending_acceptance'
+      elsif accepted_items == total_items
+        'fully_accepted'
+      elsif rejected_items == total_items
+        'fully_rejected'
+      elsif accepted_items > 0
+        'partially_accepted'
+      else
+        'pending_acceptance'
+      end
+
+    update_column(:acceptance_status, new_status) if acceptance_status != new_status
+  end
+
   def rejected_items_with_reasons
     purchase_order_items.rejected.map do |item|
       {
@@ -273,7 +295,7 @@ class PurchaseOrder < ApplicationRecord
       is_accepted: true,
       rejection_reason: nil
     )
-    update_acceptance_status
+    recompute_acceptance_status!
     log_acceptance_audit(:item_accepted, item, user)
   end
 
@@ -283,7 +305,7 @@ class PurchaseOrder < ApplicationRecord
       is_accepted: false,
       rejection_reason: reason
     )
-    update_acceptance_status
+    recompute_acceptance_status!
     log_acceptance_audit(:item_rejected, item, user, reason)
   end
 
@@ -605,6 +627,11 @@ class PurchaseOrder < ApplicationRecord
       (purchase_order_items.count > 0 && purchase_order_items.accepted.count == purchase_order_items.count)
   end
 
+  # ✅ FIXED: Use SQL sum instead of Ruby sum
+  def line_items_total
+    purchase_order_items.sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
+  end
+
   # VMCOTT status checks
   def has_internal_pos?
     internal_pos.any?
@@ -738,7 +765,7 @@ class PurchaseOrder < ApplicationRecord
     )
   end
 
-   # Called by PurchaseOrderItem callbacks
+  # Called by PurchaseOrderItem callbacks
   def update_total_amount
       total =
         purchase_order_items.sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
@@ -898,10 +925,6 @@ class PurchaseOrder < ApplicationRecord
     vehicle ? "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model}" : 'No Vehicle'
   end
 
-  def line_items_total
-    purchase_order_items.sum { |item| item.quantity * item.unit_price }
-  end
-
   def acceptance_summary
     total = purchase_order_items.count
     accepted = purchase_order_items.accepted.count
@@ -1058,7 +1081,6 @@ class PurchaseOrder < ApplicationRecord
 
   after_update :auto_create_invoice_if_paid
   after_update :create_payment_audit_trail, if: :saved_change_to_payment_status?
-  after_save :update_acceptance_status, if: :saved_change_to_purchase_order_items?
 
   # -------------------------
   # Private Methods
@@ -1088,10 +1110,10 @@ class PurchaseOrder < ApplicationRecord
     self.vmcott_status = 'pending_internal_work' if vmcott_status.blank?
   end
 
+  # ✅ FIXED: Use SQL sum instead of Ruby sum
   def calculate_amount_from_items
     return if purchase_order_items.blank?
-    calculated_amount = purchase_order_items.sum { |item| item.quantity * item.unit_price }
-    self.amount = calculated_amount if calculated_amount.to_f > 0
+    self.amount = purchase_order_items.sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
   end
 
   def link_supplier
@@ -1121,10 +1143,6 @@ class PurchaseOrder < ApplicationRecord
     return unless payment_initiated_at.present?
     return unless is_trinidad_payment?
     PaymentAudit.create_audit_trail(self)
-  end
-
-  def saved_change_to_purchase_order_items?
-    purchase_order_items.any?(&:saved_changes?)
   end
 
   def log_acceptance_audit(action, item, user = nil, reason = nil)

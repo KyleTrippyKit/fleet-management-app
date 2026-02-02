@@ -41,7 +41,10 @@
               <p><strong>Amount:</strong> <span class="text-primary fw-bold"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></span></p>
               <p><strong>Agency:</strong> <%= @purchase_order.agency&.name || 'N/A' %></p>
               <p><strong>Vehicle:</strong> <%= @purchase_order.display_vehicle %></p>
-              <p><strong>Created By:</strong> <%= @purchase_order.created_by.name %> on <%= @purchase_order.created_at.strftime('%b %d, %Y') %></p>
+              <p><strong>Created By:</strong>
+                <%= @purchase_order.created_by&.name || @purchase_order.created_by&.email || "Unknown" %>
+                on <%= @purchase_order.created_at.strftime('%b %d, %Y') %>
+              </p>
               
               <% if @purchase_order.approved_by %>
                 <p><strong>Approved By:</strong> <%= @purchase_order.approved_by.name %> on <%= @purchase_order.approved_at&.strftime('%b %d, %Y') %></p>
@@ -180,7 +183,7 @@
       </div>
 
       <!-- Payment Timeline Card (NEW) -->
-      <% if @purchase_order.is_trinidad_card_payment? && @purchase_order.payment_audits.any? %>
+      <% if @purchase_order.is_trinidad_card_payment? && @payment_audits.present? %>
         <div class="card mb-4 border-0 shadow-sm">
           <div class="card-header bg-white border-0">
             <div class="d-flex justify-content-between align-items-center">
@@ -195,7 +198,7 @@
           </div>
           <div class="card-body">
             <div class="timeline">
-              <% @purchase_order.payment_audits.order(created_at: :asc).each_with_index do |audit, index| %>
+              <% @payment_audits.reverse_each.with_index do |audit, index| %>
                 <div class="timeline-item <%= 'timeline-item-last' if index == @purchase_order.payment_audits.count - 1 %>">
                   <div class="timeline-marker">
                     <span class="badge rounded-circle bg-<%= audit.action_badge_color %> p-2">
@@ -243,7 +246,8 @@
                         
                         <div class="collapse mt-2" id="auditDetails<%= audit.id %>">
                           <div class="card card-body bg-light">
-                            <pre class="mb-0 small"><%= JSON.pretty_generate(audit.metadata) %></pre>
+                            <% raw_json = audit.metadata.is_a?(String) ? audit.metadata : audit.metadata.to_json %>
+                            <pre class="mb-0 small"><%= raw_json.to_s.truncate(2000) %></pre>
                           </div>
                         </div>
                       </div>
