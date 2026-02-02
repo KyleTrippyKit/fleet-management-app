@@ -34,7 +34,7 @@
             <% end %>
           </h3>
           <small class="text-success">
-            <i class="bi bi-arrow-up"></i> 
+            <i class="bi bi-arrow-up"></i>
             <% if current_user.agency.code == "VMCOTT" %>
               <%= Vehicle.active.count %> Active
             <% else %>
@@ -113,8 +113,8 @@
 
   <!-- Filters -->
   <%= form_with url: vehicles_path, method: :get, local: true,
-        html: { id: "vehicles_filter_form", 
-                class: "filter-form mb-5", 
+        html: { id: "vehicles_filter_form",
+                class: "filter-form mb-5",
                 data: { turbo_action: "replace", turbo_frame: "vehicles_list" } } do |f| %>
 
     <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-3">
@@ -127,11 +127,11 @@
                 class: "form-control shadow-sm",
                 style: "flex: 1 1 auto;",
                 data: { controller: "search", action: "input->search#submit" } %>
-          
+
           <span class="input-group-text bg-white border-start-0 border-end-0 px-3">
             <i class="bi bi-funnel"></i>
           </span>
-          
+
           <%= f.select :owner,
                 options_for_select(["All", "PTSC", "Police", "Fire Service"], @owner_filter || "All"),
                 {},
@@ -139,15 +139,15 @@
                 style: "flex: 1 1 auto; min-width: 150px;",
                 id: "owner_filter",
                 data: { action: "change->search#submit" } %>
-          
+
           <!-- Agency filter for VMCOTT users -->
           <% if current_user.agency.code == "VMCOTT" %>
             <span class="input-group-text bg-white border-start-0 border-end-0 px-3">
               <i class="bi bi-building"></i>
             </span>
-            
+
             <%= f.select :agency,
-                  options_for_select([["All Agencies", ""]] + Agency.all.map { |a| [a.name, a.id] }, 
+                  options_for_select([["All Agencies", ""]] + Agency.all.map { |a| [a.name, a.id] },
                   params[:agency]),
                   {},
                   class: "form-select shadow-sm",
@@ -161,6 +161,8 @@
       <!-- Right side: Buttons -->
       <div class="d-flex gap-2 justify-content-end flex-shrink-0">
         <%= f.submit "Search", class: "btn btn-primary fw-bold shadow-sm px-4" %>
+
+        <!-- ✅ FIXED: block link_to uses path first, options second -->
         <%= link_to new_vehicle_path, class: "btn btn-success fw-bold shadow-sm d-flex align-items-center px-4" do %>
           <i class="bi bi-plus-circle me-2"></i> Add Vehicle
         <% end %>
@@ -177,8 +179,7 @@
           <% maintenance_due =
                last_maintenance.nil? ||
                (last_maintenance.next_due_date && last_maintenance.next_due_date < Date.today) %>
-          
-          <%# Determine ribbon color based on maintenance status %>
+
           <% ribbon_color =
                case vehicle.service_owner
                when 'PTSC' then maintenance_due ? '#004aad' : '#0d6efd'
@@ -186,8 +187,7 @@
                when 'Fire Service' then maintenance_due ? '#b02a37' : '#dc3545'
                else maintenance_due ? '#6c757d' : '#198754'
                end %>
-          
-          <%# Determine badge styling based on vehicle type %>
+
           <% badge_class, badge_text = case vehicle.service_owner.to_s.downcase
                when 'police' then ['badge-police', 'POLICE']
                when 'ptsc'   then ['badge-ptsc', 'PTSC']
@@ -214,23 +214,23 @@
 
                 <!-- Vehicle Image -->
                 <%= link_to vehicle_path(vehicle) do %>
-                  <%= vehicle_image(vehicle, 
+                  <%= vehicle_image(vehicle,
                         variant: :thumb,
                         class: "vehicle-image",
                         loading: "lazy",
                         style: "width: 100%; height: 180px; object-fit: cover; background-color: #f8f9fa;") %>
                 <% end %>
-                
+
                 <!-- Agency badge for VMCOTT users -->
                 <% if current_user.agency.code == "VMCOTT" && vehicle.agency.present? %>
                   <div class="position-absolute top-0 end-0 m-2">
-                    <span class="badge agency-badge" 
+                    <span class="badge agency-badge"
                           style="font-size: 0.7rem; padding: 4px 8px; background-color: #6c757d; color: white;">
                       <i class="bi bi-building"></i> <%= vehicle.agency.code %>
                     </span>
                   </div>
                 <% end %>
-                
+
                 <!-- Photo indicator badge -->
                 <div class="position-absolute bottom-0 start-0 m-2">
                   <% if has_uploaded_photo?(vehicle) %>
@@ -258,8 +258,7 @@
                   <span class="badge <%= owner_badge_class(vehicle.service_owner) %> service-badge">
                     <i class="bi bi-car-front me-1"></i> <%= vehicle.service_owner %>
                   </span>
-                  
-                  <!-- Utilization badge if available -->
+
                   <% if vehicle.respond_to?(:utilization_percent) %>
                     <span class="badge <%= utilization_class(vehicle) %>">
                       <%= vehicle.utilization_percent %>% utilized
@@ -272,7 +271,7 @@
                     <span>Last Maintenance:</span>
                     <span><%= last_maintenance&.date&.strftime('%b %d, %Y') || "None" %></span>
                   </div>
-                  
+
                   <% if vehicle.respond_to?(:trips_count) && vehicle.trips_count > 0 %>
                     <div class="d-flex justify-content-between">
                       <span>Total Trips:</span>
@@ -282,10 +281,15 @@
                 </div>
 
                 <div class="d-flex justify-content-between">
-                  <%= link_to "Show", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary w-45 fw-bold d-flex align-items-center justify-content-center" do %>
+                  <!-- ✅ FIXED: block link_to uses path first, options second -->
+                  <%= link_to vehicle_path(vehicle),
+                        class: "btn btn-sm btn-outline-primary w-45 fw-bold d-flex align-items-center justify-content-center" do %>
                     <i class="bi bi-eye me-1"></i> Show
                   <% end %>
-                  <%= link_to "Edit", edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-warning w-45 fw-bold d-flex align-items-center justify-content-center" do %>
+
+                  <!-- ✅ FIXED: block link_to uses path first, options second -->
+                  <%= link_to edit_vehicle_path(vehicle),
+                        class: "btn btn-sm btn-outline-warning w-45 fw-bold d-flex align-items-center justify-content-center" do %>
                     <i class="bi bi-pencil me-1"></i> Edit
                   <% end %>
                 </div>
@@ -314,7 +318,10 @@
           <i class="bi bi-info-circle me-2 fs-4"></i>
           <div>
             <h5 class="mb-1">No vehicles found</h5>
-            <p class="mb-0">Try adjusting your search filters or <%= link_to "add your first vehicle", new_vehicle_path, class: "fw-bold" %></p>
+            <p class="mb-0">
+              Try adjusting your search filters or
+              <%= link_to "add your first vehicle", new_vehicle_path, class: "fw-bold" %>
+            </p>
           </div>
         </div>
       </div>
@@ -330,12 +337,12 @@
 document.addEventListener("turbo:load", function() {
   const form = document.getElementById("vehicles_filter_form");
   const turboFrame = document.getElementById("vehicles_list");
-  
+
   if (!form) return;
-  
+
   function showSpinner() {
     if (!turboFrame) return;
-    
+
     let overlay = turboFrame.querySelector('.loading-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
@@ -344,19 +351,18 @@ document.addEventListener("turbo:load", function() {
       turboFrame.appendChild(overlay);
     }
   }
-  
+
   function hideSpinner() {
     if (!turboFrame) return;
-    
+
     const overlay = turboFrame.querySelector('.loading-overlay');
     if (overlay) overlay.remove();
   }
-  
-  // Event delegation for all filter changes
+
   document.addEventListener('change', function(e) {
     if (e.target && (e.target.matches('#owner_filter, #agency_filter, select[name="owner"], select[name="agency"]'))) {
       showSpinner();
-      
+
       if (typeof Turbo !== 'undefined') {
         Turbo.submitForm(form);
       } else {
@@ -364,8 +370,7 @@ document.addEventListener("turbo:load", function() {
       }
     }
   });
-  
-  // Search input with debounce
+
   const searchInput = form.querySelector('input[type="text"], input[name="query"]');
   if (searchInput) {
     let debounceTimer;
@@ -374,7 +379,7 @@ document.addEventListener("turbo:load", function() {
       debounceTimer = setTimeout(() => {
         if (e.target.value.length === 0 || e.target.value.length >= 2) {
           showSpinner();
-          
+
           if (typeof Turbo !== 'undefined') {
             Turbo.submitForm(form);
           } else {
@@ -383,12 +388,12 @@ document.addEventListener("turbo:load", function() {
         }
       }, 500);
     });
-    
+
     searchInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();
         showSpinner();
-        
+
         if (typeof Turbo !== 'undefined') {
           Turbo.submitForm(form);
         } else {
@@ -397,29 +402,27 @@ document.addEventListener("turbo:load", function() {
       }
     });
   }
-  
-  // Hide spinner when Turbo finishes
+
   if (turboFrame) {
     turboFrame.addEventListener("turbo:frame-load", hideSpinner);
     turboFrame.addEventListener("turbo:frame-render", hideSpinner);
   }
-  
+
   document.addEventListener("turbo:frame-load", hideSpinner);
   document.addEventListener("turbo:frame-render", hideSpinner);
 });
 
-// DOMContentLoaded fallback
 document.addEventListener("DOMContentLoaded", function() {
   const form = document.getElementById("vehicles_filter_form");
   const ownerSelect = document.getElementById("owner_filter");
   const agencySelect = document.getElementById("agency_filter");
-  
+
   if (ownerSelect && form) {
     ownerSelect.addEventListener("change", function() {
       form.submit();
     });
   }
-  
+
   if (agencySelect && form) {
     agencySelect.addEventListener("change", function() {
       form.submit();
@@ -444,10 +447,7 @@ document.addEventListener("DOMContentLoaded", function() {
 /* =========================
    IMAGE CONTAINER
 ========================= */
-.image-container {
-  position: relative;
-  overflow: hidden;
-}
+.image-container { position: relative; overflow: hidden; }
 .compact-image { height: 180px; }
 
 .vehicle-image {
@@ -486,29 +486,10 @@ img {
 /* =========================
    VEHICLE BADGES
 ========================= */
-.badge-police {
-  background-color: #003366 !important;
-  color: white !important;
-  border: 1px solid #002244;
-}
-
-.badge-ptsc {
-  background-color: #0d6efd !important;
-  color: white !important;
-  border: 1px solid #004aad;
-}
-
-.badge-fire {
-  background-color: #dc3545 !important;
-  color: white !important;
-  border: 1px solid #b02a37;
-}
-
-.badge-default {
-  background-color: #6c757d !important;
-  color: white !important;
-  border: 1px solid #495057;
-}
+.badge-police { background-color: #003366 !important; color: white !important; border: 1px solid #002244; }
+.badge-ptsc   { background-color: #0d6efd !important; color: white !important; border: 1px solid #004aad; }
+.badge-fire   { background-color: #dc3545 !important; color: white !important; border: 1px solid #b02a37; }
+.badge-default{ background-color: #6c757d !important; color: white !important; border: 1px solid #495057; }
 
 /* =========================
    SERVICE OWNER BADGES
@@ -533,7 +514,6 @@ img {
   font-weight: bold;
 }
 
-/* Utilization color classes */
 .utilization-low { background-color: #28a745 !important; color: white !important; }
 .utilization-medium { background-color: #ffc107 !important; color: #212529 !important; }
 .utilization-high { background-color: #dc3545 !important; color: white !important; }
@@ -625,21 +605,10 @@ img {
 ========================= */
 .loading-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
   background-color: rgba(255,255,255,0.6);
   z-index: 10;
-}
-
-/* =========================
-   FORM LOADING STATE
-========================= */
-.form-loading .form-control,
-.form-loading .form-select {
-  opacity: 0.7;
-  pointer-events: none;
 }
 
 /* =========================
@@ -650,27 +619,17 @@ img {
   border-radius: 12px;
   overflow: hidden;
 }
-
 .stats-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
 }
-
-.stats-card .card-body {
-  padding: 1.25rem;
-}
-
+.stats-card .card-body { padding: 1.25rem; }
 .stats-card h6 {
   font-size: 0.8rem;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
-
-.stats-card h3 {
-  font-weight: 700;
-  margin: 0.5rem 0;
-}
-
+.stats-card h3 { font-weight: 700; margin: 0.5rem 0; }
 .stats-card small {
   display: flex;
   align-items: center;
@@ -682,35 +641,21 @@ img {
    RESPONSIVE FLEX LAYOUT
 ========================= */
 @media (max-width: 768px) {
-  .filter-form .d-flex {
-    flex-direction: column;
-  }
-  
-  .filter-form .d-flex > .flex-grow-1 {
-    width: 100%;
-  }
-  
+  .filter-form .d-flex { flex-direction: column; }
+  .filter-form .d-flex > .flex-grow-1 { width: 100%; }
   .filter-form .d-flex > .d-flex {
     width: 100%;
     justify-content: center !important;
     margin-top: 1rem;
   }
-  
-  .filter-form .input-group {
-    flex-wrap: wrap;
-  }
-  
+  .filter-form .input-group { flex-wrap: wrap; }
   .filter-form .input-group .form-control {
     border-right: 1px solid #dee2e6;
     border-radius: 8px 8px 0 0;
     flex: 1 1 100%;
     height: 48px;
   }
-  
-  .filter-form .input-group-text {
-    display: none;
-  }
-  
+  .filter-form .input-group-text { display: none; }
   .filter-form .input-group .form-select {
     border-left: 1px solid #dee2e6;
     border-top: none;
@@ -718,42 +663,9 @@ img {
     flex: 1 1 100%;
     height: 48px;
   }
-  
-  /* Adjust stats cards on mobile */
-  .stats-card {
-    margin-bottom: 1rem;
-  }
+  .stats-card { margin-bottom: 1rem; }
 }
 
-/* =========================
-   THEME COMPATIBILITY
-   (All existing theme styles from your file remain unchanged)
-========================= */
-
-/* Your Default Blue Theme */
-body:not([class*="theme-"]) {
-  min-height: 100vh;
-  background-color: #c8e6f4 !important;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255,255,255,0.05) 0,
-    rgba(255,255,255,0.05) 1px,
-    transparent 1px,
-    transparent 20px
-  ) !important;
-}
-
-body:not([class*="theme-"]) .container {
-  background: linear-gradient(135deg, #e3f2fd 0%, #d0ebf7 100%) !important;
-  border-radius: 12px;
-}
-
-/* All other theme styles remain exactly as you had them */
-/* ... (include all your theme styles here - they remain unchanged) ... */
-
-/* =========================
-   AGENCY BADGE STYLES
-========================= */
 .agency-badge {
   font-size: 0.7rem !important;
   padding: 4px 8px !important;
@@ -762,17 +674,8 @@ body:not([class*="theme-"]) .container {
   border-radius: 4px;
 }
 
-/* =========================
-   CARD BODY IMPROVEMENTS
-========================= */
-.card-body {
-  position: relative;
-  z-index: 1;
-}
+.card-body { position: relative; z-index: 1; }
 
-/* =========================
-   HOVER EFFECTS
-========================= */
 .vehicle-card .btn-outline-primary:hover,
 .vehicle-card .btn-outline-warning:hover {
   transform: translateY(-2px);
