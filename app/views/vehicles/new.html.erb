@@ -1,5 +1,94 @@
-<h1 class="mb-4">Add New Vehicle</h1>
+<!-- app/views/vehicles/new.html.erb -->
 
-<%= render "form", vehicle: @vehicle %>
+<%# Agency-based hero background wrapper (Option B) %>
+<% agency_code = (current_user&.agency&.code || "default").to_s.downcase %>
 
-<%= link_to "Back to Vehicles", vehicles_path, class: "btn btn-secondary mt-3" %>
+<div class="vehicle-form-hero <%= agency_code %>">
+  <div class="vehicle-form-overlay">
+    <div class="container py-5">
+
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="mb-0 text-white fw-bold">
+          <i class="bi bi-plus-circle me-2"></i> Add New Vehicle
+        </h1>
+
+        <%= link_to vehicles_path, class: "btn btn-outline-light fw-bold" do %>
+          <i class="bi bi-arrow-left me-2"></i> Back to Vehicles
+        <% end %>
+      </div>
+
+      <div class="card shadow-lg border-0 vehicle-form-card">
+        <div class="card-body p-4 p-md-5">
+          <%= render "form", vehicle: @vehicle %>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<%# Bootstrap Icons (keep if you are not already loading icons globally) %>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+<style>
+/* =========================================================
+   VEHICLE NEW PAGE: AGENCY BACKGROUND HERO (OPTION B)
+   ========================================================= */
+
+.vehicle-form-hero {
+  min-height: calc(100vh - 120px);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+/* Default fallback background */
+.vehicle-form-hero.default {
+  background-image: linear-gradient(135deg, #0d6efd, #0a58ca);
+}
+
+/*
+  Put your images in:
+    app/assets/images/backgrounds/ptsc_bus.jpg
+    app/assets/images/backgrounds/ttps_police.jpg
+    app/assets/images/backgrounds/ttdf_fire.jpg
+    app/assets/images/backgrounds/vmcott_garage.jpg
+
+  IMPORTANT:
+  Rails asset pipeline helper in CSS is easiest in SCSS.
+  Since this is inline <style>, use plain /assets/... paths.
+
+  If your asset pipeline fingerprints assets in production,
+  move these styles into application.scss and use asset-path().
+*/
+.vehicle-form-hero.ptsc {
+  background-image: url("/assets/backgrounds/ptsc_bus.jpg");
+}
+
+.vehicle-form-hero.ttps {
+  background-image: url("/assets/backgrounds/ttps_police.jpg");
+}
+
+.vehicle-form-hero.ttdf {
+  background-image: url("/assets/backgrounds/ttdf_fire.jpg");
+}
+
+.vehicle-form-hero.vmcott {
+  background-image: url("/assets/backgrounds/vmcott_garage.jpg");
+}
+
+/* Dark overlay for readability */
+.vehicle-form-overlay {
+  min-height: calc(100vh - 120px);
+  background: rgba(0, 0, 0, 0.58);
+  padding-bottom: 40px;
+}
+
+/* Card styling */
+.vehicle-form-card {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(2px);
+}
+</style>
