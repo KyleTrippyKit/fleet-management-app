@@ -378,7 +378,9 @@ Rails.application.routes.draw do
       post :reject
       get  :accept_items
       get :email
-      get :print                                                 # Agency accepts specific items
+      get :print      
+      post :convert_to_po
+      post :convert_to_purchase_order                                           # Agency accepts specific items
       post :reject_items, as: 'reject_items'                     # Agency rejects specific items                  # Creates PO from accepted items
       get :acceptance_summary, as: 'acceptance_summary'
       post :send_acceptance, as: 'send_acceptance'                  # Agency sends acceptance back
@@ -794,6 +796,8 @@ end
       get :new_issue, as: 'new_issue'
     end
   end
+
+  resources :transactions, only: [:new, :create, :index, :show]
 
   # Trips
   resources :trips
