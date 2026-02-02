@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_02_061921) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -736,7 +736,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_061921) do
     t.index ["payment_reference"], name: "index_purchase_orders_on_payment_reference"
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
-    t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id"
+    t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id", unique: true
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
   end

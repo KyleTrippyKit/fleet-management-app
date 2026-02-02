@@ -403,33 +403,48 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/send_acceptance
   def send_acceptance
-    return redirect_to quotations_path, alert: 'Access denied' unless can_accept_items?
+    return redirect_to quotations_path, alert: "Access denied" unless can_accept_items?
 
-    # Load from session
+    # Load selection from session (normalize to integers)
     accepted_items = {
       accepted_line_items: Array(session["quotation_#{@quotation.id}_accepted_line_items"]).map(&:to_i),
-      accepted_jobs: Array(session["quotation_#{@quotation.id}_accepted_jobs"]).map(&:to_i),
-      accepted_job_parts: Array(session["quotation_#{@quotation.id}_accepted_job_parts"]).map(&:to_i)
+      accepted_jobs:       Array(session["quotation_#{@quotation.id}_accepted_jobs"]).map(&:to_i),
+      accepted_job_parts:  Array(session["quotation_#{@quotation.id}_accepted_job_parts"]).map(&:to_i)
     }.with_indifferent_access
 
-    if accepted_items[:accepted_line_items].empty? && 
-       accepted_items[:accepted_jobs].empty? && 
-       accepted_items[:accepted_job_parts].empty?
-      redirect_to accept_items_quotation_path(@quotation), alert: "Nothing selected."
-      return
+    nothing_selected =
+      accepted_items[:accepted_line_items].blank? &&
+      accepted_items[:accepted_jobs].blank? &&
+      accepted_items[:accepted_job_parts].blank?
+
+    if nothing_selected
+      return redirect_to accept_items_quotation_path(@quotation), alert: "Nothing selected."
     end
 
     purchase_order = nil
 
     ActiveRecord::Base.transaction do
-      purchase_order = create_po_from_selection!(@quotation, accepted_items, current_user)
+      # 🔒 Lock the quotation row so 2 requests can't create 2 POs
+      @quotation.lock!
 
-      @quotation.update!(
-        status: :accepted,
-        accepted_at: Time.current
-      )
+      # ✅ Idempotency: if a PO already exists for this quotation, reuse it
+      # Adjust this finder depending on your schema:
+      # - If PurchaseOrder has quotation_id: use where(quotation_id: @quotation.id)
+      # - If it uses quotation_number: use where(source_quote_number: @quotation.quote_number)
+      existing_po = PurchaseOrder.find_by(quotation_id: @quotation.id) rescue nil
 
-      # Clear session after successful PO creation
+      if existing_po.present?
+        purchase_order = existing_po
+      else
+        purchase_order = create_po_from_selection!(@quotation, accepted_items, current_user)
+
+        @quotation.update!(
+          status: :accepted,
+          accepted_at: Time.current
+        )
+      end
+
+      # Clear session (always)
       clear_acceptance_session(@quotation.id)
     end
 
@@ -1706,49 +1721,86 @@ class QuotationsController < ApplicationController
 
   # ✅ Single canonical PO creator (transaction-safe)
   def create_po_from_selection!(quotation, accepted_items, user)
+    # ✅ Re-use PO if it already exists for this quotation (idempotent)
+    existing_po = PurchaseOrder.find_by(quotation_id: quotation.id)
+    return existing_po if existing_po.present?
+
+    total = BigDecimal("0")
+
     po = PurchaseOrder.create!(
       quotation_id:  quotation.id,
       vendor:        quotation.vendor,
       vehicle_id:    quotation.vehicle_id,
       created_by_id: user.id,
       po_number:     generate_readable_po_number,
-      amount:        0,
+      amount:        0,          # temp; finalized below
       status:        "draft",
       agency_id:     quotation.agency_id
     )
 
-    total = 0.0
+    # ---------------------------
+    # Accepted Quotation Line Items
+    # ---------------------------
+    line_item_ids = Array(accepted_items[:accepted_line_items]).map(&:to_i).uniq
+    quotation.quotation_line_items.where(id: line_item_ids).find_each do |li|
+      qty  = BigDecimal(li.quantity.to_i.to_s)
+      unit = BigDecimal(li.unit_price.to_s)
 
-    quotation.quotation_line_items.where(id: accepted_items[:accepted_line_items]).find_each do |li|
-      line_total = li.quantity.to_f * li.unit_price.to_f
+      line_total = (qty * unit)
       po.purchase_order_items.create!(
-        description: li.description,
-        quantity: li.quantity,
-        unit_price: li.unit_price,
+        description: li.description.presence || "Line Item",
+        quantity:    li.quantity,
+        unit_price:  unit,
         total_price: line_total
       )
       total += line_total
     end
 
-    quotation.quotation_jobs.where(id: accepted_items[:accepted_jobs]).find_each do |job|
-      labor = job.total_labor_cost.to_f
+    # ---------------------------
+    # Accepted Jobs (Labor)
+    # ---------------------------
+    job_ids = Array(accepted_items[:accepted_jobs]).map(&:to_i).uniq
+    quotation.quotation_jobs.where(id: job_ids).find_each do |job|
+      labor = BigDecimal(job.total_labor_cost.to_s)
       next if labor <= 0
+
       po.purchase_order_items.create!(
         description: "Labor: #{job.name}",
-        quantity: 1,
-        unit_price: labor,
+        quantity:    1,
+        unit_price:  labor,
         total_price: labor
       )
       total += labor
     end
 
-    quotation.quotation_job_parts.where(id: accepted_items[:accepted_job_parts]).find_each do |jp|
-      part_total = jp.total_price.present? ? jp.total_price.to_f : (jp.quantity.to_f * jp.unit_price.to_f)
+    # ---------------------------
+    # Accepted Job Parts
+    # IMPORTANT: ensure parts belong to this quotation
+    # ---------------------------
+    part_ids = Array(accepted_items[:accepted_job_parts]).map(&:to_i).uniq
+
+    # Fetch parts through the quotation's jobs (guarantees scoping)
+    quotation_part_scope =
+      QuotationJobPart
+        .joins(:quotation_job)
+        .where(quotation_jobs: { quotation_id: quotation.id })
+
+    quotation_part_scope.where(id: part_ids).find_each do |jp|
+      qty  = BigDecimal(jp.quantity.to_i.to_s)
+      unit = BigDecimal(jp.unit_price.to_s)
+
+      part_total =
+        if jp.total_price.present?
+          BigDecimal(jp.total_price.to_s)
+        else
+          qty * unit
+        end
+
       po.purchase_order_items.create!(
-        part_id: jp.part_id,
-        description: jp.part&.name || "Part",
-        quantity: jp.quantity,
-        unit_price: jp.unit_price,
+        part_id:     jp.part_id,
+        description: jp.part&.name.presence || "Part",
+        quantity:    jp.quantity,
+        unit_price:  unit,
         total_price: part_total
       )
       total += part_total
