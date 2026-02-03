@@ -1,3 +1,4 @@
+<%# File: app/views/quotations/show.html.erb %>
 <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
 
 <!-- ===================== -->
@@ -118,7 +119,7 @@
             </thead>
 
             <tbody>
-              <% @quotation.line_items.each_with_index do |item, i| %>
+              <% @quotation.quotation_line_items.each_with_index do |item, i| %>
                 <tr>
                   <td><%= i + 1 %></td>
                   <td>
@@ -130,7 +131,18 @@
                   </td>
                   <td class="text-center"><%= item.quantity %></td>
                   <td class="text-end"><%= number_to_currency(item.unit_price) %></td>
-                  <td class="text-end fw-bold"><%= number_to_currency(item.total_price) %></td>
+                  <td class="text-end fw-bold">
+                    <%= number_to_currency(item.quantity.to_f * item.unit_price.to_f) %>
+                  </td>
+                </tr>
+              <% end %>
+
+              <%# ✅ EMPTY STATE (ADDED) %>
+              <% if @quotation.quotation_line_items.empty? %>
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    No line items on this quotation.
+                  </td>
                 </tr>
               <% end %>
 

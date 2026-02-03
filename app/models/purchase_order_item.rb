@@ -8,8 +8,8 @@ class PurchaseOrderItem < ApplicationRecord
   validates :unit_price, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :total_price, presence: true, numericality: { greater_than_or_equal_to: 0 }
 
-  # Add acceptance fields
-  attribute :is_accepted, :boolean, default: true
+  # Add acceptance fields - ✅ FIXED: Default to nil for pending acceptance
+  attribute :is_accepted, :boolean
   
   # Add scopes for acceptance
   scope :accepted, -> { where(is_accepted: true) }
@@ -39,18 +39,16 @@ class PurchaseOrderItem < ApplicationRecord
   # ✅ FIXED: Use correct status check
   validate :check_stock_availability, if: -> { part.present? && part.is_consumable? && purchase_order&.pending_approval? }
 
-  # ✅ FIXED: Calculate total
+  # ✅ FIXED: Calculate total - no need for to_f on integer quantity
   def compute_total_price
-    q = quantity.to_f
-    u = unit_price.to_f
-    self.total_price = (q * u).round(2)
+    self.total_price = quantity * unit_price
   end
 
   # ✅ FIXED: Optimized rollup without loading PO object
   def sync_purchase_order_rollups
     return unless purchase_order_id.present?
 
-    # ✅ fast, single SQL sum for amount
+    # ✅ fast, single SQL sum for amount (ALL items)
     total = PurchaseOrderItem.where(purchase_order_id: purchase_order_id)
       .sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
 
@@ -61,16 +59,21 @@ class PurchaseOrderItem < ApplicationRecord
     total_items    = PurchaseOrderItem.where(purchase_order_id: purchase_order_id).count
     accepted_items = PurchaseOrderItem.where(purchase_order_id: purchase_order_id, is_accepted: true).count
     rejected_items = PurchaseOrderItem.where(purchase_order_id: purchase_order_id, is_accepted: false).count
+    pending_items  = total_items - accepted_items - rejected_items
 
     new_status =
       if total_items == 0
+        'pending_acceptance'
+      elsif pending_items == total_items
         'pending_acceptance'
       elsif accepted_items == total_items
         'fully_accepted'
       elsif rejected_items == total_items
         'fully_rejected'
-      elsif accepted_items > 0
+      elsif accepted_items > 0 && rejected_items == 0
         'partially_accepted'
+      elsif rejected_items > 0
+        'partially_rejected'
       else
         'pending_acceptance'
       end
