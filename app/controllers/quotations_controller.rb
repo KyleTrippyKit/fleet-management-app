@@ -1462,7 +1462,7 @@ class QuotationsController < ApplicationController
       :vehicle_id, :vendor, :valid_from, :valid_to, 
       :notes, :rfq_id, :agency_id,
       quotation_line_items_attributes: [
-        :id, :description, :quantity, :unit_price, :specifications, :_destroy
+        :id, :description, :quantity, :unit_price, :specifications, :_destroy, :part_id
       ],
       quotation_jobs_attributes: [
         :id, :job_template_id, :job_type, :name, :description, 

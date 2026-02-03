@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_02_231144) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_03_061336) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -844,11 +844,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_231144) do
   create_table "quotation_line_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
+    t.bigint "part_id", null: false
     t.integer "quantity"
     t.bigint "quotation_id", null: false
     t.text "specifications"
     t.decimal "unit_price"
     t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_quotation_line_items_on_part_id"
     t.index ["quotation_id"], name: "index_quotation_line_items_on_quotation_id"
   end
 
@@ -1245,6 +1247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_231144) do
   add_foreign_key "quotation_job_parts", "quotation_jobs"
   add_foreign_key "quotation_jobs", "job_templates"
   add_foreign_key "quotation_jobs", "quotations"
+  add_foreign_key "quotation_line_items", "parts"
   add_foreign_key "quotation_line_items", "quotations"
   add_foreign_key "quotations", "agencies"
   add_foreign_key "quotations", "rfqs"
