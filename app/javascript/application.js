@@ -33,7 +33,6 @@ import "@hotwired/turbo-rails"
 // ------------------------------------------------------------
 // This imports app/javascript/controllers/index.js which registers vehicle-catalog
 import "controllers"
-
 // ------------------------------------------------------------
 // Logging / Diagnostics
 // ------------------------------------------------------------

@@ -4,18 +4,35 @@ module Vmcott
     before_action :authenticate_user!
     before_action :set_part, only: [:show, :edit, :update, :destroy, :adjust_stock]
     before_action :require_vmcott, except: [:index, :show]
-    
+
     # Skip the problematic callback for edit action
     skip_around_action :set_pos_transaction_current_user, only: [:edit]
 
+    # ============================================================
+    # Option 1: PARTS CATALOG ONLY
+    # - Index shows master part data (name, part#, category, supplier, flags)
+    # - Stock/low-stock belongs in InventoryController/dashboard
+    # ============================================================
     def index
-      @parts = Part.includes(:supplier).all
-      @parts = @parts.where(category: params[:category]) if params[:category].present?
-      @parts = @parts.where('name ILIKE ?', "%#{params[:search]}%") if params[:search].present?
-      @parts = @parts.order(:name).page(params[:page])
-      
-      @low_stock_parts = Part.below_reorder_point
-      @out_of_stock = Part.out_of_stock
+      @q = params[:q].to_s.strip
+      @category = params[:category].to_s.strip
+
+      scope = Part.includes(:supplier).order(:name)
+
+      # Optional category filter
+      if @category.present?
+        scope = scope.where(category: @category)
+      end
+
+      # Search across name / part_number / category
+      if @q.present?
+        scope = scope.where(
+          "parts.name ILIKE :q OR parts.part_number ILIKE :q OR parts.category ILIKE :q",
+          q: "%#{@q}%"
+        )
+      end
+
+      @parts = scope.page(params[:page]).per(25)
     end
 
     def show
@@ -27,11 +44,11 @@ module Vmcott
 
     def create
       @part = Part.new(part_params)
-      
+
       if @part.save
-        redirect_to vmcott_part_path(@part), notice: 'Part created successfully.'
+        redirect_to vmcott_part_path(@part), notice: "Part created successfully."
       else
-        render :new
+        render :new, status: :unprocessable_entity
       end
     end
 
@@ -40,65 +57,68 @@ module Vmcott
 
     def update
       if @part.update(part_params)
-        redirect_to vmcott_part_path(@part), notice: 'Part updated successfully.'
+        redirect_to vmcott_part_path(@part), notice: "Part updated successfully."
       else
-        render :edit
+        render :edit, status: :unprocessable_entity
       end
     end
 
     def destroy
       @part.destroy
-      redirect_to vmcott_parts_url, notice: 'Part deleted.'
+      redirect_to vmcott_parts_path, notice: "Part deleted."
     end
 
+    # Optional: keep this action if you still want stock adjustments from part show page.
+    # If you want "all stock actions only on Inventory Dashboard", you can remove this.
     def adjust_stock
-      quantity = params[:quantity].to_i
-      direction = params[:direction]
-      notes = params[:notes]
-      
+      quantity   = params[:quantity].to_i
+      direction  = params[:direction].to_s
+      notes      = params[:notes].to_s
+
+      unless %w[add subtract].include?(direction)
+        return redirect_to vmcott_part_path(@part), alert: "Invalid stock direction."
+      end
+
+      if quantity <= 0
+        return redirect_to vmcott_part_path(@part), alert: "Quantity must be greater than 0."
+      end
+
       if @part.adjust_stock(quantity, direction, notes)
-        redirect_to vmcott_part_path(@part), notice: "Stock #{direction == 'add' ? 'increased' : 'decreased'} successfully."
+        msg = direction == "add" ? "increased" : "decreased"
+        redirect_to vmcott_part_path(@part), notice: "Stock #{msg} successfully."
       else
-        redirect_to vmcott_part_path(@part), alert: "Failed to adjust stock: #{@part.errors.full_messages.join(', ')}"
+        redirect_to vmcott_part_path(@part),
+                    alert: "Failed to adjust stock: #{@part.errors.full_messages.join(', ')}"
       end
     end
 
-    def low_stock
-      @parts = Part.below_reorder_point.order(:current_stock)
-    end
-
-    def create_purchase_request
-      part = Part.find(params[:part_id])
-      quantity_needed = part.minimum_stock - part.current_stock
-      
-      # Create a purchase request (you'll need a PurchaseRequest model)
-      # For now, just log it
-      Rails.logger.info "Purchase request for #{part.name}: #{quantity_needed} needed"
-      
-      redirect_to vmcott_parts_path, notice: "Purchase request created for #{part.name}"
-    end
+    # IMPORTANT:
+    # We remove low_stock + create_purchase_request from this controller for Option 1.
+    # Those belong to Vmcott::InventoryController (dashboard/low_stock/reorder suggestions).
 
     private
 
     def set_part
       @part = Part.find(params[:id])
     rescue ActiveRecord::RecordNotFound
-      # Redirect to index if part not found
       redirect_to vmcott_parts_path, alert: "Part not found."
     end
 
     def part_params
       params.require(:part).permit(
         :name, :part_number, :description, :category, :unit_of_measure,
-        :cost_price, :current_stock, :minimum_stock, :reorder_point, 
+        :cost_price,
+        # Keeping stock fields permitted is okay for forms, but Option 1 means
+        # you typically don't edit stock from the Parts catalog screens.
+        :current_stock, :minimum_stock, :reorder_point,
         :lead_time_days, :location_in_warehouse, :is_consumable, :is_active,
         :supplier_id, :standard_markup_percentage
       )
     end
 
     def require_vmcott
-      return if current_user.agency&.code == 'VMCOTT' || current_user.admin?
-      redirect_to root_path, alert: 'Access denied. VMCOTT users only.'
+      return if current_user.agency&.code == "VMCOTT" || current_user.admin?
+      redirect_to root_path, alert: "Access denied. VMCOTT users only."
     end
   end
 end

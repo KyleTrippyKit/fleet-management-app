@@ -1,260 +1,34 @@
-<%# app/views/vmcott/parts/edit.html.erb %>
 <div class="container-fluid">
   <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-10 col-xl-9">
+
       <div class="card">
         <div class="card-header bg-primary text-white">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <h2 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Edit Part</h2>
+              <h2 class="mb-0">
+                <i class="bi bi-pencil-square me-2"></i>Edit Part
+              </h2>
               <small class="opacity-75"><%= @part.part_number.presence || "No Part Number" %></small>
             </div>
+
             <div>
-              <%= link_to '← Back to Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-light btn-sm' %>
-              <%# FIXED: Changed part_path to vmcott_part_path %>
-              <%= link_to 'View Part', vmcott_part_path(@part), class: 'btn btn-info btn-sm ms-2' %>
+              <%= link_to '← Back', vmcott_parts_path, class: 'btn btn-light btn-sm' %>
+              <%= link_to 'View', vmcott_part_path(@part), class: 'btn btn-info btn-sm ms-2' %>
             </div>
           </div>
         </div>
-        
+
         <div class="card-body">
-          <%# FIXED: Explicitly set the URL for the form %>
-          <%= form_with(model: @part, url: vmcott_part_path(@part), local: true) do |f| %>
-            <% if @part.errors.any? %>
-              <div class="alert alert-danger">
-                <h5><%= pluralize(@part.errors.count, "error") %> prohibited this part from being saved:</h5>
-                <ul>
-                  <% @part.errors.full_messages.each do |message| %>
-                    <li><%= message %></li>
-                  <% end %>
-                </ul>
-              </div>
-            <% end %>
-            
-            <!-- Basic Information Section -->
-            <div class="mb-4">
-              <h5 class="border-bottom pb-2 mb-3">
-                <i class="bi bi-info-circle me-2"></i>Basic Information
-              </h5>
-              
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <%= f.label :name, class: 'form-label fw-bold' %>
-                    <%= f.text_field :name, class: 'form-control', required: true %>
-                  </div>
-                </div>
-                
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <%= f.label :part_number, 'Part Number', class: 'form-label fw-bold' %>
-                    <%= f.text_field :part_number, class: 'form-control' %>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="mb-3">
-                <%= f.label :description, class: 'form-label fw-bold' %>
-                <%= f.text_area :description, class: 'form-control', rows: 3, placeholder: 'Enter description...' %>
-              </div>
-              
-              <div class="row">
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :category, class: 'form-label fw-bold' %>
-                    <%= f.text_field :category, class: 'form-control', placeholder: 'e.g., Electrical, Mechanical' %>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :unit_of_measure, 'Unit of Measure', class: 'form-label fw-bold' %>
-                    <%= f.text_field :unit_of_measure, class: 'form-control', value: @part.unit_of_measure || 'each', placeholder: 'e.g., each, box, meter' %>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :location_in_warehouse, 'Location', class: 'form-label fw-bold' %>
-                    <%= f.text_field :location_in_warehouse, class: 'form-control', placeholder: 'e.g., Aisle 3, Shelf B' %>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Vendor & Pricing Section -->
-            <div class="mb-4">
-              <h5 class="border-bottom pb-2 mb-3">
-                <i class="bi bi-cash-coin me-2"></i>Vendor & Pricing
-              </h5>
-              
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <%= f.label :supplier_id, 'Vendor', class: 'form-label fw-bold' %>
-                    <%= f.collection_select :supplier_id, Supplier.all.order(:name), :id, :name, 
-                        { include_blank: 'Select Vendor...' }, class: 'form-select' %>
-                  </div>
-                </div>
-                
-                <div class="col-md-3">
-                  <div class="mb-3">
-                    <%= f.label :cost_price, 'Cost Price (TTD)', class: 'form-label fw-bold' %>
-                    <div class="input-group">
-                      <span class="input-group-text">$</span>
-                      <%= f.number_field :cost_price, class: 'form-control', step: '0.01', min: '0' %>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="col-md-3">
-                  <div class="mb-3">
-                    <%= f.label :sale_price, 'Sale Price (TTD)', class: 'form-label fw-bold' %>
-                    <div class="input-group">
-                      <span class="input-group-text">$</span>
-                      <%= f.number_field :sale_price, class: 'form-control', step: '0.01', min: '0' %>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <%= f.label :standard_markup_percentage, 'Markup Percentage', class: 'form-label fw-bold' %>
-                    <div class="input-group">
-                      <%= f.number_field :standard_markup_percentage, class: 'form-control', step: '0.1', min: '0', max: '500' %>
-                      <span class="input-group-text">%</span>
-                    </div>
-                    <small class="form-text text-muted">Used to calculate sale price if not set</small>
-                  </div>
-                </div>
-                
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <%= f.label :lead_time_days, 'Lead Time (Days)', class: 'form-label fw-bold' %>
-                    <%= f.number_field :lead_time_days, class: 'form-control', min: '0', placeholder: 'Average delivery time' %>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Stock Management Section -->
-            <div class="mb-4">
-              <h5 class="border-bottom pb-2 mb-3">
-                <i class="bi bi-box-seam me-2"></i>Stock Management
-              </h5>
-              
-              <div class="row">
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :current_stock, 'Current Stock', class: 'form-label fw-bold' %>
-                    <div class="input-group">
-                      <%= f.number_field :current_stock, class: 'form-control', min: 0, step: 1 %>
-                      <span class="input-group-text"><%= @part.unit_of_measure || 'units' %></span>
-                    </div>
-                    <div class="mt-2">
-                      <span class="badge bg-<%= @part.stock_status_color %>">
-                        <%= @part.stock_status.titleize %>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :minimum_stock, 'Minimum Stock', class: 'form-label fw-bold' %>
-                    <%= f.number_field :minimum_stock, class: 'form-control', min: 0, step: 1 %>
-                    <small class="form-text text-muted">Alert when stock goes below this</small>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <%= f.label :reorder_point, 'Reorder Point', class: 'form-label fw-bold' %>
-                    <%= f.number_field :reorder_point, class: 'form-control', min: 0, step: 1 %>
-                    <small class="form-text text-muted">Auto-purchase suggestion trigger</small>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="row mt-3">
-                <div class="col-md-6">
-                  <div class="alert alert-light">
-                    <small class="fw-bold d-block mb-1">Stock Value:</small>
-                    <h5 class="mb-0">TTD <%= number_to_currency(@part.stock_value, unit: '') %></h5>
-                    <small class="text-muted">
-                      <%= @part.current_stock %> × <%= number_to_currency(@part.cost_price || 0) %>
-                    </small>
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="alert alert-light">
-                    <small class="fw-bold d-block mb-1">Profit Margin:</small>
-                    <h5 class="mb-0">
-                      <% if @part.cost_price && @part.sale_price && @part.cost_price > 0 %>
-                        <span class="badge bg-<%= @part.profit_margin >= 30 ? 'success' : @part.profit_margin >= 20 ? 'warning' : 'danger' %>">
-                          <%= number_to_percentage(@part.profit_margin, precision: 0) %>
-                        </span>
-                      <% else %>
-                        <span class="text-muted">N/A</span>
-                      <% end %>
-                    </h5>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Status Flags -->
-            <div class="mb-4">
-              <h5 class="border-bottom pb-2 mb-3">
-                <i class="bi bi-toggle-on me-2"></i>Status & Flags
-              </h5>
-              
-              <div class="row">
-                <div class="col-md-4">
-                  <div class="mb-3 form-check form-switch">
-                    <%= f.check_box :is_consumable, class: 'form-check-input', role: 'switch' %>
-                    <%= f.label :is_consumable, 'Is Consumable?', class: 'form-check-label fw-bold' %>
-                    <small class="form-text text-muted d-block">Parts that get used up (oil, filters, etc.)</small>
-                  </div>
-                </div>
-                
-                <div class="col-md-4">
-                  <div class="mb-3 form-check form-switch">
-                    <%= f.check_box :is_active, class: 'form-check-input', role: 'switch', checked: @part.is_active.nil? ? true : @part.is_active %>
-                    <%= f.label :is_active, 'Active?', class: 'form-check-label fw-bold' %>
-                    <small class="form-text text-muted d-block">Show in inventory and orders</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Action Buttons -->
-            <div class="mt-4 pt-3 border-top">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <%= f.submit 'Update Part', class: 'btn btn-primary px-4' %>
-                  <%= link_to 'Cancel', vmcott_inventory_dashboard_path, class: 'btn btn-outline-secondary ms-2' %>
-                </div>
-                <div>
-                  <%# FIXED: Changed part_path to vmcott_part_path %>
-                  <%= link_to 'Delete Part', vmcott_part_path(@part), 
-                      method: :delete, 
-                      class: 'btn btn-outline-danger',
-                      data: { turbo_confirm: "Are you sure you want to delete '#{@part.name}'? This cannot be undone." } %>
-                </div>
-              </div>
-            </div>
-          <% end %>
+          <%= render "form", part: @part %>
         </div>
       </div>
-      
-      <!-- Quick Stock Actions Card -->
+
       <div class="card mt-4">
         <div class="card-header bg-info text-white">
           <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Quick Stock Actions</h5>
         </div>
+
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
@@ -263,107 +37,78 @@
                   <h6 class="card-title text-success mb-3">
                     <i class="bi bi-plus-circle me-2"></i>Add Stock
                   </h6>
-                  <%= form_with url: vmcott_inventory_adjust_stock_path(@part), method: :post, class: 'row g-2' do %>
+
+                  <%= form_with url: adjust_stock_vmcott_part_path(@part), method: :post, local: true, class: "row g-2" do %>
                     <div class="col-8">
                       <div class="input-group">
-                        <input type="number" name="quantity" class="form-control" placeholder="Quantity" min="1" required>
-                        <span class="input-group-text"><%= @part.unit_of_measure || 'units' %></span>
+                        <%= number_field_tag :quantity, nil, class: "form-control", min: 1, step: 1, required: true, placeholder: "Quantity" %>
+                        <span class="input-group-text"><%= @part.unit_of_measure || "units" %></span>
                       </div>
-                      <input type="hidden" name="adjustment_type" value="add">
+                      <%= hidden_field_tag :direction, "add" %>
                     </div>
+
                     <div class="col-4">
                       <button type="submit" class="btn btn-success w-100">
-                        <i class="bi bi-plus-lg me-1"></i> Add
+                        <i class="bi bi-plus-lg me-1"></i>Add
                       </button>
                     </div>
                   <% end %>
                 </div>
               </div>
             </div>
-            
+
             <div class="col-md-6">
               <div class="card border-warning">
                 <div class="card-body">
                   <h6 class="card-title text-warning mb-3">
                     <i class="bi bi-dash-circle me-2"></i>Remove Stock
                   </h6>
-                  <%= form_with url: vmcott_inventory_adjust_stock_path(@part), method: :post, class: 'row g-2' do %>
+
+                  <%= form_with url: adjust_stock_vmcott_part_path(@part), method: :post, local: true, class: "row g-2" do %>
                     <div class="col-8">
                       <div class="input-group">
-                        <input type="number" name="quantity" class="form-control" placeholder="Quantity" min="1" max="<%= @part.current_stock %>" required>
-                        <span class="input-group-text"><%= @part.unit_of_measure || 'units' %></span>
+                        <%= number_field_tag :quantity, nil, class: "form-control", min: 1, step: 1, required: true, placeholder: "Quantity" %>
+                        <span class="input-group-text"><%= @part.unit_of_measure || "units" %></span>
                       </div>
-                      <input type="hidden" name="adjustment_type" value="subtract">
+                      <%= hidden_field_tag :direction, "subtract" %>
                     </div>
+
                     <div class="col-4">
-                      <button type="submit" class="btn btn-warning w-100" 
-                        <%= 'disabled' if @part.current_stock <= 0 %>>
-                        <i class="bi bi-dash-lg me-1"></i> Remove
+                      <button type="submit" class="btn btn-warning w-100" <%= "disabled" if @part.current_stock.to_i <= 0 %>>
+                        <i class="bi bi-dash-lg me-1"></i>Remove
                       </button>
                     </div>
                   <% end %>
-                  <% if @part.current_stock <= 0 %>
-                    <small class="text-danger">Cannot remove stock - current stock is zero</small>
+
+                  <% if @part.current_stock.to_i <= 0 %>
+                    <small class="text-danger">Cannot remove stock — current stock is zero</small>
                   <% end %>
                 </div>
               </div>
             </div>
           </div>
-          
-          <!-- Additional Quick Actions -->
-          <div class="row mt-3">
+
+          <div class="row mt-3 g-2">
             <div class="col-md-4">
-              <%= link_to vmcott_inventory_stock_history_path(@part), class: 'btn btn-outline-info w-100' do %>
-                <i class="bi bi-clock-history me-2"></i>View History
+              <%= link_to vmcott_part_path(@part), class: "btn btn-outline-primary w-100" do %>
+                <i class="bi bi-eye me-2"></i>View Part Details
               <% end %>
             </div>
             <div class="col-md-4">
-              <%= link_to 'Create Purchase Request', vmcott_inventory_new_purchase_request_path(@part), 
-                  class: 'btn btn-outline-success w-100' %>
+              <%= link_to vmcott_parts_path, class: "btn btn-outline-secondary w-100" do %>
+                <i class="bi bi-list me-2"></i>All Parts
+              <% end %>
             </div>
             <div class="col-md-4">
-              <%# FIXED: Changed part_path to vmcott_part_path %>
-              <%= link_to 'View Part Details', vmcott_part_path(@part), 
-                  class: 'btn btn-outline-primary w-100' %>
+              <%= link_to vmcott_inventory_dashboard_path, class: "btn btn-outline-info w-100" do %>
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+              <% end %>
             </div>
           </div>
+
         </div>
       </div>
+
     </div>
   </div>
 </div>
-
-<script>
-  document.addEventListener('turbo:load', function() {
-    // Auto-calculate sale price when cost price or markup changes
-    const costPriceField = document.getElementById('part_cost_price');
-    const markupField = document.getElementById('part_standard_markup_percentage');
-    const salePriceField = document.getElementById('part_sale_price');
-    
-    function calculateSalePrice() {
-      if (costPriceField.value && markupField.value) {
-        const cost = parseFloat(costPriceField.value);
-        const markup = parseFloat(markupField.value) || 30;
-        const salePrice = cost * (1 + (markup / 100));
-        salePriceField.value = salePrice.toFixed(2);
-      }
-    }
-    
-    if (costPriceField && markupField && salePriceField) {
-      costPriceField.addEventListener('input', calculateSalePrice);
-      markupField.addEventListener('input', calculateSalePrice);
-    }
-    
-    // Auto-set reorder point to 1.5x minimum stock
-    const minStockField = document.getElementById('part_minimum_stock');
-    const reorderField = document.getElementById('part_reorder_point');
-    
-    if (minStockField && reorderField) {
-      minStockField.addEventListener('input', function() {
-        if (this.value && (!reorderField.value || reorderField.value <= this.value)) {
-          reorderField.value = Math.ceil(this.value * 1.5);
-        }
-      });
-    }
-  });
-</script>

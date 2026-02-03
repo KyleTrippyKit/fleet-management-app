@@ -1,0 +1,193 @@
+<%# app/views/vmcott/parts/_form.html.erb %>
+
+<%= form_with(model: [:vmcott, part], local: true) do |f| %>
+  <% if part.errors.any? %>
+    <div class="alert alert-danger">
+      <h5><%= pluralize(part.errors.count, "error") %> prohibited this part from being saved:</h5>
+      <ul class="mb-0">
+        <% part.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <!-- Basic Information -->
+  <div class="mb-4">
+    <h5 class="border-bottom pb-2 mb-3">
+      <i class="bi bi-info-circle me-2"></i>Basic Information
+    </h5>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <%= f.label :name, class: "form-label fw-bold" %>
+          <%= f.text_field :name, class: "form-control", required: true %>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="mb-3">
+          <%= f.label :part_number, "Part Number", class: "form-label fw-bold" %>
+          <%= f.text_field :part_number, class: "form-control" %>
+          <small class="text-muted d-block">Must be unique if provided</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <%= f.label :description, class: "form-label fw-bold" %>
+      <%= f.text_area :description, class: "form-control", rows: 3, placeholder: "Enter description..." %>
+    </div>
+
+    <div class="row">
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :category, class: "form-label fw-bold" %>
+          <%= f.text_field :category, class: "form-control", placeholder: "e.g. Electrical, Mechanical" %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :unit_of_measure, "Unit of Measure", class: "form-label fw-bold" %>
+          <%= f.text_field :unit_of_measure, class: "form-control", placeholder: "each, box, litre..." %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :location_in_warehouse, "Location", class: "form-label fw-bold" %>
+          <%= f.text_field :location_in_warehouse, class: "form-control", placeholder: "Aisle 3 / Shelf B" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vendor & Pricing -->
+  <div class="mb-4">
+    <h5 class="border-bottom pb-2 mb-3">
+      <i class="bi bi-cash-coin me-2"></i>Vendor & Pricing
+    </h5>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <%= f.label :supplier_id, "Vendor", class: "form-label fw-bold" %>
+          <%= f.collection_select :supplier_id, Supplier.order(:name), :id, :name,
+                { include_blank: "Select Vendor..." },
+                class: "form-select" %>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="mb-3">
+          <%= f.label :cost_price, "Cost Price (TTD)", class: "form-label fw-bold" %>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <%= f.number_field :cost_price, class: "form-control", step: "0.01", min: "0" %>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="mb-3">
+          <%= f.label :sale_price, "Sale Price (TTD)", class: "form-label fw-bold" %>
+          <div class="input-group">
+            <span class="input-group-text">$</span>
+            <%= f.number_field :sale_price, class: "form-control", step: "0.01", min: "0" %>
+          </div>
+          <small class="text-muted d-block">This column exists in your DB: <code>sale_price</code></small>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-6">
+        <div class="mb-3">
+          <%= f.label :standard_markup_percentage, "Markup Percentage", class: "form-label fw-bold" %>
+          <div class="input-group">
+            <%= f.number_field :standard_markup_percentage, class: "form-control", step: "0.1", min: "0", max: "500" %>
+            <span class="input-group-text">%</span>
+          </div>
+          <small class="text-muted d-block">Default: 30%</small>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="mb-3">
+          <%= f.label :lead_time_days, "Lead Time (Days)", class: "form-label fw-bold" %>
+          <%= f.number_field :lead_time_days, class: "form-control", min: "0", step: 1 %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock -->
+  <div class="mb-4">
+    <h5 class="border-bottom pb-2 mb-3">
+      <i class="bi bi-box-seam me-2"></i>Stock Management
+    </h5>
+
+    <div class="row">
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :current_stock, "Current Stock", class: "form-label fw-bold" %>
+          <%= f.number_field :current_stock, class: "form-control", min: 0, step: 1 %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :minimum_stock, "Minimum Stock", class: "form-label fw-bold" %>
+          <%= f.number_field :minimum_stock, class: "form-control", min: 0, step: 1 %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="mb-3">
+          <%= f.label :reorder_point, "Reorder Point", class: "form-label fw-bold" %>
+          <%= f.number_field :reorder_point, class: "form-control", min: 0, step: 1 %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flags -->
+  <div class="mb-4">
+    <h5 class="border-bottom pb-2 mb-3">
+      <i class="bi bi-toggle-on me-2"></i>Status & Flags
+    </h5>
+
+    <div class="row">
+      <div class="col-md-4">
+        <div class="form-check form-switch mb-3">
+          <%= f.check_box :is_consumable, class: "form-check-input", role: "switch" %>
+          <%= f.label :is_consumable, "Is Consumable?", class: "form-check-label fw-bold" %>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="form-check form-switch mb-3">
+          <%= f.check_box :is_active, class: "form-check-input", role: "switch" %>
+          <%= f.label :is_active, "Active?", class: "form-check-label fw-bold" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center">
+    <div>
+      <%= f.submit(part.persisted? ? "Update Part" : "Create Part", class: "btn btn-primary px-4") %>
+      <%= link_to "Cancel", vmcott_parts_path, class: "btn btn-outline-secondary ms-2" %>
+    </div>
+
+    <% if part.persisted? %>
+      <%= link_to "Delete Part",
+            vmcott_part_path(part),
+            method: :delete,
+            class: "btn btn-outline-danger",
+            data: { turbo_confirm: "Are you sure you want to delete '#{part.name}'? This cannot be undone." } %>
+    <% end %>
+  </div>
+<% end %>

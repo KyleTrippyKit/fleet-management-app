@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_02_231144) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -671,7 +671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
   create_table "purchase_order_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", null: false
-    t.boolean "is_accepted", default: true
+    t.boolean "is_accepted"
     t.text "notes"
     t.bigint "part_id"
     t.bigint "purchase_order_id", null: false
@@ -687,6 +687,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
   end
 
   create_table "purchase_orders", force: :cascade do |t|
+    t.datetime "acceptance_acknowledged_at"
     t.string "acceptance_status", default: "pending_acceptance"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "approved_at"
@@ -727,6 +728,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
     t.bigint "vehicle_id"
     t.string "vendor", null: false
     t.string "vmcott_status", default: "pending_internal_work", null: false
+    t.index ["acceptance_acknowledged_at"], name: "index_purchase_orders_on_acceptance_acknowledged_at"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"

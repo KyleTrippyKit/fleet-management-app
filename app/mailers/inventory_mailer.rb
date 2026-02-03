@@ -1,15 +1,18 @@
-class InvoiceMailer < ApplicationMailer
-  def invoice_created(invoice)
-    @invoice = invoice
+class InventoryMailer < ApplicationMailer
+  def low_stock_alert(part)
+    @part = part
 
-    recipients = []
-    if invoice.respond_to?(:agency) && invoice.agency&.respond_to?(:users)
-      recipients.concat(invoice.agency.users.pluck(:email))
-    end
+    vmcott = Agency.find_by(code: "VMCOTT")
+    recipients =
+      if vmcott&.users
+        vmcott.users.where.not(email: [nil, ""]).pluck(:email)
+      else
+        []
+      end
 
     mail(
-      to: recipients.uniq.presence || 'no-reply@vmcott.local',
-      subject: "Invoice Created: #{invoice.invoice_number}"
+      to: recipients.presence || "no-reply@vmcott.local",
+      subject: "Low Stock Alert: #{@part.name} (#{@part.current_stock})"
     )
   end
 end

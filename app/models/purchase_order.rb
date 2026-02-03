@@ -92,17 +92,18 @@ class PurchaseOrder < ApplicationRecord
   # RFQ WORKFLOW METHODS
   # -------------------------
 
-  # ✅ FIXED: Use SQL sums instead of Ruby sums
-  def accepted_items_total
+  # ✅ FIXED: amount = total of ALL items, accepted_amount = only accepted items
+  def accepted_amount
     purchase_order_items.where(is_accepted: true).sum(:total_price)
   end
 
-  def rejected_items_total
+  def rejected_amount
     purchase_order_items.where(is_accepted: false).sum(:total_price)
   end
 
+  # ✅ FIXED: Keep recalculate_amount! but it updates amount (all items)
   def recalculate_amount!
-    update(amount: accepted_items_total)
+    update(amount: line_items_total)
   end
 
   # Status helpers
@@ -131,7 +132,8 @@ class PurchaseOrder < ApplicationRecord
             description: job.name,
             quantity: 1,
             unit_price: job.total_labor_cost,
-            notes: "Job: #{job.description}"
+            notes: "Job: #{job.description}",
+            is_accepted: true  # From accepted_items_data
           )
         elsif item_data[:accepted] && item_data[:item_type] == 'part'
           part_item = quotation.quotation_job_parts.find(item_data[:item_id])
@@ -140,7 +142,8 @@ class PurchaseOrder < ApplicationRecord
             description: part_item.part&.name || "Part from job",
             quantity: part_item.quantity,
             unit_price: part_item.unit_price,
-            notes: part_item.part&.description
+            notes: part_item.part&.description,
+            is_accepted: true  # From accepted_items_data
           )
         end
       end
@@ -237,15 +240,20 @@ class PurchaseOrder < ApplicationRecord
     total_items = purchase_order_items.count
     accepted_items = purchase_order_items.accepted.count
     rejected_items = purchase_order_items.rejected.count
+    pending_items = purchase_order_items.pending_acceptance.count
 
     if total_items == 0
+      self.acceptance_status = 'pending_acceptance'
+    elsif pending_items == total_items
       self.acceptance_status = 'pending_acceptance'
     elsif accepted_items == total_items
       self.acceptance_status = 'fully_accepted'
     elsif rejected_items == total_items
       self.acceptance_status = 'fully_rejected'
-    elsif accepted_items > 0
+    elsif accepted_items > 0 && rejected_items == 0
       self.acceptance_status = 'partially_accepted'
+    elsif rejected_items > 0
+      self.acceptance_status = 'partially_rejected'
     else
       self.acceptance_status = 'pending_acceptance'
     end
@@ -255,21 +263,26 @@ class PurchaseOrder < ApplicationRecord
     notify_vendor_of_acceptance if fully_accepted? && saved_change_to_acceptance_status?
   end
 
-  # ✅ NEW: Safe recomputation method (no recursion)
+  # ✅ FIXED: Updated acceptance logic to handle nil (pending)
   def recompute_acceptance_status!
-    total_items    = purchase_order_items.count
+    total_items = purchase_order_items.count
     accepted_items = purchase_order_items.accepted.count
     rejected_items = purchase_order_items.rejected.count
+    pending_items = purchase_order_items.pending_acceptance.count
 
     new_status =
       if total_items == 0
+        'pending_acceptance'
+      elsif pending_items == total_items
         'pending_acceptance'
       elsif accepted_items == total_items
         'fully_accepted'
       elsif rejected_items == total_items
         'fully_rejected'
-      elsif accepted_items > 0
+      elsif accepted_items > 0 && rejected_items == 0
         'partially_accepted'
+      elsif rejected_items > 0
+        'partially_rejected'
       else
         'pending_acceptance'
       end
@@ -307,6 +320,10 @@ class PurchaseOrder < ApplicationRecord
     )
     recompute_acceptance_status!
     log_acceptance_audit(:item_rejected, item, user, reason)
+  end
+
+  def pending_items
+    purchase_order_items.pending_acceptance
   end
 
   def notify_vendor_of_acceptance
@@ -603,11 +620,9 @@ class PurchaseOrder < ApplicationRecord
     save if changed?
   end
 
+  # ✅ FIXED: Handle jsonb column properly
   def billing_address_hash
-    return {} if billing_address.blank?
-    JSON.parse(billing_address)
-  rescue JSON::ParserError
-    {}
+    billing_address.is_a?(Hash) ? billing_address : {}
   end
 
   def all_items_accepted?
@@ -616,6 +631,10 @@ class PurchaseOrder < ApplicationRecord
 
   def any_items_rejected?
     purchase_order_items.rejected.any?
+  end
+
+  def any_items_pending?
+    purchase_order_items.pending_acceptance.any?
   end
 
   def rejected_items
@@ -627,7 +646,7 @@ class PurchaseOrder < ApplicationRecord
       (purchase_order_items.count > 0 && purchase_order_items.accepted.count == purchase_order_items.count)
   end
 
-  # ✅ FIXED: Use SQL sum instead of Ruby sum
+  # ✅ FIXED: Use SQL sum for all items (not just accepted)
   def line_items_total
     purchase_order_items.sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")
   end
@@ -711,6 +730,7 @@ class PurchaseOrder < ApplicationRecord
       po_number: po_number,
       vendor: vendor,
       amount: sprintf('$%.2f', amount),
+      accepted_amount: sprintf('$%.2f', accepted_amount),
       date: created_at.strftime('%B %d, %Y'),
       status: display_status,
       payment_status: display_payment_status,
@@ -723,12 +743,12 @@ class PurchaseOrder < ApplicationRecord
           quantity: item.quantity,
           unit_price: sprintf('$%.2f', item.unit_price),
           total: sprintf('$%.2f', item.quantity * item.unit_price),
-          accepted: item.is_accepted? ? 'Yes' : 'No',
+          accepted: item.acceptance_status,
           rejection_reason: item.rejection_reason
         }
       end,
       line_items_total: sprintf('$%.2f', line_items_total),
-      accepted_items_total: sprintf('$%.2f', accepted_items_total),
+      accepted_items_total: sprintf('$%.2f', accepted_amount),
       created_by_name: created_by&.name || 'System',
       approved_by_name: approved_by&.name,
       notes: notes
@@ -929,8 +949,9 @@ class PurchaseOrder < ApplicationRecord
     total = purchase_order_items.count
     accepted = purchase_order_items.accepted.count
     rejected = purchase_order_items.rejected.count
+    pending = purchase_order_items.pending_acceptance.count
 
-    "Accepted: #{accepted}/#{total} • Rejected: #{rejected}/#{total}"
+    "Accepted: #{accepted}/#{total} • Rejected: #{rejected}/#{total} • Pending: #{pending}/#{total}"
   end
 
   def internal_work_summary
@@ -1016,9 +1037,10 @@ class PurchaseOrder < ApplicationRecord
   scope :for_agency, ->(agency_id) { joins(:vehicle).where(vehicles: { agency_id: agency_id }) }
 
   # Acceptance scopes
-  scope :awaiting_acceptance, -> { where(acceptance_status: ['pending_acceptance', 'partially_accepted']) }
+  scope :awaiting_acceptance, -> { where(acceptance_status: 'pending_acceptance') }
   scope :fully_accepted, -> { where(acceptance_status: 'fully_accepted') }
   scope :with_rejected_items, -> { where(acceptance_status: ['partially_rejected', 'fully_rejected']) }
+  scope :pending_vmcott_review, -> { where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance') }
 
   # VMCOTT scopes
   scope :pending_internal_work, -> { where(vmcott_status: 'pending_internal_work') }
@@ -1110,7 +1132,7 @@ class PurchaseOrder < ApplicationRecord
     self.vmcott_status = 'pending_internal_work' if vmcott_status.blank?
   end
 
-  # ✅ FIXED: Use SQL sum instead of Ruby sum
+  # ✅ FIXED: Use SQL sum for all items (not just accepted)
   def calculate_amount_from_items
     return if purchase_order_items.blank?
     self.amount = purchase_order_items.sum("COALESCE(quantity,0) * COALESCE(unit_price,0)")

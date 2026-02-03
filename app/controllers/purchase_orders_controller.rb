@@ -50,7 +50,7 @@ class PurchaseOrdersController < ApplicationController
         quantity: line_item.quantity,
         unit_price: line_item.unit_price,
         notes: line_item.specifications,
-        is_accepted: true
+        is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
       )
     end
 
@@ -61,7 +61,7 @@ class PurchaseOrdersController < ApplicationController
           quantity: 1,
           unit_price: job.total_labor_cost || 0,
           notes: job.description,
-          is_accepted: true
+          is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
         )
 
         job.quotation_job_parts.each do |job_part|
@@ -71,7 +71,7 @@ class PurchaseOrdersController < ApplicationController
             quantity: job_part.quantity,
             unit_price: job_part.unit_price,
             notes: "From job: #{job.name}",
-            is_accepted: true
+            is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
           )
         end
       end
@@ -90,7 +90,7 @@ class PurchaseOrdersController < ApplicationController
   def awaiting_acceptance
     return redirect_to purchase_orders_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
-    # ✅ FIXED: Use acceptance_acknowledged_at instead of invalid enum value
+    # ✅ FIXED: Now using the real column after migration
     @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
                                   .where(acceptance_acknowledged_at: nil)
                                   .order(created_at: :desc)
@@ -104,7 +104,7 @@ class PurchaseOrdersController < ApplicationController
   def acknowledge_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
-    # ✅ FIXED: Use acceptance_acknowledged_at instead of invalid enum value
+    # ✅ FIXED: Now using the real column after migration
     if @purchase_order.update(acceptance_acknowledged_at: Time.current)
       redirect_to @purchase_order, notice: 'Purchase order acceptance acknowledged.'
     else
@@ -141,8 +141,8 @@ class PurchaseOrdersController < ApplicationController
   def acceptance_details
     @accepted_items = @purchase_order.purchase_order_items.where(is_accepted: true)
     @rejected_items = @purchase_order.purchase_order_items.where(is_accepted: false)
+    @pending_items = @purchase_order.purchase_order_items.where(is_accepted: nil)
     @accepted_total = @accepted_items.sum(:total_price)
-    @rejected_total = @rejected_items.sum(:total_price)
 
     render :acceptance_details
   end
@@ -152,15 +152,24 @@ class PurchaseOrdersController < ApplicationController
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
     item = @purchase_order.purchase_order_items.find(params[:item_id])
+    
+    # Convert string to proper boolean/nil
+    accepted_value = case params[:accepted]
+                    when 'true' then true
+                    when 'false' then false
+                    when 'pending', 'nil', 'null' then nil
+                    else params[:accepted]
+                    end
 
-    if item.update(is_accepted: params[:accepted], rejection_reason: params[:reason])
-      @purchase_order.recalculate_amount!
+    if item.update(is_accepted: accepted_value, rejection_reason: params[:reason])
+      # ✅ FIXED: Use recompute_acceptance_status! instead of recalculate_amount!
+      @purchase_order.recompute_acceptance_status!
 
       if request.xhr?
         render json: {
           success: true,
-          accepted_total: @purchase_order.accepted_items_total,
-          rejected_total: @purchase_order.rejected_items_total
+          accepted_total: @purchase_order.accepted_amount,
+          pending_items: @purchase_order.purchase_order_items.where(is_accepted: nil).count
         }
       else
         redirect_to acceptance_details_purchase_order_path(@purchase_order),
