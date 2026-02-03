@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1084,6 +1084,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
     t.bigint "agency_id", null: false
     t.string "body_style"
     t.string "chassis_number"
+    t.datetime "checked_in_at"
+    t.bigint "checked_in_by_id"
+    t.datetime "checked_out_at"
+    t.bigint "checked_out_by_id"
     t.string "color"
     t.datetime "created_at", null: false
     t.string "current_location"
@@ -1091,6 +1095,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
     t.string "engine_number"
     t.integer "fuel_level"
     t.string "fuel_type"
+    t.boolean "in_compound", default: false, null: false
     t.date "insurance_expiry_date"
     t.decimal "latitude", precision: 10, scale: 6
     t.string "license_plate"
@@ -1112,7 +1117,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
     t.string "vehicle_type"
     t.integer "year_of_manufacture"
     t.index ["agency_id"], name: "index_vehicles_on_agency_id"
+    t.index ["checked_in_by_id"], name: "index_vehicles_on_checked_in_by_id"
+    t.index ["checked_out_by_id"], name: "index_vehicles_on_checked_out_by_id"
     t.index ["driver_id"], name: "index_vehicles_on_driver_id"
+    t.index ["in_compound"], name: "index_vehicles_on_in_compound"
     t.index ["insurance_expiry_date"], name: "index_vehicles_on_insurance_expiry_date"
     t.index ["latitude", "longitude"], name: "index_vehicles_on_latitude_and_longitude"
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true

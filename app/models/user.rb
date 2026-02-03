@@ -25,6 +25,7 @@ class User < ApplicationRecord
   ROLE_SUPERVISOR = 'supervisor'
   ROLE_FINANCE = 'finance'
   ROLE_ADMIN = 'admin'
+  SCANNER_ROLE = %w[scanner].freeze
   
   # Define valid roles
   ROLES = [ROLE_CLERK, ROLE_SUPERVISOR, ROLE_FINANCE, ROLE_ADMIN].freeze
@@ -46,6 +47,10 @@ class User < ApplicationRecord
     role == ROLE_ADMIN || role == 'super_admin' || is_system_admin? || false
   end
   
+  def scanner_role?
+    SCANNER_ROLE.include?(role.to_s)
+  end
+
   # For compatibility with old code that expects enum methods
   def self.roles
     {

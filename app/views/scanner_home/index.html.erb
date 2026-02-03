@@ -1,0 +1,310 @@
+<div class="container py-4" style="max-width: 720px;">
+
+  <!-- Top Bar -->
+  <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded bg-light">
+    <div class="small">
+      <div class="fw-semibold">Logged in as</div>
+      <div>
+        <%= current_user&.email %>
+        <% if current_user&.role.present? %>
+          <span class="badge bg-secondary ms-2"><%= current_user.role %></span>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <!-- Optional: quick reload / reset -->
+      <button id="reset-ui" class="btn btn-outline-secondary btn-sm" type="button" title="Reset the page UI">
+        Reset
+      </button>
+
+      <!-- Logout (Devise) -->
+      <%= button_to "Logout",
+              destroy_user_session_path,
+              method: :delete,
+              data: { turbo_confirm: "Sign out?" },
+              class: "btn btn-outline-danger" %>
+
+    </div>
+  </div>
+
+  <!-- Flash messages -->
+  <% if notice %>
+    <div class="alert alert-success"><%= notice %></div>
+  <% end %>
+
+  <% if alert %>
+    <div class="alert alert-danger"><%= alert %></div>
+  <% end %>
+
+  <!-- Title + easter egg hook -->
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h1 id="page-title" class="mb-0" style="cursor:pointer;">Vehicle Lookup</h1>
+    <span id="mode-pill" class="badge bg-info text-dark" style="display:none;">Turbo Mode</span>
+  </div>
+
+  <p id="tip-line" class="text-muted small mb-3"></p>
+
+  <!-- Option 1: Scan QR Code -->
+  <div class="card p-3 mb-3 shadow-sm">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h4 class="mb-2">Scan QR Code</h4>
+        <p class="text-muted mb-3">Scan a QR that contains a license plate (e.g. PDL1234).</p>
+      </div>
+      <span class="badge bg-dark">CAM</span>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+      <button id="start-scan" class="btn btn-primary" type="button">Scan QR Code</button>
+      <button id="stop-scan" class="btn btn-outline-secondary" type="button" style="display:none;">Stop</button>
+      <button id="toggle-flash" class="btn btn-outline-warning" type="button" style="display:none;" title="If supported by device">Flash</button>
+    </div>
+
+    <div id="scanner" class="mt-3" style="display:none;">
+      <video id="qr-video" playsinline style="width:100%; border:1px solid #ddd; border-radius:12px;"></video>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <small class="text-muted">Point your camera at the QR code.</small>
+        <small id="scan-status" class="text-muted">Idle</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option 2: Manual plate entry -->
+  <div class="card p-3 shadow-sm">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h4 class="mb-2">Enter License Plate</h4>
+        <p class="text-muted small mb-2">Tip: press <kbd>/</kbd> to jump into the plate box.</p>
+      </div>
+      <span class="badge bg-success">MANUAL</span>
+    </div>
+
+    <%= form_with url: vehicle_lookup_path, method: :post, local: true, id: "plate-form" do |f| %>
+      <div class="mb-3">
+        <%= f.label :license_plate, "License Plate", class: "form-label" %>
+        <%= f.text_field :license_plate,
+              class: "form-control text-uppercase",
+              placeholder: "e.g. PDL1234",
+              id: "plate-input",
+              autofocus: true,
+              autocomplete: "off",
+              inputmode: "text" %>
+        <div class="form-text">Spaces are ignored. Letters auto-uppercase.</div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <%= f.submit "Search", class: "btn btn-success flex-grow-1" %>
+        <button id="clear-plate" class="btn btn-outline-secondary" type="button">Clear</button>
+      </div>
+    <% end %>
+
+    <!-- Hidden help panel (easter egg via '?') -->
+    <div id="help-panel" class="alert alert-info mt-3 mb-0" style="display:none;">
+      <div class="fw-semibold mb-1">Scanner shortcuts</div>
+      <ul class="mb-0">
+        <li><kbd>/</kbd> focus plate input</li>
+        <li><kbd>Enter</kbd> submit</li>
+        <li><kbd>?</kbd> toggle this help</li>
+        <li>Konami code for a secret 🤫</li>
+      </ul>
+    </div>
+
+    <!-- Tiny secret message area -->
+    <div id="secret" class="text-center mt-3 small text-muted" style="display:none;">
+      ✅ *You found the secret.* Keep the fleet moving. 🚚💨
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
+
+  const startBtn    = document.getElementById("start-scan");
+  const stopBtn     = document.getElementById("stop-scan");
+  const flashBtn    = document.getElementById("toggle-flash");
+  const scannerEl   = document.getElementById("scanner");
+  const videoEl     = document.getElementById("qr-video");
+  const statusEl    = document.getElementById("scan-status");
+
+  const plateInput  = document.getElementById("plate-input");
+  const plateForm   = document.getElementById("plate-form");
+  const clearBtn    = document.getElementById("clear-plate");
+  const resetBtn    = document.getElementById("reset-ui");
+
+  const tipLine     = document.getElementById("tip-line");
+  const helpPanel   = document.getElementById("help-panel");
+  const secretEl    = document.getElementById("secret");
+
+  const titleEl     = document.getElementById("page-title");
+  const modePill    = document.getElementById("mode-pill");
+
+  function normalizePlate(raw) {
+    return (raw || "").toString().trim().toUpperCase().replace(/\s+/g, "");
+  }
+
+  // ---- Tip of the day (tiny easter egg) ----
+  const tips = [
+    "Tip: plates are normalized (spaces removed, uppercase).",
+    "Tip: press '/' to focus the plate field instantly.",
+    "Tip: QR works best in bright light (or use Flash).",
+    "Tip: if a plate isn't found, check O vs 0.",
+    "Tip: keep it short—just the plate, no extra text."
+  ];
+  tipLine.textContent = tips[Math.floor(Math.random() * tips.length)];
+
+  // ---- QR scanner ----
+  let qrScanner = null;
+
+  async function safeStopScanner() {
+    try { if (qrScanner) await qrScanner.stop(); } catch (_) {}
+    statusEl.textContent = "Idle";
+  }
+
+  startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    stopBtn.style.display = "inline-block";
+    scannerEl.style.display = "block";
+    statusEl.textContent = "Starting…";
+
+    qrScanner = new QrScanner(
+      videoEl,
+      async (result) => {
+        const plate = normalizePlate(result?.data);
+        if (!plate) return;
+
+        statusEl.textContent = `Found: ${plate}`;
+        plateInput.value = plate;
+
+        await safeStopScanner();
+        plateForm.submit();
+      },
+      { returnDetailedScanResult: true }
+    );
+
+    try {
+      await qrScanner.start();
+      statusEl.textContent = "Scanning…";
+
+      // Flash support (if available)
+      try {
+        const hasFlash = await qrScanner.hasFlash();
+        flashBtn.style.display = hasFlash ? "inline-block" : "none";
+      } catch (_) {
+        flashBtn.style.display = "none";
+      }
+
+    } catch (e) {
+      alert("Camera access failed. Please allow camera permissions or use manual entry.");
+      startBtn.disabled = false;
+      stopBtn.style.display = "none";
+      scannerEl.style.display = "none";
+      statusEl.textContent = "Idle";
+    }
+  });
+
+  stopBtn.addEventListener("click", async () => {
+    await safeStopScanner();
+    startBtn.disabled = false;
+    stopBtn.style.display = "none";
+    flashBtn.style.display = "none";
+    scannerEl.style.display = "none";
+  });
+
+  flashBtn.addEventListener("click", async () => {
+    if (!qrScanner) return;
+    try {
+      const on = await qrScanner.isFlashOn();
+      await qrScanner.toggleFlash();
+      flashBtn.textContent = on ? "Flash" : "Flash ✓";
+    } catch (_) {
+      // Ignore if not supported
+    }
+  });
+
+  // ---- Manual entry helpers ----
+  plateInput.addEventListener("input", () => {
+    const pos = plateInput.selectionStart;
+    plateInput.value = normalizePlate(plateInput.value);
+    try { plateInput.setSelectionRange(pos, pos); } catch (_) {}
+  });
+
+  clearBtn.addEventListener("click", () => {
+    plateInput.value = "";
+    plateInput.focus();
+  });
+
+  // ---- Reset UI button ----
+  resetBtn.addEventListener("click", async () => {
+    helpPanel.style.display = "none";
+    secretEl.style.display = "none";
+    modePill.style.display = "none";
+    titleClicks = 0;
+
+    plateInput.value = "";
+    plateInput.focus();
+
+    await safeStopScanner();
+    startBtn.disabled = false;
+    stopBtn.style.display = "none";
+    flashBtn.style.display = "none";
+    scannerEl.style.display = "none";
+    flashBtn.textContent = "Flash";
+  });
+
+  // ---- Keyboard shortcuts (/, ?) ----
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement !== plateInput) {
+      e.preventDefault();
+      plateInput.focus();
+    }
+
+    if (e.key === "?") {
+      e.preventDefault();
+      helpPanel.style.display = (helpPanel.style.display === "none" ? "block" : "none");
+    }
+  });
+
+  // ---- Easter egg: title click x7 toggles Turbo Mode ----
+  let titleClicks = 0;
+  let turbo = false;
+
+  titleEl.addEventListener("click", () => {
+    titleClicks += 1;
+
+    if (titleClicks >= 7) {
+      turbo = !turbo;
+      modePill.style.display = turbo ? "inline-block" : "none";
+      titleClicks = 0;
+
+      // Turbo mode: focus plate input and add a tiny hint
+      if (turbo) {
+        plateInput.focus();
+        tipLine.textContent = "Turbo Mode: scan or type fast — Enter submits instantly ⚡";
+      } else {
+        tipLine.textContent = tips[Math.floor(Math.random() * tips.length)];
+      }
+    }
+  });
+
+  // ---- Easter egg: Konami code ----
+  const konami = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","b","a"];
+  let buffer = [];
+
+  document.addEventListener("keydown", (e) => {
+    buffer.push(e.key);
+    buffer = buffer.slice(-konami.length);
+
+    if (buffer.join(",").toLowerCase() === konami.join(",").toLowerCase()) {
+      secretEl.style.display = "block";
+      // tiny confetti-ish effect (no libs)
+      secretEl.animate(
+        [{ transform: "scale(1)", opacity: 0.6 }, { transform: "scale(1.02)", opacity: 1 }],
+        { duration: 350, easing: "ease-out" }
+      );
+    }
+  });
+
+  // Autofocus plate if not scanning
+  plateInput.focus();
+</script>

@@ -1,0 +1,124 @@
+<div class="container-fluid px-4 py-3">
+<%# Top bar: Back + Logged-in user %>
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <%= link_to "← Back",
+                (request.referer.presence || scanner_home_path),
+                class: "btn btn-outline-secondary btn-sm" %>
+  </div>
+
+  <div class="text-end small text-muted">
+    Logged in as:
+    <strong><%= current_user.respond_to?(:name) ? current_user.name : current_user.email %></strong>
+    <% if current_user.respond_to?(:agency) && current_user.agency %>
+      • <%= current_user.agency.name %>
+    <% end %>
+  </div>
+</div>
+
+<%# Flash popup hooks (uses your flash_popup_controller.js) %>
+<% if flash[:notice].present? %>
+  <div data-controller="flash-popup" data-message="<%= flash[:notice] %>"></div>
+<% end %>
+<% if flash[:alert].present? %>
+  <div data-controller="flash-popup" data-message="<%= flash[:alert] %>"></div>
+<% end %>
+
+<%# Header %>
+<div class="mb-3">
+  <h2 class="mb-1">
+    <%= @vehicle.make %> <%= @vehicle.model %>
+    (<%= @vehicle.year_of_manufacture.presence || "Unknown" %>)
+  </h2>
+
+  <div class="d-flex gap-2 flex-wrap">
+    <span class="badge bg-dark"><%= @vehicle.license_plate %></span>
+    <% if @vehicle.agency %>
+      <span class="badge bg-secondary"><%= @vehicle.agency.name %></span>
+    <% end %>
+
+    <% if @vehicle.in_compound? %>
+      <span class="badge bg-success">IN COMPOUND</span>
+    <% else %>
+      <span class="badge bg-warning text-dark">NOT IN COMPOUND</span>
+    <% end %>
+  </div>
+</div>
+
+<div class="row">
+  <%# Left: Full Vehicle Info %>
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header"><strong>Vehicle Information</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><strong>Type:</strong> <%= @vehicle.vehicle_type %></div>
+          <div class="col-md-6"><strong>Color:</strong> <%= @vehicle.color %></div>
+          <div class="col-md-6"><strong>Fuel:</strong> <%= @vehicle.fuel_type %></div>
+          <div class="col-md-6"><strong>Transmission:</strong> <%= @vehicle.transmission %></div>
+
+          <div class="col-md-6"><strong>Registration #:</strong> <%= @vehicle.registration_number %></div>
+          <div class="col-md-6"><strong>Service Owner:</strong> <%= @vehicle.service_owner %></div>
+
+          <div class="col-md-6"><strong>Chassis #:</strong> <%= @vehicle.chassis_number %></div>
+          <div class="col-md-6"><strong>Engine #:</strong> <%= @vehicle.engine_number %></div>
+
+          <div class="col-md-6"><strong>Serial #:</strong> <%= @vehicle.serial_number %></div>
+          <div class="col-md-6"><strong>Mileage:</strong> <%= @vehicle.mileage %></div>
+        </div>
+
+        <% if @vehicle.primary_photo&.attached? %>
+          <hr>
+          <%= image_tag @vehicle.primary_photo.variant(resize_to_limit: [640, 360]),
+                        class: "img-fluid rounded border" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%# Right: Scanner Actions %>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><strong>Scanner Actions</strong></div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+
+          <%= link_to "Open Normal Vehicle Page",
+                      vehicle_path(@vehicle),
+                      class: "btn btn-outline-primary w-100" %>
+
+          <%# ✅ Full-width buttons (same sizing as Home button) %>
+          <%= button_to "Check IN to Compound",
+                        check_in_compound_scanner_vehicle_path(@vehicle),
+                        method: :post,
+                        disabled: @vehicle.in_compound?,
+                        class: "btn btn-success w-100",
+                        form: { data: { turbo_confirm: "Check IN this vehicle to the compound?" } } %>
+
+          <%= button_to "Check OUT of Compound",
+                        check_out_compound_scanner_vehicle_path(@vehicle),
+                        method: :post,
+                        disabled: !@vehicle.in_compound?,
+                        class: "btn btn-dark w-100",
+                        form: { data: { turbo_confirm: "Check OUT this vehicle from the compound?" } } %>
+
+          <%= link_to "Back to Scanner Home",
+                      scanner_home_path,
+                      class: "btn btn-outline-secondary w-100" %>
+        </div>
+
+        <hr>
+
+        <div class="small text-muted">
+          <% if @vehicle.checked_in_at.present? %>
+            <div><strong>Last check-in:</strong> <%= @vehicle.checked_in_at %></div>
+          <% end %>
+          <% if @vehicle.checked_out_at.present? %>
+            <div><strong>Last check-out:</strong> <%= @vehicle.checked_out_at %></div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>

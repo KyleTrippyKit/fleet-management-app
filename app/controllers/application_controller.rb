@@ -32,48 +32,58 @@ class ApplicationController < ActionController::Base
   # =====================================================
   # AFTER SIGN IN REDIRECT - THE FIX!
   # =====================================================
-  def after_sign_in_path_for(resource)
-    # Debug logging
-    Rails.logger.info "=== AFTER SIGN IN REDIRECT ==="
-    
-    # Handle case where resource might be an array
-    user = if resource.is_a?(Array)
-            Rails.logger.info "Resource is an array: #{resource.inspect}"
-            # Try to find the user in the array
-            resource.find { |r| r.respond_to?(:email) }
-          else
-            resource
-          end
-    
-    # Check if we have a valid user object
-    if user.nil? || !user.respond_to?(:email)
-      Rails.logger.error "No valid user object found. Resource: #{resource.inspect}"
-      return '/main-dashboard' # Default fallback
-    end
-    
-    Rails.logger.info "User: #{user.email}"
-    Rails.logger.info "Agency: #{user.agency.inspect}"
-    Rails.logger.info "Agency Code: #{user.agency&.code}"
-    Rails.logger.info "Role: #{user.role}"
-    Rails.logger.info "=============================="
-    
-    # Use string paths instead of route helpers to avoid NameError
-    agency_code = user.agency&.code
-    
-    case agency_code
-    when 'PTSC'
-      '/ptsc-dashboard'
-    when 'VMCOTT'
-      '/vmcott-dashboard'
-    when 'TTPS'
-      '/ttps-dashboard'
-    when 'TTDF'
-      '/ttdf-dashboard'
+  # =====================================================
+# AFTER SIGN IN REDIRECT - FIXED
+# =====================================================
+def after_sign_in_path_for(resource)
+  Rails.logger.info "=== AFTER SIGN IN REDIRECT ==="
+  Rails.logger.info "Resource class: #{resource.class}"
+  Rails.logger.info "Resource inspect: #{resource.inspect}"
+
+  # Handle case where resource might be an array
+  user =
+    if resource.is_a?(Array)
+      Rails.logger.info "Resource is an array, trying to locate a user-like object..."
+      resource.find { |r| r.respond_to?(:email) }
     else
-      # Default to main dashboard
-      '/main-dashboard'
+      resource
     end
+
+  # If we can't determine a user, fall back safely
+  unless user&.respond_to?(:email)
+    Rails.logger.error "No valid user object found for after_sign_in_path_for. Falling back."
+    return "/main-dashboard"
   end
+
+  Rails.logger.info "User: #{user.email}"
+  Rails.logger.info "Agency: #{user.agency.inspect}"
+  Rails.logger.info "Agency Code: #{user.agency&.code}"
+  Rails.logger.info "Role: #{user.role}"
+  Rails.logger.info "=============================="
+
+  # ✅ Scanner users ALWAYS go to scanner home
+  if user.respond_to?(:scanner_role?) && user.scanner_role?
+    Rails.logger.info "Scanner user detected -> redirecting to scanner_home_path"
+    return scanner_home_path
+  end
+
+  # Respect stored location for non-scanner users (e.g., they tried to open a page before login)
+  stored = stored_location_for(user)
+  if stored.present?
+    Rails.logger.info "Stored location found -> redirecting to #{stored}"
+    return stored
+  end
+
+  # Otherwise route by agency code
+  case user.agency&.code
+  when "PTSC"  then "/ptsc-dashboard"
+  when "VMCOTT" then "/vmcott-dashboard"
+  when "TTPS"  then "/ttps-dashboard"
+  when "TTDF"  then "/ttdf-dashboard"
+  else              "/main-dashboard"
+  end
+end
+
 
   # =====================================================
   # Helper Methods (KEEP THESE!)
