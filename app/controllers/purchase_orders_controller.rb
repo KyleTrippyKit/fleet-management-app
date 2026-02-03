@@ -1,3 +1,5 @@
+# app/controllers/purchase_orders_controller.rb
+
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
   before_action :set_purchase_order, except: [:index, :new, :create, :from_quotation, :awaiting_acceptance]
@@ -92,10 +94,10 @@ class PurchaseOrdersController < ApplicationController
 
     # ✅ FIXED: Now using the real column after migration
     @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
-                                  .where(acceptance_acknowledged_at: nil)
-                                  .order(created_at: :desc)
-                                  .includes(:vehicle, :created_by)
-                                  .page(params[:page])
+                                    .where(acceptance_acknowledged_at: nil)
+                                    .order(created_at: :desc)
+                                    .includes(:vehicle, :created_by)
+                                    .page(params[:page])
 
     render :awaiting_acceptance
   end
@@ -152,14 +154,14 @@ class PurchaseOrdersController < ApplicationController
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
     item = @purchase_order.purchase_order_items.find(params[:item_id])
-    
+
     # Convert string to proper boolean/nil
     accepted_value = case params[:accepted]
-                    when 'true' then true
-                    when 'false' then false
-                    when 'pending', 'nil', 'null' then nil
-                    else params[:accepted]
-                    end
+                     when 'true' then true
+                     when 'false' then false
+                     when 'pending', 'nil', 'null' then nil
+                     else params[:accepted]
+                     end
 
     if item.update(is_accepted: accepted_value, rejection_reason: params[:reason])
       # ✅ FIXED: Use recompute_acceptance_status! instead of recalculate_amount!
@@ -193,10 +195,22 @@ class PurchaseOrdersController < ApplicationController
     # ✅ FIXED: Set payment_audits and payment_histories with limits
     @payment_histories = @purchase_order.payment_histories.order(created_at: :desc).limit(100)
     @payment_audits = @purchase_order.payment_audits.order(created_at: :asc)
+
+    # ✅ IMPORTANT FIX:
+    # Do NOT call @purchase_order.purchase_order_items.includes(:vendor_invoice_items)
+    # because your DB does NOT have vendor_invoice_items.purchase_order_item_id.
+    #
+    # Instead: load vendor invoices + their items by purchase_order_id.
+    @vendor_invoice = VendorInvoice.find_by(purchase_order_id: @purchase_order.id)
+    @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.warn "Payment histories association failed: #{e.message}"
     @payment_histories = []
     @payment_audits = []
+
+    # Still keep these safe
+    @vendor_invoice = VendorInvoice.find_by(purchase_order_id: @purchase_order.id)
+    @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
   end
 
   def new
@@ -582,7 +596,10 @@ class PurchaseOrdersController < ApplicationController
         :invoices,
         :payment_histories,
         :payment_audits,
-        purchase_order_items: [:part, :vendor_invoice_items]
+        # ✅ IMPORTANT FIX:
+        # DO NOT eager-load :vendor_invoice_items through purchase_order_items
+        # because DB column vendor_invoice_items.purchase_order_item_id does not exist.
+        purchase_order_items: [:part]
       ).find(params[:id])
   rescue ActiveRecord::RecordNotFound
     redirect_to purchase_orders_path, alert: 'Purchase order not found.'
