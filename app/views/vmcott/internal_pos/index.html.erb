@@ -1,7 +1,7 @@
 <%# app/views/vmcott/internal_pos/index.html.erb %>
 <div class="container mt-4">
   <h1>Internal POS Dashboard</h1>
-  
+
   <div class="row mb-4">
     <div class="col-md-3">
       <div class="card bg-primary text-white">
@@ -36,21 +36,24 @@
       </div>
     </div>
   </div>
-  
+
   <div class="d-flex justify-content-between mb-3">
     <h3>All Internal POS</h3>
-    <%= link_to 'View Active Work', active_work_vmcott_internal_pos_path, class: 'btn btn-outline-primary' %>
+    <div>
+      <%= link_to 'View Active Work', active_work_vmcott_internal_pos_path, class: 'btn btn-outline-primary' %>
+      <%= link_to 'Completed Today', completed_today_vmcott_internal_pos_path, class: 'btn btn-outline-success ms-2' %>
+    </div>
   </div>
-  
+
   <% if @internal_pos.any? %>
     <div class="table-responsive">
-      <table class="table table-hover">
+      <table class="table table-hover align-middle">
         <thead>
           <tr>
             <th>POS #</th>
             <th>PO #</th>
             <th>Vehicle</th>
-            <th>Assigned To</th>
+            <th>Section / Role</th>
             <th>Priority</th>
             <th>Status</th>
             <th>Est. Completion</th>
@@ -61,6 +64,7 @@
           <% @internal_pos.each do |pos| %>
             <tr>
               <td><strong><%= pos.work_order_number %></strong></td>
+
               <td>
                 <% if pos.purchase_order %>
                   <%= link_to pos.purchase_order.po_number, purchase_order_path(pos.purchase_order) %>
@@ -68,34 +72,46 @@
                   <span class="text-muted">N/A</span>
                 <% end %>
               </td>
+
               <td>
-                <%= pos.vehicle&.license_plate %>
-                <br>
-                <small class="text-muted">
-                  <%= pos.vehicle&.make %> <%= pos.vehicle&.model %>
-                </small>
+                <% v = pos.vehicle %>
+                <% if v %>
+                  <div><strong><%= v.license_plate %></strong></div>
+                  <small class="text-muted"><%= v.make %> <%= v.model %></small>
+                <% else %>
+                  <span class="text-muted">No vehicle</span>
+                <% end %>
               </td>
-              <td><%= pos.assigned_to&.name || 'Unassigned' %></td>
+
+              <td>
+                <div><%= pos.extracted_work_section || '—' %></div>
+                <small class="text-muted"><%= pos.extracted_work_role || '—' %></small>
+              </td>
+
               <td>
                 <span class="badge bg-<%= pos_priority_badge(pos.priority) %>">
                   <%= pos.priority.humanize %>
                 </span>
               </td>
+
               <td>
                 <span class="badge bg-<%= pos_status_badge(pos.status) %>">
                   <%= pos.status.humanize %>
                 </span>
               </td>
+
               <td><%= pos.estimated_completion_date&.strftime('%b %d, %Y') || 'Not set' %></td>
+
               <td>
                 <div class="btn-group btn-group-sm">
                   <%= link_to 'View', vmcott_internal_pos_path(pos), class: 'btn btn-outline-primary' %>
+
                   <% if pos.pending? %>
-                    <%= link_to 'Start', mark_in_progress_vmcott_internal_pos_path(pos), 
+                    <%= link_to 'Start', mark_in_progress_vmcott_internal_pos_path(pos),
                         method: :post, class: 'btn btn-outline-success',
                         data: { confirm: 'Mark as in progress?' } %>
                   <% elsif pos.in_progress? %>
-                    <%= link_to 'Complete', mark_completed_vmcott_internal_pos_path(pos), 
+                    <%= link_to 'Complete', mark_completed_vmcott_internal_pos_path(pos),
                         method: :post, class: 'btn btn-outline-success',
                         data: { confirm: 'Mark as completed?' } %>
                   <% end %>
@@ -105,6 +121,7 @@
           <% end %>
         </tbody>
       </table>
+
       <%= paginate @internal_pos %>
     </div>
   <% else %>
@@ -115,7 +132,8 @@
   <% end %>
 </div>
 
-<% def pos_priority_badge(priority) 
+<%# --- local helpers --- %>
+<% def pos_priority_badge(priority)
   case priority
   when 'urgent' then 'danger'
   when 'high' then 'warning'

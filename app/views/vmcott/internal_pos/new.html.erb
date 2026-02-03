@@ -9,7 +9,7 @@
               <h4 class="mb-0">
                 <i class="fas fa-wrench me-2"></i>New Internal POS
               </h4>
-              <small class="opacity-75">Create a new internal Purchase Order Sheet</small>
+              <small class="opacity-75">Create a new internal work order from a Purchase Order</small>
             </div>
             <div>
               <%= link_to vmcott_internal_pos_path, class: 'btn btn-sm btn-outline-light' do %>
@@ -18,7 +18,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="card-body">
           <%= form_with model: @internal_pos, url: vmcott_internal_pos_path, local: true do |f| %>
             <% if @internal_pos.errors.any? %>
@@ -31,16 +31,16 @@
                 </ul>
               </div>
             <% end %>
-            
+
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :work_order_number, class: 'form-label' %>
                   <%= f.text_field :work_order_number, class: 'form-control', readonly: true %>
-                  <small class="form-text text-muted">Auto-generated work order number</small>
+                  <small class="form-text text-muted">Auto-generated POS number</small>
                 </div>
               </div>
-              
+
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :priority, class: 'form-label' %>
@@ -48,40 +48,25 @@
                 </div>
               </div>
             </div>
-            
+
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :purchase_order_id, 'Purchase Order', class: 'form-label' %>
-                  <%= f.select :purchase_order_id, 
-                    options_for_select(PurchaseOrder.all.map { |po| ["PO #{po.po_number} - #{po.vehicle&.chassis_number || 'No Vehicle'}", po.id] }, @internal_pos.purchase_order_id),
-                    { include_blank: 'Select Purchase Order...' }, 
+                  <%= f.select :purchase_order_id,
+                    options_for_select(
+                      PurchaseOrder.order(created_at: :desc).limit(200).map { |po|
+                        vehicle_label = po.vehicle ? "#{po.vehicle.license_plate} - #{po.vehicle.make} #{po.vehicle.model}" : "No Vehicle"
+                        ["PO #{po.po_number} — #{vehicle_label}", po.id]
+                      },
+                      @internal_pos.purchase_order_id
+                    ),
+                    { include_blank: 'Select Purchase Order...' },
                     class: 'form-select' %>
+                  <small class="form-text text-muted">Vehicle will be pulled from the selected PO automatically.</small>
                 </div>
               </div>
-              
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :vehicle_id, class: 'form-label' %>
-                  <%= f.select :vehicle_id, 
-                    options_for_select(Vehicle.all.map { |v| ["#{v.license_plate} - #{v.make} #{v.model}", v.id] }, @internal_pos.vehicle_id),
-                    { include_blank: 'Select Vehicle...' }, 
-                    class: 'form-select' %>
-                </div>
-              </div>
-            </div>
-            
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :assigned_to_id, 'Assigned To', class: 'form-label' %>
-                  <%= f.select :assigned_to_id, 
-                    options_for_select(User.all.map { |u| [u.name || u.email, u.id] }, @internal_pos.assigned_to_id),
-                    { include_blank: 'Select User...' }, 
-                    class: 'form-select' %>
-                </div>
-              </div>
-              
+
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :estimated_completion_date, class: 'form-label' %>
@@ -89,12 +74,38 @@
                 </div>
               </div>
             </div>
-            
+
+            <hr>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :work_section, 'Work Section', class: 'form-label' %>
+                  <%= f.select :work_section,
+                        options_for_select(InternalPos::WORK_SECTIONS, @internal_pos.work_section),
+                        { include_blank: 'Select Section...' },
+                        class: 'form-select' %>
+                  <small class="form-text text-muted">For demo: saved into notes.</small>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :work_role, 'Work Role', class: 'form-label' %>
+                  <%= f.select :work_role,
+                        options_for_select(InternalPos::WORK_ROLES, @internal_pos.work_role),
+                        { include_blank: 'Select Role...' },
+                        class: 'form-select' %>
+                  <small class="form-text text-muted">For demo: saved into notes.</small>
+                </div>
+              </div>
+            </div>
+
             <div class="mb-3">
               <%= f.label :description, class: 'form-label' %>
               <%= f.text_area :description, class: 'form-control', rows: 3, placeholder: 'Describe the work to be done...' %>
             </div>
-            
+
             <div class="mb-3">
               <%= f.label :notes, class: 'form-label' %>
               <%= f.text_area :notes, class: 'form-control', rows: 3, placeholder: 'Additional notes...' %>
@@ -102,7 +113,7 @@
                 <small class="form-text text-muted">This POS was created for part: <strong><%= @part.name %> (<%= @part.part_number %>)</strong></small>
               <% end %>
             </div>
-            
+
             <div class="d-flex justify-content-between mt-4">
               <%= link_to 'Cancel', vmcott_internal_pos_path, class: 'btn btn-outline-secondary' %>
               <%= f.submit 'Create Internal POS', class: 'btn btn-primary' %>

@@ -193,7 +193,7 @@ class PurchaseOrder < ApplicationRecord
         assigned_to_id: assigned_to_id,
         estimated_completion_date: estimated_completion_date,
         status: 'pending',
-        priority: 'medium',
+        priority: 'normal',
         notes: notes,
         created_by: user
       )

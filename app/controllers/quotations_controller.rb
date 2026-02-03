@@ -55,31 +55,13 @@ class QuotationsController < ApplicationController
       return
     end
 
-    Rails.logger.info "================ RECEIVED QUOTATIONS ================="
-    Rails.logger.info "Current user ID: #{current_user.id}"
-    Rails.logger.info "Agency ID: #{current_user.agency_id}"
-    Rails.logger.info "Agency Code: #{current_user.agency&.code}"
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(agency_id: current_user.agency_id)
+                 .where.not(status: Quotation.statuses[:draft])
+                 .order(sent_at: :desc)
 
-    # ✅ Quotations SENT TO this agency (source of truth)
-    base_scope = Quotation
-      .where(agency_id: current_user.agency_id)
-      .where.not(status: Quotation.statuses[:draft])
-
-    @quotations = base_scope
-      .order(sent_at: :desc)
-      .page(params[:page])
-
-    Rails.logger.info "Found #{@quotations.size} received quotations"
-
-    @quotations.each do |q|
-      Rails.logger.info(
-        "Quotation #{q.quote_number} | " \
-        "Status=#{q.status} | " \
-        "Vendor=#{q.vendor} | " \
-        "RFQ Requesting Agency=#{q.rfq&.requesting_agency_id} | " \
-        "Assigned Agency=#{q.agency_id}"
-      )
-    end
+    @quotations = base_scope.page(params[:page])
 
     # 📊 Stats for received dashboard
     @stats = {
@@ -96,11 +78,13 @@ class QuotationsController < ApplicationController
   def sent
     return redirect_to quotations_path, alert: 'Access denied' unless current_user.agency&.code == 'VMCOTT'
     
-    base_scope = Quotation.where(vendor: 'VMCOTT').where.not(status: 'draft')
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(vendor: 'VMCOTT')
+                 .where.not(status: 'draft')
+                 .order(created_at: :desc)
     
-    @quotations = base_scope
-      .order(created_at: :desc)
-      .page(params[:page])
+    @quotations = base_scope.page(params[:page])
     
     @stats = {
       total: base_scope.count,
@@ -116,11 +100,13 @@ class QuotationsController < ApplicationController
   def workspace
     return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
     
-    base_scope = Quotation.where(vendor: 'VMCOTT').where(status: ['draft', 'sent'])
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(vendor: 'VMCOTT')
+                 .where(status: ['draft', 'sent'])
+                 .order(created_at: :desc)
     
-    @quotations = base_scope
-      .order(created_at: :desc)
-      .page(params[:page])
+    @quotations = base_scope.page(params[:page])
     
     @stats = {
       draft: base_scope.where(status: 'draft').count,
@@ -362,7 +348,9 @@ class QuotationsController < ApplicationController
   # POST /quotations/1/reject_items
   def reject_items
     if params[:items].present?
-      session["quotation_#{@quotation.id}_rejected_items"] = params[:items]
+      # ✅ FIXED: Normalize to IDs instead of storing raw params
+      rejected_item_ids = params[:items].keys.map(&:to_i)
+      session["quotation_#{@quotation.id}_rejected_items"] = rejected_item_ids
       @quotation.update(status: 'partially_rejected')
       redirect_to acceptance_summary_quotation_path(@quotation), notice: 'Items rejected. Please review rejection summary.'
     else
@@ -394,7 +382,12 @@ class QuotationsController < ApplicationController
     ).to_f.round(2)
 
     # Optional: show rejected items
-    @rejected_items = session["quotation_#{@quotation.id}_rejected_items"] || {}
+    @rejected_item_ids = session["quotation_#{@quotation.id}_rejected_items"] || []
+    @rejected_items = {
+      line_items: @quotation.quotation_line_items.where(id: @rejected_item_ids),
+      jobs: @quotation.quotation_jobs.where(id: @rejected_item_ids),
+      job_parts: @quotation.quotation_job_parts.where(id: @rejected_item_ids)
+    }
 
     render :acceptance_summary
   end
@@ -719,19 +712,38 @@ class QuotationsController < ApplicationController
 
   # POST /quotations
   def create
-    Rails.logger.info "=== QUOTATION CREATE DEBUG ==="
-    Rails.logger.info "Params received: #{params.to_unsafe_h.inspect}"
+    # ✅ FIXED: Remove dangerous params logging in production
+    if Rails.env.development?
+      Rails.logger.debug "=== QUOTATION CREATE DEBUG ==="
+      Rails.logger.debug "Current user agency: #{current_user.agency&.code}"
+    end
     
     begin
       quotation_params_hash = quotation_params
-      Rails.logger.info "DEBUG - quotation_params hash: #{quotation_params_hash.inspect}"
+      
+      if Rails.env.development?
+        Rails.logger.debug "DEBUG - quotation_params hash (safe): #{quotation_params_hash.to_h.except(:quotation_line_items_attributes, :quotation_jobs_attributes).inspect}"
+      end
       
       @quotation = Quotation.new(quotation_params_hash)
       @quotation.created_by = current_user
       
-      if @quotation.agency_id.blank? && @quotation.vehicle_id.present?
-        @quotation.vehicle = Vehicle.find_by(id: @quotation.vehicle_id)
-        @quotation.agency = @quotation.vehicle&.agency
+      # ✅ FIXED: Security - Set agency_id only for admin/finance users
+      # For normal users, derive from vehicle/RFQ
+      unless current_user.admin? || current_user.finance?
+        # Determine agency from vehicle or RFQ
+        determined_agency_id = nil
+        
+        if @quotation.vehicle_id.present?
+          @quotation.vehicle = Vehicle.find_by(id: @quotation.vehicle_id)
+          determined_agency_id = @quotation.vehicle&.agency_id
+        elsif @quotation.rfq_id.present?
+          rfq = Rfq.find_by(id: @quotation.rfq_id)
+          determined_agency_id = rfq&.requesting_agency_id
+        end
+        
+        # Override with determined agency if present
+        @quotation.agency_id = determined_agency_id if determined_agency_id.present?
       end
       
       if params[:job_assignments].present?
@@ -780,7 +792,9 @@ class QuotationsController < ApplicationController
           end
         end
       else
-        Rails.logger.error "DEBUG - Quotation save failed: #{@quotation.errors.full_messages}"
+        if Rails.env.development?
+          Rails.logger.error "DEBUG - Quotation save failed: #{@quotation.errors.full_messages}"
+        end
         load_job_templates
         @vehicles = available_vehicles
         @vendors = get_vendors_list
@@ -856,6 +870,12 @@ class QuotationsController < ApplicationController
     
     begin
       quotation_params_hash = quotation_params
+      
+      # ✅ FIXED: Security - Only allow agency_id update for admin/finance users
+      unless current_user.admin? || current_user.finance?
+        # Remove agency_id from params for non-admin users
+        quotation_params_hash.delete(:agency_id)
+      end
       
       if current_user.agency&.code == 'VMCOTT'
         quotation_params_hash[:vendor] = 'VMCOTT'
@@ -997,7 +1017,14 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/convert_to_po - CANONICAL CONVERSION METHOD
   def convert_to_po
-    # ✅ FIXED: Redirect to send_acceptance to use the single canonical PO creation path
+    # ✅ FIXED: Only allow agency users who can accept items (not VMCOTT/finance)
+    unless can_accept_items?
+      redirect_to @quotation, 
+                  alert: 'Only the receiving agency can convert quotations to purchase orders.'
+      return
+    end
+    
+    # Redirect to send_acceptance to use the single canonical PO creation path
     redirect_to send_acceptance_quotation_path(@quotation)
   end
 
@@ -1068,11 +1095,25 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/send_email
   def send_email
+    # ✅ FIXED: Actually send email if mailer exists
     recipient = params[:recipient_email]
     subject = params[:subject] || "Quotation #{@quotation.quote_number}"
     message = params[:message]
     
-    redirect_to @quotation, notice: "Quotation email sent to #{recipient}."
+    # Check if mailer exists
+    if defined?(QuotationMailer)
+      begin
+        QuotationMailer.quotation_email(@quotation, recipient, subject, message).deliver_later
+        notice = "Quotation email sent to #{recipient}."
+      rescue => e
+        Rails.logger.error "Failed to send quotation email: #{e.message}"
+        notice = "Failed to send email: #{e.message}"
+      end
+    else
+      notice = "Email functionality not configured. Quotation would have been sent to #{recipient}."
+    end
+    
+    redirect_to @quotation, notice: notice
   end
 
   # GET /quotations/reports
@@ -1150,7 +1191,8 @@ class QuotationsController < ApplicationController
   # 🔒 FIXED: Prevent editing ALL locked statuses, not just sent
   def prevent_edit_if_locked
     return unless @quotation
-    if @quotation.locked?
+    # Ensure Quotation model has locked? method defined
+    if @quotation.respond_to?(:locked?) && @quotation.locked?
       redirect_to @quotation, alert: 'This quotation is locked and can no longer be edited.'
     end
   end
@@ -1456,11 +1498,12 @@ class QuotationsController < ApplicationController
     end
   end
 
-  # ✅ FIXED: Removed :status from strong params for workflow integrity
+  # ✅ FIXED: Security - Only permit agency_id for admin/finance users
   def quotation_params
-    params.require(:quotation).permit(
+    # Base allowed parameters for everyone
+    allowed = [
       :vehicle_id, :vendor, :valid_from, :valid_to, 
-      :notes, :rfq_id, :agency_id,
+      :notes, :rfq_id,
       quotation_line_items_attributes: [
         :id, :description, :quantity, :unit_price, :specifications, :_destroy, :part_id
       ],
@@ -1472,7 +1515,12 @@ class QuotationsController < ApplicationController
           :id, :part_id, :quantity, :unit_price, :total_price, :_destroy
         ]
       ]
-    ).tap do |whitelisted|
+    ]
+    
+    # Only allow agency_id for admin/finance users
+    allowed << :agency_id if current_user.admin? || current_user.finance?
+    
+    params.require(:quotation).permit(*allowed).tap do |whitelisted|
       # Force VMCOTT vendor for VMCOTT users
       if current_user.agency&.code == 'VMCOTT'
         whitelisted[:vendor] = 'VMCOTT'
@@ -1673,34 +1721,35 @@ class QuotationsController < ApplicationController
 
     accepted_total = line_total + jobs_labor_total + parts_total
 
-    # Build attributes with required fields
-    attrs = {
+    # ✅ FIXED: Explicit attribute assignment instead of slice(column_names)
+    po_attrs = {
       quotation_id: quotation.id,
       amount: accepted_total,
       vendor: quotation.vendor,
       vehicle_id: quotation.vehicle_id,
       agency_id: quotation.agency_id,
-      created_by_id: current_user.id,
+      created_by: current_user, # Use association if available
+      created_by_id: current_user.id, # Also set foreign key for safety
       po_number: generate_readable_po_number,
       status: "draft",
       notes: "Created from Quotation #{quotation.quote_number}"
     }
 
-    po = PurchaseOrder.create!(attrs.slice(*PurchaseOrder.column_names.map(&:to_sym)))
+    po = PurchaseOrder.create!(po_attrs)
 
     # ---- Create PO items for line items ----
     Array(accepted_line_items).each do |li|
       item_attrs = {
-        purchase_order_id: po.id,
-        description: (li.respond_to?(:description) ? li.description : nil),
-        specifications: (li.respond_to?(:specifications) ? li.specifications : nil),
+        purchase_order: po,
+        description: li.description,
+        specifications: li.specifications,
         quantity: li.quantity.to_f,
         unit_price: li.unit_price.to_f,
         total_price: (li.quantity.to_f * li.unit_price.to_f)
       }
 
-      if defined?(PurchaseOrderItem)
-        PurchaseOrderItem.create!(item_attrs.slice(*PurchaseOrderItem.column_names.map(&:to_sym)))
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(item_attrs)
       end
     end
 
@@ -1709,13 +1758,15 @@ class QuotationsController < ApplicationController
       labor = job.respond_to?(:total_labor_cost) ? job.total_labor_cost.to_f : 0.0
       next if labor <= 0
 
-      PurchaseOrderItem.create!(
-        purchase_order_id: po.id,
-        description: "Labor: #{job.name}",
-        quantity: 1,
-        unit_price: labor,
-        total_price: labor
-      )
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(
+          purchase_order: po,
+          description: "Labor: #{job.name}",
+          quantity: 1,
+          unit_price: labor,
+          total_price: labor
+        )
+      end
     end
 
     # ✅ FIXED: Create PO items for parts
@@ -1726,14 +1777,16 @@ class QuotationsController < ApplicationController
                     jp.quantity.to_f * jp.unit_price.to_f
                   end
 
-      PurchaseOrderItem.create!(
-        purchase_order_id: po.id,
-        part_id: jp.part_id,
-        description: (jp.part&.name || "Part"),
-        quantity: jp.quantity.to_f,
-        unit_price: jp.unit_price.to_f,
-        total_price: part_total
-      )
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(
+          purchase_order: po,
+          part_id: jp.part_id,
+          description: jp.part&.name || "Part",
+          quantity: jp.quantity.to_f,
+          unit_price: jp.unit_price.to_f,
+          total_price: part_total
+        )
+      end
     end
 
     po
