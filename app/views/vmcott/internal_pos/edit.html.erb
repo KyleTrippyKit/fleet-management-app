@@ -9,95 +9,142 @@
               <h4 class="mb-0">
                 <i class="fas fa-edit me-2"></i>Edit Internal POS
               </h4>
-              <small class="opacity-75">Edit POS <%= @internal_pos.work_order_number %></small>
+              <small class="opacity-75">
+                Work Order <strong><%= @internal_pos.work_order_number %></strong>
+              </small>
             </div>
             <div>
               <%= link_to vmcott_internal_pos_path(@internal_pos), class: 'btn btn-sm btn-outline-dark' do %>
-                <i class="fas fa-arrow-left me-1"></i> Back to POS
+                <i class="fas fa-arrow-left me-1"></i> Back
               <% end %>
             </div>
           </div>
         </div>
-        
+
         <div class="card-body">
-          <%= form_with model: @internal_pos, url: vmcott_internal_pos_path(@internal_pos), local: true do |f| %>
+          <%= form_with model: @internal_pos,
+                        url: vmcott_internal_pos_path(@internal_pos),
+                        method: :patch,
+                        local: true do |f| %>
+
             <% if @internal_pos.errors.any? %>
               <div class="alert alert-danger">
-                <h5><%= pluralize(@internal_pos.errors.count, "error") %> prohibited this POS from being saved:</h5>
+                <h5><%= pluralize(@internal_pos.errors.count, "error") %> prevented saving:</h5>
                 <ul>
-                  <% @internal_pos.errors.full_messages.each do |message| %>
-                    <li><%= message %></li>
+                  <% @internal_pos.errors.full_messages.each do |msg| %>
+                    <li><%= msg %></li>
                   <% end %>
                 </ul>
               </div>
             <% end %>
-            
+
+            <!-- POS + STATUS -->
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :work_order_number, class: 'form-label' %>
-                  <%= f.text_field :work_order_number, class: 'form-control', readonly: true %>
+                  <%= f.text_field :work_order_number,
+                        class: 'form-control',
+                        readonly: true %>
                 </div>
               </div>
-              
+
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= f.label :status, class: 'form-label' %>
-                  <%= f.select :status, InternalPos.statuses.keys.map { |s| [s.titleize, s] }, {}, class: 'form-select' %>
-                </div>
-              </div>
-            </div>
-            
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :priority, class: 'form-label' %>
-                  <%= f.select :priority, InternalPos.priorities.keys.map { |p| [p.titleize, p] }, {}, class: 'form-select' %>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :assigned_to_id, 'Assigned To', class: 'form-label' %>
-                  <%= f.select :assigned_to_id, 
-                        options_for_select(User.all.map { |u| [u.full_name || u.email, u.id] }, @internal_pos.assigned_to_id),
-                        { include_blank: 'Select User...' }, 
+                  <%= f.select :status,
+                        InternalPos.statuses.keys.map { |s| [s.titleize, s] },
+                        {},
                         class: 'form-select' %>
                 </div>
               </div>
             </div>
-            
+
+            <!-- PRIORITY + COMPLETION -->
             <div class="row">
               <div class="col-md-6">
                 <div class="mb-3">
-                  <%= f.label :estimated_completion_date, class: 'form-label' %>
-                  <%= f.date_field :estimated_completion_date, class: 'form-control' %>
+                  <%= f.label :priority, class: 'form-label' %>
+                  <%= f.select :priority,
+                        InternalPos.priorities.keys.map { |p| [p.titleize, p] },
+                        {},
+                        class: 'form-select' %>
                 </div>
               </div>
-              
+
               <div class="col-md-6">
                 <div class="mb-3">
-                  <%= f.label :completed_at, 'Completion Date', class: 'form-label' %>
-                  <%= f.datetime_local_field :completed_at, class: 'form-control', disabled: @internal_pos.status != 'completed' %>
-                  <small class="form-text text-muted">Will be auto-filled when marked as completed</small>
+                  <%= f.label :estimated_completion_date, class: 'form-label' %>
+                  <%= f.date_field :estimated_completion_date,
+                        class: 'form-control' %>
                 </div>
               </div>
             </div>
-            
+
+            <hr>
+
+            <!-- WORK SECTION / ROLE (THE IMPORTANT PART) -->
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :work_section, 'Work Section', class: 'form-label' %>
+                  <%= f.select :work_section,
+                        options_for_select(
+                          InternalPos::WORK_SECTIONS,
+                          @internal_pos.work_section
+                        ),
+                        { include_blank: 'Select section…' },
+                        class: 'form-select' %>
+                  <small class="text-muted">
+                    e.g. Workshop, Stores, QC
+                  </small>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :work_role, 'Work Role', class: 'form-label' %>
+                  <%= f.select :work_role,
+                        options_for_select(
+                          InternalPos::WORK_ROLES,
+                          @internal_pos.work_role
+                        ),
+                        { include_blank: 'Select role…' },
+                        class: 'form-select' %>
+                  <small class="text-muted">
+                    Technician, Supervisor, Stores Clerk, etc.
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            <!-- DESCRIPTION -->
             <div class="mb-3">
               <%= f.label :description, class: 'form-label' %>
-              <%= f.text_area :description, class: 'form-control', rows: 3 %>
+              <%= f.text_area :description,
+                    class: 'form-control',
+                    rows: 3,
+                    placeholder: 'Describe work being performed…' %>
             </div>
-            
+
+            <!-- NOTES -->
             <div class="mb-3">
               <%= f.label :notes, class: 'form-label' %>
-              <%= f.text_area :notes, class: 'form-control', rows: 3 %>
+              <%= f.text_area :notes,
+                    class: 'form-control',
+                    rows: 3,
+                    placeholder: 'Internal notes / observations…' %>
             </div>
-            
+
+            <!-- ACTIONS -->
             <div class="d-flex justify-content-between mt-4">
-              <%= link_to 'Cancel', vmcott_internal_pos_path(@internal_pos), class: 'btn btn-outline-secondary' %>
+              <%= link_to 'Cancel',
+                    vmcott_internal_pos_path(@internal_pos),
+                    class: 'btn btn-outline-secondary' %>
+
               <%= f.submit 'Update POS', class: 'btn btn-warning' %>
             </div>
+
           <% end %>
         </div>
       </div>
