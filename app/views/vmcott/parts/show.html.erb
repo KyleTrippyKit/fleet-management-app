@@ -1,846 +1,291 @@
-<%# ======================================================== %>
-<%# COMPREHENSIVE VARIABLE INITIALIZATION %>
-<%# Prevents all nil errors in the inventory dashboard %>
-<%# ======================================================== %>
-<%
-  # Initialize all variables with safe defaults
-  @total_parts ||= 0
-  @low_stock_parts ||= 0
-  @out_of_stock_parts ||= 0
-  @total_inventory_value ||= 0
-  @critical_parts ||= []
-  @recent_transactions ||= []
-  @monthly_consumption ||= 0
-  @vendor_stats ||= []
-  
-  # Collections that need iteration
-  @items ||= []
-  @category_counts ||= {}
-  @vendors ||= []
-  @location_counts ||= {}
-  @status_counts ||= {}
-  @suppliers ||= @vendors
-  
-  # Add dummy pagination methods to @items if it's an array
-  if @items.is_a?(Array)
-    def @items.total_count
-      count
-    end
-    
-    def @items.current_page
-      1
-    end
-    
-    def @items.total_pages
-      1
-    end
-    
-    def @items.limit_value
-      size
-    end
-    
-    def @items.offset_value
-      0
-    end
-    
-    def @items.any?
-      !empty?
-    end
-  end
-%>
+<%# app/views/vmcott/parts/show.html.erb - FIXED WITH CORRECT PURCHASE REQUEST ROUTES %>
 
-<%# app/views/vmcott/inventory/dashboard.html.erb - Fixed Version %>
+<div class="page-shell parts-show-page">
 
-<div class="page-shell">
+  <!-- Top header -->
   <div class="page-hero">
     <div class="row align-items-center g-3">
       <div class="col-12 col-lg-7">
-        <h2 class="hero-title">
-          <i class="bi bi-boxes"></i>
-          VMCOTT Inventory Dashboard
+        <h2 class="hero-title mb-1">
+          <i class="fas fa-box-open me-2"></i>
+          <%= @part&.name || "Unknown Part" %>
         </h2>
         <div class="hero-subtitle">
-          Stock visibility, reorder control, and workflow actions — in one place.
+          <span class="me-2">
+            <strong>Part #:</strong>
+            <%= @part&.part_number.presence || "—" %>
+          </span>
+          <span class="text-muted">•</span>
+          <span class="ms-2">
+            <strong>Status:</strong>
+            <span class="badge bg-<%= @part&.stock_status_color || 'secondary' %>">
+              <%= @part&.stock_status&.to_s&.titleize || "Unknown" %>
+            </span>
+          </span>
         </div>
       </div>
 
       <div class="col-12 col-lg-5">
         <div class="hero-actions">
           <%= link_to vmcott_parts_path, class: "btn btn-outline-secondary" do %>
-            <i class="bi bi-box-seam me-1"></i> Parts Catalog
+            <i class="fas fa-arrow-left me-1"></i> Back to Parts
           <% end %>
 
-          <%= link_to vmcott_internal_pos_path, class: "btn btn-primary" do %>
-            <i class="bi bi-receipt-cutoff me-1"></i> Internal POS
+          <% if @part %>
+            <%= link_to edit_vmcott_part_path(@part), class: "btn btn-outline-primary" do %>
+              <i class="fas fa-edit me-1"></i> Edit Part
+            <% end %>
+
+            <%# FIXED: Use the correct route from your routes list %>
+            <%= link_to vmcott_new_internal_pos_from_part_path(part_id: @part.id), class: "btn btn-primary" do %>
+              <i class="fas fa-wrench me-1"></i> Create Work Order
+            <% end %>
           <% end %>
         </div>
       </div>
     </div>
   </div>
 
-<div class="container-fluid">
-  <!-- Header with Quick Actions -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="mb-1">
-        <i class="bi bi-boxes text-primary me-2"></i>Inventory Dashboard
-      </h1>
-      <p class="text-muted mb-0">Manage parts, track stock, and generate purchase requests</p>
+  <!-- KPI strip -->
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">Current Stock</div>
+      <div class="kpi-value"><%= @part&.current_stock || 0 %></div>
+      <div class="kpi-foot text-muted small">Cached (fast dashboard number)</div>
     </div>
-    <div class="btn-group">
-      <%= link_to 'New Part', new_vmcott_part_path, class: 'btn btn-success' %>
-      <%= link_to 'Vendors', suppliers_path, class: 'btn btn-outline-primary' %>
-      <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-gear"></i>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><%= link_to 'CSV', vmcott_inventory_export_report_path(format: :csv), class: 'dropdown-item' %></li>
-        <li><%= link_to 'PDF', vmcott_inventory_export_report_path(format: :pdf), class: 'dropdown-item' %></li>
-        <li><%= link_to 'Excel', vmcott_inventory_export_report_path(format: :xlsx), class: 'dropdown-item' %></li>
-      </ul>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Minimum Stock</div>
+      <div class="kpi-value"><%= @part&.minimum_stock || 0 %></div>
+      <div class="kpi-foot text-muted small">Below this triggers reorder pressure</div>
     </div>
-  </div>
-  
-  <!-- Summary Cards with Icons -->
-  <div class="row mb-4">
-    <div class="col-xl-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-muted">Total Parts</h6>
-              <h2 class="card-title mb-0"><%= @total_parts %></h2>
-            </div>
-            <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
-              <i class="bi bi-box text-primary fs-4"></i>
-            </div>
-          </div>
-          <div class="mt-3">
-            <small class="text-muted">
-              <i class="bi bi-arrow-up-right text-success me-1"></i>
-              <%= link_to 'View all', vmcott_parts_path, class: 'text-decoration-none' %>
-            </small>
-          </div>
-        </div>
-      </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Reorder Point</div>
+      <div class="kpi-value"><%= @part&.reorder_point || (@part&.minimum_stock || 0) %></div>
+      <div class="kpi-foot text-muted small">Low-stock threshold</div>
     </div>
-    
-    <div class="col-xl-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-muted">Low Stock</h6>
-              <h2 class="card-title mb-0 text-warning"><%= @low_stock_parts %></h2>
-            </div>
-            <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
-              <i class="bi bi-exclamation-triangle text-warning fs-4"></i>
-            </div>
-          </div>
-          <div class="mt-3">
-            <small class="text-muted">
-              <i class="bi bi-arrow-up-right text-warning me-1"></i>
-              <%= link_to 'Review', vmcott_inventory_low_stock_path, class: 'text-decoration-none' %>
-            </small>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-muted">Out of Stock</h6>
-              <h2 class="card-title mb-0 text-danger"><%= @out_of_stock_parts %></h2>
-            </div>
-            <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
-              <i class="bi bi-x-octagon text-danger fs-4"></i>
-            </div>
-          </div>
-          <div class="mt-3">
-            <small class="text-muted">
-              <i class="bi bi-arrow-up-right text-danger me-1"></i>
-              <%= link_to 'Urgent Action', vmcott_inventory_low_stock_path(status: 'out'), class: 'text-decoration-none' %>
-            </small>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-muted">Inventory Value</h6>
-              <h2 class="card-title mb-0 text-success">TTD <%= number_to_currency(@total_inventory_value, unit: '') %></h2>
-            </div>
-            <div class="bg-success bg-opacity-10 p-3 rounded-circle">
-              <i class="bi bi-currency-dollar text-success fs-4"></i>
-            </div>
-          </div>
-          <div class="mt-3">
-            <small class="text-muted">
-              <i class="bi bi-info-circle me-1"></i>
-              Based on cost price
-            </small>
-          </div>
-        </div>
-      </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Suggested Reorder</div>
+      <div class="kpi-value"><%= @part&.suggested_reorder_quantity || 0 %></div>
+      <div class="kpi-foot text-muted small">Smart target using your model logic</div>
     </div>
   </div>
-  
-  <!-- Search and Filter Section -->
-  <div class="card mb-4 border-0 shadow-sm">
-    <div class="card-body p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="card-title mb-0">
-          <i class="bi bi-search me-2"></i>Search & Filter
-        </h5>
-        <div>
-          <span class="badge bg-light text-dark">
-            <i class="bi bi-funnel me-1"></i>
-            <%= @items.present? ? @items.total_count : 0 %> items
-          </span>
-        </div>
-      </div>
-      
-      <%= form_with url: vmcott_inventory_dashboard_path, method: :get, local: true, class: "row g-3" do |f| %>
-        <div class="col-lg-4">
-          <div class="input-group">
-            <span class="input-group-text bg-light">
-              <i class="bi bi-search text-muted"></i>
-            </span>
-            <input type="text" 
-                   name="search" 
-                   class="form-control" 
-                   placeholder="Search by name or part number..."
-                   value="<%= params[:search] %>"
-                   data-controller="autocomplete"
-                   data-autocomplete-url="<%= search_items_supplier_path(0) %>">
-          </div>
-        </div>
-        <div class="col-lg-3">
-          <select name="category" class="form-select">
-            <option value="">All Categories</option>
-            <% @category_counts.each do |category, count| %>
-              <option value="<%= category %>" <%= 'selected' if params[:category] == category %>>
-                <%= category.presence || 'Uncategorized' %> 
-                <span class="text-muted">(<%= count %>)</span>
-              </option>
-            <% end %>
-          </select>
-        </div>
-        <div class="col-lg-3">
-          <select name="supplier_id" class="form-select">
-            <option value="">All Vendors</option>
-            <% @vendors.each do |vendor| %>
-              <option value="<%= vendor.id %>" <%= 'selected' if params[:supplier_id] == vendor.id.to_s %>>
-                <%= vendor.name.truncate(25) %>
-              </option>
-            <% end %>
-          </select>
-        </div>
-        <div class="col-lg-2">
-          <button type="submit" class="btn btn-primary w-100">
-            <i class="bi bi-filter me-1"></i>Filter
-          </button>
-        </div>
-      <% end %>
-      
-      <% if params[:search].present? || params[:category].present? || params[:supplier_id].present? %>
-        <div class="mt-4 pt-3 border-top">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <small class="text-muted">
-                <i class="bi bi-funnel me-1"></i>Filtered results:
-                <% if params[:search].present? %>
-                  <span class="badge bg-info text-dark ms-2">
-                    Search: "<%= params[:search] %>"
-                  </span>
-                <% end %>
-                <% if params[:category].present? %>
-                  <% category_name = params[:category].presence || 'Uncategorized' %>
-                  <span class="badge bg-info text-dark ms-2">
-                    Category: <%= category_name %>
-                  </span>
-                <% end %>
-                <% if params[:supplier_id].present? %>
-                  <% supplier = Supplier.find_by(id: params[:supplier_id]) %>
-                  <span class="badge bg-info text-dark ms-2">
-                    Vendor: <%= supplier&.name || "Vendor #{params[:supplier_id]}" %>
-                  </span>
-                <% end %>
-              </small>
-            </div>
-            <div>
-              <%= link_to vmcott_inventory_dashboard_path, class: 'btn btn-sm btn-outline-secondary' do %>
-                <i class="bi bi-x-circle me-1"></i>Clear filters
-              <% end %>
-            </div>
-          </div>
-        </div>
-      <% end %>
-    </div>
-  </div>
-  
-  <!-- Inventory Items Table -->
-  <div class="card mb-4 border-0 shadow-sm">
-    <div class="card-header bg-white border-0">
-      <div class="d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-          <i class="bi bi-table me-2"></i>Inventory Items
-          <span class="badge bg-light text-dark ms-2"><%= @items.total_count %></span>
-        </h5>
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-            <i class="bi bi-download"></i> Export
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><%= link_to 'CSV', '#', class: 'dropdown-item' %></li>
-            <li><%= link_to 'PDF', '#', class: 'dropdown-item' %></li>
-            <li><%= link_to 'Excel', '#', class: 'dropdown-item' %></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4">Item</th>
-              <th>Part #</th>
-              <th>Category</th>
-              <th>Vendor</th>
-              <th class="text-center">Stock</th>
-              <th>Min</th>
-              <th>Cost</th>
-              <th>Sale Price</th>
-              <th>Margin</th>
-              <th class="text-end pe-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if @items.empty? %>
-              <tr>
-                <td colspan="10" class="text-center py-5">
-                  <div class="py-4">
-                    <i class="bi bi-box-seam text-muted fs-1 mb-3 opacity-50"></i>
-                    <h5 class="text-muted">No items found</h5>
-                    <p class="text-muted">Try adjusting your search or filters</p>
-                    <%= link_to 'View All Items', vmcott_inventory_dashboard_path, class: 'btn btn-sm btn-outline-primary' %>
-                    <%= link_to 'Add New Part', new_vmcott_part_path, class: 'btn btn-sm btn-primary ms-2' %>
-                  </div>
-                </td>
-              </tr>
-            <% else %>
-              <% @items.each do |item| %>
-                <%
-                  # Safely access item attributes
-                  current_stock = item.respond_to?(:current_stock) ? item.current_stock : 0
-                  minimum_stock = item.respond_to?(:minimum_stock) ? item.minimum_stock : 0
-                  reorder_point = item.respond_to?(:reorder_point) ? item.reorder_point : [minimum_stock, 1].max
-                %>
-                <tr class="<%= 'table-warning' if current_stock <= minimum_stock %>">
-                  <td class="ps-4">
-                    <div class="d-flex align-items-center">
-                      <div class="me-3">
-                        <span class="badge bg-<%= stock_badge_color(current_stock, minimum_stock) %>">
-                          <%= current_stock %>
-                        </span>
-                      </div>
-                      <div>
-                        <strong>
-                          <% if item.respond_to?(:id) %>
-                            <%= link_to item.name, vmcott_part_path(item), class: 'text-decoration-none' %>
-                          <% else %>
-                            <%= item.name %>
-                          <% end %>
-                        </strong>
-                        <% if item.respond_to?(:description) && item.description.present? %>
-                          <br><small class="text-muted"><%= truncate(item.description, length: 40) %></small>
-                        <% end %>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <code class="<%= item.respond_to?(:part_number) && item.part_number.blank? ? 'text-muted' : '' %>">
-                      <%= item.respond_to?(:part_number) ? (item.part_number.presence || '—') : '—' %>
-                    </code>
-                  </td>
-                  <td>
-                    <% if item.respond_to?(:category) && item.category.present? %>
-                      <span class="badge bg-light text-dark">
-                        <%= item.category %>
-                      </span>
-                    <% else %>
-                      <span class="text-muted">—</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if item.respond_to?(:supplier) && item.supplier %>
-                      <%= link_to item.supplier.name.truncate(15), supplier_path(item.supplier), 
-                          class: 'badge bg-info text-decoration-none', 
-                          title: item.supplier.name %>
-                    <% else %>
-                      <span class="text-muted">—</span>
-                    <% end %>
-                  </td>
-                  <td class="text-center">
-                    <div class="progress" style="height: 6px;" title="Stock level">
-                      <% stock_percentage = [(current_stock.to_f / [reorder_point, 1].max * 100).to_i, 100].min %>
-                      <div class="progress-bar bg-<%= stock_badge_color(current_stock, minimum_stock) %>" 
-                           style="width: <%= stock_percentage %>%">
-                      </div>
-                    </div>
-                    <small class="text-muted"><%= current_stock %> units</small>
-                  </td>
-                  <td><%= minimum_stock %></td>
-                  <td>
-                    <% if item.respond_to?(:cost_price) && item.cost_price %>
-                      <span class="text-muted">TTD</span> 
-                      <%= number_to_currency(item.cost_price, unit: '') %>
-                    <% else %>
-                      <span class="text-muted">—</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if item.respond_to?(:sale_price) && item.sale_price %>
-                      <span class="text-muted">TTD</span> 
-                      <strong><%= number_to_currency(item.sale_price, unit: '') %></strong>
-                    <% else %>
-                      <span class="text-muted">—</span>
-                    <% end %>
-                  </td>
-                  <td>
-                    <% if item.respond_to?(:cost_price) && item.respond_to?(:sale_price) && item.cost_price && item.sale_price && item.cost_price > 0 %>
-                      <% margin = ((item.sale_price - item.cost_price) / item.cost_price * 100).to_i %>
-                      <div class="d-flex align-items-center">
-                        <span class="badge bg-<%= margin >= 30 ? 'success' : margin >= 20 ? 'warning' : 'danger' %> me-2">
-                          <%= number_to_percentage(margin, precision: 0) %>
-                        </span>
-                        <small class="text-muted">
-                          TTD <%= number_to_currency(item.sale_price - item.cost_price, unit: '') %>
-                        </small>
-                      </div>
-                    <% else %>
-                      <span class="text-muted">—</span>
-                    <% end %>
-                  </td>
-                  <td class="text-end pe-4">
-                    <div class="btn-group btn-group-sm">
-                      <button type="button" class="btn btn-light dropdown-toggle" data-bs-toggle="dropdown">
-                        <i class="bi bi-three-dots"></i>
-                      </button>
-                      <ul class="dropdown-menu dropdown-menu-end">
-                        <li>
-                          <% if item.respond_to?(:id) %>
-                            <%= link_to edit_vmcott_part_path(item), class: 'dropdown-item' do %>
-                              <i class="bi bi-pencil me-2"></i>Edit
-                            <% end %>
-                          <% end %>
-                        </li>
-                        <li>
-                          <% if item.respond_to?(:id) %>
-                            <%= link_to vmcott_inventory_adjust_stock_path(item), class: 'dropdown-item' do %>
-                              <i class="bi bi-arrow-left-right me-2"></i>Adjust Stock
-                            <% end %>
-                          <% end %>
-                        </li>
-                        <li>
-                          <% if item.respond_to?(:id) %>
-                            <%= link_to vmcott_inventory_stock_history_path(item), class: 'dropdown-item' do %>
-                              <i class="bi bi-clock-history me-2"></i>View History
-                            <% end %>
-                          <% end %>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                          <% if item.respond_to?(:id) %>
-                            <%= link_to vmcott_inventory_new_purchase_request_path(item), class: 'dropdown-item text-success' do %>
-                              <i class="bi bi-cart-plus me-2"></i>Create Purchase Request
-                            <% end %>
-                          <% end %>
-                        </li>
-                      </ul>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-      
-      <% if @items.total_pages > 1 %>
-        <div class="card-footer bg-white border-0">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <small class="text-muted">
-                Showing <%= @items.offset_value + 1 %> to <%= @items.offset_value + @items.length %> of <%= @items.total_count %> items
-              </small>
-            </div>
-            <div>
-              <!-- FIXED: Removed theme specification -->
-              <%= paginate @items %>
-            </div>
-          </div>
-        </div>
-      <% end %>
-    </div>
-  </div>
-  
-  <!-- Critical Parts Alert -->
-  <% if @critical_parts.any? %>
-    <div class="card mb-4 border-danger border-2">
-      <div class="card-header bg-danger text-white">
-        <div class="d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            Critical Parts (Below Minimum Stock)
-            <span class="badge bg-white text-danger ms-2"><%= @critical_parts.count %></span>
+
+  <div class="row g-3">
+    <!-- Left: details + actions -->
+    <div class="col-12 col-lg-7">
+      <div class="section-card">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-info-circle me-2"></i>Part Details
           </h5>
-          <%= link_to 'View All Low Stock', vmcott_inventory_low_stock_path, class: 'btn btn-light btn-sm' %>
+          <span class="muted small">Clean, operational view</span>
         </div>
-      </div>
-      <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-sm table-hover">
-            <thead>
-              <tr>
-                <th>Part Name</th>
-                <th>Part Number</th>
-                <th class="text-center">Current</th>
-                <th class="text-center">Minimum</th>
-                <th>Vendor</th>
-                <th class="text-center">Urgency</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @critical_parts.each do |part| %>
-                <%
-                  # Safely access part attributes
-                  current_stock = part.respond_to?(:current_stock) ? part.current_stock : 0
-                  minimum_stock = part.respond_to?(:minimum_stock) ? part.minimum_stock : 0
-                  part_number = part.respond_to?(:part_number) ? part.part_number : ''
-                  supplier = part.respond_to?(:supplier) ? part.supplier : nil
-                %>
-                <tr>
-                  <td>
-                    <strong>
-                      <% if part.respond_to?(:id) %>
-                        <%= link_to part.name, vmcott_part_path(part), class: 'text-decoration-none' %>
-                      <% else %>
-                        <%= part.name %>
-                      <% end %>
-                    </strong>
-                  </td>
-                  <td><code><%= part_number %></code></td>
-                  <td class="text-center">
-                    <span class="badge bg-danger">
-                      <%= current_stock %>
-                    </span>
-                  </td>
-                  <td class="text-center">
-                    <span class="badge bg-secondary">
-                      <%= minimum_stock %>
-                    </span>
-                  </td>
-                  <td>
-                    <% if supplier %>
-                      <span class="badge bg-info">
-                        <%= supplier.name.truncate(15) %>
-                      </span>
-                    <% else %>
-                      <span class="text-muted">N/A</span>
-                    <% end %>
-                  </td>
-                  <td class="text-center">
-                    <% shortfall = minimum_stock - current_stock %>
-                    <% if shortfall > minimum_stock * 0.5 %>
-                      <span class="badge bg-danger">High</span>
-                    <% elsif shortfall > 0 %>
-                      <span class="badge bg-warning">Medium</span>
-                    <% else %>
-                      <span class="badge bg-secondary">Low</span>
-                    <% end %>
-                  </td>
-                  <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                      <% if part.respond_to?(:id) %>
-                        <%= link_to vmcott_inventory_adjust_stock_path(part), 
-                            class: 'btn btn-outline-primary',
-                            title: 'Adjust Stock' do %>
-                          <i class="bi bi-arrow-left-right"></i>
-                        <% end %>
-                        <%= button_to vmcott_inventory_create_purchase_request_path(part), 
-                            method: :post,
-                            class: 'btn btn-success',
-                            data: { turbo_confirm: "Create purchase request for #{part.name}?" },
-                            title: 'Create Purchase Request' do %>
-                          <i class="bi bi-cart-plus"></i>
-                        <% end %>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  <% end %>
-  
-  <!-- Recent Activity & Metrics -->
-  <div class="row">
-    <div class="col-lg-6 mb-4">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0">
-          <h5 class="mb-0">
-            <i class="bi bi-clock-history me-2"></i>Recent Transactions
-          </h5>
-        </div>
-        <div class="card-body">
-          <% if @recent_transactions.any? %>
-            <div class="list-group list-group-flush">
-              <% @recent_transactions.each do |transaction| %>
-                <%
-                  # Safely access transaction attributes
-                  transaction_type = transaction.respond_to?(:transaction_type) ? transaction.transaction_type : 'unknown'
-                  quantity = transaction.respond_to?(:quantity) ? transaction.quantity : 0
-                  notes = transaction.respond_to?(:notes) ? transaction.notes : nil
-                  user_name = transaction.respond_to?(:user) && transaction.user ? transaction.user.name : 'System'
-                  unit_price = transaction.respond_to?(:unit_price) ? transaction.unit_price : 0
-                  created_at = transaction.respond_to?(:created_at) ? transaction.created_at : Time.current
-                  inventory_item_name = transaction.respond_to?(:inventory_item) && transaction.inventory_item ? transaction.inventory_item.name : 'Unknown Item'
-                %>
-                <div class="list-group-item px-0 border-0">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div class="d-flex align-items-center">
-                      <div class="me-3">
-                        <span class="badge bg-<%= transaction_type == 'consumption' ? 'danger' : 'success' %>">
-                          <%= transaction_type.titleize %>
-                        </span>
-                      </div>
-                      <div>
-                        <h6 class="mb-0"><%= inventory_item_name %></h6>
-                        <% if notes.present? %>
-                          <small class="text-muted"><%= truncate(notes, length: 50) %></small>
-                        <% end %>
-                      </div>
-                    </div>
-                    <div class="text-end">
-                      <div class="fw-bold">
-                        <% if quantity > 0 %>
-                          <span class="text-success">+<%= quantity %></span>
-                        <% else %>
-                          <span class="text-danger"><%= quantity %></span>
-                        <% end %>
-                        <small class="text-muted">units</small>
-                      </div>
-                      <small class="text-muted">
-                        <%= time_ago_in_words(created_at) %> ago
-                      </small>
-                    </div>
-                  </div>
-                  <% if unit_price && quantity %>
-                    <div class="d-flex justify-content-between align-items-center">
-                      <small class="text-muted">
-                        <%= user_name %>
-                      </small>
-                      <small class="text-muted">
-                        TTD <%= number_to_currency(unit_price * quantity.abs, unit: '') %>
-                      </small>
-                    </div>
+
+        <div class="section-card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="muted small">Category</div>
+              <div class="fw-semibold"><%= @part&.category.presence || "—" %></div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="muted small">Unit</div>
+              <div class="fw-semibold"><%= @part&.unit_of_measure.presence || "each" %></div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="muted small">Supplier</div>
+              <div class="fw-semibold">
+                <%= @part&.supplier&.name || "—" %>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="muted small">Warehouse Location</div>
+              <div class="fw-semibold"><%= @part&.location_in_warehouse.presence || "—" %></div>
+            </div>
+
+            <div class="col-12">
+              <div class="muted small">Description</div>
+              <div class="text-muted"><%= @part&.description.presence || "—" %></div>
+            </div>
+
+            <div class="col-12">
+              <hr class="my-2">
+
+              <div class="d-flex flex-wrap gap-2">
+                <%# Adjust stock link %>
+                <% if @part %>
+                  <%= link_to vmcott_inventory_adjust_stock_path(@part.id), class: "btn btn-outline-secondary" do %>
+                    <i class="fas fa-sliders-h me-1"></i> Adjust Stock
                   <% end %>
-                </div>
-              <% end %>
-            </div>
-            <div class="text-center mt-3">
-              <%= link_to 'View All Transactions', '#', class: 'btn btn-sm btn-outline-primary' %>
-            </div>
-          <% else %>
-            <div class="text-center py-4">
-              <i class="bi bi-arrow-left-right text-muted fs-1 mb-3 opacity-50"></i>
-              <p class="text-muted">No recent transactions</p>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-6 mb-4">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-header bg-white border-0">
-          <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-              <i class="bi bi-graph-up me-2"></i>Inventory Metrics
-            </h5>
-            <span class="badge bg-light text-dark">
-              <%= Date.today.strftime('%b %d, %Y') %>
-            </span>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="row mb-4">
-            <div class="col-6">
-              <div class="card border-0 bg-light">
-                <div class="card-body text-center py-3">
-                  <h3 class="mb-1 text-primary"><%= @monthly_consumption %></h3>
-                  <small class="text-muted">Monthly Consumption</small>
-                </div>
+
+                  <% if @part.needs_reorder? %>
+                    <%# FIXED: Use the correct purchase request route - this is a GET route %>
+                    <%= link_to new_vmcott_purchase_request_path(part_id: @part.id), class: "btn btn-warning" do %>
+                      <i class="fas fa-exclamation-triangle me-1"></i> Create Purchase Request
+                    <% end %>
+                  <% else %>
+                    <span class="badge bg-success d-inline-flex align-items-center px-3 py-2">
+                      <i class="fas fa-check-circle me-2"></i> Stock OK
+                    </span>
+                  <% end %>
+
+                  <%# FIXED: Use the inventory controller route instead %>
+                  <%= link_to vmcott_inventory_stock_history_path(@part.id), class: "btn btn-outline-primary" do %>
+                    <i class="fas fa-history me-1"></i> Stock History
+                  <% end %>
+                <% end %>
               </div>
-            </div>
-            <div class="col-6">
-              <div class="card border-0 bg-light">
-                <div class="card-body text-center py-3">
-                  <h3 class="mb-1 text-success">TTD <%= number_to_currency(@total_inventory_value, unit: '') %></h3>
-                  <small class="text-muted">Total Value</small>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <h6 class="mb-3">Top Categories</h6>
-          <div class="list-group list-group-flush">
-            <% @category_counts.first(5).each do |category, count| %>
-              <div class="list-group-item px-0 border-0">
-                <div class="d-flex justify-content-between align-items-center">
-                  <span><%= category.presence || 'Uncategorized' %></span>
-                  <span class="badge bg-secondary"><%= count %></span>
-                </div>
-                <div class="progress mt-1" style="height: 4px;">
-                  <% percentage = @total_parts > 0 ? (count.to_f / @total_parts * 100).to_i : 0 %>
-                  <div class="progress-bar" style="width: <%= percentage %>%"></div>
-                </div>
-              </div>
-            <% end %>
-          </div>
-          
-          <% if @vendor_stats.any? %>
-            <h6 class="mt-4 mb-3">Top Vendors</h6>
-            <div class="list-group list-group-flush">
-              <% @vendor_stats.each do |vendor| %>
-                <div class="list-group-item px-0 border-0">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <div>
-                      <strong><%= vendor[:name] %></strong>
-                      <small class="text-muted d-block"><%= vendor[:part_count] %> parts</small>
-                    </div>
-                    <div class="text-end">
-                      <div class="fw-bold">TTD <%= number_to_currency(vendor[:outstanding], unit: '') %></div>
-                      <small class="text-muted"><%= vendor[:recent_invoices] %> recent invoices</small>
-                    </div>
+
+              <% if @part&.needs_reorder? %>
+                <div class="alert alert-warning mt-3 mb-0">
+                  <i class="fas fa-bell me-1"></i>
+                  Low stock detected. Suggested reorder: <strong><%= @part.suggested_reorder_quantity %></strong>
+                  <%# Alternative: Add a button that does a POST request %>
+                  <div class="mt-2">
+                    <%= button_to "Quick Create Purchase Request", 
+                          create_purchase_request_vmcott_part_path(@part), 
+                          method: :post,
+                          class: "btn btn-sm btn-danger",
+                          form: { "data-turbo" => "false" } %>
                   </div>
                 </div>
               <% end %>
             </div>
-          <% end %>
-          
-          <div class="mt-4 pt-3 border-top">
-            <div class="row">
-              <div class="col-6">
-                <%= link_to 'Reorder Suggestions', vmcott_inventory_reorder_suggestions_path, 
-                    class: 'btn btn-outline-info w-100' %>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card mt-3">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-dollar-sign me-2"></i>Pricing
+          </h5>
+          <span class="muted small">Cost → markup → selling price</span>
+        </div>
+
+        <div class="section-card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="muted small">Cost Price</div>
+              <div class="fw-semibold"><%= @part&.cost_price.present? ? number_to_currency(@part.cost_price) : "—" %></div>
+            </div>
+            <div class="col-md-4">
+              <div class="muted small">Markup %</div>
+              <div class="fw-semibold"><%= (@part&.standard_markup_percentage || 30.0) %>%</div>
+            </div>
+            <div class="col-md-4">
+              <div class="muted small">Selling Price</div>
+              <div class="fw-semibold"><%= @part&.selling_price.present? ? number_to_currency(@part.selling_price) : "—" %></div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="muted small">Profit Margin</div>
+              <div class="fw-semibold">
+                <% if @part && @part.cost_price && @part.cost_price > 0 && @part.selling_price %>
+                  <% profit_margin = ((@part.selling_price - @part.cost_price) / @part.cost_price * 100).round(1) %>
+                  <%= number_to_percentage(profit_margin, precision: 1) %>
+                <% else %>
+                  —
+                <% end %>
               </div>
-              <div class="col-6">
-                <%= link_to 'Purchase Requests', vmcott_inventory_purchase_requests_path, 
-                    class: 'btn btn-outline-success w-100' %>
+            </div>
+            <div class="col-md-6">
+              <div class="muted small">Stock Value</div>
+              <div class="fw-semibold">
+                <% if @part %>
+                  <% stock_value = (@part.cost_price || 0) * (@part.current_stock || 0) %>
+                  <%= number_to_currency(stock_value) %>
+                <% else %>
+                  —
+                <% end %>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Right: audit / transactions -->
+    <div class="col-12 col-lg-5">
+      <div class="section-card">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-clipboard-list me-2"></i>Recent Stock Movements
+          </h5>
+          <span class="muted small">Audit trail</span>
+        </div>
+
+        <div class="section-card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Type</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% (@recent_transactions || []).each do |tx| %>
+                  <tr>
+                    <td class="fw-semibold">
+                      <span class="badge bg-light text-dark border">
+                        <%= tx&.transaction_type&.to_s&.titleize || "Unknown" %>
+                      </span>
+                      <% if tx&.notes.present? %>
+                        <div class="text-muted small text-truncate" style="max-width: 280px;">
+                          <%= tx.notes %>
+                        </div>
+                      <% end %>
+                    </td>
+                    <td class="text-end">
+                      <span class="<%= (tx&.transaction_type&.to_s || '').include?('out') || (tx&.transaction_type&.to_s || '').include?('consum') ? 'text-danger' : 'text-success' %> fw-semibold">
+                        <%= tx&.quantity || 0 %>
+                      </span>
+                    </td>
+                    <td class="text-end text-muted small">
+                      <%= tx&.created_at&.strftime("%Y-%m-%d %H:%M") || "—" %>
+                    </td>
+                  </tr>
+                <% end %>
+
+                <% if (@recent_transactions || []).empty? %>
+                  <tr>
+                    <td colspan="3" class="text-center p-4 text-muted">
+                      No transactions yet.
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="p-3 border-top">
+          <div class="d-flex gap-2">
+            <% if @part %>
+              <%# FIXED: Use the inventory controller route %>
+              <%= link_to vmcott_inventory_stock_history_path(@part.id), class: "btn btn-sm btn-outline-primary w-100" do %>
+                <i class="fas fa-chart-line me-1"></i> Full History
+              <% end %>
+              <%= link_to vmcott_inventory_adjust_stock_path(@part.id), class: "btn btn-sm btn-outline-secondary w-100" do %>
+                <i class="fas fa-plus-minus me-1"></i> Adjust Stock
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert alert-info mt-3">
+        <i class="fas fa-lightbulb me-1"></i>
+        This screen proves: stock thresholds, reorder logic, pricing, and audit trail — all in one place.
+      </div>
+    </div>
   </div>
-</div>
 
 </div>
-
-<%# Helper method for stock badge colors %>
-<% def stock_badge_color(current, minimum) %>
-  <% if current <= 0 %>
-    danger
-  <% elsif current <= minimum %>
-    warning
-  <% else %>
-    success
-  <% end %>
-<% end %>
-
-<%# Dashboard JavaScript %>
-<%= javascript_tag do %>
-  document.addEventListener('turbo:load', function() {
-    // Auto-submit filters on change
-    const categorySelect = document.querySelector('select[name="category"]');
-    const vendorSelect = document.querySelector('select[name="supplier_id"]');
-    
-    [categorySelect, vendorSelect].forEach(select => {
-      if (select) {
-        select.addEventListener('change', function() {
-          this.form.submit();
-        });
-      }
-    });
-    
-    // Debounced search
-    const searchInput = document.querySelector('input[name="search"]');
-    if (searchInput) {
-      let searchTimeout;
-      
-      searchInput.addEventListener('input', function(e) {
-        clearTimeout(searchTimeout);
-        
-        searchTimeout = setTimeout(() => {
-          if (this.value.length >= 2 || this.value.length === 0) {
-            this.form.submit();
-          }
-        }, 800);
-      });
-    }
-    
-    // Quick stock actions
-    document.querySelectorAll('[data-stock-action]').forEach(button => {
-      button.addEventListener('click', function(e) {
-        e.preventDefault();
-        const partId = this.dataset.partId;
-        const action = this.dataset.stockAction;
-        const quantity = prompt(`Enter quantity to ${action}:`, '1');
-        
-        if (quantity && !isNaN(quantity) && parseInt(quantity) > 0) {
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = `/vmcott/inventory/adjust_stock/${partId}`;
-          
-          const quantityInput = document.createElement('input');
-          quantityInput.type = 'hidden';
-          quantityInput.name = 'quantity';
-          quantityInput.value = quantity;
-          
-          const typeInput = document.createElement('input');
-          typeInput.type = 'hidden';
-          typeInput.name = 'adjustment_type';
-          typeInput.value = action === 'add' ? 'add' : 'subtract';
-          
-          const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-          const csrfInput = document.createElement('input');
-          csrfInput.type = 'hidden';
-          csrfInput.name = 'authenticity_token';
-          csrfInput.value = csrfToken;
-          
-          form.appendChild(quantityInput);
-          form.appendChild(typeInput);
-          form.appendChild(csrfInput);
-          document.body.appendChild(form);
-          form.submit();
-        }
-      });
-    });
-  });
-<% end %>

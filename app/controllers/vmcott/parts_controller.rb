@@ -36,6 +36,8 @@ module Vmcott
     end
 
     def show
+      @part = Part.find(params[:id])
+  @recent_transactions = @part.inventory_transactions.order(created_at: :desc).limit(12)
     end
 
     def new

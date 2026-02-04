@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH VMCOTT PARTS MANAGEMENT
+# config/routes.rb - COMPLETE REVISED VERSION WITH FIX FOR VMCOTT INVENTORY ROUTES
 
 Rails.application.routes.draw do
   get "stock_levels/index"
@@ -161,7 +161,7 @@ Rails.application.routes.draw do
   # Purchase Requests - Existing routes
   # ========================
   namespace :vmcott do
-  resources :purchase_requests do
+    resources :purchase_requests do
       member do
         post :approve
         post :reject
@@ -208,10 +208,16 @@ Rails.application.routes.draw do
     # Stock history
     get 'inventory/stock_history/:id', to: 'inventory#stock_history', as: 'inventory_stock_history'
     
-    # Purchase requests - FIXED: Corrected route names to avoid conflicts
+    # Purchase requests - FIXED: Added GET route to resolve the routing error
     get 'inventory/new_purchase_request', to: 'inventory#new_purchase_request', as: 'inventory_new_purchase_request'
     get 'inventory/new_purchase_request/:id', to: 'inventory#new_purchase_request_with_part', as: 'inventory_new_purchase_request_with_part'
+    
+    # FIX: Add GET route for the problematic request - this will show the form
+    get 'inventory/create_purchase_request/:id', to: 'inventory#new_purchase_request_with_part'
+    
+    # POST route for form submission
     post 'inventory/create_purchase_request/:id', to: 'inventory#create_purchase_request', as: 'inventory_create_purchase_request'
+    
     post 'inventory/create_bulk_purchase_requests', to: 'inventory#create_bulk_purchase_requests', as: 'create_bulk_purchase_requests'
     
     # Import/Export routes
@@ -403,42 +409,42 @@ Rails.application.routes.draw do
   get 'vmcott/quotation_workspace', to: 'quotations#workspace', as: 'vmcott_quotation_workspace'
 
   # ========================
-# COMPREHENSIVE INVOICE ROUTES with Aging
-# ========================
-resources :invoices do
-  collection do
-    get :reports
-    get :dashboard
-    get :summary
-    get :bulk_actions
-    post :process_bulk
-    post :sync_quickbooks
-    get :aging_report, as: 'aging_report'                     # NEW: Aging report
-    get :bulk_payment_view, as: 'bulk_payment_view'           # NEW: Bulk payment view
-    post :process_bulk_payment, as: 'process_bulk_payment'    # NEW: Process bulk payments
-    get :payment_schedule, as: 'payment_schedule'             # NEW: Payment scheduling
-    post :schedule_payments, as: 'schedule_payments'          # NEW: Schedule payments
-    get :overdue_summary, as: 'overdue_summary'               # NEW: Overdue summary
-    get :vendor_aging, as: 'vendor_aging'                     # NEW: Vendor aging
+  # COMPREHENSIVE INVOICE ROUTES with Aging
+  # ========================
+  resources :invoices do
+    collection do
+      get :reports
+      get :dashboard
+      get :summary
+      get :bulk_actions
+      post :process_bulk
+      post :sync_quickbooks
+      get :aging_report, as: 'aging_report'                     # NEW: Aging report
+      get :bulk_payment_view, as: 'bulk_payment_view'           # NEW: Bulk payment view
+      post :process_bulk_payment, as: 'process_bulk_payment'    # NEW: Process bulk payments
+      get :payment_schedule, as: 'payment_schedule'             # NEW: Payment scheduling
+      post :schedule_payments, as: 'schedule_payments'          # NEW: Schedule payments
+      get :overdue_summary, as: 'overdue_summary'               # NEW: Overdue summary
+      get :vendor_aging, as: 'vendor_aging'                     # NEW: Vendor aging
+    end
+    
+    member do
+      get :print, defaults: { format: :pdf }
+      get :download
+      post :mark_as_reviewed
+      post :mark_as_paid
+      post :approve                                            # ✅ ADDED: Approve invoice
+      post :dispute
+      get :payment_history
+      post :sync_to_quickbooks
+      post :create_transaction
+      post :create_pos_transaction
+      get :payment_timeline
+      post :record_payment
+      post :mark_as_aging_reviewed, as: 'mark_as_aging_reviewed' # NEW: Mark aging as reviewed
+      get :payment_schedule_options, as: 'payment_schedule_options' # NEW: Payment schedule options
+    end
   end
-  
-  member do
-    get :print, defaults: { format: :pdf }
-    get :download
-    post :mark_as_reviewed
-    post :mark_as_paid
-    post :approve                                            # ✅ ADDED: Approve invoice
-    post :dispute
-    get :payment_history
-    post :sync_to_quickbooks
-    post :create_transaction
-    post :create_pos_transaction
-    get :payment_timeline
-    post :record_payment
-    post :mark_as_aging_reviewed, as: 'mark_as_aging_reviewed' # NEW: Mark aging as reviewed
-    get :payment_schedule_options, as: 'payment_schedule_options' # NEW: Payment schedule options
-  end
-end
 
   # ========================
   # ENHANCED PURCHASE ORDERS ROUTES with Acceptance Workflow & Inventory Integration

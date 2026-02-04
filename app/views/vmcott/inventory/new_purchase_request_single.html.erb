@@ -1,170 +1,209 @@
-<%# app/views/vmcott/inventory/new_purchase_request_single.html.erb %>
+<%# app/views/vmcott/inventory/new_purchase_request_single.html.erb - FIXED %>
+
 <div class="container-fluid py-4">
   <div class="row">
-    <div class="col-md-8 mx-auto">
-      <div class="card">
-        <div class="card-header bg-primary text-white">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h4 class="mb-0">
-                <i class="fas fa-cart-plus me-2"></i>Purchase Request for <%= @part.name %>
-              </h4>
-              <small class="opacity-75">Part Number: <%= @part.part_number || 'N/A' %></small>
+    <div class="col-lg-8 mx-auto">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-0">
+            <i class="fas fa-file-purchase-order text-primary me-2"></i>
+            Create Purchase Request
+          </h1>
+          <p class="text-muted mb-0">Request new inventory items from vendors</p>
+        </div>
+        <div>
+          <%= link_to vmcott_inventory_new_purchase_request_path, class: 'btn btn-sm btn-outline-secondary' do %>
+            <i class="fas fa-list me-1"></i> All Parts
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Part Info Card -->
+      <% if @part %>
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">
+              <i class="fas fa-box me-2"></i>
+              Part Information
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Part Name</label>
+                  <p class="mb-0 fw-semibold"><%= @part.name %></p>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Part Number</label>
+                  <p class="mb-0"><code><%= @part.part_number.presence || "—" %></code></p>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Category</label>
+                  <p class="mb-0"><%= @part.category.presence || "—" %></p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Current Stock</label>
+                  <p class="mb-0">
+                    <span class="badge bg-<%= @part.current_stock <= @part.minimum_stock ? 'danger' : 'success' %>">
+                      <%= @part.current_stock %> units
+                    </span>
+                  </p>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Minimum Stock</label>
+                  <p class="mb-0"><%= @part.minimum_stock %> units</p>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label text-muted small mb-1">Supplier</label>
+                  <p class="mb-0">
+                    <% if @part.supplier %>
+                      <%= @part.supplier.name %>
+                    <% else %>
+                      <span class="text-muted">No supplier assigned</span>
+                    <% end %>
+                  </p>
+                </div>
+              </div>
             </div>
-            <div>
-              <%= link_to new_purchase_request_vmcott_inventory_path, class: 'btn btn-sm btn-outline-light' do %>
-                <i class="fas fa-list me-1"></i> All Parts
-              <% end %>
-            </div>
+            
+            <% if @part.needs_reorder? %>
+              <div class="alert alert-warning mt-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                This part is below minimum stock level. Suggested reorder quantity: 
+                <strong><%= @part.suggested_reorder_quantity %></strong> units.
+              </div>
+            <% end %>
           </div>
         </div>
+      <% end %>
+
+      <!-- Purchase Request Form -->
+      <div class="card">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="fas fa-edit me-2"></i>
+            Purchase Request Details
+          </h5>
+        </div>
         <div class="card-body">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="part-info mb-4">
-                <h5>Part Information</h5>
-                <table class="table table-sm">
-                  <tr>
-                    <th>Name:</th>
-                    <td><%= @part.name %></td>
-                  </tr>
-                  <tr>
-                    <th>Part Number:</th>
-                    <td><%= @part.part_number || 'N/A' %></td>
-                  </tr>
-                  <tr>
-                    <th>Category:</th>
-                    <td><%= @part.category || 'N/A' %></td>
-                  </tr>
-                  <tr>
-                    <th>Description:</th>
-                    <td><%= @part.description || 'No description' %></td>
-                  </tr>
-                  <tr>
-                    <th>Supplier:</th>
-                    <td>
-                      <% if @part.supplier %>
-                        <span class="badge bg-info"><%= @part.supplier.name %></span>
-                      <% else %>
-                        <span class="badge bg-secondary">No supplier</span>
-                      <% end %>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+          <%= form_with(model: [@purchase_request], url: vmcott_purchase_requests_path, local: true) do |f| %>
+            <% if @part %>
+              <%= f.hidden_field :part_id, value: @part.id %>
+            <% end %>
             
-            <div class="col-md-6">
-              <div class="stock-info mb-4">
-                <h5>Stock Information</h5>
-                <table class="table table-sm">
-                  <tr>
-                    <th>Current Stock:</th>
-                    <td>
-                      <span class="badge <%= @part.stock_status == 'out_of_stock' ? 'bg-danger' : @part.stock_status == 'low_stock' ? 'bg-warning' : 'bg-success' %>">
-                        <%= @part.current_stock %> units
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Minimum Stock:</th>
-                    <td><%= @part.minimum_stock %> units</td>
-                  </tr>
-                  <tr>
-                    <th>Reorder Point:</th>
-                    <td><%= @part.reorder_point %> units</td>
-                  </tr>
-                  <tr>
-                    <th>Stock Status:</th>
-                    <td><%= @part.stock_status.titleize %></td>
-                  </tr>
-                  <tr>
-                    <th>Days of Supply:</th>
-                    <td><%= @part.days_of_supply.round(1) %> days</td>
-                  </tr>
-                </table>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :quantity, class: 'form-label' do %>
+                    Quantity Needed <span class="text-danger">*</span>
+                  <% end %>
+                  <%= f.number_field :quantity, 
+                        class: 'form-control', 
+                        required: true,
+                        min: 1,
+                        value: @part&.suggested_reorder_quantity || 1,
+                        step: 1 %>
+                  <div class="form-text">
+                    Minimum suggested: <%= @part&.suggested_reorder_quantity || 10 %> units
+                  </div>
+                </div>
+              </div>
+              
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :priority, class: 'form-label' do %>
+                    Priority <span class="text-danger">*</span>
+                  <% end %>
+                  <%= f.select :priority, 
+                        options_for_select([
+                          ['Low', 'low'],
+                          ['Normal', 'normal'], 
+                          ['High', 'high'],
+                          ['Critical', 'critical']
+                        ], 'normal'), 
+                        {}, 
+                        class: 'form-select' %>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div class="row">
-            <div class="col-md-6">
-              <div class="pricing-info mb-4">
-                <h5>Pricing Information</h5>
-                <table class="table table-sm">
-                  <tr>
-                    <th>Cost Price:</th>
-                    <td><%= number_to_currency(@part.cost_price) %></td>
-                  </tr>
-                  <tr>
-                    <th>Selling Price:</th>
-                    <td><%= number_to_currency(@part.selling_price) %></td>
-                  </tr>
-                  <tr>
-                    <th>Markup:</th>
-                    <td><%= @part.markup_percentage %>%</td>
-                  </tr>
-                  <tr>
-                    <th>Profit per Unit:</th>
-                    <td><%= number_to_currency(@part.profit_amount) %></td>
-                  </tr>
-                </table>
+
+            <div class="mb-3">
+              <%= f.label :reason, class: 'form-label' do %>
+                Reason for Request <span class="text-danger">*</span>
+              <% end %>
+              <%= f.text_area :reason, 
+                    class: 'form-control', 
+                    rows: 3,
+                    placeholder: 'Explain why this purchase is needed...',
+                    required: true %>
+              <div class="form-text">
+                Common reasons: Low stock, upcoming project, maintenance needs, etc.
               </div>
             </div>
-            
-            <div class="col-md-6">
-              <div class="purchase-form">
-                <h5>Purchase Request Details</h5>
-                <%= form_with model: @purchase_request, url: inventory_create_purchase_request_path(@part), local: true do |f| %>
-                  <div class="mb-3">
-                    <%= f.label :quantity, "Quantity to Request", class: 'form-label' %>
-                    <div class="input-group">
-                      <%= f.number_field :quantity, class: 'form-control', min: 1, required: true %>
-                      <span class="input-group-text">units</span>
-                    </div>
-                    <div class="form-text">
-                      <small>
-                        <i class="fas fa-lightbulb"></i> Suggested quantity: <%= @part.suggested_reorder_quantity %> units
-                        (will bring stock to <%= @part.reorder_point * 1.2 %> units)
-                      </small>
-                    </div>
+
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :needed_by, class: 'form-label' %>
+                  <%= f.date_field :needed_by, 
+                        class: 'form-control',
+                        min: Date.today,
+                        value: 7.days.from_now.to_date %>
+                  <div class="form-text">
+                    When do you need these items by?
                   </div>
-                  
-                  <div class="mb-3">
-                    <%= f.label :urgency, "Urgency Level", class: 'form-label' %>
-                    <%= f.select :urgency, 
-                          options_for_select([
-                            ['Normal - Process within 7 days', 'normal'],
-                            ['High - Process within 3 days', 'high'],
-                            ['Critical - Process within 24 hours', 'critical']
-                          ], @part.current_stock <= @part.minimum_stock ? 'high' : 'normal'), 
-                          {}, 
-                          class: 'form-select' %>
-                  </div>
-                  
-                  <div class="mb-3">
-                    <%= f.label :notes, "Additional Notes", class: 'form-label' %>
-                    <%= f.text_area :notes, class: 'form-control', rows: 3, 
-                          placeholder: "Add any special instructions or requirements..." %>
-                  </div>
-                  
-                  <div class="mb-4">
-                    <div class="alert alert-info">
-                      <i class="fas fa-calculator me-2"></i>
-                      <strong>Estimated Cost:</strong> 
-                      <span id="estimated-cost">$0.00</span>
-                      <br>
-                      <small class="text-muted">(Based on current cost price)</small>
-                    </div>
-                  </div>
-                  
-                  <div class="d-flex justify-content-between">
-                    <%= link_to 'Cancel', new_purchase_request_vmcott_inventory_path, class: 'btn btn-secondary' %>
-                    <%= f.submit 'Submit Purchase Request', class: 'btn btn-primary', 
-                          data: { confirm: "Submit purchase request for #{@part.name}?" } %>
-                  </div>
-                <% end %>
+                </div>
               </div>
+              
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= f.label :budget_code, class: 'form-label' %>
+                  <%= f.text_field :budget_code, 
+                        class: 'form-control',
+                        placeholder: 'e.g., INV-2024-Q1' %>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <%= f.label :notes, class: 'form-label' %>
+              <%= f.text_area :notes, 
+                    class: 'form-control', 
+                    rows: 2,
+                    placeholder: 'Additional notes or specifications...' %>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <%= link_to 'Cancel', vmcott_inventory_dashboard_path, class: 'btn btn-outline-secondary' %>
+              </div>
+              <div>
+                <%= f.submit 'Submit Purchase Request', 
+                      class: 'btn btn-primary',
+                      data: { disable_with: 'Submitting...' } %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="mt-4">
+        <div class="alert alert-info">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-bolt text-info me-3 fs-4"></i>
+            <div>
+              <h6 class="alert-heading mb-1">Quick Actions</h6>
+              <p class="mb-0 small">
+                Need to request multiple parts? 
+                <%= link_to 'Use the bulk request tool', vmcott_inventory_new_purchase_request_path, class: 'text-decoration-none' %> 
+                or return to 
+                <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'text-decoration-none' %>.
+              </p>
             </div>
           </div>
         </div>
@@ -172,23 +211,3 @@
     </div>
   </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const quantityInput = document.querySelector('#purchase_request_quantity');
-  const estimatedCost = document.getElementById('estimated-cost');
-  const costPrice = <%= @part.cost_price || 0 %>;
-  
-  function updateEstimatedCost() {
-    const quantity = parseInt(quantityInput.value) || 0;
-    const totalCost = quantity * costPrice;
-    estimatedCost.textContent = '$' + totalCost.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
-  }
-  
-  if (quantityInput) {
-    quantityInput.addEventListener('input', updateEstimatedCost);
-    // Initial calculation
-    updateEstimatedCost();
-  }
-});
-</script>

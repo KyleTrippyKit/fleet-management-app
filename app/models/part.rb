@@ -559,7 +559,7 @@ class Part < ApplicationRecord
           message: "Only #{part.current_stock} remaining. Minimum stock: #{part.minimum_stock}",
           level: 'warning',
           actionable: true,
-          action_url: Rails.application.routes.url_helpers.part_path(part)
+          action_url: Rails.application.routes.url_helpers.vmcott_part_path(part)
         )
       end
     end
