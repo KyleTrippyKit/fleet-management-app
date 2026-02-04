@@ -2,229 +2,212 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static values = { 
-    theme: String,
-    themeTestMode: Boolean 
-  }
-
+  static targets = ["themeButton"]
+  
   connect() {
-    console.log("🎨 Theme Controller connected");
+    console.log("🎨 Theme controller connected");
     
-    // Skip theme on Gantt pages
+    // Check for Gantt pages first
     if (this.isGanttPage()) {
-      console.log("🎨 On Gantt page - skipping theme initialization");
+      console.log("🎨 Gantt page detected - skipping theme initialization");
       this.disableThemeOnGanttPage();
       return;
     }
     
-    // Check URL for theme parameter first
+    // Check URL for theme parameter first (for testing)
     const urlParams = new URLSearchParams(window.location.search);
     const themeFromURL = urlParams.get('theme');
     
     if (themeFromURL && this.isValidTheme(themeFromURL)) {
       console.log("🎨 Theme from URL:", themeFromURL);
-      this.themeValue = themeFromURL;
       localStorage.setItem('selectedTheme', themeFromURL);
       localStorage.setItem('themeTestMode', 'true');
-      this.applyTheme(themeFromURL);
+      this.apply(themeFromURL);
+      this.showThemePreviewAlert(themeFromURL);
       return;
     }
     
-    // Then check localStorage
-    const savedTheme = localStorage.getItem('selectedTheme');
+    // Check if we're on a VMCOTT page
+    const isVmcottPath = window.location.pathname.startsWith('/vmcott');
+    
+    // Get saved theme
+    const saved = localStorage.getItem("selectedTheme");
     const themeTestMode = localStorage.getItem('themeTestMode') === 'true';
     
-    if (savedTheme && this.isValidTheme(savedTheme) && themeTestMode) {
-      console.log("🎨 Theme from localStorage:", savedTheme);
-      this.themeValue = savedTheme;
-      this.applyTheme(savedTheme);
-      this.showThemePreviewAlert(savedTheme);
-    }
-  }
-
-  // Check if current page is a Gantt page
-  isGanttPage() {
-    // Check if :gantt_page content is set
-    const ganttPageMeta = document.querySelector('meta[name="gantt-page"]');
-    if (ganttPageMeta) return true;
+    // Determine which theme to apply
+    let themeToApply = "9"; // Default to theme 9
     
-    // Check for gantt container elements
-    const hasGanttElements = document.getElementById('ganttContainer') !== null ||
-                            document.querySelector('[data-gantt-tasks]') !== null ||
-                            document.getElementById('ganttData') !== null;
-    
-    // Check URL path
-    const isGanttPath = window.location.pathname.includes('/gantt');
-    
-    // Check Rails content_for marker (you might need to add this to your layout)
-    const hasGanttContent = document.body.dataset.page === 'gantt' || 
-                           document.body.classList.contains('gantt-page');
-    
-    return hasGanttElements || isGanttPath || hasGanttContent;
-  }
-
-  // Disable theme functionality on Gantt pages
-  disableThemeOnGanttPage() {
-    console.log("🎨 Disabling theme on Gantt page");
-    
-    // Add gantt-page class for CSS targeting
-    document.body.classList.add('gantt-page', 'gantt-neutral');
-    
-    // Remove any existing theme classes
-    document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5', 
-      'theme-6', 'theme-7', 'theme-8', 'theme-9', 'theme-10', 'theme-11');
-    
-    // Hide any theme alert if it exists
-    const themeAlert = document.getElementById('themePreviewAlert');
-    if (themeAlert) {
-      themeAlert.style.display = 'none';
+    if (saved && themeTestMode) {
+      // Use saved theme if in test mode
+      themeToApply = saved;
+    } else if (saved && !isVmcottPath) {
+      // Use saved theme for non-VMCOTT pages
+      themeToApply = saved;
+    } else if (isVmcottPath) {
+      // VMCOTT pages get theme 9 by default
+      themeToApply = "9";
+    } else {
+      // Non-VMCOTT pages with no saved theme
+      const agencyTheme = this.getAgencyTheme();
+      themeToApply = agencyTheme || "1"; // Fallback to theme 1
     }
     
-    // Add a meta tag to mark this as a Gantt page
-    const meta = document.createElement('meta');
-    meta.name = 'page-type';
-    meta.content = 'gantt';
-    document.head.appendChild(meta);
-    
-    // Dispatch event that theme is disabled
-    document.dispatchEvent(new CustomEvent('theme:disabled'));
+    console.log(`🎨 Applying theme: ${themeToApply} (VMCOTT: ${isVmcottPath}, Saved: ${saved}, TestMode: ${themeTestMode})`);
+    this.apply(themeToApply);
   }
 
-  themeValueChanged() {
-    if (this.themeValue) {
-      this.applyTheme(this.themeValue);
-    }
-  }
-
-  // All available themes with their details
-  themes = {
-    1: { 
-      name: "Modern Light", 
-      icon: "☀️", 
-      description: "Professional dashboard suitable for daily operations and reporting." 
-    },
-    2: { 
-      name: "Dark Professional", 
-      icon: "🌙", 
-      description: "Eye-friendly interface that makes vehicle status colors stand out." 
-    },
-    3: { 
-      name: "Trinidad Gradient", 
-      icon: "🇹🇹", 
-      description: "Patriotic theme using Trinidad & Tobago national colors." 
-    },
-    4: { 
-      name: "Clean Admin", 
-      icon: "⚙️", 
-      description: "Traditional admin panel with sidebar navigation." 
-    },
-    5: { 
-      name: "Map-Centric", 
-      icon: "🗺️", 
-      description: "Optimized for real-time tracking with map visualization." 
-    },
-    6: { 
-      name: "Emergency Response", 
-      icon: "🚨", 
-      description: "High-visibility emergency vehicle theme with alert colors." 
-    },
-    7: { 
-      name: "Coastal/Tropical", 
-      icon: "🏖️", 
-      description: "Beach-inspired theme with ocean blues, sand beige, and palm greens." 
-    },
-    8: { 
-      name: "Modern Tech", 
-      icon: "💻", 
-      description: "Futuristic tech interface with dark mode, neon accents, and grid backgrounds." 
-    },
-    9: { 
-      name: "Classic/Vintage", 
-      icon: "📜", 
-      description: "Retro theme with aged paper effects and classic colors." 
-    },
-    10: { 
-      name: "Luxury/Executive", 
-      icon: "💎", 
-      description: "Premium dark theme with gold accents and elegant styling." 
-    },
-    11: { 
-      name: "Corporate/Professional", 
-      icon: "🏢", 
-      description: "Clean corporate design with blue and gray tones." 
-    }
-  }
-
-  isValidTheme(themeNumber) {
-    return this.themes[themeNumber] !== undefined;
-  }
-
-  // Apply theme to the page
-  applyTheme(themeNumber) {
-    // Don't apply theme on Gantt pages
-    if (this.isGanttPage()) {
-      console.log("🎨 Skipping theme application on Gantt page");
+  setTheme(event) {
+    const theme = event?.params?.theme || event?.target?.dataset?.theme;
+    if (!theme || !this.isValidTheme(theme)) {
+      console.error("🎨 Invalid theme:", theme);
       return;
     }
     
-    console.log("🎨 Applying theme:", themeNumber);
-    
-    // Remove all theme classes
-    document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5', 
-      'theme-6', 'theme-7', 'theme-8', 'theme-9', 'theme-10', 'theme-11', 'gantt-page', 'gantt-neutral');
-    
-    // Apply the selected theme class
-    document.body.classList.add(`theme-${themeNumber}`);
-    
-    // Update data attribute
-    this.element.dataset.themeValue = themeNumber;
-    
-    // Save to localStorage
-    localStorage.setItem('selectedTheme', themeNumber);
+    console.log("🎨 Setting theme:", theme);
+    localStorage.setItem("selectedTheme", theme);
     localStorage.setItem('themeTestMode', 'true');
-    
-    // Show theme preview alert
-    this.showThemePreviewAlert(themeNumber);
+    this.apply(theme);
+    this.showThemePreviewAlert(theme);
     
     // Dispatch custom event for other controllers
     document.dispatchEvent(new CustomEvent('theme:changed', {
-      detail: { theme: themeNumber }
+      detail: { theme: theme }
     }));
   }
 
-  // Show theme preview alert
+  apply(theme) {
+    if (!this.isValidTheme(theme)) {
+      console.error("🎨 Cannot apply invalid theme:", theme);
+      theme = "1"; // Fallback to theme 1
+    }
+    
+    // Remove all theme classes
+    const allThemeClasses = Array.from({length: 11}, (_, i) => `theme-${i + 1}`);
+    document.body.classList.remove(...allThemeClasses);
+    
+    // Apply the selected theme
+    document.body.classList.add(`theme-${theme}`);
+    
+    // Update data attribute
+    this.element.dataset.themeValue = theme;
+    
+    console.log("🎨 Theme applied:", theme);
+  }
+
+  clearTheme(event) {
+    event?.preventDefault();
+    console.log("🎨 Clearing theme settings");
+    
+    localStorage.removeItem("selectedTheme");
+    localStorage.removeItem('themeTestMode');
+    
+    // Remove theme preview alert if it exists
+    const alertDiv = document.getElementById('themePreviewAlert');
+    if (alertDiv) {
+      alertDiv.style.display = 'none';
+    }
+    
+    // Check if we're on a VMCOTT page
+    const isVmcottPath = window.location.pathname.startsWith('/vmcott');
+    
+    // Apply default theme
+    let defaultTheme = isVmcottPath ? "9" : (this.getAgencyTheme() || "1");
+    this.apply(defaultTheme);
+    
+    // Dispatch theme cleared event
+    document.dispatchEvent(new CustomEvent('theme:cleared'));
+  }
+
+  // Helper methods
+  isValidTheme(themeNumber) {
+    const themeNum = parseInt(themeNumber, 10);
+    return !isNaN(themeNum) && themeNum >= 1 && themeNum <= 11;
+  }
+
+  getAgencyTheme() {
+    // Try to get agency theme from meta tag or data attribute
+    const agencyMeta = document.querySelector('meta[name="agency-theme"]');
+    if (agencyMeta) {
+      return agencyMeta.getAttribute('content');
+    }
+    
+    // Check body data attribute
+    const bodyTheme = document.body.dataset.agencyTheme;
+    if (bodyTheme) {
+      return bodyTheme;
+    }
+    
+    return null;
+  }
+
+  isGanttPage() {
+    // Check meta tag
+    const ganttMeta = document.querySelector('meta[name="page-type"]');
+    if (ganttMeta?.content === 'gantt') return true;
+    
+    // Check body classes
+    if (document.body.classList.contains('gantt-page')) return true;
+    
+    // Check for gantt-specific elements
+    if (document.getElementById('ganttContainer') || 
+        document.querySelector('[data-gantt-tasks]') ||
+        document.getElementById('ganttData')) {
+      return true;
+    }
+    
+    // Check URL
+    return window.location.pathname.includes('/gantt');
+  }
+
+  disableThemeOnGanttPage() {
+    console.log("🎨 Disabling theme on Gantt page");
+    
+    // Remove all theme classes
+    const allThemeClasses = Array.from({length: 11}, (_, i) => `theme-${i + 1}`);
+    document.body.classList.remove(...allThemeClasses);
+    
+    // Add neutral gantt class
+    document.body.classList.add('gantt-page', 'gantt-neutral');
+  }
+
   showThemePreviewAlert(themeNumber) {
-    // Don't show alert on Gantt pages
-    if (this.isGanttPage()) {
-      return;
-    }
+    // Don't show on Gantt pages
+    if (this.isGanttPage()) return;
     
-    const themeInfo = this.themes[themeNumber];
-    if (!themeInfo) return;
+    // Remove existing alert if any
+    const existingAlert = document.getElementById('themePreviewAlert');
+    if (existingAlert) existingAlert.remove();
     
-    // Check if alert already exists
-    let alertDiv = document.getElementById('themePreviewAlert');
+    const themeNames = {
+      1: "Modern Light",
+      2: "Dark Professional", 
+      3: "Trinidad Gradient",
+      4: "Clean Admin",
+      5: "Map-Centric",
+      6: "Emergency Response",
+      7: "Coastal/Tropical",
+      8: "Modern Tech",
+      9: "Classic/Vintage",
+      10: "Luxury/Executive",
+      11: "Corporate/Professional"
+    };
     
-    if (!alertDiv) {
-      alertDiv = document.createElement('div');
-      alertDiv.id = 'themePreviewAlert';
-      alertDiv.className = 'theme-preview-alert';
-      // Insert at the top of the body
-      document.body.insertBefore(alertDiv, document.body.firstChild);
-    }
+    const themeName = themeNames[themeNumber] || `Theme ${themeNumber}`;
     
+    const alertDiv = document.createElement('div');
+    alertDiv.id = 'themePreviewAlert';
     alertDiv.innerHTML = `
       <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0" role="alert">
         <div class="container-fluid">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <i class="fas fa-palette me-2"></i>
-              <strong>Theme Preview Active:</strong> ${themeInfo.name}
+              <i class="bi bi-palette me-2"></i>
+              <strong>Theme Preview Active:</strong> ${themeName}
               <span class="ms-2 small">Changes are temporary</span>
             </div>
             <div>
-              <button data-action="click->theme#clearTheme" class="btn btn-sm btn-outline-danger">
-                <i class="fas fa-times me-1"></i> Clear Theme
+              <button type="button" class="btn btn-sm btn-outline-danger" data-action="click->theme#clearTheme">
+                <i class="bi bi-x-circle me-1"></i> Clear Theme
               </button>
             </div>
           </div>
@@ -232,40 +215,7 @@ export default class extends Controller {
       </div>
     `;
     
-    alertDiv.style.display = 'block';
-  }
-
-  // Clear theme preview
-  clearTheme() {
-    console.log("🎨 Clearing theme preview");
-    
-    // Remove theme class
-    document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5', 
-      'theme-6', 'theme-7', 'theme-8', 'theme-9', 'theme-10', 'theme-11', 'gantt-page', 'gantt-neutral');
-    
-    // Clear localStorage
-    localStorage.removeItem('selectedTheme');
-    localStorage.removeItem('themeTestMode');
-    
-    // Hide alert
-    const alertDiv = document.getElementById('themePreviewAlert');
-    if (alertDiv) {
-      alertDiv.style.display = 'none';
-    }
-    
-    // Clear data attribute
-    this.element.dataset.themeValue = '';
-    
-    // Dispatch theme cleared event
-    document.dispatchEvent(new CustomEvent('theme:cleared'));
-  }
-
-  // Select theme from button/link
-  selectTheme(event) {
-    event.preventDefault();
-    const themeNumber = event.currentTarget.dataset.theme;
-    if (this.isValidTheme(themeNumber)) {
-      this.applyTheme(themeNumber);
-    }
+    // Insert at the top of the body
+    document.body.insertBefore(alertDiv, document.body.firstChild);
   }
 }

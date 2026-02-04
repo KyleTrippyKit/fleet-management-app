@@ -1,18 +1,41 @@
 <%# app/views/vmcott/parts/index.html.erb %>
-<div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-      <i class="bi bi-box-seam me-2"></i>Parts Catalog
-    </h1>
 
-    <div class="d-flex gap-2">
-      <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-outline-secondary' %>
-      <%= link_to 'New Part', new_vmcott_part_path, class: 'btn btn-primary' %>
+<div class="page-shell">
+
+  <div class="page-hero">
+    <div class="row align-items-center g-3">
+      <div class="col-12 col-lg-7">
+        <h2 class="hero-title">
+          <i class="bi bi-box-seam"></i>
+          Parts Catalog
+        </h2>
+        <div class="hero-subtitle">
+          Standardized parts library for inventory, purchasing, and internal POS consumption.
+        </div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <div class="hero-actions">
+          <%= link_to vmcott_inventory_dashboard_path, class: "btn btn-outline-secondary" do %>
+            <i class="bi bi-boxes me-1"></i> Inventory Dashboard
+          <% end %>
+          <%= link_to new_vmcott_part_path, class: "btn btn-primary" do %>
+            <i class="bi bi-plus-circle me-1"></i> New Part
+          <% end %>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="card mb-3">
-    <div class="card-body">
+  <div class="section-card mb-3">
+    <div class="section-card-header">
+      <h5 class="section-card-title">
+        <i class="bi bi-search"></i>
+        Search
+      </h5>
+      <span class="muted small">Search by name, part #, or category.</span>
+    </div>
+
+    <div class="section-card-body">
       <%= form_with url: vmcott_parts_path, method: :get, local: true, class: "row g-2 align-items-end" do %>
         <div class="col-12 col-md-6 col-lg-4">
           <label class="form-label mb-1">Search</label>
@@ -36,21 +59,19 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <h5 class="mb-0">
+  <div class="section-card">
+    <div class="section-card-header">
+      <h5 class="section-card-title">
+        <i class="bi bi-list-ul"></i>
         All Parts (<%= @parts.respond_to?(:total_count) ? @parts.total_count : @parts.size %>)
       </h5>
-
-      <small class="text-muted">
-        Catalog only — stock levels are managed in Inventory Dashboard
-      </small>
+      <span class="muted small">Stock is managed from Inventory Dashboard.</span>
     </div>
 
-    <div class="card-body">
+    <div class="section-card-body">
       <% if @parts.any? %>
         <div class="table-responsive">
-          <table class="table table-hover align-middle">
+          <table class="table table-hover align-middle table-clean">
             <thead>
               <tr>
                 <th style="width: 80px;">ID</th>
@@ -60,7 +81,7 @@
                 <th>Supplier</th>
                 <th>Flags</th>
                 <th class="text-end">Reorder / Min</th>
-                <th style="width: 170px;">Actions</th>
+                <th style="width: 170px;" class="text-end">Actions</th>
               </tr>
             </thead>
 
@@ -72,13 +93,11 @@
                   <td>
                     <strong><%= part.name.presence || "Unnamed Part" %></strong>
                     <% if part.unit_of_measure.present? %>
-                      <div class="small text-muted">UoM: <%= part.unit_of_measure %></div>
+                      <div class="small muted">UoM: <%= part.unit_of_measure %></div>
                     <% end %>
                   </td>
 
-                  <td>
-                    <%= part.part_number.presence || content_tag(:span, "N/A", class: "text-muted") %>
-                  </td>
+                  <td><%= part.part_number.presence || content_tag(:span, "N/A", class: "muted") %></td>
 
                   <td>
                     <span class="badge bg-secondary">
@@ -90,19 +109,14 @@
                     <% if part.supplier.present? %>
                       <%= part.supplier.name %>
                     <% else %>
-                      <span class="text-muted">None</span>
+                      <span class="muted">None</span>
                     <% end %>
                   </td>
 
                   <td>
-                    <%# Active flag %>
-                    <% if part.is_active %>
-                      <span class="badge bg-success">Active</span>
-                    <% else %>
-                      <span class="badge bg-danger">Inactive</span>
-                    <% end %>
-
-                    <%# Consumable flag %>
+                    <span class="badge <%= part.is_active ? "bg-success" : "bg-danger" %>">
+                      <%= part.is_active ? "Active" : "Inactive" %>
+                    </span>
                     <% if part.is_consumable %>
                       <span class="badge bg-info text-dark">Consumable</span>
                     <% end %>
@@ -110,15 +124,15 @@
 
                   <td class="text-end">
                     <div>
-                      <span class="text-muted">Reorder:</span>
+                      <span class="muted">Reorder:</span>
                       <strong><%= part.reorder_point || 0 %></strong>
                     </div>
-                    <div class="small text-muted">
+                    <div class="small muted">
                       Min: <%= part.minimum_stock || 0 %>
                     </div>
                   </td>
 
-                  <td>
+                  <td class="text-end">
                     <div class="btn-group btn-group-sm">
                       <%= link_to 'View', vmcott_part_path(part), class: 'btn btn-outline-primary' %>
                       <%= link_to 'Edit', edit_vmcott_part_path(part), class: 'btn btn-outline-warning' %>

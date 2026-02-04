@@ -8,7 +8,7 @@
       <%= link_to 'Inventory Dashboard', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
       <%= link_to 'Low Stock Parts', vmcott_inventory_low_stock_path, class: 'btn btn-warning' %>
       <%= link_to 'Purchase Requests', vmcott_inventory_purchase_requests_path, class: 'btn btn-primary' %>
-      <%= link_to 'Parts List', parts_path, class: 'btn btn-info' %>
+      <%= link_to 'Parts List', vmcott_parts_path, class: 'btn btn-info' %>
     </div>
   </div>
   
@@ -49,30 +49,36 @@
                   <% part = data[:part] %>
                   <% 
                     days_of_supply = data[:days_of_supply]
-                    days_display = if days_of_supply.infinite?
+                    
+                    # FIXED: Handle NaN, infinite, and integer values safely
+                    days_display = if days_of_supply.nil?
+                                     'N/A'
+                                   elsif days_of_supply.is_a?(Float) && days_of_supply.infinite?
                                      '∞'
-                                   elsif days_of_supply.nil? || days_of_supply.nan?
+                                   elsif days_of_supply.is_a?(Float) && days_of_supply.nan?
                                      'N/A'
                                    else
                                      days_of_supply.to_i
                                    end
                     
-                    badge_color = if days_of_supply.infinite? || days_of_supply.nil? || days_of_supply.nan?
+                    badge_color = if days_display == '∞' || days_display == 'N/A'
                                     'info'
-                                  elsif days_of_supply < 7
+                                  elsif days_of_supply.is_a?(Numeric) && days_of_supply < 7
                                     'danger'
-                                  elsif days_of_supply < 14
+                                  elsif days_of_supply.is_a?(Numeric) && days_of_supply < 14
                                     'warning'
                                   else
                                     'secondary'
                                   end
                     
                     monthly_usage = data[:avg_monthly_consumption]
-                    monthly_display = if monthly_usage.nil? || monthly_usage.nan?
+                    monthly_display = if monthly_usage.nil? || (monthly_usage.is_a?(Float) && monthly_usage.nan?)
                                         'N/A'
                                       else
                                         monthly_usage.to_i
                                       end
+                    
+                    suggested_qty = data[:suggested_quantity] || 0
                   %>
                   <tr>
                     <td>
@@ -91,13 +97,13 @@
                       </span>
                     </td>
                     <td><%= monthly_display %></td>
-                    <td><span class="badge bg-primary"><%= data[:suggested_quantity] %></span></td>
+                    <td><span class="badge bg-primary"><%= suggested_qty %></span></td>
                     <td>
                       <div class="btn-group btn-group-sm">
                         <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
                           <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-                          <input type="hidden" name="quantity" value="<%= data[:suggested_quantity] %>">
-                          <input type="hidden" name="urgency" value="<%= days_of_supply < 7 ? 'high' : 'normal' %>">
+                          <input type="hidden" name="quantity" value="<%= suggested_qty %>">
+                          <input type="hidden" name="urgency" value="<%= days_of_supply.is_a?(Numeric) && days_of_supply < 7 ? 'high' : 'normal' %>">
                           <input type="hidden" name="notes" value="Reorder suggestion based on <%= days_display %> days supply">
                           
                           <button type="submit" class="btn btn-success btn-sm">
@@ -105,7 +111,7 @@
                           </button>
                         <% end %>
                         
-                        <%= link_to 'View', part_path(part), class: 'btn btn-outline-secondary btn-sm' %>
+                        <%= link_to 'View', vmcott_part_path(part), class: 'btn btn-outline-secondary btn-sm' %>
                       </div>
                     </td>
                   </tr>
@@ -138,3 +144,14 @@
     </div>
   <% end %>
 </div>
+
+<%# Helper method for stock badge colors %>
+<% def stock_badge_color(current, minimum) %>
+  <% if current <= 0 %>
+    danger
+  <% elsif current <= minimum %>
+    warning
+  <% else %>
+    success
+  <% end %>
+<% end %>
