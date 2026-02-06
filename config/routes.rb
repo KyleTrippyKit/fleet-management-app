@@ -194,6 +194,7 @@ Rails.application.routes.draw do
       end
     end
     
+    resources :service_providers
     # Inventory Dashboard
     get 'inventory_dashboard', to: 'inventory#dashboard', as: 'inventory_dashboard'
     get 'inventory/low_stock', to: 'inventory#low_stock', as: 'inventory_low_stock'
@@ -818,10 +819,6 @@ Rails.application.routes.draw do
       get :new_with_rfid
     end
   end
-
-  # Service providers
-  resources :service_providers
-
   # Gantt Chart
   get "gantt", to: "maintenances#gantt", as: :gantt
 
