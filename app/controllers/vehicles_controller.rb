@@ -1,6 +1,4 @@
 # File: app/controllers/vehicles_controller.rb
-# Replace the ENTIRE file with this (copy/paste).
-
 class VehiclesController < ApplicationController
   # Allow unauthenticated access ONLY to catalog_search for autocomplete.
   before_action :authenticate_user!, except: [:catalog_search]
@@ -52,23 +50,26 @@ class VehiclesController < ApplicationController
   ].freeze
 
   # ====================================================
-  # List all vehicles (OPTIMIZED WITH AGENCY SCOPE)
+  # List all vehicles (SIMPLIFIED VERSION)
   # ====================================================
   def index
-    @query = params[:query]
-    @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
+    @query  = params[:search].presence || params[:query].presence
+    @status = params[:status].presence
 
-    @vehicles = scoped_vehicles_by_agency
-    @vehicles = @vehicles.search(@query) if @query.present?
-    @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
+    # Always agency-scoped
+    base = current_user.agency.vehicles
 
-    if is_vmcott?
-      @agency_filter = params[:agency].presence
-      @vehicles = @vehicles.where(agency_id: @agency_filter) if @agency_filter.present?
-      @agencies = Agency.all.order(:name)
-    end
+    base = base.search(@query) if @query.present?
+    base = base.where(status: @status) if @status.present?
 
-    @vehicles = @vehicles.order(:make, :model).page(params[:page]).per(20)
+    @vehicles_count  = base.count
+    @kpi_active      = base.where(status: "active").count
+    @kpi_maintenance = base.where(status: "maintenance").count
+    @kpi_out         = base.where(status: ["out", "inactive"]).count
+
+    @vehicles = base.with_attached_primary_photo.with_attached_gallery_photos
+                  .order(:make, :model)
+                  .page(params[:page]).per(20)
   end
 
   # ====================================================
@@ -200,7 +201,7 @@ class VehiclesController < ApplicationController
   # Maintenance Dashboard
   # ====================================================
   def maintenance_dashboard
-    @query = params[:query]
+    @query = params[:search].presence || params[:query].presence
     @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
 
     @vehicles = scoped_vehicles_by_agency
@@ -582,10 +583,11 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Agency scoping
+  # Agency scoping - FIXED: No params[:id] usage
   # ====================================================
   def set_agency_from_params
-    agency_id = params[:agency_id].presence || params[:agency].presence || params[:id].presence
+    # Only allow agency scoping from explicit filter params
+    agency_id = params[:agency_id].presence || params[:agency].presence
     @selected_agency = Agency.find_by(id: agency_id) if agency_id.present?
 
     if @selected_agency && !is_vmcott? && @selected_agency != current_user.agency
@@ -594,14 +596,16 @@ class VehiclesController < ApplicationController
   end
 
   def scoped_vehicles_by_agency
-    base_includes = [:agency, :driver, primary_photo_attachment: { blob: :variant_records }]
-
+    # Proper agency scoping - only show vehicles from user's agency unless VMCOTT
     if @selected_agency
-      @selected_agency.vehicles.includes(*base_includes)
+      # If a specific agency is selected (from filter)
+      @selected_agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     elsif is_vmcott?
-      Vehicle.all.includes(*base_includes)
+      # VMCOTT users can see all vehicles
+      Vehicle.all.with_attached_primary_photo.with_attached_gallery_photos
     else
-      current_user.agency.vehicles.includes(:driver, primary_photo_attachment: { blob: :variant_records })
+      # Regular users only see their agency's vehicles
+      current_user.agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     end
   end
 
@@ -652,6 +656,6 @@ class VehiclesController < ApplicationController
   # Role helper
   # ====================================================
   def is_vmcott?
-    current_user&.agency&.code == "VMCOTT" || current_user&.admin?
+    current_user&.agency&.code == "VMCOTT"
   end
 end

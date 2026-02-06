@@ -1,1099 +1,375 @@
-<%# app/views/ptsc_dashboard/index.html.erb %>
+<%# app/views/ptsc_dashboard/index.html.erb - FIXED VERSION %>
 
-<!-- External Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div class="page-shell ptsc-dashboard">
 
-<!-- ADD THIS: Disable Turbo for time range buttons -->
-<%= turbo_frame_tag :dashboard_content, data: { turbo: false } do %>
-  <div class="min-h-screen bg-light">
-    <!-- Header (all roles) -->
-    <%= render 'ptsc_dashboard/header', 
-          vehicle_stats: @vehicle_stats, 
-          usage_stats: @usage_stats %>
-
-    <div class="container-fluid px-4 py-4">
-      <!-- Navigation -->
-      <div class="mb-4">
-        <%= render 'shared/navigation' %>
+  <!-- Top header -->
+  <div class="page-hero">
+    <div class="row align-items-center g-3">
+      <div class="col-12 col-lg-7">
+        <h2 class="hero-title mb-1">
+          <i class="fas fa-tachometer-alt me-2"></i>
+          PTSC Dashboard
+        </h2>
+        <div class="hero-subtitle">
+          Public Transport Service Corporation - Operational overview
+        </div>
       </div>
 
-      <%= render 'shared/rfq_quick_actions' %>
-
-      <!-- ===== Key Metrics ===== -->
-      <% if @show_metrics %>
-        <%= render 'ptsc_dashboard/stats_cards', 
-              vehicle_stats: @vehicle_stats, 
-              usage_stats: @usage_stats, 
-              maintenance_stats: @maintenance_stats,
-              insurance_stats: @insurance_stats %>
-      <% end %>
-
-      <!-- ===== Charts with Time Filter ===== -->
-      <% if @show_charts %>
-        <div class="row g-4 mb-5">
-          <!-- Chart Filter Controls -->
-          <div class="col-12">
-            <div class="card mb-4">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="card-title mb-0">
-                    <i class="bi bi-funnel me-2"></i>Chart Time Range
-                  </h6>
-                  <div class="btn-group" role="group">
-                    <!-- FIX: Add data-turbo="false" to all time range buttons -->
-                    <%= link_to "Week", ptsc_dashboard_path(time_range: 'week'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'week' || params[:time_range].blank?}",
-                        data: { turbo: false } %>
-                    <%= link_to "Month", ptsc_dashboard_path(time_range: 'month'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'month'}",
-                        data: { turbo: false } %>
-                    <%= link_to "3 Months", ptsc_dashboard_path(time_range: 'three_months'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'three_months'}",
-                        data: { turbo: false } %>
-                    <%= link_to "Year", ptsc_dashboard_path(time_range: 'year'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'year'}",
-                        data: { turbo: false } %>
-                  </div>
-                </div>
-                <div class="mt-2 text-muted small">
-                  <% time_range_label = case @time_range
-                       when 'week' then 'Week (Daily View)'
-                       when 'month' then 'Month (Weekly View)'
-                       when 'three_months' then 'Last 3 Months (Monthly View)'
-                       when 'year' then 'Year (Quarterly View)'
-                       else 'Week (Daily View)'
-                     end %>
-                  <i class="bi bi-info-circle me-1"></i>
-                  Showing data for: <strong><%= time_range_label %></strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <% if @current_role.in?([:fleet_manager, :admin]) %>
-            <!-- Render the fuel efficiency chart partial -->
-            <%= render 'ptsc_dashboard/fuel_efficiency_chart', 
-                  usage_stats: @usage_stats,
-                  time_range: @time_range %>
+      <div class="col-12 col-lg-5">
+        <div class="hero-actions">
+          <%= link_to main_dashboard_path, class: "btn btn-outline-secondary" do %>
+            <i class="fas fa-home me-1"></i> Main Dashboard
           <% end %>
 
-          <!-- Render the maintenance cost chart partial -->
-          <%= render 'ptsc_dashboard/maintenance_cost_chart', 
-                  usage_stats: @usage_stats, 
-                  maintenance_stats: @maintenance_stats,
-                  time_range: @time_range %>
-        </div>
-      <% end %>
+          <%# FIXED: Use the correct route from your routes list %>
+          <%= link_to ptsc_pos_transactions_path, class: "btn btn-primary" do %>
+            <i class="fas fa-cash-register me-1"></i> POS Dashboard
+          <% end %>
 
-      <!-- ===== Invoices (Role-Based) ===== -->
-      <% if @show_invoices && @recent_invoices.any? && (current_user.admin? || current_user.finance? || current_user.fleet_manager?) %>
-        <div class="row mb-5">
-          <div class="col-12">
-            <%= render 'ptsc_dashboard/recent_invoices', invoices: @recent_invoices %>
-          </div>
-        </div>
-      <% end %>
-
-      <!-- ===== Fleet Map ===== -->
-      <% if @show_map %>
-        <div class="card border-0 shadow-sm mb-5 bg-primary bg-opacity-5">
-          <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="fw-bold mb-0 d-flex align-items-center">
-                <i class="bi bi-geo-alt text-primary me-2"></i>
-                Live Vehicle Locations
-              </h6>
-              <p class="text-muted small mb-0">
-                <span class="badge bg-primary-subtle text-primary me-2">
-                  <%= @map_vehicles&.count { |v| v.status == 'active' } || 0 %> Active
-                </span>
-                <span class="badge bg-warning-subtle text-warning me-2">
-                  <%= @map_vehicles&.count { |v| v.status == 'maintenance' } || 0 %> In Maintenance
-                </span>
-              </p>
-            </div>
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                <i class="bi bi-layers me-1"></i>Map Layers
-              </button>
-              <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('standard')">Standard Map</a></li>
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('satellite')">Satellite View</a></li>
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('dark')">Dark Mode</a></li>
-              </ul>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <!-- FIX: Add scroll wheel control attribute -->
-            <div id="fleet-map" 
-                 class="w-100" 
-                 style="height: 350px;"
-                 data-vehicles="<%= @map_vehicles.to_json(methods: [:id, :license_plate, :vehicle_type, :status, :make, :model, :latitude, :longitude]) %>"
-                 data-map-config='{"scrollWheelZoom": false}'>
-              <!-- Loading indicator -->
-              <div class="h-100 w-100 d-flex align-items-center justify-content-center bg-light">
-                <div class="text-center">
-                  <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading map...</span>
-                  </div>
-                  <p class="text-muted small">Loading interactive map...</p>
-                </div>
-              </div>
-            </div>
-            <div class="p-3 border-top">
-              <div class="d-flex justify-content-between align-items-center small">
-                <div class="d-flex align-items-center gap-2">
-                  <span class="text-muted">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Click on any vehicle marker for details
-                  </span>
-                </div>
-                <div class="d-flex gap-2">
-                  <button onclick="fitMapToVehicles()" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-fullscreen me-1"></i>View All
-                  </button>
-                  <button onclick="refreshMap()" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                  </button>
-                  <!-- ADD THIS: Toggle zoom button -->
-                  <button onclick="toggleMapZoom()" class="btn btn-sm btn-outline-warning">
-                    <i class="bi bi-mouse me-1"></i>Toggle Scroll Zoom
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <!-- ===== Fleet Overview / Vehicle Grid ===== -->
-      <% if @show_vehicle_grid && !current_user.finance? %>
-        <%= render 'ptsc_dashboard/vehicles_overview', vehicles: @vehicles, vehicle_stats: @vehicle_stats %>
-      <% end %>
-
-      <div class="row">
-        <!-- Main Content -->
-        <div class="<%= current_user.finance? ? 'col-12' : 'col-xxl-9 col-xl-8' %>">
-          <% if @show_service_forecast %>
-            <%= render 'ptsc_dashboard/service_forecast', upcoming_maintenances: @upcoming_maintenances %>
+          <%= link_to alerts_path, class: "btn btn-outline-secondary" do %>
+            <i class="fas fa-bell me-1"></i> Alerts
           <% end %>
         </div>
-
-        <!-- Sidebar -->
-        <% unless current_user.finance? %>
-          <div class="col-xxl-3 col-xl-4">
-            <% if @vehicles_needing_attention.any? %>
-              <%= render 'ptsc_dashboard/attention_needed', vehicles: @vehicles_needing_attention %>
-            <% end %>
-
-            <%# if current_user.driver? && @driver_stats.present? %>
-                  <%#= render 'ptsc_dashboard/driver_stats', driver_stats: @driver_stats %>
-            <%# end %>
-          </div>
-        <% end %>
       </div>
     </div>
   </div>
-<% end %>
 
-<!-- ===== Dashboard JavaScript ===== -->
-<script>
-// Global map variables
-let fleetMap = null;
-let mapMarkers = [];
-let currentTileLayer = null;
-let scrollWheelZoomEnabled = false; // Start with scroll zoom disabled
-
-// Initialize tooltips
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize Bootstrap tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-  
-  console.log('DOM loaded, initializing dashboard...');
-  initCharts();
-  initMap();
-});
-
-// Also listen for Turbo events
-document.addEventListener('turbo:load', function() {
-  console.log('Turbo loaded, initializing dashboard...');
-  initCharts();
-  initMap();
-});
-
-// FIX: Force page reload when time range changes
-document.addEventListener('click', function(e) {
-  // Check if clicked element is a time range button
-  const timeRangeBtn = e.target.closest('.btn-group .btn-outline-primary');
-  if (timeRangeBtn && timeRangeBtn.hasAttribute('href')) {
-    // Allow normal navigation (disable Turbo for these buttons)
-    e.preventDefault();
-    window.location.href = timeRangeBtn.getAttribute('href');
-  }
-});
-
-// Initialize all charts
-function initCharts() {
-  console.log('Initializing charts...');
-  
-  // Check if Chart.js is loaded
-  if (typeof Chart === 'undefined') {
-    console.error('Chart.js not loaded');
-    return;
-  }
-  
-  // Initialize fuel chart if it exists
-  initFuelChart();
-  
-  // Initialize maintenance cost chart if it exists
-  initMaintenanceChart();
-}
-
-// Initialize fuel efficiency chart
-function initFuelChart() {
-  const fuelCanvas = document.getElementById('fuelEfficiencyChart');
-  if (!fuelCanvas) {
-    console.log('Fuel chart canvas not found');
-    return;
-  }
-  
-  // Hide fallback if it exists
-  const fallback = document.getElementById('fuelChartFallback');
-  if (fallback) fallback.style.display = 'none';
-  
-  // Get data from data attributes
-  const labels = JSON.parse(fuelCanvas.dataset.labels || '[]');
-  const efficiencyData = JSON.parse(fuelCanvas.dataset.efficiency || '[]');
-  
-  // If no data, show fallback message
-  if (labels.length === 0 || efficiencyData.length === 0) {
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-bar-chart text-muted fs-1 mb-2"></i><p class="text-muted small">No data available for selected time range</p></div>';
-    }
-    return;
-  }
-  
-  const ctx = fuelCanvas.getContext('2d');
-  
-  // Create gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-  gradient.addColorStop(0, 'rgba(26, 115, 232, 0.3)');
-  gradient.addColorStop(1, 'rgba(26, 115, 232, 0.05)');
-  
-  try {
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Fuel Efficiency (km/L)',
-          data: efficiencyData,
-          backgroundColor: gradient,
-          borderColor: '#1a73e8',
-          borderWidth: 3,
-          fill: true,
-          tension: 0.3,
-          pointBackgroundColor: '#1a73e8',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            titleColor: '#333',
-            bodyColor: '#666',
-            borderColor: '#ddd',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 6,
-            displayColors: false,
-            callbacks: {
-              title: function(context) {
-                return context[0].label;
-              },
-              label: function(context) {
-                return `Efficiency: ${context.parsed.y} km/L`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: false,
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: {
-              font: { size: 11 }
-            }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 11 } }
-          }
-        }
-      }
-    });
-    console.log('Fuel chart created successfully with data:', efficiencyData);
-  } catch (error) {
-    console.error('Error creating fuel chart:', error);
-    // Show fallback if chart fails
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-exclamation-triangle text-warning fs-1 mb-2"></i><p class="text-muted small">Chart failed to load</p></div>';
-    }
-  }
-}
-
-// Initialize maintenance cost chart
-function initMaintenanceChart() {
-  const costCanvas = document.getElementById('maintenanceCostChart');
-  if (!costCanvas) {
-    console.log('Maintenance cost chart canvas not found');
-    return;
-  }
-  
-  // Hide fallback if it exists
-  const fallback = document.getElementById('costChartFallback');
-  if (fallback) fallback.style.display = 'none';
-  
-  // Get data from data attributes
-  const labels = JSON.parse(costCanvas.dataset.labels || '[]');
-  const costData = JSON.parse(costCanvas.dataset.costs || '[]');
-  
-  // If no data, show fallback message
-  if (labels.length === 0 || costData.length === 0) {
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-bar-chart text-muted fs-1 mb-2"></i><p class="text-muted small">No data available for selected time range</p></div>';
-    }
-    return;
-  }
-  
-  const ctx = costCanvas.getContext('2d');
-  
-  try {
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Maintenance Cost ($)',
-          data: costData,
-          backgroundColor: 'rgba(25, 135, 84, 0.6)',
-          borderColor: 'rgba(25, 135, 84, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            titleColor: '#333',
-            bodyColor: '#666',
-            borderColor: '#ddd',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 6,
-            displayColors: false,
-            callbacks: {
-              title: function(context) {
-                return context[0].label;
-              },
-              label: function(context) {
-                return `Cost: $${context.parsed.y.toLocaleString()}`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: {
-              callback: function(value) {
-                return '$' + value.toLocaleString();
-              },
-              font: { size: 11 }
-            }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 11 } }
-          }
-        }
-      }
-    });
-    console.log('Maintenance cost chart created successfully with data:', costData);
-  } catch (error) {
-    console.error('Error creating maintenance cost chart:', error);
-    // Show fallback if chart fails
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-exclamation-triangle text-warning fs-1 mb-2"></i><p class="text-muted small">Chart failed to load</p></div>';
-    }
-  }
-}
-
-// Initialize map with scroll wheel fix
-function initMap() {
-  const mapElement = document.getElementById('fleet-map');
-  if (!mapElement || typeof L === 'undefined') return;
-  
-  console.log('Initializing interactive map...');
-  
-  try {
-    // Clear existing map if any
-    if (fleetMap) {
-      fleetMap.remove();
-      mapMarkers = [];
-    }
-    
-    // Get vehicle data from data attribute
-    const vehiclesData = JSON.parse(mapElement.dataset.vehicles || '[]');
-    console.log(`Loading ${vehiclesData.length} vehicles on map`);
-    
-    // Get map config
-    const mapConfig = JSON.parse(mapElement.dataset.mapConfig || '{}');
-    scrollWheelZoomEnabled = mapConfig.scrollWheelZoom || false;
-    
-    // Create map with scroll wheel zoom disabled by default
-    fleetMap = L.map('fleet-map', {
-      scrollWheelZoom: scrollWheelZoomEnabled, // FIX: Control this
-      wheelDebounceTime: 100,
-      wheelPxPerZoomLevel: 60
-    }).setView([10.654, -61.501], 12);
-    
-    // FIX: Add event listeners to prevent scroll zoom when mouse leaves map
-    fleetMap.on('mouseout', function() {
-      fleetMap.scrollWheelZoom.disable();
-    });
-    
-    fleetMap.on('mouseover', function() {
-      if (scrollWheelZoomEnabled) {
-        fleetMap.scrollWheelZoom.enable();
-      }
-    });
-    
-    // Set up default tile layer
-    changeMapLayer('standard');
-    
-    // Create custom vehicle icons
-    const vehicleIcons = {
-      active: L.divIcon({
-        html: '<div class="vehicle-marker active"><i class="bi bi-truck"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      maintenance: L.divIcon({
-        html: '<div class="vehicle-marker maintenance"><i class="bi bi-wrench"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      available: L.divIcon({
-        html: '<div class="vehicle-marker available"><i class="bi bi-check-circle"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      default: L.divIcon({
-        html: '<div class="vehicle-marker default"><i class="bi bi-car-front"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      })
-    };
-    
-    // Add vehicle markers
-    const bounds = [];
-    mapMarkers = [];
-    
-    vehiclesData.forEach(vehicle => {
-      if (vehicle.latitude && vehicle.longitude) {
-        const latLng = [vehicle.latitude, vehicle.longitude];
-        bounds.push(latLng);
-        
-        // Determine which icon to use based on status
-        let icon;
-        if (vehicle.status === 'active') {
-          icon = vehicleIcons.active;
-        } else if (vehicle.status === 'maintenance') {
-          icon = vehicleIcons.maintenance;
-        } else if (vehicle.status === 'available') {
-          icon = vehicleIcons.available;
-        } else {
-          icon = vehicleIcons.default;
-        }
-        
-        // Create marker with custom icon
-        const marker = L.marker(latLng, { icon: icon })
-          .addTo(fleetMap)
-          .bindPopup(createVehiclePopup(vehicle));
-        
-        // Add click event to go to vehicle page
-        marker.on('click', function(e) {
-          // Store reference for potential double-click handling
-          if (window.lastClickedMarker === marker) {
-            // Double click - go to vehicle page
-            window.location.href = `/vehicles/${vehicle.id}`;
-          } else {
-            window.lastClickedMarker = marker;
-            setTimeout(() => { window.lastClickedMarker = null; }, 300);
-            e.target.openPopup();
-          }
-        });
-        
-        // Add hover effect
-        marker.on('mouseover', function() {
-          this.openPopup();
-        });
-        
-        marker.on('mouseout', function() {
-          setTimeout(() => {
-            if (!this._popup || !this._popup.isOpen) return;
-            this.closePopup();
-          }, 100);
-        });
-        
-        mapMarkers.push(marker);
-      }
-    });
-    
-    // Fit map bounds to show all vehicles
-    if (bounds.length > 0) {
-      fleetMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    } else {
-      // Default view if no vehicles
-      fleetMap.setView([10.654, -61.501], 12);
-    }
-    
-    // Add legend
-    addMapLegend();
-    
-    // Add scale control
-    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(fleetMap);
-    
-    console.log(`Map initialized with ${mapMarkers.length} vehicles, scroll zoom: ${scrollWheelZoomEnabled}`);
-    
-  } catch (error) {
-    console.error('Error initializing map:', error);
-    
-    // Show error message in map container
-    mapElement.innerHTML = `
-      <div class="h-100 d-flex flex-column align-items-center justify-content-center bg-light">
-        <i class="bi bi-exclamation-triangle text-warning fs-1 mb-3"></i>
-        <p class="text-muted mb-2">Unable to load map</p>
-        <button onclick="initMap()" class="btn btn-sm btn-outline-primary mt-2">
-          <i class="bi bi-arrow-clockwise me-1"></i>Retry
-        </button>
-      </div>
-    `;
-  }
-}
-
-// NEW FUNCTION: Toggle scroll zoom
-function toggleMapZoom() {
-  if (!fleetMap) return;
-  
-  scrollWheelZoomEnabled = !scrollWheelZoomEnabled;
-  
-  if (scrollWheelZoomEnabled) {
-    fleetMap.scrollWheelZoom.enable();
-    showToast('Scroll zoom enabled', 'success');
-  } else {
-    fleetMap.scrollWheelZoom.disable();
-    showToast('Scroll zoom disabled', 'warning');
-  }
-  
-  // Update button text
-  const zoomBtn = document.querySelector('button[onclick="toggleMapZoom()"]');
-  if (zoomBtn) {
-    zoomBtn.innerHTML = scrollWheelZoomEnabled 
-      ? '<i class="bi bi-mouse-fill me-1"></i>Scroll Zoom ON'
-      : '<i class="bi bi-mouse me-1"></i>Scroll Zoom OFF';
-    zoomBtn.className = scrollWheelZoomEnabled
-      ? 'btn btn-sm btn-success'
-      : 'btn btn-sm btn-outline-warning';
-  }
-}
-
-// Helper function to show toast
-function showToast(message, type = 'info') {
-  const toastId = 'map-toast-' + Date.now();
-  const toastHtml = `
-    <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body">
-          ${message}
+  <!-- Quick Stats Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-title">Active Buses</div>
+        <div class="stat-value"><%= @active_vehicles_count || 0 %></div>
+        <div class="stat-chip">
+          <i class="fas fa-bus text-success"></i>
+          <span>In Service</span>
         </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
     </div>
-  `;
-  
-  // Create or get toast container
-  let toastContainer = document.getElementById('map-toast-container');
-  if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'map-toast-container';
-    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    document.body.appendChild(toastContainer);
-  }
-  
-  toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-  const toastEl = document.getElementById(toastId);
-  const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-  toast.show();
-  
-  // Remove after hiding
-  toastEl.addEventListener('hidden.bs.toast', function () {
-    toastEl.remove();
-  });
-}
-
-// Helper function to create vehicle popup HTML
-function createVehiclePopup(vehicle) {
-  const statusBadge = vehicle.status === 'active' 
-    ? '<span class="badge bg-success">Active</span>'
-    : vehicle.status === 'maintenance'
-    ? '<span class="badge bg-warning text-dark">Maintenance</span>'
-    : vehicle.status === 'available'
-    ? '<span class="badge bg-info text-white">Available</span>'
-    : '<span class="badge bg-secondary">Inactive</span>';
-  
-  const vehicleTypeIcon = getVehicleTypeIcon(vehicle.vehicle_type);
-  
-  return `
-    <div class="vehicle-popup" style="min-width: 220px;">
-      <div class="d-flex align-items-center mb-2">
-        <div class="me-2">
-          ${vehicleTypeIcon}
+    
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-title">In Maintenance</div>
+        <div class="stat-value"><%= @maintenance_vehicles_count || 0 %></div>
+        <div class="stat-chip">
+          <i class="fas fa-wrench text-warning"></i>
+          <span>Under Repair</span>
         </div>
-        <div>
-          <h6 class="mb-0 fw-bold">${vehicle.license_plate || 'No Plate'}</h6>
-          <small class="text-muted">${vehicle.make || ''} ${vehicle.model || ''}</small>
-        </div>
-      </div>
-      <div class="mb-2">${statusBadge}</div>
-      <div class="d-grid gap-1">
-        <a href="/vehicles/${vehicle.id}" 
-           class="btn btn-sm btn-primary" 
-           onclick="event.stopPropagation();">
-          <i class="bi bi-eye me-1"></i>View Details
-        </a>
-        <button onclick="window.location.href='/vehicles/${vehicle.id}'" 
-                class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-right me-1"></i>Go to Vehicle
-        </button>
       </div>
     </div>
-  `;
-}
-
-// Helper function to get vehicle type icon
-function getVehicleTypeIcon(vehicleType) {
-  const icons = {
-    'bus': 'bi-bus-front',
-    'truck': 'bi-truck',
-    'van': 'bi-van',
-    'car': 'bi-car-front',
-    'minibus': 'bi-bus',
-    'motorcycle': 'bi-bicycle',
-    'trailer': 'bi-truck-flatbed'
-  };
-  
-  const iconClass = icons[vehicleType?.toLowerCase()] || 'bi-car-front';
-  return `<i class="bi ${iconClass} fs-4 text-primary"></i>`;
-}
-
-// Add legend to map
-function addMapLegend() {
-  if (!fleetMap) return;
-  
-  const legend = L.control({ position: 'bottomright' });
-  
-  legend.onAdd = function(map) {
-    const div = L.DomUtil.create('div', 'info legend bg-white p-3 rounded shadow-sm border');
-    div.style.width = '180px';
-    div.innerHTML = `
-      <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-legend me-1"></i>Vehicle Status</h6>
-      <div class="d-flex flex-column gap-2">
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend active me-2"></div>
-          <span class="small">Active (${getVehicleCountByStatus('active')})</span>
-        </div>
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend maintenance me-2"></div>
-          <span class="small">Maintenance (${getVehicleCountByStatus('maintenance')})</span>
-        </div>
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend available me-2"></div>
-          <span class="small">Available (${getVehicleCountByStatus('available')})</span>
+    
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-title">Out of Service</div>
+        <div class="stat-value"><%= @out_vehicles_count || 0 %></div>
+        <div class="stat-chip">
+          <i class="fas fa-times-circle text-danger"></i>
+          <span>Unavailable</span>
         </div>
       </div>
-      <div class="mt-2 pt-2 border-top small text-muted">
-        <i class="bi bi-mouse me-1"></i>
-        Click marker for details
+    </div>
+    
+    <div class="col-md-3">
+      <div class="stat-card">
+        <div class="stat-title">Total Fleet</div>
+        <div class="stat-value"><%= @total_vehicles_count || 0 %></div>
+        <div class="stat-chip">
+          <i class="fas fa-list text-info"></i>
+          <span>All Vehicles</span>
+        </div>
       </div>
-    `;
-    return div;
-  };
-  
-  legend.addTo(fleetMap);
-}
+    </div>
+  </div>
 
-// Get vehicle count by status
-function getVehicleCountByStatus(status) {
-  const mapElement = document.getElementById('fleet-map');
-  if (!mapElement) return 0;
-  
-  const vehiclesData = JSON.parse(mapElement.dataset.vehicles || '[]');
-  return vehiclesData.filter(v => v.status === status).length;
-}
+  <!-- Main Content -->
+  <div class="row g-3">
+    <!-- Left Column - Alerts & Notifications -->
+    <div class="col-lg-6">
+      <div class="section-card">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Active Alerts
+          </h5>
+          <span class="badge bg-danger"><%= @active_alerts_count || 0 %></span>
+        </div>
+        <div class="section-card-body">
+          <% if @active_alerts.present? %>
+            <div class="list-group list-group-flush">
+              <% @active_alerts.each do |alert| %>
+                <div class="list-group-item px-0 border-0">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <h6 class="mb-0">
+                        <span class="badge bg-<%= alert.severity == 'high' ? 'danger' : alert.severity == 'medium' ? 'warning' : 'info' %> me-2">
+                          <%= alert.severity.titleize %>
+                        </span>
+                        <%= alert.title %>
+                      </h6>
+                      <small class="text-muted">
+                        <%= alert.description&.truncate(80) %>
+                      </small>
+                    </div>
+                    <div class="text-end">
+                      <small class="text-muted d-block">
+                        <%= time_ago_in_words(alert.created_at) %> ago
+                      </small>
+                      <%= link_to 'View', alert_path(alert), class: 'btn btn-sm btn-outline-primary mt-1' %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-check-circle text-success fs-1 mb-3 opacity-50"></i>
+              <p class="text-muted">No active alerts</p>
+            </div>
+          <% end %>
+          
+          <div class="mt-3">
+            <%= link_to alerts_path, class: 'btn btn-sm btn-outline-primary w-100' do %>
+              <i class="fas fa-external-link-alt me-1"></i> View All Alerts
+            <% end %>
+          </div>
+        </div>
+      </div>
 
-// Change map tile layer
-function changeMapLayer(layerType) {
-  if (!fleetMap) return;
-  
-  // Remove existing tile layer
-  if (currentTileLayer) {
-    fleetMap.removeLayer(currentTileLayer);
-  }
-  
-  let tileUrl, attribution;
-  
-  switch(layerType) {
-    case 'satellite':
-      tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
-      break;
-    case 'dark':
-      tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-      break;
-    default: // standard
-      tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-  }
-  
-  currentTileLayer = L.tileLayer(tileUrl, {
-    attribution: attribution,
-    maxZoom: 19
-  }).addTo(fleetMap);
-  
-  // Update active dropdown item
-  document.querySelectorAll('.dropdown-item').forEach(item => {
-    item.classList.remove('active');
-    if (item.textContent.includes(layerType.charAt(0).toUpperCase() + layerType.slice(1))) {
-      item.classList.add('active');
-    }
-  });
-}
+      <div class="section-card mt-3">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-calendar-alt me-2"></i>
+            Upcoming Maintenance
+          </h5>
+          <span class="badge bg-warning"><%= @upcoming_maintenance_count || 0 %></span>
+        </div>
+        <div class="section-card-body">
+          <% if @upcoming_maintenance.present? %>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Service</th>
+                    <th class="text-end">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @upcoming_maintenance.each do |maintenance| %>
+                    <tr>
+                      <td>
+                        <strong><%= maintenance.vehicle&.registration_number || 'N/A' %></strong>
+                        <br>
+                        <small class="text-muted"><%= maintenance.vehicle&.make_model || '' %></small>
+                      </td>
+                      <td>
+                        <%= maintenance.service_type || 'General Service' %>
+                        <% if maintenance.mileage.present? %>
+                          <br>
+                          <small class="text-muted">at <%= number_with_delimiter(maintenance.mileage) %> km</small>
+                        <% end %>
+                      </td>
+                      <td class="text-end">
+                        <span class="badge bg-<%= maintenance.due_date < Date.today + 3.days ? 'danger' : 'warning' %>">
+                          <%= maintenance.due_date.strftime('%b %d') %>
+                        </span>
+                        <br>
+                        <small class="text-muted">
+                          <%= (maintenance.due_date - Date.today).to_i %> days
+                        </small>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-check-circle text-success fs-1 mb-3 opacity-50"></i>
+              <p class="text-muted">No upcoming maintenance</p>
+            </div>
+          <% end %>
+          
+          <div class="mt-3">
+            <%= link_to vehicles_path, class: 'btn btn-sm btn-outline-primary w-100' do %>
+              <i class="fas fa-list me-1"></i> View Vehicle Schedule
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
 
-// Fit map to show all vehicles
-function fitMapToVehicles() {
-  if (!fleetMap || mapMarkers.length === 0) return;
-  
-  const bounds = L.latLngBounds(mapMarkers.map(marker => marker.getLatLng()));
-  fleetMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-}
+    <!-- Right Column - Recent POS Activity -->
+    <div class="col-lg-6">
+      <div class="section-card">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-cash-register me-2"></i>
+            Recent POS Transactions
+          </h5>
+          <%= link_to ptsc_pos_transactions_path, class: 'btn btn-sm btn-outline-primary' do %>
+            <i class="fas fa-external-link-alt me-1"></i> View All
+          <% end %>
+        </div>
+        <div class="section-card-body">
+          <% if @recent_pos_transactions.present? %>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover">
+                <thead>
+                  <tr>
+                    <th>Transaction ID</th>
+                    <th>Amount</th>
+                    <th class="text-end">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @recent_pos_transactions.each do |transaction| %>
+                    <tr>
+                      <td>
+                        <strong>#<%= transaction.id %></strong>
+                        <br>
+                        <small class="text-muted">
+                          <%= transaction.transaction_type&.titleize || 'Sale' %>
+                        </small>
+                      </td>
+                      <td>
+                        <span class="fw-bold">TTD <%= number_with_precision(transaction.total_amount || 0, precision: 2) %></span>
+                        <br>
+                        <small class="text-muted">
+                          <%= transaction.payment_method&.titleize || 'Cash' %>
+                        </small>
+                      </td>
+                      <td class="text-end">
+                        <%= transaction.created_at&.strftime('%I:%M %p') || '—' %>
+                        <br>
+                        <small class="text-muted">
+                          <%= transaction.created_at&.strftime('%b %d') || '—' %>
+                        </small>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+              <div>
+                <small class="text-muted">
+                  <i class="fas fa-sync-alt me-1"></i>
+                  Last updated: <%= Time.current.strftime('%I:%M %p') %>
+                </small>
+              </div>
+              <div>
+                <%= link_to ptsc_pos_transactions_path, class: 'btn btn-sm btn-primary' do %>
+                  <i class="fas fa-chart-line me-1"></i> Detailed Reports
+                <% end %>
+              </div>
+            </div>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-cash-register text-muted fs-1 mb-3 opacity-50"></i>
+              <p class="text-muted">No recent transactions</p>
+              <%= link_to ptsc_pos_transactions_path, class: 'btn btn-sm btn-primary' do %>
+                <i class="fas fa-external-link-alt me-1"></i> Go to POS Dashboard
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
 
-// Refresh map data
-function refreshMap() {
-  console.log('Refreshing map data...');
-  // In a real app, you would fetch fresh data from the server
-  // For now, just reinitialize
-  initMap();
-}
+      <div class="section-card mt-3">
+        <div class="section-card-header">
+          <h5 class="section-card-title">
+            <i class="fas fa-road me-2"></i>
+            Route Status
+          </h5>
+          <span class="badge bg-info">Active Routes</span>
+        </div>
+        <div class="section-card-body">
+          <% if @active_routes.present? %>
+            <div class="row g-2">
+              <% @active_routes.each do |route| %>
+                <div class="col-6">
+                  <div class="card border-0 bg-light">
+                    <div class="card-body p-3">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 class="mb-0"><%= route.name %></h6>
+                          <small class="text-muted">
+                            <%= route.vehicles_count || 0 %> buses active
+                          </small>
+                        </div>
+                        <div class="text-end">
+                          <span class="badge bg-success">
+                            <i class="fas fa-check-circle"></i>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-center py-3">
+              <i class="fas fa-route text-muted fs-1 mb-3 opacity-50"></i>
+              <p class="text-muted">No active route data</p>
+            </div>
+          <% end %>
+          
+          <div class="mt-3">
+            <%= link_to '#', class: 'btn btn-sm btn-outline-info w-100' do %>
+              <i class="fas fa-map-marked-alt me-1"></i> View Route Map
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// Debug helper
-console.log('Dashboard JavaScript loaded successfully');
-</script>
+  <!-- Bottom Section - Quick Actions -->
+  <div class="section-card mt-3">
+    <div class="section-card-header">
+      <h5 class="section-card-title">
+        <i class="fas fa-bolt me-2"></i>
+        Quick Actions
+      </h5>
+      <span class="muted small">Common operational tasks</span>
+    </div>
+    <div class="section-card-body">
+      <div class="row g-2">
+        <div class="col-md-2">
+          <%= link_to new_pos_transaction_path, class: 'btn btn-success w-100' do %>
+            <i class="fas fa-plus-circle me-1"></i> New Sale
+          <% end %>
+        </div>
+        <div class="col-md-2">
+          <%= link_to new_vehicle_path, class: 'btn btn-outline-primary w-100' do %>
+            <i class="fas fa-bus me-1"></i> Add Vehicle
+          <% end %>
+        </div>
+        <div class="col-md-2">
+          <%= link_to new_maintenance_path, class: 'btn btn-outline-warning w-100' do %>
+            <i class="fas fa-wrench me-1"></i> Log Service
+          <% end %>
+        </div>
+        <div class="col-md-2">
+          <%= link_to new_alert_path, class: 'btn btn-outline-danger w-100' do %>
+            <i class="fas fa-exclamation-circle me-1"></i> Create Alert
+          <% end %>
+        </div>
+        <div class="col-md-2">
+          <%= link_to 'ptsc/fare_rules', class: 'btn btn-outline-info w-100' do %>
+            <i class="fas fa-ticket-alt me-1"></i> Fare Rules
+          <% end %>
+        </div>
+        <div class="col-md-2">
+          <%= link_to '#', class: 'btn btn-outline-secondary w-100' do %>
+            <i class="fas fa-print me-1"></i> Daily Report
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<style>
-/* Custom vehicle markers */
-.custom-div-icon {
-  background: none;
-  border: none;
-}
-
-.vehicle-marker {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 16px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-  border: 2px solid white;
-  transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
-}
-
-.vehicle-marker:hover {
-  transform: scale(1.15);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-  z-index: 1000 !important;
-}
-
-.vehicle-marker.active {
-  background-color: #28a745; /* Green for active */
-}
-
-.vehicle-marker.maintenance {
-  background-color: #ffc107; /* Yellow for maintenance */
-  color: #212529;
-}
-
-.vehicle-marker.available {
-  background-color: #17a2b8; /* Teal for available */
-}
-
-.vehicle-marker.default {
-  background-color: #6c757d; /* Gray for default */
-}
-
-/* Legend markers */
-.vehicle-marker-legend {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: inline-block;
-  border: 1px solid #dee2e6;
-}
-
-.vehicle-marker-legend.active {
-  background-color: #28a745;
-}
-
-.vehicle-marker-legend.maintenance {
-  background-color: #ffc107;
-}
-
-.vehicle-marker-legend.available {
-  background-color: #17a2b8;
-}
-
-/* Popup styling */
-.vehicle-popup .leaflet-popup-content-wrapper {
-  border-radius: 8px;
-  box-shadow: 0 3px 14px rgba(0,0,0,0.2);
-  border: 1px solid #dee2e6;
-}
-
-.vehicle-popup .leaflet-popup-content {
-  margin: 12px;
-  line-height: 1.4;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.vehicle-popup .leaflet-popup-tip {
-  background: white;
-  border: 1px solid #dee2e6;
-}
-
-/* Map container styling */
-#fleet-map {
-  border-radius: 0 0 8px 8px;
-  min-height: 350px;
-}
-
-/* FIX: Prevent map from capturing scroll events when not hovering */
-.leaflet-container:not(:hover) {
-  pointer-events: none;
-}
-
-.leaflet-container:hover {
-  pointer-events: auto;
-}
-
-/* Make sure other content is still interactive */
-#fleet-map ~ * {
-  pointer-events: auto;
-}
-
-.leaflet-container {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-}
-
-.leaflet-control {
-  margin-bottom: 10px;
-  margin-right: 10px;
-}
-
-.leaflet-control-attribution {
-  font-size: 11px;
-}
-
-/* Legend styling */
-.info.legend {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(5px);
-}
-
-/* Chart filter buttons - FIX: Make them look clickable */
-.btn-group .btn-outline-primary {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-group .btn-outline-primary.active {
-  background-color: #0d6efd;
-  color: white;
-  border-color: #0d6efd;
-  box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
-}
-
-.btn-group .btn-outline-primary:hover:not(.active) {
-  background-color: rgba(13, 110, 253, 0.05);
-  border-color: #0d6efd;
-  transform: translateY(-1px);
-}
-
-/* Chart placeholders */
-.chart-placeholder {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.8);
-}
-
-/* Insurance progress bar styles */
-.progress-bar {
-  position: relative;
-  overflow: visible;
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-shadow: 1px 1px 1px rgba(0,0,0,0.2);
-}
-
-.progress-bar.bg-success {
-  background-color: #28a745 !important;
-}
-
-.progress-bar.bg-warning {
-  background-color: #ffc107 !important;
-}
-
-.progress-bar.bg-danger {
-  background-color: #dc3545 !important;
-}
-
-/* Insurance alert styles */
-.alert-warning.border-0 {
-  background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
-  border-left: 4px solid #ffc107;
-}
-
-.alert-danger.border-0 {
-  background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-  border-left: 4px solid #dc3545;
-}
-
-/* Insurance badge styles */
-.bg-success-subtle {
-  background-color: rgba(40, 167, 69, 0.1) !important;
-}
-
-.bg-warning-subtle {
-  background-color: rgba(255, 193, 7, 0.1) !important;
-}
-
-.bg-danger-subtle {
-  background-color: rgba(220, 53, 69, 0.1) !important;
-}
-
-/* Insurance table styles */
-.table-hover tbody tr:hover {
-  background-color: rgba(0, 123, 255, 0.05);
-}
-
-/* Toast styling */
-.toast-container {
-  z-index: 9999;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  #fleet-map {
-    height: 300px;
-  }
-  
-  .vehicle-marker {
-    width: 28px;
-    height: 28px;
-    font-size: 14px;
-  }
-  
-  .vehicle-popup {
-    min-width: 180px !important;
-  }
-  
-  .btn-group {
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  
-  .btn-group .btn {
-    flex: 1;
-    min-width: 80px;
-    font-size: 0.85rem;
-    padding: 0.25rem 0.5rem;
-  }
-  
-  /* Insurance section responsive */
-  .progress-bar {
-    font-size: 0.75rem;
-  }
-  
-  .d-flex.flex-wrap {
-    justify-content: center !important;
-  }
-  
-  .modal-dialog {
-    margin: 0.5rem;
-  }
-  
-  /* Adjust time range buttons for mobile */
-  .card-body .d-flex.justify-content-between {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  
-  .card-body .d-flex.justify-content-between > * {
-    width: 100%;
-  }
-}
-</style>
+</div>

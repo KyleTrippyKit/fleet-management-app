@@ -16,8 +16,15 @@
             <%= @part&.part_number.presence || "—" %>
           </span>
           <span class="text-muted">•</span>
-          <span class="ms-2">
+          <span class="mx-2">
             <strong>Status:</strong>
+            <span class="badge bg-<%= @part&.is_active ? 'success' : 'danger' %>">
+              <%= @part&.is_active ? 'Active' : 'Inactive' %>
+            </span>
+          </span>
+          <span class="text-muted">•</span>
+          <span class="ms-2">
+            <strong>Stock:</strong>
             <span class="badge bg-<%= @part&.stock_status_color || 'secondary' %>">
               <%= @part&.stock_status&.to_s&.titleize || "Unknown" %>
             </span>
@@ -51,25 +58,25 @@
     <div class="kpi-tile">
       <div class="kpi-label">Current Stock</div>
       <div class="kpi-value"><%= @part&.current_stock || 0 %></div>
-      <div class="kpi-foot text-muted small">Cached (fast dashboard number)</div>
+      <small class="text-muted d-block mt-1">Cached (fast dashboard number)</small>
     </div>
 
     <div class="kpi-tile">
       <div class="kpi-label">Minimum Stock</div>
       <div class="kpi-value"><%= @part&.minimum_stock || 0 %></div>
-      <div class="kpi-foot text-muted small">Below this triggers reorder pressure</div>
+      <small class="text-muted d-block mt-1">Below this triggers reorder pressure</small>
     </div>
 
     <div class="kpi-tile">
       <div class="kpi-label">Reorder Point</div>
       <div class="kpi-value"><%= @part&.reorder_point || (@part&.minimum_stock || 0) %></div>
-      <div class="kpi-foot text-muted small">Low-stock threshold</div>
+      <small class="text-muted d-block mt-1">Low-stock threshold</small>
     </div>
 
     <div class="kpi-tile">
       <div class="kpi-label">Suggested Reorder</div>
       <div class="kpi-value"><%= @part&.suggested_reorder_quantity || 0 %></div>
-      <div class="kpi-foot text-muted small">Smart target using your model logic</div>
+      <small class="text-muted d-block mt-1">Smart target using your model logic</small>
     </div>
   </div>
 
@@ -92,8 +99,22 @@
             </div>
 
             <div class="col-md-6">
+              <div class="muted small">Type</div>
+              <div class="fw-semibold">
+                <span class="badge <%= @part&.is_consumable ? 'bg-info' : 'bg-secondary' %>">
+                  <%= @part&.is_consumable ? 'Consumable' : 'Reusable' %>
+                </span>
+              </div>
+            </div>
+
+            <div class="col-md-6">
               <div class="muted small">Unit</div>
               <div class="fw-semibold"><%= @part&.unit_of_measure.presence || "each" %></div>
+            </div>
+
+            <div class="col-md-6">
+              <div class="muted small">Lead Time</div>
+              <div class="fw-semibold"><%= @part&.lead_time_days.presence || "—" %> days</div>
             </div>
 
             <div class="col-md-6">
@@ -188,7 +209,9 @@
               <div class="fw-semibold">
                 <% if @part && @part.cost_price && @part.cost_price > 0 && @part.selling_price %>
                   <% profit_margin = ((@part.selling_price - @part.cost_price) / @part.cost_price * 100).round(1) %>
-                  <%= number_to_percentage(profit_margin, precision: 1) %>
+                  <span class="<%= profit_margin >= 30 ? 'text-success' : profit_margin >= 20 ? 'text-warning' : 'text-danger' %>">
+                    <%= number_to_percentage(profit_margin, precision: 1) %>
+                  </span>
                 <% else %>
                   —
                 <% end %>

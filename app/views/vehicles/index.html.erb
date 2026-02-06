@@ -1,684 +1,798 @@
-<!-- app/views/vehicles/index.html.erb -->
-<div class="container py-5">
-  <h1 class="mb-4 text-primary fw-bold display-5">Fleet Vehicles</h1>
+<%# app/views/vehicles/index.html.erb – FLEET MANAGEMENT DASHBOARD WITH UNIVERSAL IMAGE HANDLING %>
+<div class="page-shell fleet-dashboard">
+  <!-- Page Header -->
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+    <div>
+      <h2 class="mb-1">
+        <i class="fas fa-car-side me-2 text-primary"></i>
+        Fleet Management
+      </h2>
+      <div class="page-subtitle">
+        Complete fleet overview • Maintenance tracking • Real-time status
+      </div>
+    </div>
 
-  <!-- Navigation Pills -->
-  <ul class="nav nav-pills mb-4 shadow-sm">
-    <% {
-      "Vehicle List" => vehicles_path,
-      "Usage Analytics" => analytics_vehicles_path,
-      "Maintenance Gantt Chart" => gantt_path,
-      "Maintenance" => maintenance_dashboard_vehicles_path,
-      "Drivers" => drivers_path,
-      "Pick Your Theme" => themes_vehicles_path
-    }.each do |label, path| %>
-      <li class="nav-item">
-        <%= link_to label, path,
-              class: "nav-link #{'active' if current_page?(path)} rounded-pill px-3 py-2 shadow-sm" %>
-      </li>
+    <div class="d-flex gap-2 flex-wrap">
+      <%= link_to maintenance_dashboard_vehicles_path, class: "btn btn-outline-secondary" do %>
+        <i class="fas fa-screwdriver-wrench me-1"></i> Maintenance Dashboard
+      <% end %>
+      
+      <%= link_to analytics_vehicles_path, class: "btn btn-outline-primary" do %>
+        <i class="fas fa-chart-line me-1"></i> Analytics
+      <% end %>
+
+      <%= link_to new_vehicle_path, class: "btn btn-primary" do %>
+        <i class="fas fa-plus me-1"></i> Add Vehicle
+      <% end %>
+    </div>
+  </div>
+
+  <!-- KPI Strip - FIXED: Using controller variables -->
+  <div class="kpi-grid">
+    <div class="kpi-tile">
+      <div class="kpi-label">Total Fleet</div>
+      <div class="kpi-value"><%= @vehicles_count %></div>
+      <div class="kpi-foot">
+        <i class="fas fa-cars text-primary me-1"></i>
+        Filtered vehicles
+      </div>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Active</div>
+      <div class="kpi-value text-success">
+        <%= @kpi_active %>
+      </div>
+      <div class="kpi-foot">
+        <i class="fas fa-circle-check text-success me-1"></i>
+        In service
+      </div>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Maintenance</div>
+      <div class="kpi-value text-warning">
+        <%= @kpi_maintenance %>
+      </div>
+      <div class="kpi-foot">
+        <i class="fas fa-screwdriver-wrench text-warning me-1"></i>
+        Under repair
+      </div>
+    </div>
+
+    <div class="kpi-tile">
+      <div class="kpi-label">Out of Service</div>
+      <div class="kpi-value text-danger">
+        <%= @kpi_out %>
+      </div>
+      <div class="kpi-foot">
+        <i class="fas fa-triangle-exclamation text-danger me-1"></i>
+        Needs attention
+      </div>
+    </div>
+  </div>
+
+  <!-- View Toggle -->
+  <div class="view-toggle mb-4">
+    <div class="btn-group" role="group">
+      <button type="button" class="btn btn-outline-primary active" id="cardViewBtn">
+        <i class="fas fa-grip me-1"></i> Card View
+      </button>
+      <button type="button" class="btn btn-outline-secondary" id="tableViewBtn">
+        <i class="fas fa-list me-1"></i> Table View
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="section-card mb-4">
+    <div class="section-card-header">
+      <h5 class="section-card-title mb-0">
+        <i class="fas fa-filter me-2"></i>Filter & Search
+      </h5>
+    </div>
+    <div class="section-card-body">
+      <%= form_with url: vehicles_path, method: :get, local: true, class: "row g-3", data: { turbo_frame: "_top" } do |f| %>
+        <div class="col-md-6">
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="fas fa-search"></i>
+            </span>
+            <%= f.text_field :search, 
+                  value: params[:search],
+                  placeholder: "Search make, model, license plate...",
+                  class: "form-control",
+                  data: { action: "input->search#submit" } %>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <%= f.select :status, 
+                options_for_select([
+                  ["All Statuses", ""],
+                  ["Active", "active"],
+                  ["Maintenance", "maintenance"],
+                  ["Out of Service", "out"],
+                  ["Inactive", "inactive"]
+                ], params[:status]),
+                {},
+                class: "form-select",
+                data: { action: "change->search#submit" } %>
+        </div>
+
+        <div class="col-md-2">
+          <%= f.submit "Apply", class: "btn btn-primary w-100" %>
+          <% if params[:search] || params[:status] || params[:agency_id] %>
+            <%= link_to "Clear", vehicles_path, class: "btn btn-outline-secondary w-100 mt-2" %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- CARD VIEW -->
+  <div id="cardView" class="fleet-cards">
+    <div class="row g-4">
+      <% @vehicles.each do |vehicle| %>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+          <div class="vehicle-card">
+            <!-- Card Header -->
+            <div class="vehicle-card-header">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="fw-bold">
+                  <%= vehicle.registration_number || vehicle.license_plate || "No ID" %>
+                </div>
+                <div>
+                  <% status = vehicle.status.to_s.downcase %>
+                  <% case status %>
+                  <% when "active" %>
+                    <span class="badge bg-success">Active</span>
+                  <% when "maintenance" %>
+                    <span class="badge bg-warning">Maintenance</span>
+                  <% when "out", "inactive" %>
+                    <span class="badge bg-danger">Out</span>
+                  <% else %>
+                    <span class="badge bg-secondary"><%= status.titleize %></span>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card Body -->
+            <div class="vehicle-card-body">
+              <!-- Vehicle Image - UNIVERSAL HANDLING -->
+              <div class="vehicle-image-container mb-3">
+                <%# Check multiple image sources in order of priority %>
+                <% if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo.attached? %>
+                  <%# Active Storage primary_photo %>
+                  <%= image_tag vehicle.primary_photo, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                <% elsif vehicle.respond_to?(:gallery_photos) && vehicle.gallery_photos.attached? && vehicle.gallery_photos.first.present? %>
+                  <%# Fallback to first gallery photo %>
+                  <%= image_tag vehicle.gallery_photos.first, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                <% elsif vehicle.respond_to?(:picture) && vehicle.picture.is_a?(String) && vehicle.picture.present? %>
+                  <%# Legacy picture field (URL string) %>
+                  <% if vehicle.picture.start_with?('http') %>
+                    <%= image_tag vehicle.picture, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                  <% else %>
+                    <%# Local file path - check if it's a valid image path %>
+                    <% if File.exist?(Rails.root.join('public', vehicle.picture)) || vehicle.picture.start_with?('/') %>
+                      <%= image_tag vehicle.picture, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                    <% else %>
+                      <div class="vehicle-placeholder">
+                        <i class="fas fa-car text-muted"></i>
+                        <span class="text-muted small">No image</span>
+                      </div>
+                    <% end %>
+                  <% end %>
+                <% elsif vehicle.respond_to?(:display_image) && vehicle.display_image.present? %>
+                  <%# Use the display_image method from model %>
+                  <% if vehicle.display_image.is_a?(ActiveStorage::Attached::One) && vehicle.display_image.attached? %>
+                    <%= image_tag vehicle.display_image, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                  <% else %>
+                    <%= image_tag vehicle.display_image, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                  <% end %>
+                <% else %>
+                  <%# No image available - show placeholder %>
+                  <div class="vehicle-placeholder">
+                    <i class="fas fa-car text-muted"></i>
+                    <span class="text-muted small">No image</span>
+                  </div>
+                <% end %>
+              </div>
+
+              <h5 class="vehicle-name">
+                <%= vehicle.make %> <%= vehicle.model %>
+                <small class="text-muted d-block">
+                  <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type %>
+                </small>
+              </h5>
+
+              <div class="vehicle-details">
+                <!-- Registration/License Info -->
+                <div class="detail-item">
+                  <i class="fas fa-id-card"></i>
+                  <span>
+                    <% if vehicle.registration_number && vehicle.license_plate %>
+                      Reg: <%= vehicle.registration_number %> • Plate: <%= vehicle.license_plate %>
+                    <% elsif vehicle.registration_number %>
+                      <%= vehicle.registration_number %>
+                    <% else %>
+                      <%= vehicle.license_plate || "No ID" %>
+                    <% end %>
+                  </span>
+                </div>
+                
+                <!-- Agency -->
+                <div class="detail-item">
+                  <i class="fas fa-building"></i>
+                  <span><%= vehicle.agency&.name || "No Agency" %></span>
+                </div>
+                
+                <!-- Service Owner -->
+                <div class="detail-item">
+                  <i class="fas fa-user-tie"></i>
+                  <span><%= vehicle.service_owner || "—" %></span>
+                </div>
+                
+                <!-- Chassis/Serial Number -->
+                <% if vehicle.chassis_number.present? %>
+                  <div class="detail-item">
+                    <i class="fas fa-hashtag"></i>
+                    <span>Chassis: <%= truncate(vehicle.chassis_number, length: 15) %></span>
+                  </div>
+                <% elsif vehicle.serial_number.present? %>
+                  <div class="detail-item">
+                    <i class="fas fa-barcode"></i>
+                    <span>Serial: <%= truncate(vehicle.serial_number, length: 15) %></span>
+                  </div>
+                <% end %>
+                
+                <!-- Last Maintenance -->
+                <% last_maintenance = vehicle.maintenances.order(date: :desc).first if vehicle.respond_to?(:maintenances) %>
+                <div class="detail-item">
+                  <i class="fas fa-calendar"></i>
+                  <span>
+                    Last Service: <%= last_maintenance&.date&.strftime("%d %b %Y") || "No record" %>
+                  </span>
+                </div>
+                
+                <!-- Mileage -->
+                <% if vehicle.mileage.present? %>
+                  <div class="detail-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span><%= number_with_delimiter(vehicle.mileage.to_i) %> miles</span>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+
+            <!-- Card Footer -->
+            <div class="vehicle-card-footer">
+              <div class="d-flex gap-2">
+                <%= link_to full_details_vehicle_path(vehicle), 
+                      class: "btn btn-sm btn-outline-primary w-100" do %>
+                  <i class="fas fa-eye me-1"></i> View
+                <% end %>
+                <%= link_to edit_vehicle_path(vehicle), 
+                      class: "btn btn-sm btn-outline-secondary w-100" do %>
+                  <i class="fas fa-edit me-1"></i> Edit
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <% if @vehicles.empty? %>
+      <div class="text-center py-5">
+        <i class="fas fa-car text-muted fs-1 mb-3 opacity-50"></i>
+        <h5 class="text-muted">No vehicles found</h5>
+        <p class="text-muted">Try adjusting your filters or add a new vehicle</p>
+        <%= link_to "Add New Vehicle", new_vehicle_path, class: "btn btn-primary" %>
+      </div>
     <% end %>
-  </ul>
+  </div>
 
-  <!-- Stats Cards with Agency Scoping -->
-  <div class="row mb-4">
-    <!-- Total Vehicles Card -->
-    <div class="col-md-3">
-      <div class="card stats-card border-start border-primary border-4">
-        <div class="card-body">
-          <h6 class="text-muted mb-1">Total Vehicles</h6>
-          <h3 class="mb-0">
-            <% if current_user.agency.code == "VMCOTT" %>
-              <%= Vehicle.count %>
-            <% else %>
-              <%= current_user.agency.vehicles.count %>
-            <% end %>
-          </h3>
-          <small class="text-success">
-            <i class="bi bi-arrow-up"></i>
-            <% if current_user.agency.code == "VMCOTT" %>
-              <%= Vehicle.active.count %> Active
-            <% else %>
-              <%= current_user.agency.vehicles.active.count %> Active
-            <% end %>
-          </small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Due for Maintenance Card -->
-    <div class="col-md-3">
-      <div class="card stats-card border-start border-warning border-4">
-        <div class="card-body">
-          <h6 class="text-muted mb-1">Due for Maintenance</h6>
-          <h3 class="mb-0">
-            <% if current_user.agency.code == "VMCOTT" %>
-              <%= Maintenance.overdue.count %>
-            <% else %>
-              <%= Maintenance.joins(:vehicle)
-                             .where(vehicles: { agency_id: current_user.agency.id })
-                             .overdue
-                             .count %>
-            <% end %>
-          </h3>
-          <small class="text-danger">
-            <i class="bi bi-exclamation-triangle"></i> Immediate attention
-          </small>
-        </div>
-      </div>
-    </div>
-
-    <!-- In Repair Card -->
-    <div class="col-md-3">
-      <div class="card stats-card border-start border-danger border-4">
-        <div class="card-body">
-          <h6 class="text-muted mb-1">In Repair</h6>
-          <h3 class="mb-0">
-            <% if current_user.agency.code == "VMCOTT" %>
-              <%= Vehicle.joins(:maintenances).where(maintenances: { status: ['Pending', 'In Progress'] }).distinct.count %>
-            <% else %>
-              <%= current_user.agency.vehicles.joins(:maintenances)
-                     .where(maintenances: { status: ['Pending', 'In Progress'] })
-                     .distinct.count %>
-            <% end %>
-          </h3>
-          <small class="text-warning">
-            <i class="bi bi-tools"></i> Under service
-          </small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Available Card -->
-    <div class="col-md-3">
-      <div class="card stats-card border-start border-success border-4">
-        <div class="card-body">
-          <h6 class="text-muted mb-1">Available</h6>
-          <h3 class="mb-0">
-            <% if current_user.agency.code == "VMCOTT" %>
-              <%= Vehicle.where.not(id: Vehicle.joins(:maintenances).where(maintenances: { status: ['Pending', 'In Progress'] })).count %>
-            <% else %>
-              <%= current_user.agency.vehicles.where.not(
-                    id: current_user.agency.vehicles.joins(:maintenances)
-                          .where(maintenances: { status: ['Pending', 'In Progress'] })
-                  ).count %>
-            <% end %>
-          </h3>
-          <small class="text-success">
-            <i class="bi bi-check-circle"></i> Ready to deploy
-          </small>
+  <!-- TABLE VIEW (Hidden by default) -->
+  <div id="tableView" class="d-none">
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 60px;">Image</th>
+                <th>Reg #</th>
+                <th>Vehicle</th>
+                <th>Status</th>
+                <th>Agency</th>
+                <th>Service Owner</th>
+                <th>Mileage</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @vehicles.each do |vehicle| %>
+                <tr>
+                  <!-- Vehicle Image Column - UNIVERSAL HANDLING -->
+                  <td>
+                    <%# Check multiple image sources in order of priority %>
+                    <% if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo.attached? %>
+                      <div class="vehicle-table-thumbnail">
+                        <%= image_tag vehicle.primary_photo, 
+                              class: "vehicle-table-image", 
+                              alt: "#{vehicle.make} #{vehicle.model}" %>
+                        <div class="image-overlay">
+                          <i class="fas fa-search-plus"></i>
+                        </div>
+                      </div>
+                    <% elsif vehicle.respond_to?(:gallery_photos) && vehicle.gallery_photos.attached? && vehicle.gallery_photos.first.present? %>
+                      <div class="vehicle-table-thumbnail">
+                        <%= image_tag vehicle.gallery_photos.first, 
+                              class: "vehicle-table-image", 
+                              alt: "#{vehicle.make} #{vehicle.model}" %>
+                        <div class="image-overlay">
+                          <i class="fas fa-search-plus"></i>
+                        </div>
+                      </div>
+                    <% elsif vehicle.respond_to?(:picture) && vehicle.picture.is_a?(String) && vehicle.picture.present? %>
+                      <div class="vehicle-table-thumbnail">
+                        <%= image_tag vehicle.picture, 
+                              class: "vehicle-table-image", 
+                              alt: "#{vehicle.make} #{vehicle.model}" %>
+                        <div class="image-overlay">
+                          <i class="fas fa-search-plus"></i>
+                        </div>
+                      </div>
+                    <% elsif vehicle.respond_to?(:display_image) && vehicle.display_image.present? %>
+                      <div class="vehicle-table-thumbnail">
+                        <% if vehicle.display_image.is_a?(ActiveStorage::Attached::One) && vehicle.display_image.attached? %>
+                          <%= image_tag vehicle.display_image, 
+                                class: "vehicle-table-image", 
+                                alt: "#{vehicle.make} #{vehicle.model}" %>
+                        <% else %>
+                          <%= image_tag vehicle.display_image, 
+                                class: "vehicle-table-image", 
+                                alt: "#{vehicle.make} #{vehicle.model}" %>
+                        <% end %>
+                        <div class="image-overlay">
+                          <i class="fas fa-search-plus"></i>
+                        </div>
+                      </div>
+                    <% else %>
+                      <div class="vehicle-table-placeholder">
+                        <i class="fas fa-car text-muted"></i>
+                      </div>
+                    <% end %>
+                  </td>
+                  
+                  <!-- Registration Number -->
+                  <td class="fw-bold">
+                    <%= vehicle.registration_number || "—" %>
+                    <br>
+                    <small class="text-muted"><%= vehicle.license_plate || "—" %></small>
+                  </td>
+                  
+                  <!-- Vehicle Details -->
+                  <td>
+                    <div class="fw-semibold">
+                      <%= vehicle.make %> <%= vehicle.model %>
+                    </div>
+                    <small class="text-muted">
+                      <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type || "—" %>
+                      <% if vehicle.chassis_number.present? %>
+                        <br>Chassis: <%= truncate(vehicle.chassis_number, length: 12) %>
+                      <% end %>
+                    </small>
+                  </td>
+                  
+                  <!-- Status -->
+                  <td>
+                    <% status = vehicle.status.to_s.downcase %>
+                    <% case status %>
+                    <% when "active" %>
+                      <span class="badge bg-success">Active</span>
+                    <% when "maintenance" %>
+                      <span class="badge bg-warning text-dark">Maintenance</span>
+                    <% when "out", "inactive" %>
+                      <span class="badge bg-danger">Out</span>
+                    <% else %>
+                      <span class="badge bg-secondary"><%= status.titleize %></span>
+                    <% end %>
+                  </td>
+                  
+                  <!-- Agency -->
+                  <td>
+                    <span class="badge bg-light text-dark border">
+                      <%= vehicle.agency&.name || "—" %>
+                    </span>
+                  </td>
+                  
+                  <!-- Service Owner -->
+                  <td>
+                    <%= vehicle.service_owner || "—" %>
+                  </td>
+                  
+                  <!-- Mileage -->
+                  <td>
+                    <% if vehicle.mileage.present? %>
+                      <%= number_with_delimiter(vehicle.mileage.to_i) %>
+                    <% else %>
+                      —
+                    <% end %>
+                  </td>
+                  
+                  <!-- Actions -->
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm" role="group">
+                      <%= link_to full_details_vehicle_path(vehicle),
+                            class: "btn btn-outline-primary d-flex align-items-center gap-1",
+                            title: "View details" do %>
+                        <i class="fas fa-eye"></i>
+                        <span class="d-none d-md-inline">View</span>
+                      <% end %>
+                      <%= link_to edit_vehicle_path(vehicle),
+                            class: "btn btn-outline-secondary d-flex align-items-center gap-1",
+                            title: "Edit" do %>
+                        <i class="fas fa-edit"></i>
+                        <span class="d-none d-md-inline">Edit</span>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Filters -->
-  <%= form_with url: vehicles_path, method: :get, local: true,
-        html: { id: "vehicles_filter_form",
-                class: "filter-form mb-5",
-                data: { turbo_action: "replace", turbo_frame: "vehicles_list" } } do |f| %>
-
-    <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-3">
-      <!-- Left side: Search + Filter -->
-      <div class="flex-grow-1">
-        <div class="input-group" style="max-width: 600px;">
-          <%= f.text_field :query,
-                value: @query,
-                placeholder: "Search by make, model, or plate...",
-                class: "form-control shadow-sm",
-                style: "flex: 1 1 auto;",
-                data: { controller: "search", action: "input->search#submit" } %>
-
-          <span class="input-group-text bg-white border-start-0 border-end-0 px-3">
-            <i class="bi bi-funnel"></i>
-          </span>
-
-          <%= f.select :owner,
-                options_for_select(["All", "PTSC", "Police", "Fire Service"], @owner_filter || "All"),
-                {},
-                class: "form-select shadow-sm",
-                style: "flex: 1 1 auto; min-width: 150px;",
-                id: "owner_filter",
-                data: { action: "change->search#submit" } %>
-
-          <!-- Agency filter for VMCOTT users -->
-          <% if current_user.agency.code == "VMCOTT" %>
-            <span class="input-group-text bg-white border-start-0 border-end-0 px-3">
-              <i class="bi bi-building"></i>
-            </span>
-
-            <%= f.select :agency,
-                  options_for_select([["All Agencies", ""]] + Agency.all.map { |a| [a.name, a.id] },
-                  params[:agency]),
-                  {},
-                  class: "form-select shadow-sm",
-                  style: "flex: 1 1 auto; min-width: 180px;",
-                  id: "agency_filter",
-                  data: { action: "change->search#submit" } %>
-          <% end %>
-        </div>
-      </div>
-
-      <!-- Right side: Buttons -->
-      <div class="d-flex gap-2 justify-content-end flex-shrink-0">
-        <%= f.submit "Search", class: "btn btn-primary fw-bold shadow-sm px-4" %>
-
-        <!-- ✅ FIXED: block link_to uses path first, options second -->
-        <%= link_to new_vehicle_path, class: "btn btn-success fw-bold shadow-sm d-flex align-items-center px-4" do %>
-          <i class="bi bi-plus-circle me-2"></i> Add Vehicle
-        <% end %>
-      </div>
+  <!-- Pagination -->
+  <% if @vehicles.any? %>
+    <div class="mt-4 d-flex justify-content-center">
+      <%= paginate @vehicles %>
     </div>
-  <% end %>
-
-  <!-- VEHICLE CARDS with enhanced badge system -->
-  <%= turbo_frame_tag "vehicles_list" do %>
-    <% if @vehicles.any? %>
-      <div class="row g-4">
-        <% @vehicles.each do |vehicle| %>
-          <% last_maintenance = vehicle.maintenances.max_by(&:date) if vehicle.maintenances.any? %>
-          <% maintenance_due =
-               last_maintenance.nil? ||
-               (last_maintenance.next_due_date && last_maintenance.next_due_date < Date.today) %>
-
-          <% ribbon_color =
-               case vehicle.service_owner
-               when 'PTSC' then maintenance_due ? '#004aad' : '#0d6efd'
-               when 'Police' then maintenance_due ? '#002244' : '#003366'
-               when 'Fire Service' then maintenance_due ? '#b02a37' : '#dc3545'
-               else maintenance_due ? '#6c757d' : '#198754'
-               end %>
-
-          <% badge_class, badge_text = case vehicle.service_owner.to_s.downcase
-               when 'police' then ['badge-police', 'POLICE']
-               when 'ptsc'   then ['badge-ptsc', 'PTSC']
-               when 'fire service' then ['badge-fire', 'FIRE']
-               else ['badge-default', vehicle.service_owner || 'UNKNOWN']
-             end %>
-
-          <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12">
-            <div class="vehicle-card card shadow-sm border-0 rounded overflow-hidden position-relative">
-
-              <!-- Vehicle Badge (Top Left) -->
-              <div class="position-absolute top-2 start-2 z-20">
-                <span class="<%= badge_class %> px-2 py-1 rounded-lg text-sm fw-bold">
-                  <%= badge_text %>
-                </span>
-              </div>
-
-              <!-- Image Container -->
-              <div class="image-container compact-image">
-                <!-- Status Ribbon on top -->
-                <div class="status-ribbon" style="background-color: <%= ribbon_color %>;">
-                  <%= maintenance_due ? "Maintenance Due" : "Active" %>
-                </div>
-
-                <!-- Vehicle Image -->
-                <%= link_to vehicle_path(vehicle) do %>
-                  <%= vehicle_image(vehicle,
-                        variant: :thumb,
-                        class: "vehicle-image",
-                        loading: "lazy",
-                        style: "width: 100%; height: 180px; object-fit: cover; background-color: #f8f9fa;") %>
-                <% end %>
-
-                <!-- Agency badge for VMCOTT users -->
-                <% if current_user.agency.code == "VMCOTT" && vehicle.agency.present? %>
-                  <div class="position-absolute top-0 end-0 m-2">
-                    <span class="badge agency-badge"
-                          style="font-size: 0.7rem; padding: 4px 8px; background-color: #6c757d; color: white;">
-                      <i class="bi bi-building"></i> <%= vehicle.agency.code %>
-                    </span>
-                  </div>
-                <% end %>
-
-                <!-- Photo indicator badge -->
-                <div class="position-absolute bottom-0 start-0 m-2">
-                  <% if has_uploaded_photo?(vehicle) %>
-                    <span class="badge bg-success" style="font-size: 0.6rem;">
-                      <i class="bi bi-camera-fill"></i>
-                    </span>
-                  <% else %>
-                    <span class="badge bg-secondary" style="font-size: 0.6rem;">
-                      <i class="bi bi-image"></i>
-                    </span>
-                  <% end %>
-                </div>
-              </div>
-
-              <!-- Card Body -->
-              <div class="card-body">
-                <h5 class="fw-bold mb-2">
-                  <%= vehicle.make %> <%= vehicle.model %>
-                  <% if vehicle.license_plate.present? %>
-                    <span class="badge bg-dark ms-1"><%= vehicle.license_plate %></span>
-                  <% end %>
-                </h5>
-
-                <div class="mb-2 d-flex justify-content-between align-items-center">
-                  <span class="badge <%= owner_badge_class(vehicle.service_owner) %> service-badge">
-                    <i class="bi bi-car-front me-1"></i> <%= vehicle.service_owner %>
-                  </span>
-
-                  <% if vehicle.respond_to?(:utilization_percent) %>
-                    <span class="badge <%= utilization_class(vehicle) %>">
-                      <%= vehicle.utilization_percent %>% utilized
-                    </span>
-                  <% end %>
-                </div>
-
-                <div class="text-muted small mb-3">
-                  <div class="d-flex justify-content-between">
-                    <span>Last Maintenance:</span>
-                    <span><%= last_maintenance&.date&.strftime('%b %d, %Y') || "None" %></span>
-                  </div>
-
-                  <% if vehicle.respond_to?(:trips_count) && vehicle.trips_count > 0 %>
-                    <div class="d-flex justify-content-between">
-                      <span>Total Trips:</span>
-                      <span><%= vehicle.trips_count %></span>
-                    </div>
-                  <% end %>
-                </div>
-
-                <div class="d-flex justify-content-between">
-                  <!-- ✅ FIXED: block link_to uses path first, options second -->
-                  <%= link_to vehicle_path(vehicle),
-                        class: "btn btn-sm btn-outline-primary w-45 fw-bold d-flex align-items-center justify-content-center" do %>
-                    <i class="bi bi-eye me-1"></i> Show
-                  <% end %>
-
-                  <!-- ✅ FIXED: block link_to uses path first, options second -->
-                  <%= link_to edit_vehicle_path(vehicle),
-                        class: "btn btn-sm btn-outline-warning w-45 fw-bold d-flex align-items-center justify-content-center" do %>
-                    <i class="bi bi-pencil me-1"></i> Edit
-                  <% end %>
-                </div>
-              </div>
-
-              <!-- Alert Chip for Overdue Maintenance -->
-              <% if maintenance_due %>
-                <div class="position-absolute bottom-2 end-2">
-                  <span class="alert-chip px-2 py-1 rounded" style="background-color: #dc3545; color: white; font-size: 0.7rem; font-weight: bold;">
-                    <i class="bi bi-exclamation-triangle me-1"></i> OVERDUE
-                  </span>
-                </div>
-              <% end %>
-
-            </div>
-          </div>
-        <% end %>
-      </div>
-
-      <div class="mt-4 d-flex justify-content-center">
-        <%= paginate @vehicles %>
-      </div>
-    <% else %>
-      <div class="alert alert-info shadow-sm">
-        <div class="d-flex align-items-center">
-          <i class="bi bi-info-circle me-2 fs-4"></i>
-          <div>
-            <h5 class="mb-1">No vehicles found</h5>
-            <p class="mb-0">
-              Try adjusting your search filters or
-              <%= link_to "add your first vehicle", new_vehicle_path, class: "fw-bold" %>
-            </p>
-          </div>
-        </div>
-      </div>
-    <% end %>
   <% end %>
 </div>
 
-<!-- Bootstrap Icons -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-
-<!-- Fallback JavaScript for form auto-submit -->
+<!-- JavaScript for View Toggle -->
 <script>
-document.addEventListener("turbo:load", function() {
-  const form = document.getElementById("vehicles_filter_form");
-  const turboFrame = document.getElementById("vehicles_list");
+document.addEventListener('turbo:load', function() {
+  const cardViewBtn = document.getElementById('cardViewBtn');
+  const tableViewBtn = document.getElementById('tableViewBtn');
+  const cardView = document.getElementById('cardView');
+  const tableView = document.getElementById('tableView');
 
-  if (!form) return;
+  if (!cardViewBtn || !tableViewBtn) return;
 
-  function showSpinner() {
-    if (!turboFrame) return;
-
-    let overlay = turboFrame.querySelector('.loading-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.className = 'loading-overlay d-flex justify-content-center align-items-center';
-      overlay.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
-      turboFrame.appendChild(overlay);
-    }
-  }
-
-  function hideSpinner() {
-    if (!turboFrame) return;
-
-    const overlay = turboFrame.querySelector('.loading-overlay');
-    if (overlay) overlay.remove();
-  }
-
-  document.addEventListener('change', function(e) {
-    if (e.target && (e.target.matches('#owner_filter, #agency_filter, select[name="owner"], select[name="agency"]'))) {
-      showSpinner();
-
-      if (typeof Turbo !== 'undefined') {
-        Turbo.submitForm(form);
-      } else {
-        form.submit();
-      }
-    }
+  // Card View
+  cardViewBtn.addEventListener('click', function() {
+    cardView.classList.remove('d-none');
+    tableView.classList.add('d-none');
+    cardViewBtn.classList.remove('btn-outline-primary');
+    cardViewBtn.classList.add('btn-primary');
+    tableViewBtn.classList.remove('btn-primary');
+    tableViewBtn.classList.add('btn-outline-secondary');
   });
 
-  const searchInput = form.querySelector('input[type="text"], input[name="query"]');
-  if (searchInput) {
-    let debounceTimer;
-    searchInput.addEventListener("input", (e) => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        if (e.target.value.length === 0 || e.target.value.length >= 2) {
-          showSpinner();
+  // Table View
+  tableViewBtn.addEventListener('click', function() {
+    cardView.classList.add('d-none');
+    tableView.classList.remove('d-none');
+    tableViewBtn.classList.remove('btn-outline-secondary');
+    tableViewBtn.classList.add('btn-primary');
+    cardViewBtn.classList.remove('btn-primary');
+    cardViewBtn.classList.add('btn-outline-primary');
+  });
 
-          if (typeof Turbo !== 'undefined') {
-            Turbo.submitForm(form);
-          } else {
-            form.submit();
-          }
-        }
+  // Remember user preference
+  const savedView = localStorage.getItem('fleetViewPreference');
+  if (savedView === 'table') {
+    tableViewBtn.click();
+  } else {
+    cardViewBtn.click();
+  }
+
+  // Save preference
+  cardViewBtn.addEventListener('click', () => localStorage.setItem('fleetViewPreference', 'card'));
+  tableViewBtn.addEventListener('click', () => localStorage.setItem('fleetViewPreference', 'table'));
+});
+</script>
+
+<!-- Add this JavaScript for auto-submit on filter changes -->
+<script>
+// Simple auto-submit for filter form
+document.addEventListener('turbo:load', function() {
+  const searchInput = document.querySelector('input[name="search"]');
+  const statusSelect = document.querySelector('select[name="status"]');
+  const agencySelect = document.querySelector('select[name="agency_id"]');
+  
+  if (searchInput) {
+    let searchTimeout;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(function() {
+        // Submit the form when user stops typing for 500ms
+        const form = searchInput.closest('form');
+        if (form) form.submit();
       }, 500);
     });
-
-    searchInput.addEventListener("keypress", function(e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        showSpinner();
-
-        if (typeof Turbo !== 'undefined') {
-          Turbo.submitForm(form);
-        } else {
-          form.submit();
-        }
-      }
+  }
+  
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      const form = statusSelect.closest('form');
+      if (form) form.submit();
     });
   }
-
-  if (turboFrame) {
-    turboFrame.addEventListener("turbo:frame-load", hideSpinner);
-    turboFrame.addEventListener("turbo:frame-render", hideSpinner);
-  }
-
-  document.addEventListener("turbo:frame-load", hideSpinner);
-  document.addEventListener("turbo:frame-render", hideSpinner);
-});
-
-document.addEventListener("DOMContentLoaded", function() {
-  const form = document.getElementById("vehicles_filter_form");
-  const ownerSelect = document.getElementById("owner_filter");
-  const agencySelect = document.getElementById("agency_filter");
-
-  if (ownerSelect && form) {
-    ownerSelect.addEventListener("change", function() {
-      form.submit();
-    });
-  }
-
-  if (agencySelect && form) {
-    agencySelect.addEventListener("change", function() {
-      form.submit();
+  
+  if (agencySelect) {
+    agencySelect.addEventListener('change', function() {
+      const form = agencySelect.closest('form');
+      if (form) form.submit();
     });
   }
 });
 </script>
 
 <style>
-/* =========================
-   VEHICLE CARD LAYOUT
-========================= */
-.vehicle-card {
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+/* Fleet Dashboard Styles */
+.fleet-dashboard .kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.fleet-dashboard .kpi-tile {
   background: white;
+  border-radius: 8px;
+  padding: 1.25rem;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
+
+.fleet-dashboard .kpi-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.fleet-dashboard .kpi-label {
+  font-size: 0.875rem;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.fleet-dashboard .kpi-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.fleet-dashboard .kpi-foot {
+  font-size: 0.875rem;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+}
+
+/* View Toggle */
+.view-toggle {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.view-toggle .btn-group .btn {
+  border-radius: 6px !important;
+}
+
+.view-toggle .btn-group .btn:first-child {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.view-toggle .btn-group .btn:last-child {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+/* Vehicle Cards */
+.vehicle-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
 .vehicle-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
 }
 
-/* =========================
-   IMAGE CONTAINER
-========================= */
-.image-container { position: relative; overflow: hidden; }
-.compact-image { height: 180px; }
+.vehicle-card-header {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
 
-.vehicle-image {
+.vehicle-card-body {
+  padding: 1.25rem;
+}
+
+.vehicle-image-container {
+  height: 150px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.vehicle-thumbnail {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
   transition: transform 0.3s ease;
-  background-color: #f8f9fa;
-  image-rendering: crisp-edges;
 }
 
-img {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
-  -ms-interpolation-mode: bicubic;
+.vehicle-card:hover .vehicle-thumbnail {
+  transform: scale(1.05);
 }
 
-/* =========================
-   STATUS RIBBON
-========================= */
-.status-ribbon {
-  position: absolute;
-  top: 10px;
-  left: -36px;
-  padding: 6px 56px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  transform: rotate(-45deg);
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  z-index: 2;
-}
-
-/* =========================
-   VEHICLE BADGES
-========================= */
-.badge-police { background-color: #003366 !important; color: white !important; border: 1px solid #002244; }
-.badge-ptsc   { background-color: #0d6efd !important; color: white !important; border: 1px solid #004aad; }
-.badge-fire   { background-color: #dc3545 !important; color: white !important; border: 1px solid #b02a37; }
-.badge-default{ background-color: #6c757d !important; color: white !important; border: 1px solid #495057; }
-
-/* =========================
-   SERVICE OWNER BADGES
-========================= */
-.service-badge {
-  font-size: 0.9rem;
-  padding: 0.45rem 0.75rem;
-  font-weight: 600;
-  display: inline-flex;
+.vehicle-placeholder {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
-  border-radius: 0.6rem;
+  justify-content: center;
+  color: #6c757d;
 }
 
-/* =========================
-   UTILIZATION BADGES
-========================= */
-.utilization-ribbon {
-  font-size: 0.7rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-weight: bold;
+.vehicle-placeholder i {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.utilization-low { background-color: #28a745 !important; color: white !important; }
-.utilization-medium { background-color: #ffc107 !important; color: #212529 !important; }
-.utilization-high { background-color: #dc3545 !important; color: white !important; }
-
-/* =========================
-   ALERT CHIP
-========================= */
-.alert-chip {
-  background-color: #dc3545;
-  color: white;
-  font-size: 0.7rem;
-  font-weight: bold;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+.vehicle-name {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
 }
 
-/* =========================
-   BUTTON HELPERS
-========================= */
-.w-45 { width: 45%; }
-
-/* =========================
-   PAGINATION
-========================= */
-.pagination .page-link { border-radius: 6px; margin: 0 3px; }
-.pagination .active .page-link { background-color: #0d6efd; border-color: #0d6efd; }
-
-/* =========================
-   NAV PILL COLORS
-========================= */
-.nav-pills .nav-link:not(.active) {
-  color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.1);
-}
-.nav-pills .nav-link.active {
-  color: #fff;
-  background-color: #0d6efd;
+.vehicle-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
-/* =========================
-   FILTER FORM STYLING
-========================= */
-.filter-form .input-group {
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-  border-radius: 8px;
-  flex-wrap: nowrap;
-  width: 100%;
-}
-
-.filter-form .input-group .form-control,
-.filter-form .input-group .form-select,
-.filter-form .input-group .btn {
-  border: 1px solid #dee2e6;
-  box-shadow: none;
-  height: 48px;
-}
-
-.filter-form .input-group .form-control {
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  flex: 1 1 250px;
-}
-
-.filter-form .input-group .form-select {
-  border-left: none;
-  border-right: 1px solid #dee2e6;
-  border-radius: 0 8px 8px 0;
-  flex: 1 1 200px;
-  min-width: 150px;
-}
-
-.filter-form .input-group-text {
-  background-color: #f8f9fa;
-  border-color: #dee2e6;
-  border-left: none;
-  border-right: none;
-  height: 48px;
-}
-
-.filter-form select:focus,
-.filter-form input:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-/* =========================
-   LOADING OVERLAY
-========================= */
-.loading-overlay {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background-color: rgba(255,255,255,0.6);
-  z-index: 10;
-}
-
-/* =========================
-   STATS CARDS STYLES
-========================= */
-.stats-card {
-  transition: all 0.3s ease;
-  border-radius: 12px;
-  overflow: hidden;
-}
-.stats-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
-}
-.stats-card .card-body { padding: 1.25rem; }
-.stats-card h6 {
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.stats-card h3 { font-weight: 700; margin: 0.5rem 0; }
-.stats-card small {
+.detail-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+  line-height: 1.3;
 }
 
-/* =========================
-   RESPONSIVE FLEX LAYOUT
-========================= */
-@media (max-width: 768px) {
-  .filter-form .d-flex { flex-direction: column; }
-  .filter-form .d-flex > .flex-grow-1 { width: 100%; }
-  .filter-form .d-flex > .d-flex {
-    width: 100%;
-    justify-content: center !important;
-    margin-top: 1rem;
-  }
-  .filter-form .input-group { flex-wrap: wrap; }
-  .filter-form .input-group .form-control {
-    border-right: 1px solid #dee2e6;
-    border-radius: 8px 8px 0 0;
-    flex: 1 1 100%;
-    height: 48px;
-  }
-  .filter-form .input-group-text { display: none; }
-  .filter-form .input-group .form-select {
-    border-left: 1px solid #dee2e6;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    flex: 1 1 100%;
-    height: 48px;
-  }
-  .stats-card { margin-bottom: 1rem; }
+.detail-item i {
+  width: 16px;
+  color: #6c757d;
+  flex-shrink: 0;
 }
 
-.agency-badge {
-  font-size: 0.7rem !important;
-  padding: 4px 8px !important;
-  background-color: #6c757d !important;
-  color: white !important;
+.detail-item span {
+  flex: 1;
+  word-break: break-word;
+}
+
+.vehicle-card-footer {
+  padding: 1rem;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+}
+
+/* Table View Styles */
+.table-hover tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Vehicle Table Thumbnail */
+.vehicle-table-thumbnail {
+  position: relative;
+  width: 50px;
+  height: 50px;
   border-radius: 4px;
+  overflow: hidden;
+  background: #f8f9fa;
 }
 
-.card-body { position: relative; z-index: 1; }
+.vehicle-table-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-.vehicle-card .btn-outline-primary:hover,
-.vehicle-card .btn-outline-warning:hover {
-  transform: translateY(-2px);
-  transition: transform 0.2s ease;
+.image-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: white;
+  cursor: pointer;
+}
+
+.vehicle-table-thumbnail:hover .image-overlay {
+  opacity: 1;
+}
+
+.vehicle-table-placeholder {
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .fleet-dashboard .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .view-toggle {
+    justify-content: center;
+  }
+  
+  .section-card-body .row {
+    flex-direction: column;
+  }
+  
+  .section-card-body .col-md-2 {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  /* Make table scrollable on mobile */
+  .table-responsive {
+    overflow-x: auto;
+  }
+  
+  /* Adjust table columns for mobile */
+  .table th:nth-child(2),
+  .table td:nth-child(2) {
+    min-width: 120px;
+  }
+  
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    min-width: 150px;
+  }
+  
+  /* Hide some columns on mobile */
+  .table th:nth-child(6),
+  .table td:nth-child(6),
+  .table th:nth-child(7),
+  .table td:nth-child(7) {
+    display: none;
+  }
 }
 </style>
