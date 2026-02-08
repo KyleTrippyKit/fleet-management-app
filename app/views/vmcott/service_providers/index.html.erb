@@ -1,29 +1,22 @@
 <div class="container-fluid py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h3 mb-1">Service Providers</h1>
-      <p class="text-muted mb-0">VMCOTT-managed providers (internal workshops + contractors)</p>
+      <h1 class="h3 mb-1">Internal Workshops</h1>
+      <p class="text-muted mb-0">VMCOTT-managed internal workshops</p>
     </div>
 
-    <%= link_to "New Provider", new_vmcott_service_provider_path, class: "btn btn-primary" %>
+    <%= link_to "New Workshop", new_vmcott_service_provider_path, class: "btn btn-primary" %>
   </div>
 
   <div class="card shadow-sm mb-3">
     <div class="card-body">
       <%= form_with url: vmcott_service_providers_path, method: :get, local: true, class: "row g-2 align-items-end" do %>
-        <div class="col-md-4">
+        <div class="col-md-6">
           <label class="form-label small fw-bold">Search</label>
-          <%= text_field_tag :q, params[:q], class: "form-control", placeholder: "Search by provider name..." %>
+          <%= text_field_tag :q, params[:q], class: "form-control", placeholder: "Search by workshop name, contact, phone, email..." %>
         </div>
 
         <div class="col-md-3">
-          <label class="form-label small fw-bold">Type</label>
-          <%= select_tag :type,
-                options_for_select([["All", ""], ["Internal Workshop", "internal_workshop"], ["External Contractor", "external_contractor"]], params[:type].to_s),
-                class: "form-select" %>
-        </div>
-
-        <div class="col-md-2">
           <label class="form-label small fw-bold">Status</label>
           <%= select_tag :active,
                 options_for_select([["All", ""], ["Active", "1"], ["Inactive", "0"]], params[:active].to_s),
@@ -38,12 +31,9 @@
     </div>
   </div>
 
-  <% providers = @service_providers %>
-  <% if params[:type].present? %>
-    <% providers = providers.where(provider_type: params[:type]) %>
-  <% end %>
+  <% workshops = @service_providers %>
   <% if params[:active].present? %>
-    <% providers = providers.where(is_active: params[:active] == "1") %>
+    <% workshops = workshops.where(is_active: params[:active] == "1") %>
   <% end %>
 
   <div class="card shadow-sm">
@@ -52,8 +42,8 @@
         <table class="table table-hover mb-0">
           <thead class="table-light">
             <tr>
-              <th>Name</th>
-              <th>Type</th>
+              <th>Workshop</th>
+              <th>Location</th>
               <th>Contact</th>
               <th>Phone</th>
               <th>Email</th>
@@ -62,17 +52,11 @@
             </tr>
           </thead>
           <tbody>
-            <% if providers.any? %>
-              <% providers.each do |sp| %>
+            <% if workshops.any? %>
+              <% workshops.each do |sp| %>
                 <tr>
                   <td class="fw-semibold"><%= sp.name %></td>
-                  <td>
-                    <% if sp.provider_type == "internal_workshop" %>
-                      <span class="badge bg-info text-dark">Internal Workshop</span>
-                    <% else %>
-                      <span class="badge bg-secondary">External Contractor</span>
-                    <% end %>
-                  </td>
+                  <td><%= sp.address.presence || "—" %></td>
                   <td><%= sp.contact_name.presence || "—" %></td>
                   <td><%= sp.phone.presence || "—" %></td>
                   <td><%= sp.email.presence || "—" %></td>
@@ -96,7 +80,7 @@
               <% end %>
             <% else %>
               <tr>
-                <td colspan="7" class="text-center text-muted py-4">No service providers found.</td>
+                <td colspan="7" class="text-center text-muted py-4">No internal workshops found.</td>
               </tr>
             <% end %>
           </tbody>

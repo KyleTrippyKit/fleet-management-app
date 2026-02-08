@@ -71,3 +71,4 @@ gem 'dotenv-rails', groups: [:development, :test]
 gem 'axlsx'
 gem 'axlsx_rails'
 gem "ransack"
+gem "csv"

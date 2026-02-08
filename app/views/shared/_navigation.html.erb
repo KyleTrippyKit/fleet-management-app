@@ -1,104 +1,137 @@
-<%# app/views/shared/_navigation.html.erb - SLIM WORKFLOW NAV (PRODUCTION) %>
+<%# app/views/shared/_navigation.html.erb - ENTERPRISE WORKFLOW NAV (PRODUCTION) %>
+
+<% agency      = current_user&.agency %>
+<% agency_code = agency&.code.to_s.upcase %>
+
+<% is_admin   = current_user.admin? %>
+<% is_finance = current_user.respond_to?(:finance?) && current_user.finance? || is_admin %>
+<% is_ops     = current_user.fleet_manager? || current_user.supervisor? || is_admin %>
+
+<%# Resolve correct dashboard path by agency %>
+<%
+  dashboard_path =
+    case agency_code
+    when "PTSC"   then (respond_to?(:ptsc_dashboard_path)   ? ptsc_dashboard_path   : main_dashboard_path)
+    when "TTPS"   then (respond_to?(:ttps_dashboard_path)   ? ttps_dashboard_path   : main_dashboard_path)
+    when "TTDF"   then (respond_to?(:ttdf_dashboard_path)   ? ttdf_dashboard_path   : main_dashboard_path)
+    when "VMCOTT" then (respond_to?(:vmcott_dashboard_path) ? vmcott_dashboard_path : main_dashboard_path)
+    else
+      main_dashboard_path
+    end
+%>
+
+<%# Resolve correct alerts path by agency (prevents MissingController errors) %>
+<%
+  alerts_path_for_agency =
+    case agency_code
+    when "PTSC"   then (respond_to?(:ptsc_alerts_path)   ? ptsc_alerts_path   : nil)
+    when "TTPS"   then (respond_to?(:ttps_alerts_path)   ? ttps_alerts_path   : nil)
+    when "TTDF"   then (respond_to?(:ttdf_alerts_path)   ? ttdf_alerts_path   : nil)
+    when "VMCOTT" then (respond_to?(:vmcott_alerts_path) ? vmcott_alerts_path : nil)
+    else
+      (respond_to?(:alerts_path) ? alerts_path : nil)
+    end
+%>
 
 <div class="mb-4">
   <div class="card border-0 shadow-sm nav-card">
     <div class="card-body p-3">
-      <div class="d-flex flex-wrap align-items-center justify-content-between">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+
+        <!-- LEFT: WORKFLOW NAV -->
         <div class="d-flex flex-wrap gap-2">
 
           <% nav_items = [] %>
-          <% agency = current_user.agency %>
-          <% agency_code = agency&.code %>
-
-          <% is_admin   = current_user.admin? %>
-          <% is_finance = current_user.finance? || is_admin %>
-          <% is_ops     = current_user.fleet_manager? || current_user.supervisor? || is_admin %>
 
           <!-- ================= DASHBOARD ================= -->
-          <% if can_access_dashboard? %>
-            <% nav_items << case agency_code
-              when "PTSC"   then ["📊 Dashboard", ptsc_dashboard_path]
-              when "TTPS"   then ["📊 Dashboard", ttps_dashboard_path]
-              when "TTDF"   then ["📊 Dashboard", ttdf_dashboard_path]
-              when "VMCOTT" then ["📊 Dashboard", vmcott_dashboard_path]
-              else ["📊 Dashboard", main_dashboard_path]
-            end %>
+          <% if respond_to?(:can_access_dashboard?) ? can_access_dashboard? : true %>
+            <% nav_items << ["Dashboard", dashboard_path, "bi-speedometer2"] %>
           <% end %>
 
           <!-- ================= RFQ WORKFLOW ================= -->
           <% if agency_code.present? && agency_code != "VMCOTT" && is_ops %>
-            <% nav_items << ["📝 New RFQ", new_agency_rfq_path(agency)] if respond_to?(:new_agency_rfq_path) %>
-            <% nav_items << ["📨 Sent RFQs", sent_rfqs_path] if respond_to?(:sent_rfqs_path) %>
+            <% nav_items << ["New RFQ", new_agency_rfq_path(agency), "bi-file-earmark-plus"] if respond_to?(:new_agency_rfq_path) && agency.present? %>
+            <% nav_items << ["Sent RFQs", sent_rfqs_path, "bi-send"] if respond_to?(:sent_rfqs_path) %>
           <% end %>
 
           <% if agency_code != "VMCOTT" && is_finance %>
-            <% nav_items << ["📋 Quotations Received", received_quotations_path] if respond_to?(:received_quotations_path) %>
+            <% nav_items << ["Quotations Received", received_quotations_path, "bi-inbox"] if respond_to?(:received_quotations_path) %>
           <% end %>
 
           <% if agency_code == "VMCOTT" && is_ops %>
-            <% nav_items << ["📥 RFQ Inbox", vmcott_rfq_inbox_path] if respond_to?(:vmcott_rfq_inbox_path) %>
-            <% nav_items << ["📊 Quotation Workspace", vmcott_quotation_workspace_path] if respond_to?(:vmcott_quotation_workspace_path) %>
-            <% nav_items << ["🔧 Job Templates", job_templates_path] if respond_to?(:job_templates_path) %>
+            <% nav_items << ["RFQ Inbox", vmcott_rfq_inbox_path, "bi-inbox"] if respond_to?(:vmcott_rfq_inbox_path) %>
+            <% nav_items << ["Quotation Workspace", vmcott_quotation_workspace_path, "bi-clipboard-data"] if respond_to?(:vmcott_quotation_workspace_path) %>
+            <% nav_items << ["Job Templates", job_templates_path, "bi-tools"] if respond_to?(:job_templates_path) %>
           <% end %>
 
           <!-- ================= OPERATIONS ================= -->
           <% if is_ops %>
             <% if agency_code != "VMCOTT" && agency.present? %>
-              <% nav_items << ["🚗 My Fleet", agency_vehicles_path(agency)] if respond_to?(:agency_vehicles_path) %>
-              <% nav_items << ["⚙️ Maintenance", maintenances_path] if respond_to?(:maintenances_path) %>
-              <% nav_items << ["🚨 Alerts", alerts_path] if respond_to?(:alerts_path) %>
+              <% nav_items << ["My Fleet", agency_vehicles_path(agency), "bi-truck"] if respond_to?(:agency_vehicles_path) %>
+              <% nav_items << ["Maintenance", maintenance_dashboard_vehicles_path, "bi-wrench-adjustable-circle"] if respond_to?(:maintenance_dashboard_vehicles_path) %>
+              <% nav_items << ["Alerts", alerts_path_for_agency, "bi-bell"] if alerts_path_for_agency.present? %>
             <% elsif agency_code == "VMCOTT" %>
-              <% nav_items << ["🚗 All Fleets", vehicles_path] if respond_to?(:vehicles_path) %>
+              <% nav_items << ["All Fleets", vehicles_path, "bi-truck-flatbed"] if respond_to?(:vehicles_path) %>
+              <% nav_items << ["Maintenance", maintenance_dashboard_vehicles_path, "bi-wrench-adjustable-circle"] if respond_to?(:maintenance_dashboard_vehicles_path) %>
+              <% nav_items << ["Alerts", alerts_path_for_agency, "bi-bell"] if alerts_path_for_agency.present? %>
             <% end %>
           <% end %>
 
           <!-- ================= VMCOTT INVENTORY ================= -->
           <% if agency_code == "VMCOTT" && (is_ops || is_finance) %>
-            <% nav_items << ["📦 Inventory", vmcott_inventory_dashboard_path] if respond_to?(:vmcott_inventory_dashboard_path) %>
-            <% nav_items << ["🔧 Parts", vmcott_parts_path] if respond_to?(:vmcott_parts_path) %>
-            <% nav_items << ["🏢 Suppliers", suppliers_path] if respond_to?(:suppliers_path) %>
+            <% nav_items << ["Inventory", vmcott_inventory_dashboard_path, "bi-box-seam"] if respond_to?(:vmcott_inventory_dashboard_path) %>
+            <% nav_items << ["Parts", vmcott_parts_path, "bi-gear"] if respond_to?(:vmcott_parts_path) %>
+            <% nav_items << ["Suppliers", suppliers_path, "bi-building"] if respond_to?(:suppliers_path) %>
           <% end %>
 
           <!-- ================= FINANCE ================= -->
           <% if is_finance %>
-            <% nav_items << ["🧾 Invoices", invoices_path] if respond_to?(:invoices_path) %>
-            <% nav_items << ["⏳ Invoice Aging", aging_report_invoices_path] if respond_to?(:aging_report_invoices_path) %>
-            <% nav_items << ["🧾 POS", pos_transactions_path] if respond_to?(:pos_transactions_path) %>
-            <% nav_items << ["📋 Purchase Orders", purchase_orders_path] if respond_to?(:purchase_orders_path) %>
-            <% nav_items << ["📄 Quotations", quotations_path] if respond_to?(:quotations_path) %>
+            <% nav_items << ["Invoices", invoices_path, "bi-receipt"] if respond_to?(:invoices_path) %>
+            <% nav_items << ["Invoice Aging", aging_report_invoices_path, "bi-hourglass-split"] if respond_to?(:aging_report_invoices_path) %>
+            <% nav_items << ["POS", pos_transactions_path, "bi-cash-coin"] if respond_to?(:pos_transactions_path) %>
+            <% nav_items << ["Purchase Orders", purchase_orders_path, "bi-bag-check"] if respond_to?(:purchase_orders_path) %>
+            <% nav_items << ["Quotations", quotations_path, "bi-file-text"] if respond_to?(:quotations_path) %>
           <% end %>
 
           <!-- ================= ACCOUNTING ================= -->
           <% if is_finance %>
-            <% nav_items << ["📘 Ledger", ledger_entries_path] if respond_to?(:ledger_entries_path) %>
-            <% nav_items << ["📗 General Ledger", general_ledger_path] if respond_to?(:general_ledger_path) %>
-            <% nav_items << ["📙 Trial Balance", trial_balance_path] if respond_to?(:trial_balance_path) %>
-            <% nav_items << ["📊 QuickBooks", quickbooks_dashboard_path] if respond_to?(:quickbooks_dashboard_path) %>
+            <% nav_items << ["Ledger", ledger_entries_path, "bi-journal-text"] if respond_to?(:ledger_entries_path) %>
+            <% nav_items << ["General Ledger", general_ledger_path, "bi-book"] if respond_to?(:general_ledger_path) %>
+            <% nav_items << ["Trial Balance", trial_balance_path, "bi-columns-gap"] if respond_to?(:trial_balance_path) %>
+            <% nav_items << ["QuickBooks", quickbooks_dashboard_path, "bi-lightning-charge"] if respond_to?(:quickbooks_dashboard_path) %>
           <% end %>
 
           <!-- ================= DRIVER ================= -->
           <% if current_user.driver? %>
-            <% nav_items << ["🚗 My Vehicle", my_vehicle_drivers_path] if respond_to?(:my_vehicle_drivers_path) %>
-            <% nav_items << ["📋 My Trips", my_trips_drivers_path] if respond_to?(:my_trips_drivers_path) %>
-            <% nav_items << ["📝 Report Issue", new_issue_drivers_path] if respond_to?(:new_issue_drivers_path) %>
+            <% nav_items << ["My Vehicle", my_vehicle_drivers_path, "bi-truck"] if respond_to?(:my_vehicle_drivers_path) %>
+            <% nav_items << ["My Trips", my_trips_drivers_path, "bi-map"] if respond_to?(:my_trips_drivers_path) %>
+            <% nav_items << ["Report Issue", new_issue_drivers_path, "bi-exclamation-diamond"] if respond_to?(:new_issue_drivers_path) %>
           <% end %>
 
-          <!-- ================= RENDER ================= -->
-          <% nav_items.compact.uniq.each do |label, path| %>
-            <%= link_to label, path,
-              class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-medium #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" %>
+          <% nav_items.compact.uniq.each do |label, path, icon| %>
+            <% next if path.blank? %>
+            <%= link_to path,
+              class: "nav-option btn btn-sm rounded-pill px-3 py-2 fw-semibold #{current_page?(path) ? 'btn-primary' : 'btn-outline-primary'}" do %>
+              <i class="bi <%= icon %> me-1"></i> <%= label %>
+            <% end %>
           <% end %>
+        </div>
 
-          <!-- ================= LOGOUT ================= -->
+        <!-- RIGHT: SESSION ACTIONS -->
+        <div class="d-flex gap-2">
           <%= button_to "/logout",
             method: :get,
-            class: "nav-option btn btn-sm btn-outline-danger rounded-pill px-3 py-2 fw-medium",
+            class: "nav-option btn btn-sm btn-outline-danger rounded-pill px-3 py-2 fw-semibold",
             form: { "data-turbo" => "false" } do %>
             <i class="bi bi-box-arrow-right me-1"></i> Logout
           <% end %>
-
         </div>
+
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .nav-card { border-radius: 14px; }
+</style>

@@ -1,4 +1,4 @@
-<!-- app/views/vehicles/maintenance_dashboard.html.erb -->
+<!-- File: app/views/vehicles/maintenance_dashboard.html.erb -->
 <div class="container-fluid py-4 px-4">
   <!-- Dashboard Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -9,15 +9,15 @@
       <p class="text-muted mb-0">Monitor, manage, and track all vehicle maintenance activities</p>
     </div>
     <div class="d-flex gap-3">
-      <%= link_to gantt_path, 
+      <%= link_to gantt_path,
             class: "btn btn-outline-primary d-flex align-items-center gap-2" do %>
         <i class="bi bi-calendar-range"></i> Timeline View
       <% end %>
-      <%= link_to analytics_vehicles_path, 
-            class: "btn btn-outline-success d-flex align-items-center gap-2" do %>
+      <%= link_to analytics_vehicles_path,
+          class: "btn btn-outline-success d-flex align-items-center gap-2" do %>
         <i class="bi bi-graph-up"></i> Analytics
       <% end %>
-      <button class="btn btn-primary d-flex align-items-center gap-2" 
+      <button class="btn btn-primary d-flex align-items-center gap-2"
               data-bs-toggle="modal" data-bs-target="#quickReportModal">
         <i class="bi bi-plus-circle"></i> Quick Report
       </button>
@@ -32,7 +32,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">TOTAL ACTIVE</h6>
-              <h2 class="mb-0"><%= Maintenance.where(status: 'Pending').count %></h2>
+              <h2 class="mb-0"><%= @count_pending %></h2>
             </div>
             <div class="bg-primary bg-opacity-10 p-3 rounded">
               <i class="bi bi-tools text-primary"></i>
@@ -41,14 +41,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-lg-4 col-md-6">
       <div class="card border-start border-danger border-4 h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">OVERDUE</h6>
-              <h2 class="mb-0"><%= Maintenance.overdue.count %></h2>
+              <h2 class="mb-0"><%= @count_overdue %></h2>
             </div>
             <div class="bg-danger bg-opacity-10 p-3 rounded">
               <i class="bi bi-exclamation-triangle text-danger"></i>
@@ -57,14 +57,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-lg-4 col-md-6">
       <div class="card border-start border-warning border-4 h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">UPCOMING (7D)</h6>
-              <h2 class="mb-0"><%= Maintenance.upcoming(7).count %></h2>
+              <h2 class="mb-0"><%= @count_upcoming %></h2>
             </div>
             <div class="bg-warning bg-opacity-10 p-3 rounded">
               <i class="bi bi-clock-history text-warning"></i>
@@ -73,14 +73,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-lg-4 col-md-6">
       <div class="card border-start border-success border-4 h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">COMPLETED</h6>
-              <h2 class="mb-0"><%= Maintenance.where(status: 'Completed').count %></h2>
+              <h2 class="mb-0"><%= @count_completed %></h2>
             </div>
             <div class="bg-success bg-opacity-10 p-3 rounded">
               <i class="bi bi-check-circle text-success"></i>
@@ -89,14 +89,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-lg-4 col-md-6">
       <div class="card border-start border-info border-4 h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">TOTAL COST</h6>
-              <h4 class="mb-0"><%= number_to_currency(Maintenance.sum(:cost), unit: "TTD ") %></h4>
+              <h4 class="mb-0"><%= number_to_currency(@maintenances.sum { |m| m.cost.to_f }, unit: "TTD ") %></h4>
             </div>
             <div class="bg-info bg-opacity-10 p-3 rounded">
               <i class="bi bi-currency-dollar text-info"></i>
@@ -105,14 +105,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-lg-4 col-md-6">
       <div class="card border-start border-secondary border-4 h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-muted mb-1">VEHICLES</h6>
-              <h2 class="mb-0"><%= Vehicle.count %></h2>
+              <h2 class="mb-0"><%= @vehicles.count %></h2>
             </div>
             <div class="bg-secondary bg-opacity-10 p-3 rounded">
               <i class="bi bi-truck text-secondary"></i>
@@ -128,32 +128,32 @@
     <div class="card-body p-2">
       <ul class="nav nav-pills nav-fill mb-0">
         <li class="nav-item">
-          <%= link_to vehicles_path, 
+          <%= link_to vehicles_path,
                 class: "nav-link #{current_page?(vehicles_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-list-ul me-2"></i> Vehicle List
           <% end %>
         </li>
         <li class="nav-item">
-          <%= link_to analytics_vehicles_path, 
+          <%= link_to analytics_vehicles_path,
                 class: "nav-link #{current_page?(analytics_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-graph-up me-2"></i> Usage Analytics
           <% end %>
         </li>
         <li class="nav-item">
-          <%= link_to gantt_path, 
+          <%= link_to gantt_path,
                 class: "nav-link #{current_page?(gantt_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-calendar-range me-2"></i> Maintenance Gantt
           <% end %>
         </li>
         <li class="nav-item">
-          <%= link_to maintenance_dashboard_vehicles_path, 
+          <%= link_to maintenance_dashboard_vehicles_path,
                 class: "nav-link #{current_page?(maintenance_dashboard_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-speedometer2 me-2"></i> Maintenance Dashboard
           <% end %>
         </li>
         <li class="nav-item">
-          <%= link_to service_providers_path, 
-              class: "nav-link #{current_page?(service_providers_path) ? 'active' : ''} px-3 py-2" do %>
+          <%= link_to vmcott_service_providers_path,
+              class: "nav-link #{current_page?(vmcott_service_providers_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-building me-2"></i> Providers
           <% end %>
         </li>
@@ -167,32 +167,35 @@
       <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Advanced Filters</h5>
     </div>
     <div class="card-body">
-      <%= form_with url: maintenance_dashboard_vehicles_path, method: :get, local: true, 
+      <%= form_with url: maintenance_dashboard_vehicles_path, method: :get, local: true,
             html: { id: "maintenance_filter_form" }, class: "row g-3 align-items-end" do |f| %>
-        
+
+        <!-- IMPORTANT: keep selected tab while filtering -->
+        <%= hidden_field_tag :priority, @priority %>
+
         <div class="col-md-3">
           <label class="form-label small fw-bold text-muted">SEARCH VEHICLES</label>
           <div class="input-group">
             <span class="input-group-text bg-white border-end-0">
               <i class="bi bi-search text-muted"></i>
             </span>
-            <%= f.text_field :query, value: @query, 
+            <%= f.text_field :query, value: @query,
                   placeholder: "Search by plate, make, model...",
                   class: "form-control border-start-0" %>
           </div>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label small fw-bold text-muted">SERVICE OWNER</label>
-          <%= f.select :owner, 
-                options_for_select(["All Owners", "PTSC", "Police", "Fire Service"], 
+          <%= f.select :owner,
+                options_for_select(["All Owners", "PTSC", "Police", "Fire Service"],
                                    @owner_filter || "All Owners"),
                 {}, { class: "form-select", id: "owner_filter" } %>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label small fw-bold text-muted">MAINTENANCE STATUS</label>
-          <%= f.select :status, 
+          <%= f.select :status,
                 options_for_select([
                   ["All Statuses", ""],
                   ["Pending", "Pending"],
@@ -202,10 +205,10 @@
                 ], params[:status]),
                 {}, class: "form-select" %>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label small fw-bold text-muted">URGENCY LEVEL</label>
-          <%= f.select :urgency, 
+          <%= f.select :urgency,
                 options_for_select([
                   ["All Urgency", ""],
                   ["Emergency", "emergency"],
@@ -215,16 +218,18 @@
                 ], params[:urgency]),
                 {}, class: "form-select" %>
         </div>
-        
+
         <div class="col-12">
           <div class="d-flex justify-content-end gap-2">
             <button type="submit" class="btn btn-primary px-4 d-flex align-items-center gap-2">
               <i class="bi bi-funnel"></i> Apply Filters
             </button>
-            <%= link_to maintenance_dashboard_vehicles_path, 
+
+            <%= link_to maintenance_dashboard_vehicles_path(priority: @priority),
                   class: "btn btn-outline-secondary d-flex align-items-center gap-2" do %>
               <i class="bi bi-arrow-clockwise"></i> Reset
             <% end %>
+
             <button type="button" class="btn btn-success d-flex align-items-center gap-2"
                     data-bs-toggle="modal" data-bs-target="#quickMaintenanceModal">
               <i class="bi bi-plus-circle"></i> Quick Add
@@ -235,148 +240,139 @@
     </div>
   </div>
 
-  <!-- Maintenance Priority Tabs -->
-  <ul class="nav nav-tabs nav-fill mb-4" id="priorityTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="overdue-tab" data-bs-toggle="tab" 
-              data-bs-target="#overdue" type="button">
-        <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
-        Overdue
-        <% if @vehicles.any? %>
-          <span class="badge bg-danger ms-1">
-            <%= @vehicles.sum { |v| v.overdue_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="pending-tab" data-bs-toggle="tab" 
-              data-bs-target="#pending" type="button">
-        <i class="bi bi-clock-history me-2 text-warning"></i>
-        Pending
-        <% if @vehicles.any? %>
-          <span class="badge bg-warning ms-1">
-            <%= @vehicles.sum { |v| v.active_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="upcoming-tab" data-bs-toggle="tab" 
-              data-bs-target="#upcoming" type="button">
-        <i class="bi bi-calendar-check me-2 text-info"></i>
-        Upcoming
-        <% if @vehicles.any? %>
-          <span class="badge bg-info ms-1">
-            <%= @vehicles.sum { |v| v.upcoming_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="completed-tab" data-bs-toggle="tab" 
-              data-bs-target="#completed" type="button">
-        <i class="bi bi-check-circle me-2 text-success"></i>
-        Completed
-        <% if @vehicles.any? %>
-          <span class="badge bg-success ms-1">
-            <%= @vehicles.sum { |v| v.completed_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-  </ul>
+  <%# ===================================================== %>
+  <%# PRIORITY "TABS" (SERVER SIDE LINKS — ALWAYS CLICKABLE) %>
+  <%# ===================================================== %>
 
-  <div class="tab-content" id="priorityTabsContent">
-    <!-- OVERDUE MAINTENANCE TAB -->
-    <div class="tab-pane fade show active" id="overdue" role="tabpanel">
-      <% overdue_vehicles = @vehicles.select { |v| v.overdue_maintenances.any? } %>
-      <% if overdue_vehicles.any? %>
-        <div class="alert alert-danger border-start border-5 border-danger">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
-            <div>
-              <h5 class="alert-heading mb-1">Attention Required!</h5>
-              <p class="mb-0">
-                <%= overdue_vehicles.count %> vehicles have overdue maintenance. 
-                Immediate action is required to prevent further issues.
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <% overdue_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'overdue', maintenances: vehicle.overdue_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-success mb-3">Great News!</h4>
-          <p class="text-muted">No overdue maintenance tasks found.</p>
-        </div>
-      <% end %>
-    </div>
+  <% preserved = params.permit(:query, :owner, :status, :urgency, :agency).to_h %>
 
-    <!-- PENDING MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="pending" role="tabpanel">
-      <% pending_vehicles = @vehicles.select { |v| v.active_maintenances.any? } %>
-      <% if pending_vehicles.any? %>
-        <% pending_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'pending', maintenances: vehicle.active_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-clock text-muted" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-muted mb-3">No Pending Maintenance</h4>
-          <p class="text-muted">All maintenance tasks are either completed or scheduled for future dates.</p>
-        </div>
-      <% end %>
-    </div>
+  <div class="nav nav-tabs nav-fill mb-4">
+    <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "overdue")),
+      class: "nav-link #{(@priority == 'overdue') ? 'active' : ''}" do %>
+      <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+      Overdue
+      <span class="badge bg-danger ms-1"><%= @count_overdue %></span>
+    <% end %>
 
-    <!-- UPCOMING MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="upcoming" role="tabpanel">
-      <% upcoming_vehicles = @vehicles.select { |v| v.upcoming_maintenances.any? } %>
-      <% if upcoming_vehicles.any? %>
-        <% upcoming_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'upcoming', maintenances: vehicle.upcoming_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-calendar-check text-info" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-info mb-3">No Upcoming Maintenance</h4>
-          <p class="text-muted">No maintenance tasks are scheduled for the near future.</p>
-        </div>
-      <% end %>
-    </div>
+    <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "pending")),
+      class: "nav-link #{(@priority == 'pending') ? 'active' : ''}" do %>
+      <i class="bi bi-clock-history me-2 text-warning"></i>
+      Pending
+      <span class="badge bg-warning text-dark ms-1"><%= @count_pending %></span>
+    <% end %>
 
-    <!-- COMPLETED MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="completed" role="tabpanel">
-      <% completed_vehicles = @vehicles.select { |v| v.completed_maintenances.any? } %>
-      <% if completed_vehicles.any? %>
-        <% completed_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'completed', maintenances: vehicle.completed_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-clipboard-check text-muted" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-muted mb-3">No Completed Maintenance</h4>
-          <p class="text-muted">No maintenance tasks have been marked as completed yet.</p>
-        </div>
-      <% end %>
-    </div>
+    <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "upcoming")),
+      class: "nav-link #{(@priority == 'upcoming') ? 'active' : ''}" do %>
+      <i class="bi bi-calendar-check me-2 text-info"></i>
+      Upcoming
+      <span class="badge bg-info text-dark ms-1"><%= @count_upcoming %></span>
+    <% end %>
+
+    <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "completed")),
+      class: "nav-link #{(@priority == 'completed') ? 'active' : ''}" do %>
+      <i class="bi bi-check-circle me-2 text-success"></i>
+      Completed
+      <span class="badge bg-success ms-1"><%= @count_completed %></span>
+    <% end %>
   </div>
+
+  <%# ===================================================== %>
+  <%# CONTENT (RENDER ONLY THE ACTIVE TAB)                  %>
+  <%# ===================================================== %>
+
+  <% if @priority == "overdue" %>
+    <% overdue_vehicles = @overdue_vehicles %>
+
+    <% if overdue_vehicles.any? %>
+      <div class="alert alert-danger border-start border-5 border-danger">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+          <div>
+            <h5 class="alert-heading mb-1">Attention Required!</h5>
+            <p class="mb-0">
+              <%= overdue_vehicles.count %> vehicles have overdue maintenance.
+              Immediate action is required to prevent further issues.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <% overdue_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "overdue",
+              maintenances: vehicle.overdue_maintenances %>
+      <% end %>
+    <% else %>
+      <div class="text-center py-5">
+        <div class="mb-4">
+          <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
+        </div>
+        <h4 class="text-success mb-3">Great News!</h4>
+        <p class="text-muted">No overdue maintenance tasks found.</p>
+      </div>
+    <% end %>
+
+  <% elsif @priority == "pending" %>
+    <% pending_vehicles = @pending_vehicles %>
+
+    <% if pending_vehicles.any? %>
+      <% pending_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "pending",
+              maintenances: vehicle.active_maintenances %>
+      <% end %>
+    <% else %>
+      <div class="text-center py-5">
+        <div class="mb-4">
+          <i class="bi bi-clock text-muted" style="font-size: 4rem;"></i>
+        </div>
+        <h4 class="text-muted mb-3">No Pending Maintenance</h4>
+        <p class="text-muted">All maintenance tasks are either completed or scheduled for future dates.</p>
+      </div>
+    <% end %>
+
+  <% elsif @priority == "upcoming" %>
+    <% upcoming_vehicles = @upcoming_vehicles %>
+
+    <% if upcoming_vehicles.any? %>
+      <% upcoming_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "upcoming",
+              maintenances: vehicle.upcoming_maintenances %>
+      <% end %>
+    <% else %>
+      <div class="text-center py-5">
+        <div class="mb-4">
+          <i class="bi bi-calendar-check text-info" style="font-size: 4rem;"></i>
+        </div>
+        <h4 class="text-info mb-3">No Upcoming Maintenance</h4>
+        <p class="text-muted">No maintenance tasks are scheduled for the near future.</p>
+      </div>
+    <% end %>
+
+  <% else %>
+    <% completed_vehicles = @completed_vehicles %>
+
+    <% if completed_vehicles.any? %>
+      <% completed_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "completed",
+              maintenances: vehicle.completed_maintenances %>
+      <% end %>
+    <% else %>
+      <div class="text-center py-5">
+        <div class="mb-4">
+          <i class="bi bi-clipboard-check text-muted" style="font-size: 4rem;"></i>
+        </div>
+        <h4 class="text-muted mb-3">No Completed Maintenance</h4>
+        <p class="text-muted">No maintenance tasks have been marked as completed yet.</p>
+      </div>
+    <% end %>
+  <% end %>
 </div>
 
 <!-- Quick Maintenance Modal -->
@@ -388,22 +384,22 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <%= form_with model: Maintenance.new, 
-              url: maintenances_path, 
+        <%= form_with model: Maintenance.new,
+              url: maintenances_path,
               class: "row g-3" do |f| %>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Select Vehicle</label>
-            <%= f.select :vehicle_id, 
+            <%= f.select :vehicle_id,
                   options_from_collection_for_select(@vehicles, :id, :display_name),
                   { prompt: "Choose a vehicle..." },
                   class: "form-select select2-vehicle",
                   required: true %>
           </div>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Service Type</label>
-            <%= f.select :service_type, 
+            <%= f.select :service_type,
                   options_for_select([
                     ["Oil Change", "Oil Change"],
                     ["Tire Rotation", "Tire Rotation"],
@@ -418,26 +414,26 @@
                   class: "form-select",
                   required: true %>
           </div>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Start Date</label>
-            <%= f.date_field :start_date, 
+            <%= f.date_field :start_date,
                   value: Date.today,
                   class: "form-control",
                   required: true %>
           </div>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Estimated Completion</label>
-            <%= f.date_field :end_date, 
+            <%= f.date_field :end_date,
                   value: Date.today + 3.days,
                   class: "form-control",
                   required: true %>
           </div>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Urgency Level</label>
-            <%= f.select :urgency, 
+            <%= f.select :urgency,
                   options_for_select([
                     ["Low", "low"],
                     ["Medium", "medium"],
@@ -447,23 +443,23 @@
                   {},
                   class: "form-select" %>
           </div>
-          
+
           <div class="col-md-6">
             <label class="form-label fw-medium">Estimated Cost (TTD)</label>
-            <%= f.number_field :cost, 
+            <%= f.number_field :cost,
                   class: "form-control",
                   placeholder: "0.00",
                   step: "0.01" %>
           </div>
-          
+
           <div class="col-12">
             <label class="form-label fw-medium">Description / Notes</label>
-            <%= f.text_area :notes, 
+            <%= f.text_area :notes,
                   class: "form-control",
                   rows: 3,
                   placeholder: "Brief description of the maintenance required..." %>
           </div>
-          
+
           <div class="col-12">
             <div class="form-check">
               <%= f.check_box :part_in_stock, class: "form-check-input" %>
@@ -472,7 +468,7 @@
               </label>
             </div>
           </div>
-          
+
           <div class="col-12 mt-4">
             <div class="d-flex justify-content-end gap-2">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
@@ -509,6 +505,7 @@
               <option value="safety">Safety Concern</option>
             </select>
           </div>
+
           <div class="mb-3">
             <label class="form-label">Select Vehicle</label>
             <select class="form-select select2-vehicle" name="vehicle_id" required>
@@ -520,27 +517,30 @@
               <% end %>
             </select>
           </div>
+
           <div class="mb-3">
             <label class="form-label">Description</label>
-            <%= f.text_area :description, 
-                  class: "form-control", 
+            <%= f.text_area :description,
+                  class: "form-control",
                   rows: 3,
                   placeholder: "Briefly describe the issue...",
                   required: true %>
           </div>
+
           <div class="mb-3">
             <label class="form-label">Urgency</label>
             <div class="btn-group w-100" role="group">
               <input type="radio" class="btn-check" name="urgency" value="low" id="urgency-low">
               <label class="btn btn-outline-success" for="urgency-low">Low</label>
-              
+
               <input type="radio" class="btn-check" name="urgency" value="medium" id="urgency-medium" checked>
               <label class="btn btn-outline-warning" for="urgency-medium">Medium</label>
-              
+
               <input type="radio" class="btn-check" name="urgency" value="high" id="urgency-high">
               <label class="btn btn-outline-danger" for="urgency-high">High</label>
             </div>
           </div>
+
           <div class="d-flex justify-content-end gap-2">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
             <button type="submit" class="btn btn-danger">
@@ -554,7 +554,7 @@
 </div>
 
 <style>
-/* Custom Styles for Maintenance Dashboard */
+/* keep all your existing CSS exactly as-is */
 .nav-pills .nav-link.active {
   background: linear-gradient(135deg, #0d6efd, #004aad);
   box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
@@ -580,38 +580,19 @@
   border-bottom-color: rgba(13, 110, 253, 0.3);
 }
 
-.card {
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-.alert {
-  border-radius: 0.75rem;
-}
+.card { border-radius: 0.75rem; overflow: hidden; }
+.alert { border-radius: 0.75rem; }
 
 .btn-group .btn-check:checked + .btn {
   background-color: var(--bs-btn-active-bg);
   border-color: var(--bs-btn-active-border-color);
 }
 
-/* Progress bar styling */
-.progress {
-  border-radius: 1rem;
-  overflow: hidden;
-  height: 8px;
-}
+.progress { border-radius: 1rem; overflow: hidden; height: 8px; }
+.progress-bar { border-radius: 1rem; }
 
-.progress-bar {
-  border-radius: 1rem;
-}
+.badge { font-weight: 500; padding: 0.35em 0.65em; }
 
-/* Badge styling */
-.badge {
-  font-weight: 500;
-  padding: 0.35em 0.65em;
-}
-
-/* Table styling */
 .table th {
   border-top: none;
   font-weight: 600;
@@ -619,11 +600,8 @@
   background-color: #f8f9fa;
 }
 
-.table tbody tr:hover {
-  background-color: #f8f9fa;
-}
+.table tbody tr:hover { background-color: #f8f9fa; }
 
-/* Maintenance card styling */
 .maintenance-card {
   transition: all 0.3s ease;
   border: 1px solid #e9ecef;
@@ -634,150 +612,31 @@
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
 }
 
-.maintenance-card .card-header {
-  border-bottom: 1px solid #e9ecef;
-}
+.maintenance-card .card-header { border-bottom: 1px solid #e9ecef; }
 
-/* Status colors */
-.status-badge-pending {
-  background: linear-gradient(135deg, #ffc107, #e0a800);
-  color: #212529;
-}
+.status-badge-pending { background: linear-gradient(135deg, #ffc107, #e0a800); color: #212529; }
+.status-badge-in-progress { background: linear-gradient(135deg, #0dcaf0, #0aa2c0); color: white; }
+.status-badge-completed { background: linear-gradient(135deg, #198754, #0d633c); color: white; }
+.status-badge-overdue { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
 
-.status-badge-in-progress {
-  background: linear-gradient(135deg, #0dcaf0, #0aa2c0);
-  color: white;
-}
+.urgency-badge-low { background-color: #6c757d; color: white; }
+.urgency-badge-medium { background-color: #ffc107; color: #212529; }
+.urgency-badge-high { background-color: #fd7e14; color: white; }
+.urgency-badge-emergency { background-color: #dc3545; color: white; }
 
-.status-badge-completed {
-  background: linear-gradient(135deg, #198754, #0d633c);
-  color: white;
-}
-
-.status-badge-overdue {
-  background: linear-gradient(135deg, #dc3545, #b02a37);
-  color: white;
-}
-
-/* Urgency badges */
-.urgency-badge-low {
-  background-color: #6c757d;
-  color: white;
-}
-
-.urgency-badge-medium {
-  background-color: #ffc107;
-  color: #212529;
-}
-
-.urgency-badge-high {
-  background-color: #fd7e14;
-  color: white;
-}
-
-.urgency-badge-emergency {
-  background-color: #dc3545;
-  color: white;
-}
-
-/* Timeline styling */
-.timeline {
-  position: relative;
-  padding-left: 30px;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #dee2e6;
-}
-
-.timeline-item {
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.timeline-marker {
-  position: absolute;
-  left: -22px;
-  top: 0.5rem;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 3px solid #fff;
-  z-index: 1;
-}
-
-.timeline-overdue .timeline-marker {
-  background-color: #dc3545;
-  box-shadow: 0 0 0 3px #dc3545;
-}
-
-.timeline-pending .timeline-marker {
-  background-color: #ffc107;
-  box-shadow: 0 0 0 3px #ffc107;
-}
-
-.timeline-upcoming .timeline-marker {
-  background-color: #0dcaf0;
-  box-shadow: 0 0 0 3px #0dcaf0;
-}
-
-.timeline-completed .timeline-marker {
-  background-color: #198754;
-  box-shadow: 0 0 0 3px #198754;
-}
-
-/* Responsive adjustments */
 @media (max-width: 768px) {
-  .nav-tabs .nav-link {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-  }
-  
-  .table-responsive {
-    font-size: 0.875rem;
-  }
-  
-  .btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-  }
+  .nav-tabs .nav-link { padding: 0.5rem 1rem; font-size: 0.875rem; }
+  .table-responsive { font-size: 0.875rem; }
+  .btn { padding: 0.375rem 0.75rem; font-size: 0.875rem; }
 }
 
-/* Animation for status changes */
 @keyframes pulse {
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
   100% { transform: scale(1); }
 }
 
-.urgent-maintenance {
-  animation: pulse 2s infinite;
-}
-
-/* Custom scrollbar for tables */
-.table-responsive::-webkit-scrollbar {
-  height: 6px;
-}
-
-.table-responsive::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.table-responsive::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
-}
-
-.table-responsive::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
+.urgent-maintenance { animation: pulse 2s infinite; }
 </style>
 
 <script>
@@ -791,68 +650,22 @@ document.addEventListener("DOMContentLoaded", function() {
       theme: 'bootstrap-5'
     });
   }
-  
+
   // Auto-submit filter form on select change
   const ownerSelect = document.getElementById("owner_filter");
   const filterForm = document.getElementById("maintenance_filter_form");
-  
+
   if (ownerSelect && filterForm) {
     ownerSelect.addEventListener("change", () => {
       filterForm.submit();
     });
   }
-  
-  // Tab functionality
-  const tabTriggers = document.querySelectorAll('#priorityTabs button[data-bs-toggle="tab"]');
-  tabTriggers.forEach(tab => {
-    tab.addEventListener('shown.bs.tab', event => {
-      // Save active tab to localStorage
-      localStorage.setItem('maintenanceActiveTab', event.target.id);
-    });
-  });
-  
-  // Restore active tab from localStorage
-  const activeTabId = localStorage.getItem('maintenanceActiveTab');
-  if (activeTabId) {
-    const activeTab = document.getElementById(activeTabId);
-    if (activeTab) {
-      const tab = new bootstrap.Tab(activeTab);
-      tab.show();
-    }
-  }
-  
-  // Initialize tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-  
-  // Quick maintenance form validation
-  const quickForm = document.querySelector('#quickMaintenanceModal form');
-  if (quickForm) {
-    quickForm.addEventListener('submit', function(e) {
-      const vehicleId = this.querySelector('[name="maintenance[vehicle_id]"]').value;
-      const serviceType = this.querySelector('[name="maintenance[service_type]"]').value;
-      
-      if (!vehicleId || !serviceType) {
-        e.preventDefault();
-        alert('Please select a vehicle and service type.');
-        return false;
-      }
-    });
-  }
-  
-  // Highlight overdue maintenance rows
-  const overdueRows = document.querySelectorAll('tr.table-danger');
-  overdueRows.forEach(row => {
-    row.classList.add('urgent-maintenance');
-  });
-  
+
   // Auto-refresh page every 5 minutes for real-time updates
   setTimeout(() => {
     window.location.reload();
   }, 300000); // 5 minutes
-  
+
   // Keyboard shortcuts
   document.addEventListener('keydown', function(e) {
     // Ctrl/Cmd + N for new maintenance
@@ -861,23 +674,13 @@ document.addEventListener("DOMContentLoaded", function() {
       const modal = new bootstrap.Modal(document.getElementById('quickMaintenanceModal'));
       modal.show();
     }
-    
+
     // Ctrl/Cmd + F for focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
       const searchInput = document.querySelector('input[name="query"]');
-      if (searchInput) {
-        searchInput.focus();
-      }
+      if (searchInput) searchInput.focus();
     }
   });
-  
-  // Print maintenance report
-  const printBtn = document.getElementById('printReportBtn');
-  if (printBtn) {
-    printBtn.addEventListener('click', function() {
-      window.print();
-    });
-  }
 });
 </script>

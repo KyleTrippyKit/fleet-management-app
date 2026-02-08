@@ -68,8 +68,8 @@ class VehiclesController < ApplicationController
     @kpi_out         = base.where(status: ["out", "inactive"]).count
 
     @vehicles = base.with_attached_primary_photo.with_attached_gallery_photos
-                  .order(:make, :model)
-                  .page(params[:page]).per(20)
+                    .order(:make, :model)
+                    .page(params[:page]).per(20)
   end
 
   # ====================================================
@@ -198,11 +198,14 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Maintenance Dashboard
+  # Maintenance Dashboard (SERVER-SIDE TABS - CLICKABLE)
   # ====================================================
   def maintenance_dashboard
-    @query = params[:search].presence || params[:query].presence
-    @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
+    @query        = params[:search].presence || params[:query].presence
+    @owner_filter = params[:owner].presence && params[:owner] != "All Owners" ? params[:owner] : nil
+
+    # NEW: server-side tab selector (instead of bootstrap tabs)
+    @priority = params[:priority].presence_in(%w[overdue pending upcoming completed]) || "overdue"
 
     @vehicles = scoped_vehicles_by_agency
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
@@ -214,10 +217,26 @@ class VehiclesController < ApplicationController
       @agencies = Agency.all.order(:name)
     end
 
+    # avoid N+1 where possible
+    @vehicles = @vehicles.includes(:maintenances)
+
+    # Keep your existing "pending first" behavior
     @vehicles = @vehicles.sort_by do |vehicle|
       has_pending = vehicle.maintenances.any? { |m| m.present? && m.status == "Pending" }
       has_pending ? 0 : 1
     end
+
+    # counts for badges (uses your existing vehicle helper methods)
+    @count_overdue   = @vehicles.sum { |v| v.overdue_maintenances.count }
+    @count_pending   = @vehicles.sum { |v| v.active_maintenances.count }
+    @count_upcoming  = @vehicles.sum { |v| v.upcoming_maintenances.count }
+    @count_completed = @vehicles.sum { |v| v.completed_maintenances.count }
+
+    # vehicles per tab
+    @overdue_vehicles   = @vehicles.select { |v| v.overdue_maintenances.any? }
+    @pending_vehicles   = @vehicles.select { |v| v.active_maintenances.any? }
+    @upcoming_vehicles  = @vehicles.select { |v| v.upcoming_maintenances.any? }
+    @completed_vehicles = @vehicles.select { |v| v.completed_maintenances.any? }
 
     @maintenances = @vehicles.flat_map(&:maintenances).compact
   end
@@ -225,11 +244,6 @@ class VehiclesController < ApplicationController
   # ====================================================
   # Catalog search endpoint (JSON)
   # PUBLIC so autocomplete works without login.
-  #
-  # Improvements:
-  # - Larger result set (limit 30)
-  # - Exact make+model matches first
-  # - Also supports searching by make-only / model-only
   # ====================================================
   def catalog_search
     q = params[:q].presence || params[:term].presence || params[:query].presence
@@ -244,14 +258,12 @@ class VehiclesController < ApplicationController
 
     rel = VehicleCatalogEntry.all
 
-    # Exact match first (make+model)
     exact = if make_guess.present? && model_guess.present?
       rel.where("LOWER(make) = ? AND LOWER(model) = ?", make_guess.downcase, model_guess.downcase)
     else
       VehicleCatalogEntry.none
     end
 
-    # Then partial match
     partial = rel.where(
       "make ILIKE :q OR model ILIKE :q OR (make || ' ' || model) ILIKE :q",
       q: "%#{q_norm}%"
@@ -501,7 +513,6 @@ class VehiclesController < ApplicationController
     raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
     raw ||= {}
 
-    # 1) Make/Model UI parse always wins if present (because hidden fields can miss on submit)
     mm = raw["make_model_ui"].to_s.strip
     if mm.present?
       mm = mm.gsub(/\s+/, " ").strip
@@ -511,8 +522,6 @@ class VehiclesController < ApplicationController
 
       vehicle.make  = make_part if make_part.present?
 
-      # IMPORTANT: prevent validation crash if user typed only one word.
-      # If no model provided, set a safe placeholder so the record can still save.
       if model_part.present?
         vehicle.model = model_part
       else
@@ -520,14 +529,11 @@ class VehiclesController < ApplicationController
       end
     end
 
-    # 2) If still missing make/model, use raw make/model fields (fallback)
     vehicle.make  = raw["make"].to_s.strip if vehicle.make.blank? && raw["make"].present?
     vehicle.model = raw["model"].to_s.strip if vehicle.model.blank? && raw["model"].present?
 
-    # 3) If model is still blank, force safe placeholder to avoid "Model can't be blank"
     vehicle.model = "Unknown" if vehicle.model.blank? && vehicle.make.present?
 
-    # 4) License / Registration UI parse
     lr = raw["license_registration_ui"].to_s.strip
     if lr.present?
       normalized = lr.gsub(/\s+/, " ").strip
@@ -539,7 +545,6 @@ class VehiclesController < ApplicationController
       vehicle.registration_number = reg   if reg.present?
     end
 
-    # 5) Autofill vehicle_type from catalog only when blank
     if vehicle.vehicle_type.blank? && vehicle.make.present? && vehicle.model.present? && defined?(VehicleCatalogEntry)
       entry = VehicleCatalogEntry
         .where("LOWER(make) = ? AND LOWER(model) = ?", vehicle.make.downcase, vehicle.model.downcase)
@@ -547,7 +552,6 @@ class VehiclesController < ApplicationController
       vehicle.vehicle_type = entry.vehicle_type if entry&.vehicle_type.present?
     end
 
-    # 6) Still blank? default it (prevents another validation failure if vehicle_type is required)
     vehicle.vehicle_type = "Other" if vehicle.vehicle_type.blank?
   end
 
@@ -586,7 +590,6 @@ class VehiclesController < ApplicationController
   # Agency scoping - FIXED: No params[:id] usage
   # ====================================================
   def set_agency_from_params
-    # Only allow agency scoping from explicit filter params
     agency_id = params[:agency_id].presence || params[:agency].presence
     @selected_agency = Agency.find_by(id: agency_id) if agency_id.present?
 
@@ -596,15 +599,11 @@ class VehiclesController < ApplicationController
   end
 
   def scoped_vehicles_by_agency
-    # Proper agency scoping - only show vehicles from user's agency unless VMCOTT
     if @selected_agency
-      # If a specific agency is selected (from filter)
       @selected_agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     elsif is_vmcott?
-      # VMCOTT users can see all vehicles
       Vehicle.all.with_attached_primary_photo.with_attached_gallery_photos
     else
-      # Regular users only see their agency's vehicles
       current_user.agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     end
   end
@@ -653,9 +652,9 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Role helper
+  # Role helper (FIXED)
   # ====================================================
   def is_vmcott?
-    current_user&.agency&.code == "VMCOTT"
+    current_user&.agency&.code.to_s.downcase == "vmcott"
   end
 end

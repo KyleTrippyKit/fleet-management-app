@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_06_191553) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_08_072001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -953,6 +953,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_06_191553) do
 
   create_table "service_providers", force: :cascade do |t|
     t.string "address"
+    t.bigint "agency_id"
     t.string "contact_name"
     t.datetime "created_at", null: false
     t.string "email"
@@ -960,8 +961,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_06_191553) do
     t.string "name"
     t.text "notes"
     t.string "phone"
-    t.string "provider_type", default: "external_contractor", null: false
+    t.string "provider_type", default: "internal_workshop", null: false
     t.datetime "updated_at", null: false
+    t.index ["agency_id", "name"], name: "index_service_providers_on_agency_id_and_name"
+    t.index ["agency_id"], name: "index_service_providers_on_agency_id"
     t.index ["is_active"], name: "index_service_providers_on_is_active"
     t.index ["name"], name: "index_service_providers_on_name"
     t.index ["provider_type"], name: "index_service_providers_on_provider_type"
@@ -1268,6 +1271,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_06_191553) do
   add_foreign_key "rfqs", "agencies", column: "requesting_agency_id"
   add_foreign_key "rfqs", "maintenance_requests"
   add_foreign_key "rfqs", "vehicles"
+  add_foreign_key "service_providers", "agencies"
   add_foreign_key "transactions", "invoices"
   add_foreign_key "transactions", "users"
   add_foreign_key "transactions", "vehicles"

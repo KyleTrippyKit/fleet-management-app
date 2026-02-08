@@ -11,13 +11,13 @@ pin "@hotwired/stimulus-loading", to: "stimulus-loading.js", preload: true
 # Pin all controllers from app/javascript/controllers
 pin_all_from "app/javascript/controllers", under: "controllers"
 
+# Pin our polish kit
+pin "polish", to: "polish.js", preload: true
+
 # External dependencies
 pin "@nathanvda/cocoon", to: "@nathanvda--cocoon.js"
 pin "jquery", to: "jquery.js"
 
-# Add Bootstrap - Use the bundle version (includes Popper)
-
-# FIXED: Chart libraries - REMOVE Chart.bundle, keep only chart.js
+# Chart libraries
 pin "chartkick", to: "https://ga.jspm.io/npm:chartkick@5.0.1/dist/chartkick.esm.js"
 pin "chart.js", to: "https://ga.jspm.io/npm:chart.js@4.5.1/dist/chart.umd.js"
-
