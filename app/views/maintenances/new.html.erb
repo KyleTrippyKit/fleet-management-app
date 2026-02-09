@@ -1,23 +1,50 @@
-<div class="container py-4">
+<!-- File: app/views/maintenances/new.html.erb -->
+
+<div class="container-fluid py-4">
   <div class="row">
-    <div class="col-lg-8 mx-auto">
+    <div class="col-12 col-xl-11 col-xxl-10 mx-auto">
       <div class="card shadow-sm">
         <div class="card-header bg-white border-bottom">
-          <div class="d-flex justify-content-between align-items-center">
-            <h1 class="h4 mb-0">Add Maintenance</h1>
-            <span class="badge bg-primary">
-              <%= @vehicle.make %> <%= @vehicle.model %> (<%= @vehicle.registration_number %>)
-            </span>
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <h1 class="h4 mb-1">Add Maintenance</h1>
+              <div class="text-muted small">
+                Create a maintenance task and schedule it on the timeline.
+              </div>
+            </div>
+
+            <% if @vehicle.present? %>
+              <span class="badge bg-primary">
+                <%= @vehicle.make %> <%= @vehicle.model %>
+                (<%= @vehicle.registration_number.presence || @vehicle.license_plate.presence || "No ID" %>)
+              </span>
+            <% else %>
+              <span class="badge bg-secondary">
+                Select a vehicle to continue
+              </span>
+            <% end %>
           </div>
         </div>
-        <div class="card-body">
-          <%= render "form", vehicle: @vehicle, maintenance: @maintenance, service_providers: @service_providers %>
+
+        <div class="card-body p-4">
+          <%= render "form",
+                vehicle: @vehicle,
+                maintenance: @maintenance,
+                service_providers: @service_providers %>
         </div>
+
         <div class="card-footer bg-white border-top">
-          <div class="d-flex justify-content-between">
-            <%= link_to vehicle_path(@vehicle), class: "btn btn-outline-secondary" do %>
-              <i class="bi bi-arrow-left me-2"></i>Back to Vehicle
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <% if @vehicle.present? %>
+              <%= link_to vehicle_path(@vehicle), class: "btn btn-outline-secondary" do %>
+                <i class="bi bi-arrow-left me-2"></i>Back to Vehicle
+              <% end %>
+            <% else %>
+              <%= link_to vehicles_path, class: "btn btn-outline-secondary" do %>
+                <i class="bi bi-arrow-left me-2"></i>Back to Fleet
+              <% end %>
             <% end %>
+
             <%= link_to "View Maintenance Timeline", gantt_path, class: "btn btn-outline-info" %>
           </div>
         </div>
@@ -26,51 +53,49 @@
   </div>
 </div>
 
+<!-- Flatpickr (CDN) -->
+<%= stylesheet_link_tag "https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css", media: "all" %>
 <%= javascript_include_tag "https://cdn.jsdelivr.net/npm/flatpickr" %>
-<%= stylesheet_link_tag "https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" %>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  // Initialize flatpickr for date fields
-  flatpickr(".datepicker", {
-    dateFormat: "Y-m-d",
-    allowInput: true
-  });
-  
-  // Set default dates if not already set
-  const startDateField = document.getElementById('maintenance_start_date');
-  const endDateField = document.getElementById('maintenance_end_date');
-  const dateField = document.getElementById('maintenance_date');
-  
-  if (startDateField && !startDateField.value) {
-    startDateField.value = new Date().toISOString().split('T')[0];
-  }
-  
-  if (endDateField && !endDateField.value) {
-    const today = new Date();
-    today.setDate(today.getDate() + 7);
-    endDateField.value = today.toISOString().split('T')[0];
-  }
-  
-  if (dateField && !dateField.value) {
-    dateField.value = new Date().toISOString().split('T')[0];
-  }
-  
-  // Set next due date if not already set
-  const nextDueDateField = document.getElementById('maintenance_next_due_date');
-  if (nextDueDateField && !nextDueDateField.value) {
-    const today = new Date();
-    today.setDate(today.getDate() + 30);
-    nextDueDateField.value = today.toISOString().split('T')[0];
-  }
-  
-  // Auto-calculate end date if only start date is provided
-  startDateField?.addEventListener('change', function() {
+  document.addEventListener("turbo:load", () => {
+    if (typeof flatpickr === "undefined") return;
+
+    document.querySelectorAll(".datepicker").forEach((el) => {
+      if (el._flatpickr) return;
+      flatpickr(el, { dateFormat: "Y-m-d", allowInput: true });
+    });
+
+    const startDateField = document.getElementById("maintenance_start_date");
+    const endDateField   = document.getElementById("maintenance_end_date");
+    const dateField      = document.getElementById("maintenance_date");
+    const nextDueField   = document.getElementById("maintenance_next_due_date");
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    if (startDateField && !startDateField.value) startDateField.value = todayStr;
+    if (dateField && !dateField.value) dateField.value = todayStr;
+
     if (endDateField && !endDateField.value) {
-      const startDate = new Date(this.value);
-      startDate.setDate(startDate.getDate() + 7);
-      endDateField.value = startDate.toISOString().split('T')[0];
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      endDateField.value = d.toISOString().split("T")[0];
     }
+
+    if (nextDueField && !nextDueField.value) {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      nextDueField.value = d.toISOString().split("T")[0];
+    }
+
+    startDateField?.addEventListener("change", function () {
+      if (!endDateField || endDateField.value) return;
+
+      const d = new Date(this.value);
+      if (isNaN(d.getTime())) return;
+
+      d.setDate(d.getDate() + 7);
+      endDateField.value = d.toISOString().split("T")[0];
+    });
   });
-});
 </script>

@@ -77,6 +77,107 @@ function ensureBootstrapComponents() {
   })
 }
 
+function autoHideFlashMessages() {
+  console.log("🔔 autoHideFlashMessages() called - looking for flash messages...");
+  
+  // BROAD SELECTORS TO CATCH ALL FLASH MESSAGES
+  const selectors = [
+    '.alert', 
+    '.alert-dismissible',
+    '[role="alert"]',
+    '.flash-message',
+    '.alert-info',
+    '.alert-success',
+    '.alert-warning',
+    '.alert-danger',
+    '#flash-messages > *', // Direct children of flash-messages container
+    '.container.mt-3 > .alert' // Alerts in container mt-3 (your layout)
+  ];
+  
+  // Try each selector
+  let flashMessages = [];
+  selectors.forEach(selector => {
+    const found = document.querySelectorAll(selector);
+    if (found.length > 0) {
+      console.log(`🔍 Found ${found.length} with selector: ${selector}`);
+      found.forEach(el => {
+        // Avoid duplicates
+        if (!flashMessages.includes(el)) {
+          flashMessages.push(el);
+        }
+      });
+    }
+  });
+  
+  console.log(`🎯 Total unique flash messages found: ${flashMessages.length}`);
+  
+  if (flashMessages.length === 0) {
+    // Fallback: look for any element with flash-like text
+    console.log("⚠️ No flash messages found with selectors, trying text search...");
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      const text = el.textContent?.toLowerCase() || '';
+      if (text.includes('signed in') || text.includes('successfully') || text.includes('welcome')) {
+        console.log(`   Found flash-like text: ${text.substring(0, 50)}...`);
+        if (!flashMessages.includes(el)) {
+          flashMessages.push(el);
+        }
+      }
+    });
+  }
+  
+  // Process each flash message
+  flashMessages.forEach(function(flash, index) {
+    console.log(`   Processing flash ${index + 1}: ${flash.className || flash.tagName}`);
+    
+    // Set a timeout to hide after 2 seconds
+    setTimeout(function() {
+      console.log(`⏰ Hiding flash ${index + 1} after 2 seconds`);
+      
+      // Try Bootstrap method first
+      if (window.bootstrap && flash.classList && flash.classList.contains('alert-dismissible')) {
+        try {
+          const bsAlert = window.bootstrap.Alert.getOrCreateInstance(flash);
+          bsAlert.close();
+          console.log(`   ✅ Used Bootstrap dismiss method`);
+          return;
+        } catch (e) {
+          console.log(`   ❌ Bootstrap dismiss failed: ${e.message}`);
+        }
+      }
+      
+      // Fallback: manual fade out
+      fadeOutFlash(flash);
+      
+    }, 2000); // 2 seconds
+  });
+  
+  function fadeOutFlash(flashElement) {
+    console.log(`   Using manual fade out`);
+    
+    // Add transition for smooth fade
+    flashElement.style.transition = 'all 0.5s ease-out';
+    flashElement.style.opacity = '0';
+    flashElement.style.maxHeight = '0';
+    flashElement.style.paddingTop = '0';
+    flashElement.style.paddingBottom = '0';
+    flashElement.style.marginTop = '0';
+    flashElement.style.marginBottom = '0';
+    flashElement.style.borderWidth = '0';
+    flashElement.style.overflow = 'hidden';
+    
+    // Remove from DOM after animation
+    setTimeout(() => {
+      if (flashElement.parentNode) {
+        flashElement.parentNode.removeChild(flashElement);
+        console.log(`   ✅ Removed from DOM`);
+      } else {
+        console.log(`   ℹ️ Already removed or no parent`);
+      }
+    }, 500); // Wait for fade animation to complete
+  }
+}
+
 function logLoadedLibraries(where = "load") {
   console.log(`✅ ${where}: diagnostics`)
 
@@ -103,15 +204,19 @@ function logLoadedLibraries(where = "load") {
 
 // On first page load (hard refresh)
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("📄 DOMContentLoaded event fired");
   setGlobalCsrfToken()
   ensureBootstrapComponents()
+  autoHideFlashMessages()
   logLoadedLibraries("DOMContentLoaded")
 })
 
 // On Turbo navigation (soft navigation)
 document.addEventListener("turbo:load", () => {
+  console.log("🌀 turbo:load event fired");
   setGlobalCsrfToken()
   ensureBootstrapComponents()
+  autoHideFlashMessages()
   logLoadedLibraries("turbo:load")
 })
 
@@ -136,3 +241,27 @@ window.withCsrfHeaders = function withCsrfHeaders(headers = {}) {
 
   return token ? { ...headers, "X-CSRF-Token": token } : headers
 }
+
+// Make the function available globally if needed
+window.autoHideFlashMessages = autoHideFlashMessages;
+
+// NUCLEAR OPTION: Fallback timer just in case
+setTimeout(() => {
+  console.log("💣 Fallback: Checking for remaining flash messages...");
+  
+  // Look for any remaining alerts and force hide them
+  const remainingAlerts = document.querySelectorAll('.alert, .alert-dismissible, [role="alert"]');
+  if (remainingAlerts.length > 0) {
+    console.log(`💥 Force hiding ${remainingAlerts.length} remaining alerts`);
+    remainingAlerts.forEach(alert => {
+      alert.style.display = 'none';
+      alert.style.visibility = 'hidden';
+      alert.style.opacity = '0';
+      alert.style.height = '0';
+      alert.style.padding = '0';
+      alert.style.margin = '0';
+      alert.style.overflow = 'hidden';
+      alert.style.border = '0';
+    });
+  }
+}, 3000); // 3 seconds as fallback

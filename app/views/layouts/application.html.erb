@@ -92,12 +92,26 @@
 
       /* Ensure Gantt page has full height */
       body.gantt-page {
-        height: 100vh;
-        overflow: hidden;
+        height: auto;
+        overflow-y: auto;   /* ✅ allow scroll */
+        overflow-x: hidden; /* optional */
       }
-
-      body.gantt-page #gantt_container {
-        height: calc(100vh - 100px);
+      
+      /* AUTO-HIDE FLASH MESSAGES CSS FALLBACK */
+      .alert-auto-hide {
+        animation: fadeOutAlert 2.5s forwards !important;
+        animation-delay: 2s !important; /* Show for 2 seconds, then fade */
+      }
+      
+      @keyframes fadeOutAlert {
+        0% { opacity: 1; transform: translateY(0); }
+        70% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-20px); max-height: 0; padding: 0; margin: 0; }
+      }
+      
+      /* Flash container animation */
+      #flash-messages {
+        transition: max-height 0.5s ease-out;
       }
     </style>
   </head>
@@ -121,11 +135,46 @@
 
     <div id="modal-container"></div>
 
+    <!-- NAVIGATION (shows everywhere, including VMCOTT, when logged in) -->
+    <% if defined?(user_signed_in?) && user_signed_in? %>
+      <div class="container mt-3">
+        <%= render "shared/navigation" %>
+      </div>
+    <% end %>
+
     <!-- Flash Messages -->
     <div id="flash-messages" class="container mt-3">
       <%= render "shared/flash" %>
     </div>
 
     <%= yield %>
+    
+    <!-- EXTRA JAVASCRIPT FALLBACK FOR FLASH HIDING -->
+    <script>
+      // Extra fallback: Force hide any flash messages after 2.5 seconds
+      setTimeout(function() {
+        const allAlerts = document.querySelectorAll('.alert, [role="alert"]');
+        console.log('Fallback timer: Checking for', allAlerts.length, 'alerts');
+        
+        allAlerts.forEach(function(alert) {
+          console.log('Hiding alert with text:', alert.textContent?.substring(0, 50));
+          
+          // Add auto-hide CSS class as fallback
+          alert.classList.add('alert-auto-hide');
+          
+          // Also hide via JS
+          setTimeout(function() {
+            alert.style.display = 'none';
+            alert.style.visibility = 'hidden';
+            alert.style.opacity = '0';
+            alert.style.height = '0';
+            alert.style.padding = '0';
+            alert.style.margin = '0';
+            alert.style.overflow = 'hidden';
+            alert.style.border = '0';
+          }, 500);
+        });
+      }, 2500); // 2.5 seconds
+    </script>
   </body>
 </html>
