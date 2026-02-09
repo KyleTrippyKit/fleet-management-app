@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH FIX FOR VMCOTT INVENTORY ROUTES
+# config/routes.rb - COMPLETE REVISED VERSION WITH FIX FOR VMCOTT INVENTORY ROUTES AND ALERTS
 
 Rails.application.routes.draw do
   get "stock_levels/index"
@@ -74,20 +74,30 @@ Rails.application.routes.draw do
   resources :vehicle_catalog_entries, only: [:index, :create]
 
   # ========================
-  # ALERT SYSTEM ROUTES
+  # ALERT SYSTEM ROUTES - UPDATED WITH SEARCH
   # ========================
   resources :alerts do
     member do
       post :acknowledge
       post :resolve
       post :escalate
+      get :resolve_form
     end
     collection do
       get :needs_attention
       get :recent
       get :summary
+      get :dashboard
+      get :export
+      post :bulk_action
     end
   end
+
+  # ========================
+  # SEARCH ROUTES FOR VEHICLES AND DRIVERS
+  # ========================
+  get 'vehicles/search', to: 'vehicles#search', as: 'search_vehicles'
+  get 'drivers/search', to: 'drivers#search', as: 'search_drivers'
 
   # ========================
   # VENDOR & INVENTORY MANAGEMENT (ENHANCED VERSION)
@@ -824,9 +834,6 @@ Rails.application.routes.draw do
 
   # Theme management
   patch 'theme/:theme', to: 'themes#update', as: :update_theme
-  
-  # Quick reports
-  resources :quick_reports, only: [:create]
 
   # ========================
   # Financial Dashboard

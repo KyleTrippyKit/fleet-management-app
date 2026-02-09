@@ -73,7 +73,7 @@
   }
 </style>
 
-<div class="container-fluid py-4" data-controller="gantt" data-gantt-initialized="false">
+<div class="container-fluid py-4">
 
   <!-- Header -->
   <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
@@ -86,22 +86,6 @@
         <% end %>
       </p>
     </div>
-
-    <% if can_write_maintenance %>
-      <div class="d-flex gap-2">
-        <% if params[:vehicle_id].present? %>
-          <%= link_to new_vehicle_maintenance_path(params[:vehicle_id]),
-                class: "btn btn-primary d-flex align-items-center gap-2" do %>
-            <i class="bi bi-plus-circle me-2"></i>New Maintenance
-          <% end %>
-        <% else %>
-          <%= link_to new_maintenance_path,
-                class: "btn btn-primary d-flex align-items-center gap-2" do %>
-            <i class="bi bi-plus-circle me-2"></i>New Maintenance
-          <% end %>
-        <% end %>
-      </div>
-    <% end %>
   </div>
 
   <!-- Filters -->
@@ -137,9 +121,6 @@
               <option value="next_3_months" <%= 'selected' if params[:date_range] == 'next_3_months' || params[:date_range] == '90' %>>Next 3 Months</option>
               <option value="next_6_months" <%= 'selected' if params[:date_range] == 'next_6_months' || params[:date_range] == '180' %>>Next 6 Months</option>
               <option value="next_year" <%= 'selected' if params[:date_range] == 'next_year' || params[:date_range] == '365' %>>Next Year</option>
-            </optgroup>
-
-            <option value="custom" <%= 'selected' if params[:date_range] == 'custom' %>>Custom Range</option>
           </select>
         </div>
 
@@ -408,6 +389,7 @@
                         <i class="bi bi-eye"></i>
                       <% end %>
 
+                      <%# ONLY VMCOTT/Admin can edit or mark completed %>
                       <% if can_write_maintenance %>
                         <%= link_to edit_maintenance_path(maintenance),
                               class: "btn btn-sm btn-outline-warning",
@@ -436,32 +418,49 @@
     </div>
 
     <script>
-      function initGanttOnce() {
-        if (window.ganttInitialized) return;
-
+      // Initialize Gantt chart when everything is loaded
+      function initializeGanttChart() {
+        console.log("🚀 Starting Gantt initialization...");
+        
         const dataElement = document.getElementById("ganttData");
-        if (!dataElement) return;
-
-        const rawData = dataElement.dataset.ganttTasks;
-        if (!rawData) return;
-
-        const canWrite = (dataElement.dataset.canWrite === "true");
-
-        if (typeof gantt === "undefined") {
-          setTimeout(initGanttOnce, 100);
+        if (!dataElement) {
+          console.error("❌ No ganttData element found");
           return;
         }
 
-        let parsedData;
-        try { parsedData = JSON.parse(rawData); }
-        catch (e) { console.error("Bad gantt json:", e); return; }
+        const rawData = dataElement.dataset.ganttTasks;
+        if (!rawData) {
+          console.error("❌ No gantt tasks data found");
+          return;
+        }
 
+        const canWrite = (dataElement.dataset.canWrite === "true");
+
+        // Wait for gantt library to load
+        if (typeof gantt === "undefined") {
+          console.log("⏳ Waiting for gantt library...");
+          setTimeout(initializeGanttChart, 100);
+          return;
+        }
+
+        console.log("✅ Gantt library loaded, parsing data...");
+
+        let parsedData;
+        try { 
+          parsedData = JSON.parse(rawData); 
+          console.log(`✅ Parsed ${parsedData.data?.length || 0} tasks`);
+        } catch (e) { 
+          console.error("❌ Bad gantt json:", e); 
+          return; 
+        }
+
+        // Gantt configuration
         gantt.config.date_format = "%Y-%m-%d %H:%i";
         gantt.config.scale_height = 50;
         gantt.config.row_height = 35;
         gantt.config.bar_height = 20;
         gantt.config.grid_width = 350;
-
+        
         // ✅ Agencies cannot drag/resize/update gantt
         gantt.config.readonly = !canWrite;
 
@@ -499,7 +498,7 @@
           }
         ];
 
-        // default scales (month)
+        // Default scales (month)
         gantt.config.scales = [
           { unit: "month", step: 1, format: "%F %Y" },
           { unit: "week", step: 1, format: "Week #%W" }
@@ -542,7 +541,9 @@
 
         gantt.init("ganttContainer");
         gantt.parse(parsedData);
+        console.log("✅ Gantt initialized successfully");
 
+        // Add today marker
         const today = new Date();
         gantt.addMarker({
           start_date: today,
@@ -551,12 +552,14 @@
           title: "Today: " + today.toDateString()
         });
 
+        // Highlight weekends
         gantt.templates.timeline_cell_class = function(task, date) {
           const day = date.getDay();
           if (day === 0 || day === 6) return "gantt-weekend";
           return "";
         };
 
+        // Click to view maintenance
         gantt.attachEvent("onTaskClick", function(id) {
           const task = gantt.getTask(id);
           if (task && task.details && task.details.maintenance_id) {
@@ -565,7 +568,7 @@
           return true;
         });
 
-        // ✅ Only VMCOTT/admin gets dblclick-to-edit
+        // ✅ Only VMCOTT/admin gets double-click-to-edit
         if (canWrite) {
           gantt.attachEvent("onTaskDblClick", function(id) {
             const task = gantt.getTask(id);
@@ -576,37 +579,22 @@
           });
         }
 
-        window.ganttInitialized = true;
-
-        document.getElementById("fitBtn")?.addEventListener("click", () => gantt.fitContent());
+        // Button handlers
+        document.getElementById("fitBtn")?.addEventListener("click", () => {
+          gantt.fitContent();
+        });
 
         const fullscreenBtn = document.getElementById("fullscreenBtn");
         const ganttWrap = document.getElementById("ganttContainer");
         fullscreenBtn?.addEventListener("click", () => {
-          if (!document.fullscreenElement) ganttWrap?.requestFullscreen?.();
-          else document.exitFullscreen?.();
+          if (!document.fullscreenElement) {
+            ganttWrap?.requestFullscreen?.();
+          } else {
+            document.exitFullscreen?.();
+          }
         });
 
-        const dateRange = document.getElementById("dateRange");
-        const customDateRange = document.getElementById("customDateRange");
-        dateRange?.addEventListener("change", function() {
-          if (customDateRange) customDateRange.style.display = this.value === "custom" ? "block" : "none";
-        });
-
-        document.getElementById("resetFilters")?.addEventListener("click", () => {
-          window.location.href = "<%= gantt_path %>";
-        });
-
-        const clearVehicleSearch = document.getElementById("clearVehicleSearch");
-        const vehicleSearch = document.getElementById("vehicleSearch");
-        const vehicleSelect = document.getElementById("vehicleSelect");
-
-        clearVehicleSearch?.addEventListener("click", () => {
-          if (vehicleSearch) vehicleSearch.value = "";
-          if (vehicleSelect) vehicleSelect.value = "";
-          document.getElementById("ganttFilters")?.submit();
-        });
-
+        // View mode change
         document.getElementById("viewMode")?.addEventListener("change", function() {
           switch (this.value) {
             case "day":
@@ -636,28 +624,79 @@
           }
           gantt.render();
         });
+      }
 
+      // Wait for DOM to be ready
+      document.addEventListener("DOMContentLoaded", function() {
+        console.log("📄 DOMContentLoaded - starting Gantt setup");
+        
+        // Show/hide custom date range
+        const dateRange = document.getElementById("dateRange");
+        const customDateRange = document.getElementById("customDateRange");
+        if (dateRange && customDateRange) {
+          dateRange.addEventListener("change", function() {
+            customDateRange.style.display = this.value === "custom" ? "block" : "none";
+          });
+        }
+
+        // Reset filters
+        document.getElementById("resetFilters")?.addEventListener("click", () => {
+          window.location.href = "<%= gantt_path %>";
+        });
+
+        // Clear vehicle search
+        const clearVehicleSearch = document.getElementById("clearVehicleSearch");
+        const vehicleSearch = document.getElementById("vehicleSearch");
+        const vehicleSelect = document.getElementById("vehicleSelect");
+        if (clearVehicleSearch) {
+          clearVehicleSearch.addEventListener("click", () => {
+            if (vehicleSearch) vehicleSearch.value = "";
+            if (vehicleSelect) vehicleSelect.value = "";
+            document.getElementById("ganttFilters")?.submit();
+          });
+        }
+
+        // Auto-submit filters
         document.querySelectorAll(".auto-submit, .auto-submit-date").forEach((el) => {
           el.addEventListener("change", () => {
-            setTimeout(() => document.getElementById("ganttFilters")?.submit(), 250);
+            setTimeout(() => {
+              const form = document.getElementById("ganttFilters");
+              if (form) form.submit();
+            }, 250);
           });
         });
 
-        vehicleSearch?.addEventListener("keyup", (e) => {
-          if (e.key === "Enter") {
-            if (vehicleSelect) vehicleSelect.value = "";
-            document.getElementById("ganttFilters")?.submit();
-          }
-        });
-      }
-
-      document.addEventListener("turbo:load", initGanttOnce);
-
-      document.addEventListener("turbo:before-cache", () => {
-        if (window.gantt && window.ganttInitialized) {
-          try { gantt.clearAll(); gantt.destructor(); } catch (e) {}
+        // Vehicle search on Enter
+        if (vehicleSearch) {
+          vehicleSearch.addEventListener("keyup", (e) => {
+            if (e.key === "Enter") {
+              if (vehicleSelect) vehicleSelect.value = "";
+              document.getElementById("ganttFilters")?.submit();
+            }
+          });
         }
-        window.ganttInitialized = false;
+
+        // Start Gantt initialization
+        setTimeout(initializeGanttChart, 100);
+      });
+
+      // Re-initialize on Turbo navigation
+      document.addEventListener("turbo:load", function() {
+        console.log("🌀 turbo:load - reinitializing Gantt");
+        setTimeout(initializeGanttChart, 100);
+      });
+
+      // Clean up on Turbo cache
+      document.addEventListener("turbo:before-cache", function() {
+        console.log("🧹 Cleaning up Gantt before cache");
+        if (window.gantt) {
+          try { 
+            gantt.clearAll(); 
+            gantt.destructor(); 
+          } catch (e) {
+            console.warn("Error cleaning up gantt:", e);
+          }
+        }
       });
     </script>
 
@@ -672,9 +711,6 @@
 
         <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
           <%= link_to "View All Vehicles", vehicles_path, class: "btn btn-primary" %>
-          <% if can_write_maintenance %>
-            <%= link_to "Add Maintenance", new_maintenance_path, class: "btn btn-success" %>
-          <% end %>
           <%= link_to "Reset Filters", gantt_path, class: "btn btn-outline-secondary" %>
         </div>
       </div>

@@ -1,0 +1,303 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h2 mb-0">Alerts Management</h1>
+      <p class="text-muted mb-0">Monitor and manage system alerts</p>
+    </div>
+    <div>
+      <%= link_to new_alert_path, class: "btn btn-primary" do %>
+        <i class="bi bi-plus-circle me-2"></i>New Alert
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-primary border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Alerts</h6>
+              <h4 class="mb-0"><%= @summary_stats[:total] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-primary rounded-circle">
+                <i class="bi bi-bell fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-danger border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Active</h6>
+              <h4 class="mb-0"><%= @summary_stats[:active] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-danger rounded-circle">
+                <i class="bi bi-exclamation-triangle fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-warning border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Critical</h6>
+              <h4 class="mb-0"><%= @summary_stats[:critical] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-warning rounded-circle">
+                <i class="bi bi-exclamation-octagon fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-info border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Needs Attention</h6>
+              <h4 class="mb-0"><%= @summary_stats[:needs_attention] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-info rounded-circle">
+                <i class="bi bi-eye fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="d-flex gap-2 mb-4">
+    <%= link_to needs_attention_alerts_path, class: "btn btn-warning" do %>
+      <i class="bi bi-exclamation-triangle me-2"></i>Needs Attention (<%= @summary_stats[:needs_attention] %>)
+    <% end %>
+    <%= link_to recent_alerts_path, class: "btn btn-info" do %>
+      <i class="bi bi-clock-history me-2"></i>Recent Alerts
+    <% end %>
+    <%= link_to summary_alerts_path, class: "btn btn-secondary" do %>
+      <i class="bi bi-bar-chart me-2"></i>Summary
+    <% end %>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_with url: alerts_path, method: :get, local: true, class: "row g-3" do |f| %>
+        <div class="col-md-3">
+          <%= select_tag :status, 
+                options_for_select(Alert.statuses.keys.map { |s| [s.humanize, s] }, params[:status]),
+                include_blank: "All Statuses",
+                class: "form-select" %>
+        </div>
+        <div class="col-md-3">
+          <%= select_tag :severity, 
+                options_for_select(Alert.severities.keys.map { |s| [s.gsub('_', ' ').humanize, s] }, params[:severity]),
+                include_blank: "All Severities",
+                class: "form-select" %>
+        </div>
+        <div class="col-md-3">
+          <%= select_tag :priority, 
+                options_for_select(Alert.priorities.keys.map { |p| [p.gsub('_', ' ').humanize, p] }, params[:priority]),
+                include_blank: "All Priorities",
+                class: "form-select" %>
+        </div>
+        <div class="col-md-3">
+          <%= select_tag :alert_type, 
+                options_for_select(Alert.alert_types.keys.map { |t| [t.humanize, t] }, params[:alert_type]),
+                include_blank: "All Types",
+                class: "form-select" %>
+        </div>
+        <div class="col-12">
+          <div class="d-flex gap-2">
+            <%= f.submit "Filter", class: "btn btn-primary" %>
+            <%= link_to "Clear", alerts_path, class: "btn btn-outline-secondary" %>
+            <%= link_to "Export CSV", export_alerts_path, class: "btn btn-outline-info" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Alerts Table -->
+  <div class="card">
+    <div class="card-body">
+      <% if @alerts.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th width="50">
+                  <input type="checkbox" id="select-all" class="form-check-input">
+                </th>
+                <th>Alert</th>
+                <th>Type</th>
+                <th>Vehicle</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @alerts.each do |alert| %>
+                <tr class="<%= 'table-danger' if alert.critical? && alert.active? %>">
+                  <td>
+                    <%= check_box_tag "alert_ids[]", alert.id, false, class: "alert-checkbox form-check-input" %>
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <span class="me-2"><%= alert.short_display %></span>
+                      <div>
+                        <strong><%= link_to alert.title, alert, class: "text-decoration-none" %></strong>
+                        <% if alert.description.present? %>
+                          <p class="text-muted mb-0 small"><%= truncate(alert.description, length: 100) %></p>
+                        <% end %>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge bg-secondary"><%= alert.humanized_alert_type %></span>
+                  </td>
+                  <td>
+                    <% if alert.vehicle %>
+                      <%= link_to alert.vehicle.license_plate, vehicle_path(alert.vehicle), class: "text-decoration-none" %>
+                    <% else %>
+                      <span class="text-muted">N/A</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <span class="badge bg-<%= alert.status == 'active' ? 'danger' : alert.status == 'resolved' ? 'success' : 'warning' %>">
+                      <%= alert.humanized_status %>
+                    </span>
+                  </td>
+                  <td>
+                    <small class="text-muted">
+                      <%= time_ago_in_words(alert.created_at) %> ago
+                    </small>
+                  </td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to alert, class: "btn btn-outline-primary", title: "View" do %>
+                        <i class="bi bi-eye"></i>
+                      <% end %>
+                      <%= link_to edit_alert_path(alert), class: "btn btn-outline-secondary", title: "Edit" do %>
+                        <i class="bi bi-pencil"></i>
+                      <% end %>
+                      <% if alert.can_acknowledge? %>
+                        <%= button_to acknowledge_alert_path(alert), method: :post, 
+                              class: "btn btn-outline-warning",
+                              title: "Acknowledge",
+                              form: { class: "d-inline" } do %>
+                          <i class="bi bi-check-circle"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Bulk Actions -->
+        <%= form_with url: bulk_action_alerts_path, method: :post, id: "bulk-action-form" do %>
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <div>
+              <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+              <select id="bulk-action-select" name="bulk_action" class="form-select form-select-sm" style="width: auto;">
+                <option value="">Bulk Actions</option>
+                <option value="acknowledge">Acknowledge Selected</option>
+                <option value="resolve">Resolve Selected</option>
+                <option value="delete">Delete Selected</option>
+              </select>
+              <button type="button" id="apply-bulk-action" class="btn btn-sm btn-outline-primary ms-2">Apply</button>
+            </div>
+            <div>
+              <%= paginate @alerts %>
+            </div>
+          </div>
+        <% end %>
+        
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle-fill text-success fs-1"></i>
+          <h4 class="mt-3">No Alerts Found</h4>
+          <p class="text-muted">All alerts are cleared or no alerts match your filters.</p>
+          <%= link_to "Create New Alert", new_alert_path, class: "btn btn-primary mt-2" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Select all checkbox
+  const selectAll = document.getElementById('select-all');
+  const checkboxes = document.querySelectorAll('.alert-checkbox');
+  
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+  }
+  
+  // Bulk actions
+  const applyBtn = document.getElementById('apply-bulk-action');
+  const bulkSelect = document.getElementById('bulk-action-select');
+  const bulkForm = document.getElementById('bulk-action-form');
+  
+  if (applyBtn && bulkSelect && bulkForm) {
+    applyBtn.addEventListener('click', function() {
+      const action = bulkSelect.value;
+      const selectedIds = Array.from(checkboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+      
+      if (!action) {
+        alert('Please select an action');
+        return;
+      }
+      
+      if (selectedIds.length === 0) {
+        alert('Please select at least one alert');
+        return;
+      }
+      
+      if (confirm(`Are you sure you want to ${action} ${selectedIds.length} alert(s)?`)) {
+        // Clear any existing alert_ids inputs
+        const existingInputs = bulkForm.querySelectorAll('input[name="alert_ids[]"]');
+        existingInputs.forEach(input => input.remove());
+        
+        // Add selected alert IDs to form
+        selectedIds.forEach(id => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'alert_ids[]';
+          input.value = id;
+          bulkForm.appendChild(input);
+        });
+        
+        // Submit the form
+        bulkForm.submit();
+      }
+    });
+  }
+});
+</script>

@@ -1,0 +1,354 @@
+<div class="container-fluid py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Create New Alert</h4>
+            <%= link_to alerts_path, class: "btn btn-outline-secondary btn-sm" do %>
+              <i class="bi bi-arrow-left me-1"></i>Back
+            <% end %>
+          </div>
+        </div>
+        <div class="card-body">
+          <%= form_with(model: @alert, local: true) do |form| %>
+            <% if @alert.errors.any? %>
+              <div class="alert alert-danger">
+                <h5><%= pluralize(@alert.errors.count, "error") %> prohibited this alert from being saved:</h5>
+                <ul>
+                  <% @alert.errors.full_messages.each do |message| %>
+                    <li><%= message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <div class="row g-3">
+              <!-- Basic Information -->
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :title, class: "form-label" %>
+                  <%= form.text_field :title, class: "form-control", required: true, placeholder: "Enter alert title" %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :alert_type, "Type", class: "form-label" %>
+                  <%= form.select :alert_type, @alert_types, { include_blank: "Select Type" }, class: "form-control", required: true %>
+                </div>
+              </div>
+
+              <div class="col-md-12">
+                <div class="mb-3">
+                  <%= form.label :description, class: "form-label" %>
+                  <%= form.text_area :description, class: "form-control", rows: 3, placeholder: "Describe the alert details..." %>
+                </div>
+              </div>
+
+              <!-- Severity & Priority -->
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :severity, class: "form-label" %>
+                  <%= form.select :severity, @severities, { include_blank: "Select Severity" }, class: "form-control", required: true %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :priority, class: "form-label" %>
+                  <%= form.select :priority, @priorities, { include_blank: "Select Priority" }, class: "form-control", required: true %>
+                </div>
+              </div>
+
+              <!-- Status -->
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :status, class: "form-label" %>
+                  <%= form.select :status, @statuses, { include_blank: "Select Status" }, class: "form-control", required: true %>
+                </div>
+              </div>
+
+              <!-- Vehicle Search -->
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Vehicle Search</label>
+                  <input type="text" 
+                         id="vehicle-search" 
+                         class="form-control" 
+                         placeholder="Search by license plate, make, or model..."
+                         data-search-url="<%= search_vehicles_path(format: :json) %>">
+                  <%= form.hidden_field :vehicle_id, id: "selected-vehicle-id" %>
+                  <div id="vehicle-search-results" class="mt-2" style="display: none;">
+                    <div class="list-group" id="vehicle-results-list"></div>
+                  </div>
+                  <div id="selected-vehicle" class="mt-2" style="display: none;">
+                    <div class="alert alert-info py-2">
+                      <i class="bi bi-car-front me-2"></i>
+                      <span id="selected-vehicle-text"></span>
+                      <button type="button" class="btn btn-sm btn-outline-danger float-end" id="clear-vehicle">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Driver Search -->
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Driver Search</label>
+                  <input type="text" 
+                         id="driver-search" 
+                         class="form-control" 
+                         placeholder="Search driver by name..."
+                         data-search-url="<%= search_drivers_path(format: :json) if defined?(search_drivers_path) %>">
+                  <%= form.hidden_field :driver_id, id: "selected-driver-id" %>
+                  <div id="driver-search-results" class="mt-2" style="display: none;">
+                    <div class="list-group" id="driver-results-list"></div>
+                  </div>
+                  <div id="selected-driver" class="mt-2" style="display: none;">
+                    <div class="alert alert-info py-2">
+                      <i class="bi bi-person-badge me-2"></i>
+                      <span id="selected-driver-text"></span>
+                      <button type="button" class="btn btn-sm btn-outline-danger float-end" id="clear-driver">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Location & Incident Time -->
+              <div class="col-md-12">
+                <div class="mb-3">
+                  <%= form.label :location, class: "form-label" %>
+                  <%= form.text_field :location, class: "form-control", placeholder: "Enter location (optional)" %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :incident_time, "Incident Time", class: "form-label" %>
+                  <%= form.datetime_local_field :incident_time, class: "form-control" %>
+                </div>
+              </div>
+
+              <!-- Hidden fields -->
+              <%= form.hidden_field :created_by, value: current_user&.name || 'System' %>
+
+              <!-- Submit Buttons -->
+              <div class="col-12">
+                <div class="d-flex justify-content-end gap-2">
+                  <%= link_to "Cancel", alerts_path, class: "btn btn-outline-secondary" %>
+                  <%= form.submit "Create Alert", class: "btn btn-primary" %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.search-result-item {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.search-result-item:hover {
+  background-color: #f8f9fa;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Vehicle Search Functionality
+  const vehicleSearch = document.getElementById('vehicle-search');
+  const vehicleResults = document.getElementById('vehicle-search-results');
+  const vehicleResultsList = document.getElementById('vehicle-results-list');
+  const selectedVehicleId = document.getElementById('selected-vehicle-id');
+  const selectedVehicleDisplay = document.getElementById('selected-vehicle');
+  const selectedVehicleText = document.getElementById('selected-vehicle-text');
+  const clearVehicleBtn = document.getElementById('clear-vehicle');
+  
+  let vehicleSearchTimeout;
+  
+  vehicleSearch.addEventListener('input', function() {
+    clearTimeout(vehicleSearchTimeout);
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+      vehicleResults.style.display = 'none';
+      return;
+    }
+    
+    vehicleSearchTimeout = setTimeout(() => {
+      const searchUrl = vehicleSearch.dataset.searchUrl;
+      
+      fetch(`${searchUrl}?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(data => {
+          vehicleResultsList.innerHTML = '';
+          
+          if (data.length === 0) {
+            vehicleResultsList.innerHTML = `
+              <div class="list-group-item text-muted">
+                No vehicles found
+              </div>
+            `;
+          } else {
+            data.forEach(vehicle => {
+              const item = document.createElement('div');
+              item.className = 'list-group-item list-group-item-action search-result-item';
+              item.innerHTML = `
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <strong>${vehicle.license_plate}</strong>
+                    <div class="text-muted small">
+                      ${vehicle.make} ${vehicle.model} • ${vehicle.registration_number || 'No reg'}
+                    </div>
+                  </div>
+                  <div>
+                    <span class="badge bg-secondary">${vehicle.service_owner || 'N/A'}</span>
+                  </div>
+                </div>
+              `;
+              item.addEventListener('click', () => {
+                selectVehicle(vehicle);
+              });
+              vehicleResultsList.appendChild(item);
+            });
+          }
+          
+          vehicleResults.style.display = 'block';
+        })
+        .catch(error => {
+          console.error('Error searching vehicles:', error);
+          vehicleResultsList.innerHTML = `
+            <div class="list-group-item text-danger">
+              Error searching vehicles
+            </div>
+          `;
+          vehicleResults.style.display = 'block';
+        });
+    }, 300);
+  });
+  
+  function selectVehicle(vehicle) {
+    selectedVehicleId.value = vehicle.id;
+    selectedVehicleText.textContent = `${vehicle.license_plate} - ${vehicle.make} ${vehicle.model}`;
+    selectedVehicleDisplay.style.display = 'block';
+    vehicleResults.style.display = 'none';
+    vehicleSearch.value = '';
+  }
+  
+  clearVehicleBtn.addEventListener('click', function() {
+    selectedVehicleId.value = '';
+    selectedVehicleDisplay.style.display = 'none';
+    vehicleSearch.value = '';
+    vehicleSearch.focus();
+  });
+  
+  // Driver Search Functionality (if driver search endpoint exists)
+  const driverSearch = document.getElementById('driver-search');
+  if (driverSearch && driverSearch.dataset.searchUrl) {
+    const driverResults = document.getElementById('driver-search-results');
+    const driverResultsList = document.getElementById('driver-results-list');
+    const selectedDriverId = document.getElementById('selected-driver-id');
+    const selectedDriverDisplay = document.getElementById('selected-driver');
+    const selectedDriverText = document.getElementById('selected-driver-text');
+    const clearDriverBtn = document.getElementById('clear-driver');
+    
+    let driverSearchTimeout;
+    
+    driverSearch.addEventListener('input', function() {
+      clearTimeout(driverSearchTimeout);
+      const query = this.value.trim();
+      
+      if (query.length < 2) {
+        driverResults.style.display = 'none';
+        return;
+      }
+      
+      driverSearchTimeout = setTimeout(() => {
+        const searchUrl = driverSearch.dataset.searchUrl;
+        
+        fetch(`${searchUrl}?q=${encodeURIComponent(query)}`)
+          .then(response => response.json())
+          .then(data => {
+            driverResultsList.innerHTML = '';
+            
+            if (data.length === 0) {
+              driverResultsList.innerHTML = `
+                <div class="list-group-item text-muted">
+                  No drivers found
+                </div>
+              `;
+            } else {
+              data.forEach(driver => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item list-group-item-action search-result-item';
+                item.innerHTML = `
+                  <div class="d-flex justify-content-between">
+                    <div>
+                      <strong>${driver.name}</strong>
+                      <div class="text-muted small">
+                        ${driver.license_number || 'No license'} • ${driver.phone || 'No phone'}
+                      </div>
+                    </div>
+                    <div>
+                      <span class="badge bg-info">${driver.status || 'Active'}</span>
+                    </div>
+                  </div>
+                `;
+                item.addEventListener('click', () => {
+                  selectDriver(driver);
+                });
+                driverResultsList.appendChild(item);
+              });
+            }
+            
+            driverResults.style.display = 'block';
+          })
+          .catch(error => {
+            console.error('Error searching drivers:', error);
+            driverResultsList.innerHTML = `
+              <div class="list-group-item text-danger">
+                Error searching drivers
+              </div>
+            `;
+            driverResults.style.display = 'block';
+          });
+      }, 300);
+    });
+    
+    function selectDriver(driver) {
+      selectedDriverId.value = driver.id;
+      selectedDriverText.textContent = `${driver.name} (${driver.license_number || 'No license'})`;
+      selectedDriverDisplay.style.display = 'block';
+      driverResults.style.display = 'none';
+      driverSearch.value = '';
+    }
+    
+    clearDriverBtn.addEventListener('click', function() {
+      selectedDriverId.value = '';
+      selectedDriverDisplay.style.display = 'none';
+      driverSearch.value = '';
+      driverSearch.focus();
+    });
+  }
+  
+  // Close search results when clicking outside
+  document.addEventListener('click', function(event) {
+    if (!vehicleSearch.contains(event.target) && !vehicleResults.contains(event.target)) {
+      vehicleResults.style.display = 'none';
+    }
+    
+    if (driverSearch && !driverSearch.contains(event.target) && !driverResults.contains(event.target)) {
+      driverResults.style.display = 'none';
+    }
+  });
+});
+</script>

@@ -1,4 +1,3 @@
-# app/models/alert.rb
 class Alert < ApplicationRecord
   belongs_to :vehicle, optional: true
   belongs_to :driver, optional: true
@@ -263,21 +262,21 @@ class Alert < ApplicationRecord
   # Color coding for UI
   def priority_color
     case priority
-    when 'urgent' then 'red'
-    when 'high_priority' then 'orange'
-    when 'medium' then 'yellow'
-    when 'low' then 'green'
-    else 'gray'
+    when 'urgent' then 'danger'
+    when 'high_priority' then 'warning'
+    when 'medium' then 'info'
+    when 'low' then 'success'
+    else 'secondary'
     end
   end
   
   def severity_color
     case severity
-    when 'critical' then 'red'
-    when 'high_severity' then 'orange'
-    when 'warning' then 'yellow'
-    when 'info' then 'blue'
-    else 'gray'
+    when 'critical' then 'danger'
+    when 'high_severity' then 'warning'
+    when 'warning' then 'info'
+    when 'info' then 'primary'
+    else 'secondary'
     end
   end
   

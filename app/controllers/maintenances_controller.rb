@@ -3,8 +3,8 @@
 class MaintenancesController < ApplicationController
   before_action :authenticate_user!
 
-  # ✅ Agencies (PTSC/TTPS/TTDF) are READ-ONLY.
-  # ✅ VMCOTT + Admin are FULL access.
+  # ✅ ONLY VMCOTT admin OR VMCOTT maintenance role can write.
+  # 🚫 PTSC admin (and any other agency admin) is READ-ONLY.
   before_action :enforce_vmcott_write_access!, only: [
     :new, :create, :edit, :update, :destroy, :mark_completed, :update_gantt, :confirm_delete
   ]
@@ -18,7 +18,9 @@ class MaintenancesController < ApplicationController
     :show, :edit, :update, :destroy, :mark_completed, :confirm_delete, :update_gantt
   ]
 
+  # ------------------------------------------------------------
   # GET /gantt
+  # ------------------------------------------------------------
   def gantt
     Rails.logger.debug("=== GANTT CHART ===") if Rails.env.development?
 
@@ -27,8 +29,20 @@ class MaintenancesController < ApplicationController
                       .where.not(end_date: nil)
                       .order(:start_date)
 
-    # ✅ Agencies see ONLY their vehicles
+    # ✅ Agencies see ONLY their vehicles/maintenances
     base = scope_for_current_user(base)
+
+    # ✅ NEW: if user clicked "View Timeline" from Maintenance show page,
+    # auto-filter to that vehicle instantly.
+    if params[:vehicle_id].present?
+      base = base.where(vehicle_id: params[:vehicle_id])
+    elsif params[:vehicle_search].present?
+      term = params[:vehicle_search].to_s.downcase.strip
+      base = base.joins(:vehicle).where(
+        "LOWER(vehicles.registration_number) LIKE :q OR LOWER(vehicles.license_plate) LIKE :q OR LOWER(vehicles.make) LIKE :q OR LOWER(vehicles.model) LIKE :q",
+        q: "%#{term}%"
+      )
+    end
 
     Rails.logger.debug("Maintenances w/ dates (scoped): #{base.count}") if Rails.env.development?
 
@@ -38,10 +52,10 @@ class MaintenancesController < ApplicationController
     prepare_gantt_data(@maintenances)
 
     # ✅ Filter dropdowns must also be scoped
-    @service_owners = VehicleScope.for_user(current_user).distinct.pluck(:service_owner).compact.sort
+    @service_owners      = VehicleScope.for_user(current_user).distinct.pluck(:service_owner).compact.sort
     @vehicles_for_filter = VehicleScope.for_user(current_user).order(:make, :model)
 
-    # ✅ Stats must be scoped
+    # ✅ Stats must be scoped (use base after scoping + vehicle focus)
     @overdue_count  = overdue_relation(base).count
     @total_cost     = @maintenances.sum(:cost).to_f
     @vehicles_count = VehicleScope.for_user(current_user).count
@@ -49,7 +63,9 @@ class MaintenancesController < ApplicationController
     render :gantt
   end
 
+  # ------------------------------------------------------------
   # PATCH /maintenances/:id/update_gantt
+  # ------------------------------------------------------------
   def update_gantt
     unless params[:maintenance].present?
       return render json: { success: false, errors: ["No data provided"] }, status: :bad_request
@@ -66,13 +82,15 @@ class MaintenancesController < ApplicationController
     end
   end
 
+  # ------------------------------------------------------------
   # GET /vehicles/:vehicle_id/maintenances
-  # (and also supports non-nested /maintenances if you route it)
+  # ------------------------------------------------------------
   def index
     base =
       if @vehicle.present?
         # ✅ forbid agencies from opening another agency's vehicle
         return head(:forbidden) unless VehicleScope.for_user(current_user).where(id: @vehicle.id).exists?
+
         @vehicle.maintenances
       else
         Maintenance.includes(:vehicle)
@@ -80,22 +98,33 @@ class MaintenancesController < ApplicationController
 
     base = scope_for_current_user(base)
 
-    # Use start_date (and fallback to date if you still have legacy rows)
+    # ✅ FIX: qualify columns to avoid "status is ambiguous"
     @maintenances = base.order(
       Arel.sql("
-        CASE status
+        CASE maintenances.status
           WHEN 'Pending' THEN 0
           WHEN 'In Progress' THEN 1
           WHEN 'Completed' THEN 2
           ELSE 3
         END ASC,
-        COALESCE(start_date, date) ASC
+        COALESCE(maintenances.start_date, maintenances.date) ASC
       ")
     )
   end
 
+  # ------------------------------------------------------------
+  # GET /maintenances/:id
+  # ------------------------------------------------------------
+  def show; end
+
+  # ------------------------------------------------------------
+  # GET /maintenances/:id/confirm_delete
+  # ------------------------------------------------------------
   def confirm_delete; end
 
+  # ------------------------------------------------------------
+  # DELETE /maintenances/:id
+  # ------------------------------------------------------------
   def destroy
     @maintenance.destroy
 
@@ -106,6 +135,9 @@ class MaintenancesController < ApplicationController
     end
   end
 
+  # ------------------------------------------------------------
+  # PATCH /maintenances/:id/mark_completed
+  # ------------------------------------------------------------
   def mark_completed
     if @maintenance.update(status: "Completed")
       redirect_to maintenance_dashboard_vehicles_path, notice: "Maintenance marked as completed."
@@ -114,12 +146,10 @@ class MaintenancesController < ApplicationController
     end
   end
 
-  def show
-    # @maintenance and @vehicle are set in set_maintenance
-  end
-
+  # ------------------------------------------------------------
+  # GET /maintenances/new
+  # ------------------------------------------------------------
   def new
-    # ✅ write access already enforced above
     @service_providers = ServiceProvider.all
 
     if params[:vehicle_id].present?
@@ -146,8 +176,10 @@ class MaintenancesController < ApplicationController
     @from_report_issue = (params[:source] == "driver_report")
   end
 
+  # ------------------------------------------------------------
+  # POST /maintenances
+  # ------------------------------------------------------------
   def create
-    # ✅ write access already enforced above
     @service_providers = ServiceProvider.all
 
     @vehicle =
@@ -167,7 +199,17 @@ class MaintenancesController < ApplicationController
     validate_date_order(@maintenance)
 
     if @maintenance.errors.empty? && @maintenance.save
-      MaintenanceMailer.notify_store(@maintenance).deliver_later unless @maintenance.part_in_stock
+      # ✅ part_in_stock may not exist in some schemas → safely handle
+      part_in_stock_value =
+        if @maintenance.respond_to?(:part_in_stock)
+          @maintenance.part_in_stock
+        elsif @maintenance.respond_to?(:part_in_stock?)
+          @maintenance.part_in_stock?
+        else
+          nil
+        end
+
+      MaintenanceMailer.notify_store(@maintenance).deliver_later if part_in_stock_value == false
 
       if @vehicle
         redirect_to vehicle_path(@vehicle), notice: "Maintenance record was successfully created."
@@ -180,13 +222,17 @@ class MaintenancesController < ApplicationController
     end
   end
 
+  # ------------------------------------------------------------
+  # GET /maintenances/:id/edit
+  # ------------------------------------------------------------
   def edit
-    # ✅ write access already enforced above
     @service_providers = ServiceProvider.all
   end
 
+  # ------------------------------------------------------------
+  # PATCH/PUT /maintenances/:id
+  # ------------------------------------------------------------
   def update
-    # ✅ write access already enforced above
     @service_providers = ServiceProvider.all
 
     validate_date_order(@maintenance)
@@ -216,23 +262,27 @@ class MaintenancesController < ApplicationController
   # ---------------- SECURITY ----------------
 
   def enforce_vmcott_write_access!
-    return if current_user&.admin?
-    code = current_user&.agency&.code.to_s.upcase
-    return if code == "VMCOTT"
+    agency_code = current_user&.agency&.code.to_s.upcase
 
-    redirect_back fallback_location: gantt_path,
-                  alert: "Agencies can view maintenance only. Creation/updates are VMCOTT-only."
+    vmcott_maintenance_role =
+      (current_user.respond_to?(:fleet_manager?) && current_user.fleet_manager?) ||
+      (current_user.respond_to?(:supervisor?) && current_user.supervisor?)
+
+    allowed = (agency_code == "VMCOTT") && (current_user.admin? || vmcott_maintenance_role)
+    return if allowed
+
+    redirect_back(
+      fallback_location: maintenance_dashboard_vehicles_path,
+      alert: "Read-only: only VMCOTT maintenance staff can create/update maintenance."
+    )
   end
 
   # ---------------- SCOPING ----------------
 
   def scope_for_current_user(relation)
-    return relation if current_user&.admin?
-    code = current_user&.agency&.code.to_s.upcase
-    return relation if code == "VMCOTT"
+    agency_code = current_user&.agency&.code.to_s.upcase
+    return relation if agency_code == "VMCOTT"
 
-    # Agencies see maintenances only for vehicles tied to their agency.
-    # If you don't have vehicles.agency_id, tell me what you use (service_owner, agency_code, etc.)
     relation.joins(:vehicle).where(vehicles: { agency_id: current_user.agency_id })
   end
 
@@ -252,19 +302,20 @@ class MaintenancesController < ApplicationController
   def maintenance_params
     params.require(:maintenance).permit(
       :date, :next_due_date, :reminder_sent_at, :service_type, :cost,
-      :notes, :mileage, :status, :assignment_type, :part_in_stock,
+      :notes, :mileage, :status, :assignment_type,
       :service_provider_id, :estimated_delivery_date, :source, :start_date,
-      :end_date, :category, :urgency, :vehicle_id
+      :end_date, :category, :urgency, :vehicle_id,
+      # keep it permitted if it exists in DB; harmless if it doesn't
+      :part_in_stock
     )
   end
 
   def validate_date_order(maintenance)
     return unless maintenance.start_date.present? && maintenance.end_date.present?
-
     maintenance.errors.add(:end_date, "must be after start date") if maintenance.end_date < maintenance.start_date
   end
 
-  # ---------- FILTERS (YOUR EXISTING CODE) ----------
+  # ---------- FILTERS ----------
 
   def apply_filters(rel)
     filtered = rel
@@ -284,7 +335,7 @@ class MaintenancesController < ApplicationController
     if params[:vehicle_search].present?
       term = params[:vehicle_search].to_s.downcase.strip
       filtered = filtered.joins(:vehicle).where(
-        "LOWER(vehicles.registration_number) LIKE :q OR LOWER(vehicles.make) LIKE :q OR LOWER(vehicles.model) LIKE :q",
+        "LOWER(vehicles.registration_number) LIKE :q OR LOWER(vehicles.license_plate) LIKE :q OR LOWER(vehicles.make) LIKE :q OR LOWER(vehicles.model) LIKE :q",
         q: "%#{term}%"
       )
     end
@@ -336,14 +387,12 @@ class MaintenancesController < ApplicationController
     rel.where("end_date >= ? AND start_date <= ?", start_date, end_date)
   end
 
-  # ---------- GANTT DATA (YOUR EXISTING CODE) ----------
+  # ---------- GANTT DATA ----------
 
   def prepare_gantt_data(maintenances)
     @gantt_tasks = []
     @gantt_links = []
     return if maintenances.blank?
-
-    Rails.logger.debug("Preparing gantt data...") if Rails.env.development?
 
     grouped = maintenances.group_by(&:vehicle)
 
@@ -380,15 +429,13 @@ class MaintenancesController < ApplicationController
       rows.each do |m|
         next unless m.start_date && m.end_date
 
-        status = m.status.presence || "Pending"
+        status  = m.status.presence  || "Pending"
         urgency = m.urgency.presence || "Normal"
 
         color =
           if status == "Completed"
             "#198754"
-          elsif m.respond_to?(:overdue?) && m.overdue?
-            "#dc3545"
-          elsif (m.end_date < Date.current && status != "Completed")
+          elsif m.end_date < Date.current && status != "Completed"
             "#dc3545"
           else
             "#ffc107"
@@ -426,18 +473,5 @@ class MaintenancesController < ApplicationController
     end
 
     @gantt_json = { data: @gantt_tasks, links: @gantt_links }.to_json
-    Rails.logger.debug("Tasks prepared: #{@gantt_tasks.count}") if Rails.env.development?
-  end
-end
-
-# Put this in its own file if you prefer (recommended):
-# app/models/vehicle_scope.rb
-class VehicleScope
-  def self.for_user(user)
-    scope = Vehicle.all
-    return scope if user&.admin?
-    code = user&.agency&.code.to_s.upcase
-    return scope if code == "VMCOTT"
-    scope.where(agency_id: user.agency_id)
   end
 end

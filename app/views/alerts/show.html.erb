@@ -1,0 +1,229 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h2 mb-0">Alert Details</h1>
+      <p class="text-muted mb-0">Alert ID: <%= @alert.id %></p>
+    </div>
+    <div>
+      <%= link_to alerts_path, class: "btn btn-outline-secondary me-2" do %>
+        <i class="bi bi-arrow-left me-2"></i>Back to Alerts
+      <% end %>
+      <%= link_to edit_alert_path(@alert), class: "btn btn-warning" do %>
+        <i class="bi bi-pencil me-2"></i>Edit
+      <% end %>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <span class="me-2"><%= @alert.short_display %></span>
+            <%= @alert.title %>
+          </h5>
+        </div>
+        <div class="card-body">
+          <% if @alert.description.present? %>
+            <div class="mb-4">
+              <h6 class="text-muted mb-2">Description</h6>
+              <p class="mb-0"><%= simple_format(@alert.description) %></p>
+            </div>
+          <% end %>
+          
+          <% if @alert.notes.present? %>
+            <div class="mb-4">
+              <h6 class="text-muted mb-2">Notes</h6>
+              <div class="bg-light p-3 rounded">
+                <%= simple_format(@alert.notes) %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <div class="card-footer">
+          <div class="d-flex justify-content-end gap-2">
+            <% if @alert.can_acknowledge? %>
+              <%= button_to acknowledge_alert_path(@alert), method: :post, 
+                    class: "btn btn-warning btn-sm", 
+                    data: { confirm: "Acknowledge this alert?" } do %>
+                <i class="bi bi-check-circle me-2"></i>Acknowledge
+              <% end %>
+            <% end %>
+            
+            <% if @alert.can_resolve? %>
+              <%= link_to resolve_alert_path(@alert), class: "btn btn-success btn-sm" do %>
+                <i class="bi bi-check2-all me-2"></i>Resolve
+              <% end %>
+            <% end %>
+            
+            <% if @alert.can_escalate? %>
+              <%= button_to escalate_alert_path(@alert), method: :post,
+                    class: "btn btn-danger btn-sm",
+                    data: { confirm: "Escalate this alert to critical priority?" } do %>
+                <i class="bi bi-arrow-up me-2"></i>Escalate
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <% if @related_alerts.any? %>
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Related Alerts</h5>
+          </div>
+          <div class="card-body">
+            <ul class="list-group list-group-flush">
+              <% @related_alerts.each do |alert| %>
+                <li class="list-group-item">
+                  <%= link_to alert.title, alert, class: "text-decoration-none" %>
+                  <span class="badge bg-<%= alert.status == 'active' ? 'danger' : 'warning' %> float-end">
+                    <%= alert.humanized_status %>
+                  </span>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Alert Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label text-muted mb-1">Status</label>
+              <div>
+                <span class="badge bg-<%= @alert.status == 'active' ? 'danger' : @alert.status == 'resolved' ? 'success' : 'warning' %> fs-6">
+                  <%= @alert.humanized_status %>
+                </span>
+              </div>
+            </div>
+            
+            <div class="col-6">
+              <label class="form-label text-muted mb-1">Type</label>
+              <p class="mb-0"><%= @alert.humanized_alert_type %></p>
+            </div>
+            
+            <div class="col-6">
+              <label class="form-label text-muted mb-1">Severity</label>
+              <p class="mb-0">
+                <span class="badge bg-<%= @alert.severity_color %>">
+                  <%= @alert.humanized_severity %>
+                </span>
+              </p>
+            </div>
+            
+            <div class="col-6">
+              <label class="form-label text-muted mb-1">Priority</label>
+              <p class="mb-0">
+                <span class="badge bg-<%= @alert.priority_color %>">
+                  <%= @alert.humanized_priority %>
+                </span>
+              </p>
+            </div>
+            
+            <div class="col-6">
+              <label class="form-label text-muted mb-1">Created</label>
+              <p class="mb-0"><%= @alert.created_at.strftime("%b %d, %Y %I:%M %p") %></p>
+            </div>
+            
+            <% if @alert.incident_time.present? %>
+              <div class="col-6">
+                <label class="form-label text-muted mb-1">Incident Time</label>
+                <p class="mb-0"><%= @alert.incident_time.strftime("%b %d, %Y %I:%M %p") %></p>
+              </div>
+            <% end %>
+            
+            <% if @alert.estimated_resolution_time.present? %>
+              <div class="col-6">
+                <label class="form-label text-muted mb-1">Est. Resolution</label>
+                <p class="mb-0"><%= @alert.estimated_resolution_time.strftime("%b %d, %Y %I:%M %p") %></p>
+              </div>
+            <% end %>
+            
+            <% if @alert.vehicle %>
+              <div class="col-12">
+                <label class="form-label text-muted mb-1">Vehicle</label>
+                <p class="mb-0">
+                  <%= link_to @alert.vehicle.license_plate, vehicle_path(@alert.vehicle), class: "text-decoration-none" %>
+                </p>
+              </div>
+            <% end %>
+            
+            <% if @alert.agency %>
+              <div class="col-12">
+                <label class="form-label text-muted mb-1">Agency</label>
+                <p class="mb-0"><%= @alert.agency.name %></p>
+              </div>
+            <% end %>
+            
+            <% if @alert.location.present? %>
+              <div class="col-12">
+                <label class="form-label text-muted mb-1">Location</label>
+                <p class="mb-0"><%= @alert.location %></p>
+              </div>
+            <% end %>
+            
+            <% if @alert.assigned_to.present? %>
+              <div class="col-12">
+                <label class="form-label text-muted mb-1">Assigned To</label>
+                <p class="mb-0"><%= @alert.assigned_to %></p>
+              </div>
+            <% end %>
+            
+            <% if @alert.created_by.present? %>
+              <div class="col-12">
+                <label class="form-label text-muted mb-1">Created By</label>
+                <p class="mb-0"><%= @alert.created_by %></p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Quick Actions</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <% if @alert.can_acknowledge? %>
+              <%= button_to acknowledge_alert_path(@alert), method: :post, 
+                    class: "btn btn-warning", 
+                    data: { confirm: "Acknowledge this alert?" } do %>
+                <i class="bi bi-check-circle me-2"></i>Acknowledge Alert
+              <% end %>
+            <% end %>
+            
+            <% if @alert.can_resolve? %>
+              <%= link_to resolve_alert_path(@alert), class: "btn btn-success" do %>
+                <i class="bi bi-check2-all me-2"></i>Resolve Alert
+              <% end %>
+            <% end %>
+            
+            <% if @alert.can_escalate? %>
+              <%= button_to escalate_alert_path(@alert), method: :post,
+                    class: "btn btn-danger",
+                    data: { confirm: "Escalate this alert to critical priority?" } do %>
+                <i class="bi bi-arrow-up me-2"></i>Escalate Alert
+              <% end %>
+            <% end %>
+            
+            <% if current_user&.admin? %>
+              <%= button_to @alert, method: :delete, 
+                    class: "btn btn-outline-danger",
+                    data: { confirm: "Are you sure you want to delete this alert?" } do %>
+                <i class="bi bi-trash me-2"></i>Delete Alert
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

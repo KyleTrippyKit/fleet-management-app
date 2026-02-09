@@ -1,4 +1,20 @@
-<!-- File: app/views/vehicles/maintenance_dashboard.html.erb -->
+<%# File: app/views/vehicles/maintenance_dashboard.html.erb
+    READ-ONLY Agencies:
+      - Quick Add removed from this view entirely
+      - Quick Maintenance Modal removed entirely
+      - Ctrl/Cmd+N shortcut removed entirely
+      - Vehicle List + Providers tabs removed
+%>
+
+<% agency_code = current_user&.agency&.code.to_s.upcase %>
+
+<% vmcott_maintenance_role =
+     (current_user.respond_to?(:fleet_manager?) && current_user.fleet_manager?) ||
+     (current_user.respond_to?(:supervisor?) && current_user.supervisor?) %>
+
+<% can_write_maintenance =
+     agency_code == "VMCOTT" && (current_user.admin? || vmcott_maintenance_role) %>
+
 <div class="container-fluid py-4 px-4">
   <!-- Dashboard Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -6,17 +22,23 @@
       <h1 class="mb-2">
         <i class="bi bi-tools me-2 text-primary"></i>Maintenance Operations Center
       </h1>
-      <p class="text-muted mb-0">Monitor, manage, and track all vehicle maintenance activities</p>
+      <p class="text-muted mb-0">
+        Monitor, manage, and track all vehicle maintenance activities
+        <% unless can_write_maintenance %>
+          • <span class="badge bg-secondary ms-1">Read-only (Agency)</span>
+        <% end %>
+      </p>
     </div>
+
     <div class="d-flex gap-3">
-      <%= link_to gantt_path,
-            class: "btn btn-outline-primary d-flex align-items-center gap-2" do %>
+      <%= link_to gantt_path, class: "btn btn-outline-primary d-flex align-items-center gap-2" do %>
         <i class="bi bi-calendar-range"></i> Timeline View
       <% end %>
-      <%= link_to analytics_vehicles_path,
-          class: "btn btn-outline-success d-flex align-items-center gap-2" do %>
+
+      <%= link_to analytics_vehicles_path, class: "btn btn-outline-success d-flex align-items-center gap-2" do %>
         <i class="bi bi-graph-up"></i> Analytics
       <% end %>
+
       <button class="btn btn-primary d-flex align-items-center gap-2"
               data-bs-toggle="modal" data-bs-target="#quickReportModal">
         <i class="bi bi-plus-circle"></i> Quick Report
@@ -123,38 +145,25 @@
     </div>
   </div>
 
-  <!-- Maintenance Navigation Tabs -->
+  <!-- Maintenance Navigation Tabs (Vehicle List + Providers REMOVED) -->
   <div class="card shadow-sm mb-4">
     <div class="card-body p-2">
       <ul class="nav nav-pills nav-fill mb-0">
         <li class="nav-item">
-          <%= link_to vehicles_path,
-                class: "nav-link #{current_page?(vehicles_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-list-ul me-2"></i> Vehicle List
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to analytics_vehicles_path,
-                class: "nav-link #{current_page?(analytics_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
+          <%= link_to analytics_vehicles_path, class: "nav-link #{current_page?(analytics_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-graph-up me-2"></i> Usage Analytics
           <% end %>
         </li>
+
         <li class="nav-item">
-          <%= link_to gantt_path,
-                class: "nav-link #{current_page?(gantt_path) ? 'active' : ''} px-3 py-2" do %>
+          <%= link_to gantt_path, class: "nav-link #{current_page?(gantt_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-calendar-range me-2"></i> Maintenance Gantt
           <% end %>
         </li>
+
         <li class="nav-item">
-          <%= link_to maintenance_dashboard_vehicles_path,
-                class: "nav-link #{current_page?(maintenance_dashboard_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
+          <%= link_to maintenance_dashboard_vehicles_path, class: "nav-link #{current_page?(maintenance_dashboard_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
             <i class="bi bi-speedometer2 me-2"></i> Maintenance Dashboard
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to vmcott_service_providers_path,
-              class: "nav-link #{current_page?(vmcott_service_providers_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-building me-2"></i> Providers
           <% end %>
         </li>
       </ul>
@@ -166,11 +175,11 @@
     <div class="card-header bg-light">
       <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Advanced Filters</h5>
     </div>
+
     <div class="card-body">
       <%= form_with url: maintenance_dashboard_vehicles_path, method: :get, local: true,
             html: { id: "maintenance_filter_form" }, class: "row g-3 align-items-end" do |f| %>
 
-        <!-- IMPORTANT: keep selected tab while filtering -->
         <%= hidden_field_tag :priority, @priority %>
 
         <div class="col-md-3">
@@ -229,20 +238,11 @@
                   class: "btn btn-outline-secondary d-flex align-items-center gap-2" do %>
               <i class="bi bi-arrow-clockwise"></i> Reset
             <% end %>
-
-            <button type="button" class="btn btn-success d-flex align-items-center gap-2"
-                    data-bs-toggle="modal" data-bs-target="#quickMaintenanceModal">
-              <i class="bi bi-plus-circle"></i> Quick Add
-            </button>
           </div>
         </div>
       <% end %>
     </div>
   </div>
-
-  <%# ===================================================== %>
-  <%# PRIORITY "TABS" (SERVER SIDE LINKS — ALWAYS CLICKABLE) %>
-  <%# ===================================================== %>
 
   <% preserved = params.permit(:query, :owner, :status, :urgency, :agency).to_h %>
 
@@ -276,10 +276,7 @@
     <% end %>
   </div>
 
-  <%# ===================================================== %>
-  <%# CONTENT (RENDER ONLY THE ACTIVE TAB)                  %>
-  <%# ===================================================== %>
-
+  <%# Render only the selected tab %>
   <% if @priority == "overdue" %>
     <% overdue_vehicles = @overdue_vehicles %>
 
@@ -301,7 +298,8 @@
         <%= render "maintenance_vehicle_card",
               vehicle: vehicle,
               priority: "overdue",
-              maintenances: vehicle.overdue_maintenances %>
+              maintenances: vehicle.overdue_maintenances,
+              can_write_maintenance: can_write_maintenance %>
       <% end %>
     <% else %>
       <div class="text-center py-5">
@@ -321,7 +319,8 @@
         <%= render "maintenance_vehicle_card",
               vehicle: vehicle,
               priority: "pending",
-              maintenances: vehicle.active_maintenances %>
+              maintenances: vehicle.active_maintenances,
+              can_write_maintenance: can_write_maintenance %>
       <% end %>
     <% else %>
       <div class="text-center py-5">
@@ -341,7 +340,8 @@
         <%= render "maintenance_vehicle_card",
               vehicle: vehicle,
               priority: "upcoming",
-              maintenances: vehicle.upcoming_maintenances %>
+              maintenances: vehicle.upcoming_maintenances,
+              can_write_maintenance: can_write_maintenance %>
       <% end %>
     <% else %>
       <div class="text-center py-5">
@@ -361,7 +361,8 @@
         <%= render "maintenance_vehicle_card",
               vehicle: vehicle,
               priority: "completed",
-              maintenances: vehicle.completed_maintenances %>
+              maintenances: vehicle.completed_maintenances,
+              can_write_maintenance: can_write_maintenance %>
       <% end %>
     <% else %>
       <div class="text-center py-5">
@@ -375,117 +376,7 @@
   <% end %>
 </div>
 
-<!-- Quick Maintenance Modal -->
-<div class="modal fade" id="quickMaintenanceModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Quick Maintenance Entry</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <%= form_with model: Maintenance.new,
-              url: maintenances_path,
-              class: "row g-3" do |f| %>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Select Vehicle</label>
-            <%= f.select :vehicle_id,
-                  options_from_collection_for_select(@vehicles, :id, :display_name),
-                  { prompt: "Choose a vehicle..." },
-                  class: "form-select select2-vehicle",
-                  required: true %>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Service Type</label>
-            <%= f.select :service_type,
-                  options_for_select([
-                    ["Oil Change", "Oil Change"],
-                    ["Tire Rotation", "Tire Rotation"],
-                    ["Brake Service", "Brake Service"],
-                    ["Engine Repair", "Engine Repair"],
-                    ["Electrical", "Electrical"],
-                    ["Suspension", "Suspension"],
-                    ["Transmission", "Transmission"],
-                    ["Other", "Other"]
-                  ]),
-                  { prompt: "Select service type..." },
-                  class: "form-select",
-                  required: true %>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Start Date</label>
-            <%= f.date_field :start_date,
-                  value: Date.today,
-                  class: "form-control",
-                  required: true %>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Estimated Completion</label>
-            <%= f.date_field :end_date,
-                  value: Date.today + 3.days,
-                  class: "form-control",
-                  required: true %>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Urgency Level</label>
-            <%= f.select :urgency,
-                  options_for_select([
-                    ["Low", "low"],
-                    ["Medium", "medium"],
-                    ["High", "high"],
-                    ["Emergency", "emergency"]
-                  ], "medium"),
-                  {},
-                  class: "form-select" %>
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Estimated Cost (TTD)</label>
-            <%= f.number_field :cost,
-                  class: "form-control",
-                  placeholder: "0.00",
-                  step: "0.01" %>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label fw-medium">Description / Notes</label>
-            <%= f.text_area :notes,
-                  class: "form-control",
-                  rows: 3,
-                  placeholder: "Brief description of the maintenance required..." %>
-          </div>
-
-          <div class="col-12">
-            <div class="form-check">
-              <%= f.check_box :part_in_stock, class: "form-check-input" %>
-              <label class="form-check-label">
-                Required parts are in stock
-              </label>
-            </div>
-          </div>
-
-          <div class="col-12 mt-4">
-            <div class="d-flex justify-content-end gap-2">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save me-1"></i> Save Maintenance
-              </button>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Quick Report Modal -->
+<!-- Quick Report Modal (kept for all users) -->
 <div class="modal fade" id="quickReportModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -641,7 +532,7 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-  // Initialize Select2 for vehicle selection
+  // Initialize Select2 for vehicle selection (Quick Report modal still uses this)
   if (typeof $.fn.select2 !== 'undefined') {
     $('.select2-vehicle').select2({
       placeholder: "Select a vehicle...",
@@ -651,7 +542,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
   }
 
-  // Auto-submit filter form on select change
+  // Auto-submit filter form on owner select change
   const ownerSelect = document.getElementById("owner_filter");
   const filterForm = document.getElementById("maintenance_filter_form");
 
@@ -664,17 +555,10 @@ document.addEventListener("DOMContentLoaded", function() {
   // Auto-refresh page every 5 minutes for real-time updates
   setTimeout(() => {
     window.location.reload();
-  }, 300000); // 5 minutes
+  }, 300000);
 
   // Keyboard shortcuts
   document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + N for new maintenance
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-      e.preventDefault();
-      const modal = new bootstrap.Modal(document.getElementById('quickMaintenanceModal'));
-      modal.show();
-    }
-
     // Ctrl/Cmd + F for focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
