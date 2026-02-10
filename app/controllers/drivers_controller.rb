@@ -1,6 +1,51 @@
+# frozen_string_literal: true
+
 class DriversController < ApplicationController
   before_action :authenticate_user!
   before_action :set_driver, only: [:show, :edit, :update, :destroy]
+
+  # ============================================================
+  # ✅ Driver JSON Search for Alerts modal/autocomplete
+  # GET /drivers/search?q=xxx
+  # (accepts q, term, query, search)
+  # Returns a SIMPLE array so it matches your vehicles endpoint
+  # ============================================================
+  def search
+    term =
+      params[:q].presence ||
+      params[:term].presence ||
+      params[:query].presence ||
+      params[:search].presence
+
+    term = term.to_s.strip
+
+    rel = Driver.all
+
+    if term.present?
+      q = "%#{term}%"
+      rel = rel.where(
+        "drivers.name ILIKE :q OR drivers.license_number ILIKE :q OR drivers.employee_id ILIKE :q OR drivers.contact_number ILIKE :q",
+        q: q
+      )
+    end
+
+    rel = rel.order(:name).limit(25)
+
+    render json: rel.map { |d|
+      {
+        id: d.id,
+        label: "#{d.name} • #{d.employee_id.presence || 'No ID'} • #{d.contact_number}",
+        name: d.name,
+        employee_id: d.employee_id,
+        license_number: d.license_number,
+        contact_number: d.contact_number,
+        status: d.status
+      }
+    }
+  rescue StandardError => e
+    Rails.logger.error("[drivers#search] #{e.class}: #{e.message}\n#{e.backtrace&.first(10)&.join("\n")}")
+    render json: { error: "Driver search failed" }, status: :internal_server_error
+  end
 
   # ============================================================
   # List drivers (search + sort + pagination)
@@ -30,33 +75,27 @@ class DriversController < ApplicationController
     end
   end
 
-  # ============================================================
-  # Show driver details - MAINTENANCE FOCUSED
-  # ============================================================
   def show
     @trips = @driver.trips
                     .includes(:vehicle)
                     .order(start_time: :desc)
                     .page(params[:trip_page]).per(10)
-    
-    # Simple assignment tracking
+
     @assigned_vehicles = @driver.vehicles || []
-    
-    # Performance metrics for maintenance team
     @maintenance_stats = @driver.maintenance_stats
     @performance_metrics = @driver.maintenance_performance
-    
-    # Initialize empty arrays for non-existent associations
+
     @maintenance_requests = []
-    @damage_reports = @driver.damage_reports
-                             .includes(:vehicle)
-                             .order(created_at: :desc)
-                             .page(params[:damage_page]).per(5) if @driver.respond_to?(:damage_reports)
+    @damage_reports = if @driver.respond_to?(:damage_reports)
+      @driver.damage_reports
+             .includes(:vehicle)
+             .order(created_at: :desc)
+             .page(params[:damage_page]).per(5)
+    else
+      []
+    end
   end
 
-  # ============================================================
-  # New / Create
-  # ============================================================
   def new
     @driver = Driver.new
   end
@@ -71,9 +110,6 @@ class DriversController < ApplicationController
     end
   end
 
-  # ============================================================
-  # Edit / Update
-  # ============================================================
   def edit; end
 
   def update
@@ -84,13 +120,9 @@ class DriversController < ApplicationController
     end
   end
 
-  # ============================================================
-  # Destroy
-  # ============================================================
   def destroy
     if @driver.trips.exists? || @driver.vehicles.exists?
-      redirect_to drivers_path,
-                  alert: "Cannot delete driver with trips or assigned vehicles."
+      redirect_to drivers_path, alert: "Cannot delete driver with trips or assigned vehicles."
       return
     end
 

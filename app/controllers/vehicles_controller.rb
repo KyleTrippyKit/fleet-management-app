@@ -1,4 +1,5 @@
-# File: app/controllers/vehicles_controller.rb
+# frozen_string_literal: true
+
 class VehiclesController < ApplicationController
   # Allow unauthenticated access ONLY to catalog_search for autocomplete.
   before_action :authenticate_user!, except: [:catalog_search]
@@ -48,6 +49,35 @@ class VehiclesController < ApplicationController
     "FWD",
     "RWD"
   ].freeze
+
+  # ====================================================
+  # ✅ Vehicle JSON Search for Alerts modal/autocomplete
+  # GET /vehicles/search?q=xxx
+  # ====================================================
+  def search
+    term = params[:q].presence || params[:term].presence || params[:query].presence
+    term = term.to_s.strip
+
+    rel = scoped_vehicles_by_agency
+    rel = rel.search(term) if term.present?
+    rel = rel.order(updated_at: :desc).limit(25)
+
+    render json: rel.map { |v|
+      {
+        id: v.id,
+        label: "#{v.license_plate} • #{v.make} #{v.model} • #{v.agency&.code}",
+        license_plate: v.license_plate,
+        registration_number: v.registration_number,
+        make: v.make,
+        model: v.model,
+        agency_id: v.agency_id,
+        agency_code: v.agency&.code
+      }
+    }
+  rescue StandardError => e
+    Rails.logger.error("[vehicles#search] #{e.class}: #{e.message}\n#{e.backtrace&.first(10)&.join("\n")}")
+    render json: { error: "Vehicle search failed" }, status: :internal_server_error
+  end
 
   # ====================================================
   # List all vehicles (SIMPLIFIED VERSION)
@@ -217,22 +247,18 @@ class VehiclesController < ApplicationController
       @agencies = Agency.all.order(:name)
     end
 
-    # avoid N+1 where possible
     @vehicles = @vehicles.includes(:maintenances)
 
-    # Keep your existing "pending first" behavior
     @vehicles = @vehicles.sort_by do |vehicle|
       has_pending = vehicle.maintenances.any? { |m| m.present? && m.status == "Pending" }
       has_pending ? 0 : 1
     end
 
-    # counts for badges (uses your existing vehicle helper methods)
     @count_overdue   = @vehicles.sum { |v| v.overdue_maintenances.count }
     @count_pending   = @vehicles.sum { |v| v.active_maintenances.count }
     @count_upcoming  = @vehicles.sum { |v| v.upcoming_maintenances.count }
     @count_completed = @vehicles.sum { |v| v.completed_maintenances.count }
 
-    # vehicles per tab
     @overdue_vehicles   = @vehicles.select { |v| v.overdue_maintenances.any? }
     @pending_vehicles   = @vehicles.select { |v| v.active_maintenances.any? }
     @upcoming_vehicles  = @vehicles.select { |v| v.upcoming_maintenances.any? }

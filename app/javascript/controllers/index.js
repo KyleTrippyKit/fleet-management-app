@@ -10,4 +10,7 @@ application.register("loading-button", LoadingButtonController)
 import FleetIndexController from "./fleet_index_controller"
 application.register("fleet-index", FleetIndexController)
 
+import AlertSearchController from "./alert_search_controller"
+application.register("alert-search", AlertSearchController)
+
 console.log("✅ Controllers registered (vehicle-catalog)")

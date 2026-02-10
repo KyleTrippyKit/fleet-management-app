@@ -76,13 +76,23 @@ Rails.application.routes.draw do
   # ========================
   # ALERT SYSTEM ROUTES - UPDATED WITH SEARCH
   # ========================
-  resources :alerts do
+  # config/routes.rb
+
+resources :alerts do
     member do
       post :acknowledge
+      # ✅ IMPORTANT: resolve is POST, so don't link to it with GET
       post :resolve
-      post :escalate
+
+      # ✅ If you want a "Resolve" page/modal, use GET resolve_form
       get :resolve_form
+
+      post :escalate
+
+      # ✅ Finance-only: Create RFQ from an alert
+      post :create_rfq
     end
+
     collection do
       get :needs_attention
       get :recent
