@@ -1,3 +1,4 @@
+<%# File: app/views/alerts/new.html.erb %>
 <div class="container-fluid py-4" data-controller="alert-search">
   <div class="row justify-content-center">
     <div class="col-lg-8">
@@ -69,30 +70,34 @@
 
               <!-- Vehicle Search -->
               <div class="col-md-6">
-                <div class="mb-3">
+                <div class="mb-3 position-relative">
                   <label class="form-label">Vehicle Search</label>
 
                   <input type="text"
                          class="form-control"
                          placeholder="Search by license plate, make, or model..."
+                         autocomplete="off"
                          data-alert-search-target="vehicleInput"
                          data-action="input->alert-search#vehicleInput"
                          data-search-url="<%= search_vehicles_path(format: :json) %>">
 
                   <%= form.hidden_field :vehicle_id, data: { alert_search_target: "vehicleHidden" } %>
 
-                  <div class="mt-2" style="display:none;" data-alert-search-target="vehicleResults">
-                    <div class="list-group" data-alert-search-target="vehicleList"></div>
+                  <!-- ✅ ONE dropdown container, ONE list target -->
+                  <div class="list-group position-absolute w-100 shadow"
+                       style="z-index: 1055; display:none;"
+                       data-alert-search-target="vehicleResults">
+                    <div data-alert-search-target="vehicleList"></div>
                   </div>
 
+                  <!-- Selected chip -->
                   <div class="mt-2" style="display:none;" data-alert-search-target="vehicleSelected">
                     <div class="alert alert-info py-2 mb-0">
                       <i class="bi bi-car-front me-2"></i>
                       <span data-alert-search-target="vehicleSelectedText"></span>
                       <button type="button"
                               class="btn btn-sm btn-outline-danger float-end"
-                              data-action="click->alert-search#clearVehicle"
-                              data-alert-search-target="vehicleClear">
+                              data-action="click->alert-search#clearVehicle">
                         <i class="bi bi-x"></i>
                       </button>
                     </div>
@@ -102,30 +107,34 @@
 
               <!-- Driver Search -->
               <div class="col-md-6">
-                <div class="mb-3">
+                <div class="mb-3 position-relative">
                   <label class="form-label">Driver Search</label>
 
                   <input type="text"
                          class="form-control"
                          placeholder="Search driver by name..."
+                         autocomplete="off"
                          data-alert-search-target="driverInput"
                          data-action="input->alert-search#driverInput"
                          data-search-url="<%= search_drivers_path(format: :json) %>">
 
                   <%= form.hidden_field :driver_id, data: { alert_search_target: "driverHidden" } %>
 
-                  <div class="mt-2" style="display:none;" data-alert-search-target="driverResults">
-                    <div class="list-group" data-alert-search-target="driverList"></div>
+                  <!-- ✅ ONE dropdown container, ONE list target -->
+                  <div class="list-group position-absolute w-100 shadow"
+                       style="z-index: 1055; display:none;"
+                       data-alert-search-target="driverResults">
+                    <div data-alert-search-target="driverList"></div>
                   </div>
 
+                  <!-- Selected chip -->
                   <div class="mt-2" style="display:none;" data-alert-search-target="driverSelected">
                     <div class="alert alert-info py-2 mb-0">
                       <i class="bi bi-person-badge me-2"></i>
                       <span data-alert-search-target="driverSelectedText"></span>
                       <button type="button"
                               class="btn btn-sm btn-outline-danger float-end"
-                              data-action="click->alert-search#clearDriver"
-                              data-alert-search-target="driverClear">
+                              data-action="click->alert-search#clearDriver">
                         <i class="bi bi-x"></i>
                       </button>
                     </div>
@@ -167,4 +176,11 @@
 <style>
 .search-result-item { cursor: pointer; }
 .search-result-item:hover { background-color: #f8f9fa; }
+
+/* ✅ Put your max-height HERE */
+[data-alert-search-target="vehicleResults"],
+[data-alert-search-target="driverResults"] {
+  max-height: 250px;
+  overflow-y: auto;
+}
 </style>

@@ -1,3 +1,7 @@
+```erb
+<%# File: app/views/alerts/show.html.erb %>
+<%# Replace the ENTIRE file with this (copy/paste). %>
+
 <div class="container-fluid py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -10,11 +14,25 @@
         <i class="bi bi-arrow-left me-2"></i>Back to Alerts
       <% end %>
 
+      <%# Optional: keep Edit visible for anyone who can edit the alert (or leave as-is) %>
       <%= link_to edit_alert_path(@alert), class: "btn btn-warning" do %>
         <i class="bi bi-pencil me-2"></i>Edit
       <% end %>
     </div>
   </div>
+
+  <%# Role helpers (keeps logic consistent across page) %>
+  <%
+    maintenance_roles =
+      current_user.admin? ||
+      current_user.fleet_manager? ||
+      current_user.supervisor? ||
+      current_user.maintenance_supervisor?
+
+    finance_roles =
+      current_user.admin? ||
+      current_user.finance?
+  %>
 
   <div class="row g-4">
     <div class="col-md-8">
@@ -53,62 +71,7 @@
           <% end %>
         </div>
 
-        <div class="card-footer">
-          <div class="d-flex justify-content-end flex-wrap gap-2">
-
-            <%# Acknowledge (maintenance/admin) - POST %>
-            <% if @alert.can_acknowledge? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
-              <%= button_to acknowledge_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-warning btn-sm",
-                    data: { confirm: "Acknowledge this alert?" } do %>
-                <i class="bi bi-check-circle me-2"></i>Acknowledge
-              <% end %>
-            <% end %>
-
-            <%# Send to Finance (maintenance/admin) - POST %>
-            <% if @alert.can_send_to_finance? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
-              <%= button_to escalate_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-outline-primary btn-sm",
-                    data: { confirm: "Send this alert to Finance for RFQ?" } do %>
-                <i class="bi bi-cash-coin me-2"></i>Send to Finance
-              <% end %>
-            <% end %>
-
-            <%# Escalate to critical (optional) - POST %>
-            <% if @alert.can_escalate? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
-              <%= button_to escalate_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-danger btn-sm",
-                    data: { confirm: "Escalate this alert to CRITICAL + URGENT?" } do %>
-                <i class="bi bi-arrow-up me-2"></i>Escalate Severity
-              <% end %>
-            <% end %>
-
-            <%# Resolve (maintenance/admin) - MUST BE POST %>
-            <% if @alert.can_resolve? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
-              <%= button_to resolve_alert_path(@alert),
-                    method: :post,
-                    params: { resolution_notes: "" },
-                    class: "btn btn-success btn-sm",
-                    data: { confirm: "Mark this alert as resolved?" } do %>
-                <i class="bi bi-check2-all me-2"></i>Resolve
-              <% end %>
-            <% end %>
-
-            <%# Finance-only: create RFQ from alert (POST) %>
-            <% if (current_user.admin? || current_user.finance?) %>
-              <%= button_to create_rfq_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-warning btn-sm",
-                    data: { confirm: "Create RFQ from this alert?" } do %>
-                <i class="bi bi-file-earmark-text me-2"></i>Create RFQ
-              <% end %>
-            <% end %>
-
-          </div>
-        </div>
+        <%# ✅ Removed the old card-footer actions to avoid duplicates %>
       </div>
 
       <%# Related Alerts (optional – only show if controller sets @related_alerts) %>
@@ -257,7 +220,7 @@
         <div class="card-body">
           <div class="d-grid gap-2">
 
-            <% if @alert.can_acknowledge? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
+            <% if @alert.can_acknowledge? && current_user&.fleet_manager? %>
               <%= button_to acknowledge_alert_path(@alert),
                     method: :post,
                     class: "btn btn-warning",
@@ -266,26 +229,41 @@
               <% end %>
             <% end %>
 
-            <% if @alert.can_send_to_finance? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
+            <% if @alert.can_send_to_finance? && maintenance_roles %>
               <%= button_to escalate_alert_path(@alert),
                     method: :post,
                     class: "btn btn-outline-primary",
-                    data: { confirm: "Send this alert to Finance for RFQ?" } do %>
+                    data: { confirm: "Send this alert to Finance?" } do %>
                 <i class="bi bi-cash-coin me-2"></i>Send to Finance
               <% end %>
             <% end %>
 
-            <% if @alert.can_resolve? && (current_user.admin? || current_user.fleet_manager? || current_user.supervisor? || current_user.maintenance_supervisor?) %>
+            <%# Optional: if you really have a separate severity escalation action/route, keep it here.
+                Your pasted show uses escalate_alert_path for TWO different meanings (send-to-finance + escalate severity).
+                If you don't have a separate route, DO NOT show this button. %>
+            <% if @alert.respond_to?(:can_escalate?) && @alert.can_escalate? && maintenance_roles && respond_to?(:escalate_severity_alert_path) %>
+              <%= button_to escalate_severity_alert_path(@alert),
+                    method: :post,
+                    class: "btn btn-danger",
+                    data: { confirm: "Escalate this alert to CRITICAL + URGENT?" } do %>
+                <i class="bi bi-arrow-up me-2"></i>Escalate Severity
+              <% end %>
+            <% end %>
+
+            <% if @alert.can_resolve? && maintenance_roles %>
               <%= button_to resolve_alert_path(@alert),
                     method: :post,
                     params: { resolution_notes: "" },
                     class: "btn btn-success",
-                    data: { confirm: "Mark as resolved?" } do %>
+                    data: { confirm: "Mark this alert as resolved?" } do %>
                 <i class="bi bi-check2-all me-2"></i>Resolve Alert
               <% end %>
             <% end %>
 
-            <% if (current_user.admin? || current_user.finance?) %>
+            <%# ✅ Finance/Admin ONLY: Create RFQ.
+                Optional: only show when status indicates it has been sent to finance.
+                If your status is 'awaiting_procurement' in the controller, use that here. %>
+            <% if finance_roles && (@alert.status == "awaiting_procurement" || @alert.status == "sent_to_finance") %>
               <%= button_to create_rfq_alert_path(@alert),
                     method: :post,
                     class: "btn btn-warning",
@@ -309,3 +287,4 @@
     </div>
   </div>
 </div>
+```

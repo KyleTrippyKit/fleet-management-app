@@ -8,10 +8,11 @@ pin "@hotwired/turbo-rails", to: "turbo.min.js", preload: true
 pin "@hotwired/stimulus", to: "stimulus.min.js", preload: true
 pin "@hotwired/stimulus-loading", to: "stimulus-loading.js", preload: true
 
-# Pin all controllers from app/javascript/controllers
+# Pin all controllers (this creates the "controllers" entry)
 pin_all_from "app/javascript/controllers", under: "controllers"
 
-# Pin our polish kit
+# ✅ Temporarily DISABLE polish while testing Stimulus start-up
+# (we will re-enable this after we confirm window.Stimulus exists)
 pin "polish", to: "polish.js", preload: true
 
 # External dependencies

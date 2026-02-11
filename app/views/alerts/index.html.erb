@@ -277,12 +277,14 @@
                         <i class="bi bi-pencil"></i>
                       <% end %>
 
-                      <% if alert.can_acknowledge? && (respond_to?(:acknowledge_alert_path)) %>
+                      <%# ✅ ONLY Fleet Manager (and Admin) can acknowledge %>
+                      <% if alert.can_acknowledge? && respond_to?(:acknowledge_alert_path) && (current_user&.fleet_manager? || current_user&.admin?) %>
                         <%= button_to acknowledge_alert_path(alert),
                               method: :post,
                               class: "btn btn-outline-warning",
                               title: "Acknowledge",
-                              form: { class: "d-inline" } do %>
+                              form: { class: "d-inline" },
+                              data: { turbo_confirm: "Acknowledge this alert?" } do %>
                           <i class="bi bi-check-circle"></i>
                         <% end %>
                       <% end %>
@@ -322,8 +324,14 @@
               <div class="d-flex align-items-center gap-2">
                 <select id="bulk-action-select" name="bulk_action" class="form-select form-select-sm" style="width: auto;">
                   <option value="">Bulk Actions</option>
-                  <option value="acknowledge">Acknowledge Selected</option>
+
+                  <%# ✅ only Fleet Manager (and Admin) can bulk acknowledge %>
+                  <% if current_user&.fleet_manager? || current_user&.admin? %>
+                    <option value="acknowledge">Acknowledge Selected</option>
+                  <% end %>
+
                   <option value="resolve">Resolve Selected</option>
+
                   <% if current_user&.admin? %>
                     <option value="delete">Delete Selected</option>
                   <% end %>
@@ -362,7 +370,6 @@
   };
 
   ready(function () {
-    // Select all checkbox
     const selectAll = document.getElementById("select-all");
     const checkboxes = document.querySelectorAll(".alert-checkbox");
 
@@ -372,7 +379,6 @@
       });
     }
 
-    // Bulk actions
     const applyBtn = document.getElementById("apply-bulk-action");
     const bulkSelect = document.getElementById("bulk-action-select");
     const bulkForm = document.getElementById("bulk-action-form");
@@ -396,11 +402,9 @@
 
         if (!confirm(`Are you sure you want to ${action} ${selectedIds.length} alert(s)?`)) return;
 
-        // Clear any existing alert_ids inputs (if user clicked twice)
         const existingInputs = bulkForm.querySelectorAll('input[name="alert_ids[]"]');
         existingInputs.forEach((input) => input.remove());
 
-        // Add selected alert IDs to form
         selectedIds.forEach((id) => {
           const input = document.createElement("input");
           input.type = "hidden";

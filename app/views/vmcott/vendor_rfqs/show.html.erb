@@ -1,0 +1,338 @@
+<%# app/views/vmcott/vendor_rfqs/show.html.erb %>
+<% vendor_rfq = @vendor_rfq %>
+
+<div class="container-fluid">
+  <% if vendor_rfq.blank? %>
+    <div class="alert alert-danger">Vendor RFQ not found.</div>
+  <% else %>
+
+    <% locked = vendor_rfq.respond_to?(:locked?) ? vendor_rfq.locked? : vendor_rfq.status.in?(%w[awarded closed]) %>
+
+    <% quotations =
+         (@quotations || vendor_rfq.vendor_quotations.includes(:supplier, :vendor_quotation_lines)).to_a %>
+
+    <% cheapest =
+         (@cheapest || (vendor_rfq.respond_to?(:cheapest_vendor_response) ? vendor_rfq.cheapest_vendor_response : nil)) %>
+
+    <% awarded_quote_id =
+         vendor_rfq.respond_to?(:awarded_vendor_quotation_id) ? vendor_rfq.awarded_vendor_quotation_id : nil %>
+
+    <!-- HEADER -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+      <div>
+        <h1 class="h4 mb-1"><%= vendor_rfq.rfq_number %> — Vendor RFQ</h1>
+
+        <div class="text-muted">
+          Status:
+          <span class="badge <%= locked ? "bg-success" : "bg-secondary" %>">
+            <%= vendor_rfq.status %><%= " (LOCKED)" if locked %>
+          </span>
+
+          <% if vendor_rfq.due_date.present? %>
+            • Due: <%= vendor_rfq.due_date.strftime("%d/%m/%Y") %>
+          <% end %>
+
+          <% if vendor_rfq.sent_date.present? %>
+            • Sent: <%= vendor_rfq.sent_date.strftime("%d/%m/%Y") %>
+          <% end %>
+
+          <% if vendor_rfq.respond_to?(:awarded_at) && vendor_rfq.awarded_at.present? %>
+            • Awarded: <%= vendor_rfq.awarded_at.strftime("%d/%m/%Y %I:%M %p") %>
+          <% end %>
+        </div>
+
+        <% if vendor_rfq.notes.present? %>
+          <div class="mt-2 small text-muted">
+            <strong>Notes:</strong> <%= vendor_rfq.notes %>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- ONLY VALID ACTIONS BASED ON YOUR ROUTES -->
+      <div class="d-flex gap-2 flex-wrap">
+        <% unless locked %>
+          <%= button_to "Send to Suppliers",
+                send_to_suppliers_vmcott_vendor_rfq_path(vendor_rfq),
+                method: :post,
+                class: "btn btn-primary",
+                form: { data: { turbo_confirm: "Send this RFQ to suppliers?" } } %>
+
+          <%= button_to "Close RFQ",
+                close_vmcott_vendor_rfq_path(vendor_rfq),
+                method: :post,
+                class: "btn btn-outline-secondary",
+                form: { data: { turbo_confirm: "Close this RFQ?" } } %>
+        <% end %>
+      </div>
+    </div>
+
+    <% if locked %>
+      <div class="alert alert-info">
+        <strong>RFQ Locked:</strong>
+        This RFQ has been <%= vendor_rfq.status %>.
+        Awarding and logging new quotations is disabled.
+      </div>
+    <% end %>
+
+    <!-- RFQ ITEMS -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white fw-semibold">
+        RFQ Items
+      </div>
+
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Part</th>
+                <th>Description</th>
+                <th style="width: 8%;">Qty</th>
+                <th style="width: 10%;">Unit</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <% rfq_items = vendor_rfq.vendor_rfq_items.includes(:part).to_a %>
+
+              <% rfq_items.each do |item| %>
+                <tr>
+                  <td><%= item.part&.name %></td>
+                  <td><%= item.description %></td>
+                  <td><%= item.quantity %></td>
+                  <td><%= item.unit_of_measure %></td>
+                </tr>
+              <% end %>
+
+              <% if rfq_items.blank? %>
+                <tr>
+                  <td colspan="4" class="text-center text-muted">No items added.</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHEAPEST -->
+    <% if cheapest.present? %>
+      <div class="alert alert-success d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <strong>Cheapest Quotation:</strong>
+          <%= cheapest.supplier&.name || "Unknown Supplier" %>
+          — <%= number_to_currency(cheapest.total_amount) %>
+        </div>
+
+        <% unless locked %>
+          <%= button_to "Award to Cheapest",
+                accept_vmcott_vendor_rfq_vendor_quotation_path(vendor_rfq, cheapest),
+                method: :post,
+                class: "btn btn-sm btn-success",
+                form: { data: { turbo_confirm: "Award this RFQ?\nThis will reject others and create a Purchase Order." } } %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <!-- ✅ QUOTATION COMPARISON (per RFQ item) -->
+    <% if rfq_items.present? && quotations.present? %>
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+          <span>Quotation Comparison</span>
+          <span class="text-muted small">Lowest price per line is highlighted</span>
+        </div>
+
+        <div class="card-body">
+          <%# Build lookup: quote_id -> part_id -> line %>
+          <% quote_lines = {} %>
+          <% quotations.each do |q| %>
+            <% quote_lines[q.id] = q.vendor_quotation_lines.index_by { |ln| ln.part_id } %>
+          <% end %>
+
+          <%# Pre-calc totals per quote based on RFQ qty (even if vendor line qty differs) %>
+          <% totals_by_quote = Hash.new { |h, k| h[k] = 0.to_d } %>
+
+          <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 22%;">Item</th>
+                  <th style="width: 8%;">RFQ Qty</th>
+                  <% quotations.each do |q| %>
+                    <th>
+                      <div class="fw-semibold"><%= q.supplier&.name || "Unknown" %></div>
+                      <div class="small text-muted">Unit • Line Total</div>
+                    </th>
+                  <% end %>
+                </tr>
+              </thead>
+
+              <tbody>
+                <% rfq_items.each do |item| %>
+                  <% part_id = item.part_id %>
+                  <% qty = (item.quantity.presence || 0).to_d %>
+
+                  <% unit_prices = quotations.map do |q|
+                       ln = quote_lines.dig(q.id, part_id)
+                       ln&.unit_price.to_d
+                     end %>
+
+                  <% # Lowest non-zero unit price for highlight %>
+                  <% lowest_unit = unit_prices.select { |x| x.positive? }.min %>
+
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= item.part&.name || "Item" %></div>
+                      <div class="small text-muted"><%= item.description %></div>
+                    </td>
+
+                    <td class="text-center fw-semibold"><%= item.quantity %></td>
+
+                    <% quotations.each do |q| %>
+                      <% ln = quote_lines.dig(q.id, part_id) %>
+                      <% unit = ln&.unit_price.to_d %>
+                      <% line_total = (qty * unit) %>
+
+                      <% totals_by_quote[q.id] += line_total if unit.positive? && qty.positive? %>
+
+                      <% highlight = lowest_unit.present? && unit == lowest_unit && unit.positive? %>
+
+                      <td class="<%= highlight ? "table-success" : "" %>">
+                        <% if ln.present? && unit.positive? %>
+                          <div class="fw-semibold">
+                            <%= number_to_currency(unit) %>
+                          </div>
+                          <div class="small text-muted">
+                            <%= number_to_currency(line_total) %>
+                          </div>
+                        <% else %>
+                          <span class="text-muted">—</span>
+                        <% end %>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+              </tbody>
+
+              <tfoot class="table-light">
+                <tr>
+                  <th colspan="2" class="text-end">Grand Total:</th>
+                  <% quotations.each do |q| %>
+                    <th class="fw-bold">
+                      <%= number_to_currency(totals_by_quote[q.id]) %>
+                    </th>
+                  <% end %>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="small text-muted mt-2">
+            Note: Totals are calculated using <strong>RFQ quantities</strong> × supplier unit price.
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- QUOTATIONS -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+        <span>Vendor Quotations</span>
+
+        <% unless locked %>
+          <%= link_to "Log Received Quotation",
+                new_vmcott_vendor_rfq_vendor_quotation_path(vendor_rfq),
+                class: "btn btn-success btn-sm" %>
+        <% end %>
+      </div>
+
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Vendor</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Purchase Order</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <% quotations.each do |q| %>
+                <% is_awarded = (awarded_quote_id.present? && q.id == awarded_quote_id) %>
+
+                <tr class="<%= 'table-success' if is_awarded %>">
+                  <td class="fw-semibold">
+                    <%= q.supplier&.name || "Unknown" %>
+                    <% if is_awarded %>
+                      <span class="badge bg-success ms-2">AWARDED</span>
+                    <% end %>
+                  </td>
+
+                  <td><%= number_to_currency(q.total_amount) %></td>
+
+                  <td>
+                    <span class="badge bg-secondary"><%= q.status %></span>
+                  </td>
+
+                  <td>
+                    <% if q.purchase_order.present? %>
+                      <%= link_to q.purchase_order.po_number,
+                            purchase_order_path(q.purchase_order),
+                            class: "btn btn-sm btn-outline-dark" %>
+                    <% else %>
+                      <span class="text-muted">—</span>
+                    <% end %>
+                  </td>
+
+                  <td class="text-end">
+                    <%= link_to "View",
+                          vmcott_vendor_rfq_vendor_quotation_path(vendor_rfq, q),
+                          class: "btn btn-sm btn-outline-primary" %>
+
+                    <% unless locked %>
+                      <%= button_to "Accept",
+                            accept_vmcott_vendor_rfq_vendor_quotation_path(vendor_rfq, q),
+                            method: :post,
+                            class: "btn btn-sm btn-outline-success ms-1" %>
+
+                      <%= button_to "Reject",
+                            reject_vmcott_vendor_rfq_vendor_quotation_path(vendor_rfq, q),
+                            method: :post,
+                            class: "btn btn-sm btn-outline-danger ms-1" %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+
+              <% if quotations.blank? %>
+                <tr>
+                  <td colspan="5" class="text-center text-muted">No quotations yet.</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if locked && awarded_quote_id.present? %>
+          <% awarded_q = quotations.find { |x| x.id == awarded_quote_id } %>
+          <div class="alert alert-light border mt-3">
+            <strong>Next Step:</strong>
+            Open the generated Purchase Order and wait for the vendor invoice.
+            <% if awarded_q&.purchase_order.present? %>
+              <div class="mt-2">
+                <%= link_to "Open Purchase Order #{awarded_q.purchase_order.po_number}",
+                      purchase_order_path(awarded_q.purchase_order),
+                      class: "btn btn-sm btn-dark" %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+
+      </div>
+    </div>
+
+  <% end %>
+</div>

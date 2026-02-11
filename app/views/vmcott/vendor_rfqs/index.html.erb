@@ -1,0 +1,72 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">Vendor RFQs (Procurement)</h1>
+      <p class="text-muted mb-0">Create RFQs, record quotes, and award the cheapest.</p>
+    </div>
+    <%= link_to "New Vendor RFQ", new_vmcott_vendor_rfq_path, class: "btn btn-primary" %>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>RFQ #</th>
+            <th>Status</th>
+            <th>Items</th>
+            <th>Quotes</th>
+            <th>Cheapest Quote</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <% @rfqs.each do |rfq| %>
+            <% cheapest = rfq.cheapest_vendor_response %>
+
+            <tr>
+              <td class="fw-semibold"><%= rfq.rfq_number %></td>
+
+              <td>
+                <span class="badge bg-secondary"><%= rfq.status %></span>
+              </td>
+
+              <td><%= rfq.vendor_rfq_items.size %></td>
+
+              <td>
+                <%= rfq.vendor_quotations.size %>
+                <% distinct_suppliers = rfq.vendor_quotations.map(&:supplier_id).compact.uniq.size %>
+                <% if distinct_suppliers > 0 %>
+                  <span class="text-muted">(from <%= distinct_suppliers %> vendor<%= "s" if distinct_suppliers != 1 %>)</span>
+                <% end %>
+              </td>
+
+              <td>
+                <% if cheapest %>
+                  <span class="badge bg-success">
+                    <%= cheapest.supplier&.name || "Unknown Vendor" %>
+                    -
+                    <%= cheapest.total_amount ? number_to_currency(cheapest.total_amount) : "N/A" %>
+                  </span>
+                <% else %>
+                  <span class="text-muted">None</span>
+                <% end %>
+              </td>
+
+              <td class="text-end">
+                <%= link_to "View", vmcott_vendor_rfq_path(rfq), class: "btn btn-sm btn-outline-primary" %>
+              </td>
+            </tr>
+          <% end %>
+
+          <% if @rfqs.empty? %>
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">No vendor RFQs yet.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

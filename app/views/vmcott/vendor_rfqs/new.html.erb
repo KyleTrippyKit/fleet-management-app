@@ -1,0 +1,166 @@
+<%# app/views/vmcott/vendor_rfqs/new.html.erb %>
+
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">New Vendor RFQ</h3>
+    <%= link_to "Back", vmcott_vendor_rfqs_path, class: "btn btn-outline-secondary btn-sm" %>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <%= form_with model: @vendor_rfq, url: vmcott_vendor_rfqs_path, local: true do |f| %>
+
+        <% if @vendor_rfq.errors.any? %>
+          <div class="alert alert-danger">
+            <strong><%= pluralize(@vendor_rfq.errors.count, "error") %> prevented saving:</strong>
+            <ul class="mb-0">
+              <% @vendor_rfq.errors.full_messages.each do |msg| %>
+                <li><%= msg %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <%= f.label :rfq_number, class: "form-label fw-semibold" %>
+            <%= f.text_field :rfq_number, class: "form-control", placeholder: "Auto-generated if blank" %>
+          </div>
+
+          <div class="col-md-4">
+            <%= f.label :status, class: "form-label fw-semibold" %>
+            <%= f.select :status,
+                         VendorRfq::STATUSES.map { |s| [s.titleize, s] },
+                         {},
+                         class: "form-select" %>
+          </div>
+
+          <div class="col-md-4">
+            <%= f.label :sent_date, class: "form-label fw-semibold" %>
+            <%= f.date_field :sent_date, class: "form-control" %>
+          </div>
+
+          <div class="col-md-4">
+            <%= f.label :due_date, class: "form-label fw-semibold" %>
+            <%= f.date_field :due_date, class: "form-control" %>
+          </div>
+
+          <div class="col-12">
+            <%= f.label :notes, class: "form-label fw-semibold" %>
+            <%= f.text_area :notes, class: "form-control", rows: 3 %>
+          </div>
+        </div>
+
+        <hr class="my-4">
+
+        <h5 class="mb-2">Items</h5>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th style="width: 20%;">Part</th>
+                <th>Description</th>
+                <th style="width: 10%;">Qty</th>
+                <th style="width: 15%;">UoM</th>
+                <th style="width: 5%;"></th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <%= f.fields_for :vendor_rfq_items do |it| %>
+                <tr>
+                  <td>
+                    <%= it.collection_select :part_id,
+                                            Part.order(:name),
+                                            :id, :name,
+                                            { include_blank: "Select part" },
+                                            class: "form-select form-select-sm" %>
+                  </td>
+
+                  <td><%= it.text_field :description, class: "form-control form-control-sm" %></td>
+                  <td><%= it.number_field :quantity, step: 1, min: 1, class: "form-control form-control-sm" %></td>
+                  <td><%= it.text_field :unit_of_measure, class: "form-control form-control-sm", placeholder: "ea / pcs / m" %></td>
+
+                  <td class="text-end">
+                    <%= it.hidden_field :_destroy %>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-remove-row>
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-row">
+            + Add item
+          </button>
+
+          <%= f.submit "Create RFQ", class: "btn btn-primary ms-auto" %>
+        </div>
+
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Tiny JS helper: clone first row for quick adds (no cocoon needed)
+  document.addEventListener("DOMContentLoaded", () => {
+    const addBtn = document.getElementById("add-item-row");
+    if (!addBtn) return;
+
+    const tbody = document.querySelector("tbody");
+    addBtn.addEventListener("click", () => {
+      const firstRow = tbody.querySelector("tr");
+      if (!firstRow) return;
+
+      const newRow = firstRow.cloneNode(true);
+
+      // Clear values in inputs/selects
+      newRow.querySelectorAll("input, select, textarea").forEach((el) => {
+        if (el.name.includes("[_destroy]")) {
+          el.value = "false";
+        } else if (el.tagName === "SELECT") {
+          el.selectedIndex = 0;
+        } else {
+          el.value = "";
+        }
+      });
+
+      // Update indexes in field names (simple increment)
+      const maxIndex = Array.from(tbody.querySelectorAll("tr"))
+        .map((tr) => {
+          const input = tr.querySelector("input, select, textarea");
+          if (!input) return -1;
+          const m = input.name.match(/\[vendor_rfq_items_attributes\]\[(\d+)\]/);
+          return m ? parseInt(m[1], 10) : -1;
+        })
+        .reduce((a, b) => Math.max(a, b), -1);
+
+      const nextIndex = maxIndex + 1;
+
+      newRow.querySelectorAll("input, select, textarea").forEach((el) => {
+        el.name = el.name.replace(/\[vendor_rfq_items_attributes\]\[\d+\]/, `[vendor_rfq_items_attributes][${nextIndex}]`);
+        el.id = el.id.replace(/_vendor_rfq_items_attributes_\d+_/, `_vendor_rfq_items_attributes_${nextIndex}_`);
+      });
+
+      tbody.appendChild(newRow);
+    });
+
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-row]");
+      if (!btn) return;
+
+      const row = btn.closest("tr");
+      if (!row) return;
+
+      const destroyInput = row.querySelector('input[name*="[_destroy]"]');
+      if (destroyInput) destroyInput.value = "1";
+      row.style.display = "none";
+    });
+  });
+</script>

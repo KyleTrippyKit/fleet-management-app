@@ -1,0 +1,237 @@
+<%# app/views/vmcott/vendor_quotations/new.html.erb %>
+
+<div class="container-fluid py-4">
+  <div class="row mb-3">
+    <div class="col">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+          <li class="breadcrumb-item">
+            <%= link_to "Vendor RFQs", vmcott_vendor_rfqs_path %>
+          </li>
+          <li class="breadcrumb-item">
+            <%= link_to(@vendor_rfq.rfq_number, vmcott_vendor_rfq_path(@vendor_rfq)) %>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">Log Received Quotation</li>
+        </ol>
+      </nav>
+
+      <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+        <div>
+          <h1 class="h4 mb-1">Log Received Quotation</h1>
+          <div class="text-muted">
+            RFQ: <strong><%= @vendor_rfq.rfq_number %></strong>
+            • Status: <span class="badge bg-secondary"><%= @vendor_rfq.status %></span>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <%= link_to "Back to RFQ",
+                vmcott_vendor_rfq_path(@vendor_rfq),
+                class: "btn btn-outline-secondary" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <% locked = @vendor_rfq.respond_to?(:locked?) ? @vendor_rfq.locked? : @vendor_rfq.status.in?(%w[awarded closed]) %>
+
+  <% if locked %>
+    <div class="alert alert-warning">
+      <strong>RFQ is locked.</strong>
+      You can’t log new quotations because this RFQ has already been <%= @vendor_rfq.status %>.
+    </div>
+  <% else %>
+
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card shadow-sm">
+          <div class="card-header bg-white fw-semibold">
+            Quotation Details
+          </div>
+
+          <div class="card-body">
+
+            <% if @vendor_quotation.errors.any? %>
+              <div class="alert alert-danger">
+                <strong>Please fix the following:</strong>
+                <ul class="mb-0">
+                  <% @vendor_quotation.errors.full_messages.each do |msg| %>
+                    <li><%= msg %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <%= form_with model: [:vmcott, @vendor_rfq, @vendor_quotation], local: true do |f| %>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <%= f.label :supplier_id, "Supplier", class: "form-label" %>
+                  <%= f.select :supplier_id,
+                        options_from_collection_for_select(@suppliers, :id, :name, @vendor_quotation.supplier_id),
+                        { include_blank: "Select supplier..." },
+                        class: "form-select",
+                        required: true %>
+                  <div class="form-text">
+                    This is who sent the quotation (email/PDF/hardcopy).
+                  </div>
+                </div>
+
+                <div class="col-md-3">
+                  <%= f.label :currency, "Currency", class: "form-label" %>
+                  <%= f.select :currency,
+                        options_for_select([["TTD", "TTD"], ["USD", "USD"], ["EUR", "EUR"]], (@vendor_quotation.currency.presence || "TTD")),
+                        {},
+                        class: "form-select" %>
+                </div>
+
+                <div class="col-md-3">
+                  <%= f.label :status, "Status", class: "form-label" %>
+                  <%= f.select :status,
+                        options_for_select([["Received", "received"], ["Draft", "draft"]], (@vendor_quotation.status.presence || "received")),
+                        {},
+                        class: "form-select" %>
+                  <div class="form-text">
+                    Use “Draft” if you’re still entering line items.
+                  </div>
+                </div>
+
+                <div class="col-12">
+                  <%= f.label :notes, "Notes / Reference", class: "form-label" %>
+                  <%= f.text_area :notes,
+                        rows: 3,
+                        class: "form-control",
+                        placeholder: "e.g. Received via email from vendor on 11/02/2026. Quote ref #ABC123. Delivery 7 days. VAT exclusive." %>
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0">Line Items</h5>
+                <span class="text-muted small">
+                  Add pricing lines from the supplier’s quotation.
+                </span>
+              </div>
+
+              <div class="alert alert-info mt-3 mb-3">
+                <strong>Quick note:</strong>
+                This screen is for logging what the supplier sent. You can attach the PDF on the quotation “Show” page (next step),
+                or you can extend this form later to upload directly.
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 35%;">Description</th>
+                      <th style="width: 15%;" class="text-end">Qty</th>
+                      <th style="width: 20%;" class="text-end">Unit Price</th>
+                      <th style="width: 20%;" class="text-end">Total</th>
+                      <th style="width: 10%;"></th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <%# Build at least 1 line so the form isn’t empty %>
+                    <% if @vendor_quotation.vendor_quotation_lines.blank? %>
+                      <% @vendor_quotation.vendor_quotation_lines.build %>
+                    <% end %>
+
+                    <%= f.fields_for :vendor_quotation_lines do |lf| %>
+                      <tr>
+                        <td>
+                          <%= lf.hidden_field :part_id %>
+                          <%= lf.text_field :description,
+                                class: "form-control",
+                                placeholder: "Item description (from supplier quote)" %>
+                        </td>
+
+                        <td class="text-end">
+                          <%= lf.number_field :quantity,
+                                step: 1,
+                                min: 1,
+                                class: "form-control text-end",
+                                value: (lf.object.quantity.presence || 1) %>
+                        </td>
+
+                        <td class="text-end">
+                          <%= lf.number_field :unit_price,
+                                step: "0.01",
+                                min: 0,
+                                class: "form-control text-end",
+                                placeholder: "0.00" %>
+                        </td>
+
+                        <td class="text-end">
+                          <%= lf.number_field :total_price,
+                                step: "0.01",
+                                min: 0,
+                                class: "form-control text-end",
+                                placeholder: "auto / manual" %>
+                        </td>
+
+                        <td class="text-end">
+                          <%# If you have Cocoon wired up, you can switch this to link_to_remove_association %>
+                          <span class="text-muted small">—</span>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="d-flex gap-2 mt-3">
+                <%= f.submit "Save Quotation",
+                      class: "btn btn-primary" %>
+
+                <%= link_to "Cancel",
+                      vmcott_vendor_rfq_path(@vendor_rfq),
+                      class: "btn btn-outline-secondary" %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4 mt-4 mt-lg-0">
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-white fw-semibold">
+            RFQ Items (Reference)
+          </div>
+
+          <div class="card-body">
+            <% if @vendor_rfq.vendor_rfq_items.any? %>
+              <ul class="list-group list-group-flush">
+                <% @vendor_rfq.vendor_rfq_items.includes(:part).each do |item| %>
+                  <li class="list-group-item px-0">
+                    <div class="fw-semibold"><%= item.part&.name || "Part" %></div>
+                    <div class="text-muted small">
+                      <%= item.description.presence || "—" %>
+                      • Qty: <%= item.quantity %> <%= item.unit_of_measure %>
+                    </div>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <div class="text-muted">No RFQ items were added.</div>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="card shadow-sm">
+          <div class="card-header bg-white fw-semibold">
+            Next step
+          </div>
+          <div class="card-body">
+            <ol class="mb-0">
+              <li>Save the quotation.</li>
+              <li>Open it and attach the supplier PDF/scan.</li>
+              <li>Compare totals and then “Accept (Award)” the winner.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <% end %>
+</div>

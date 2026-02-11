@@ -1,4 +1,4 @@
-<!-- File: app/views/layouts/application.html.erb -->
+<%# File: app/views/layouts/application.html.erb %>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -57,7 +57,6 @@
       document.addEventListener('turbo:load', setupApp);
     </script>
 
-    <!-- Keep your existing inline styles (OK for now) -->
     <style>
       /* PTSC blue overrides (kept) */
       body.ptsc-theme-active .ptsc-header,
@@ -93,23 +92,22 @@
       /* Ensure Gantt page has full height */
       body.gantt-page {
         height: auto;
-        overflow-y: auto;   /* ✅ allow scroll */
-        overflow-x: hidden; /* optional */
+        overflow-y: auto;
+        overflow-x: hidden;
       }
-      
-      /* AUTO-HIDE FLASH MESSAGES CSS FALLBACK */
+
+      /* AUTO-HIDE FLASH MESSAGES CSS FALLBACK (safe because we scope to flash container) */
       .alert-auto-hide {
         animation: fadeOutAlert 2.5s forwards !important;
-        animation-delay: 2s !important; /* Show for 2 seconds, then fade */
+        animation-delay: 2s !important;
       }
-      
+
       @keyframes fadeOutAlert {
         0% { opacity: 1; transform: translateY(0); }
         70% { opacity: 1; transform: translateY(0); }
         100% { opacity: 0; transform: translateY(-20px); max-height: 0; padding: 0; margin: 0; }
       }
-      
-      /* Flash container animation */
+
       #flash-messages {
         transition: max-height 0.5s ease-out;
       }
@@ -117,7 +115,7 @@
   </head>
 
   <%
-    # Prefer current_user.agency.code, fallback to @agency (string), fallback to path.
+    # Prefer current_user.agency.code, fallback to @agency (string)
     agency_code =
       if defined?(current_user) && current_user&.respond_to?(:agency) && current_user.agency
         current_user.agency.code.to_s.downcase
@@ -135,46 +133,46 @@
 
     <div id="modal-container"></div>
 
-    <!-- NAVIGATION (shows everywhere, including VMCOTT, when logged in) -->
+    <!-- NAVIGATION -->
     <% if defined?(user_signed_in?) && user_signed_in? %>
       <div class="container mt-3">
         <%= render "shared/navigation" %>
       </div>
     <% end %>
 
-    <!-- Flash Messages -->
-    <div id="flash-messages" class="container mt-3">
+    <!-- Flash Messages (only these should auto-hide) -->
+    <div id="flash-messages" class="container mt-3" data-flash-container>
       <%= render "shared/flash" %>
     </div>
 
     <%= yield %>
-    
-    <!-- EXTRA JAVASCRIPT FALLBACK FOR FLASH HIDING -->
+
+    <!-- ✅ SAFE fallback: ONLY hide flash alerts INSIDE #flash-messages -->
     <script>
-      // Extra fallback: Force hide any flash messages after 2.5 seconds
-      setTimeout(function() {
-        const allAlerts = document.querySelectorAll('.alert, [role="alert"]');
-        console.log('Fallback timer: Checking for', allAlerts.length, 'alerts');
-        
-        allAlerts.forEach(function(alert) {
-          console.log('Hiding alert with text:', alert.textContent?.substring(0, 50));
-          
-          // Add auto-hide CSS class as fallback
-          alert.classList.add('alert-auto-hide');
-          
-          // Also hide via JS
-          setTimeout(function() {
-            alert.style.display = 'none';
-            alert.style.visibility = 'hidden';
-            alert.style.opacity = '0';
-            alert.style.height = '0';
-            alert.style.padding = '0';
-            alert.style.margin = '0';
-            alert.style.overflow = 'hidden';
-            alert.style.border = '0';
-          }, 500);
-        });
-      }, 2500); // 2.5 seconds
+      (function () {
+        function hideFlashOnly() {
+          const container = document.getElementById("flash-messages");
+          if (!container) return;
+
+          const alerts = container.querySelectorAll(".alert, .alert-dismissible, [role='alert']");
+          if (!alerts.length) return;
+
+          console.log("✅ Flash fallback (scoped): found", alerts.length, "alerts in #flash-messages");
+
+          alerts.forEach(function (alertEl) {
+            // add CSS animation class (safe because it's scoped)
+            alertEl.classList.add("alert-auto-hide");
+
+            // remove after animation completes
+            setTimeout(function () {
+              try { alertEl.remove(); } catch (_) {}
+            }, 3200);
+          });
+        }
+
+        document.addEventListener("DOMContentLoaded", hideFlashOnly);
+        document.addEventListener("turbo:load", hideFlashOnly);
+      })();
     </script>
   </body>
 </html>

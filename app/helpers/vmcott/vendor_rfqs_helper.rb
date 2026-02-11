@@ -1,0 +1,2 @@
+module Vmcott::VendorRfqsHelper
+end

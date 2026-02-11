@@ -946,23 +946,24 @@ class QuotationsController < ApplicationController
   end
 
   # DELETE /quotations/1
+# DELETE /quotations/1
   def destroy
-    check_delete_permission
-    @quotation.destroy
-    
-    # ✅ FIX 1: Turbo-compatible redirect
-    respond_to do |format|
-      format.html { redirect_to quotations_url, notice: 'Quotation was successfully deleted.' }
-      format.turbo_stream do
-        render turbo_stream: [
-          turbo_stream.remove("quotation_#{@quotation.id}"),
-          turbo_stream.replace("flash-messages",
-            partial: "shared/flash",
-            locals: { notice: 'Quotation was successfully deleted.' }
-          )
-        ]
-      end
+    # 🔒 Only allow deleting draft quotations
+    unless @quotation.draft?
+      return redirect_to @quotation, alert: "Only draft quotations can be deleted."
     end
+
+    # 🔒 Only VMCOTT (or admin) can delete drafts
+    unless current_user.admin? || current_user.agency&.code == "VMCOTT"
+      return redirect_to @quotation, alert: "You are not authorized to delete this quotation."
+    end
+
+    @quotation.destroy!
+
+    # ✅ IMPORTANT: Always redirect after delete (Turbo needs 303 to navigate cleanly)
+    redirect_to workspace_quotations_path,
+                status: :see_other,
+                notice: "Draft quotation deleted successfully."
   end
 
   # POST /quotations/1/send_to_vendor
