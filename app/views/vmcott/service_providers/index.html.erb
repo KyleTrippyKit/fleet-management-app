@@ -1,0 +1,91 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h3 mb-1">Internal Workshops</h1>
+      <p class="text-muted mb-0">VMCOTT-managed internal workshops</p>
+    </div>
+
+    <%= link_to "New Workshop", new_vmcott_service_provider_path, class: "btn btn-primary" %>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <%= form_with url: vmcott_service_providers_path, method: :get, local: true, class: "row g-2 align-items-end" do %>
+        <div class="col-md-6">
+          <label class="form-label small fw-bold">Search</label>
+          <%= text_field_tag :q, params[:q], class: "form-control", placeholder: "Search by workshop name, contact, phone, email..." %>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label small fw-bold">Status</label>
+          <%= select_tag :active,
+                options_for_select([["All", ""], ["Active", "1"], ["Inactive", "0"]], params[:active].to_s),
+                class: "form-select" %>
+        </div>
+
+        <div class="col-md-3 d-flex gap-2">
+          <%= submit_tag "Apply", class: "btn btn-outline-primary w-100" %>
+          <%= link_to "Reset", vmcott_service_providers_path, class: "btn btn-outline-secondary w-100" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <% workshops = @service_providers %>
+  <% if params[:active].present? %>
+    <% workshops = workshops.where(is_active: params[:active] == "1") %>
+  <% end %>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Workshop</th>
+              <th>Location</th>
+              <th>Contact</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if workshops.any? %>
+              <% workshops.each do |sp| %>
+                <tr>
+                  <td class="fw-semibold"><%= sp.name %></td>
+                  <td><%= sp.address.presence || "—" %></td>
+                  <td><%= sp.contact_name.presence || "—" %></td>
+                  <td><%= sp.phone.presence || "—" %></td>
+                  <td><%= sp.email.presence || "—" %></td>
+                  <td>
+                    <% if sp.is_active %>
+                      <span class="badge bg-success">Active</span>
+                    <% else %>
+                      <span class="badge bg-danger">Inactive</span>
+                    <% end %>
+                  </td>
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "Edit", edit_vmcott_service_provider_path(sp), class: "btn btn-outline-warning" %>
+                      <%= link_to "Delete",
+                            vmcott_service_provider_path(sp),
+                            data: { turbo_method: :delete, turbo_confirm: "Delete #{sp.name}?" },
+                            class: "btn btn-outline-danger" %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">No internal workshops found.</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

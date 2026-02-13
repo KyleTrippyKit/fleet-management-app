@@ -1,3 +1,4 @@
+<%# File: app/views/quotations/show.html.erb %>
 <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
 
 <!-- ===================== -->
@@ -26,7 +27,6 @@
 
 <div class="container-fluid py-4">
 
-  <!-- WATERMARK -->
   <% if @quotation.sent? %>
     <div class="pdf-watermark">LOCKED – SUBMITTED</div>
   <% end %>
@@ -118,7 +118,7 @@
             </thead>
 
             <tbody>
-              <% @quotation.line_items.each_with_index do |item, i| %>
+              <% @quotation.quotation_line_items.each_with_index do |item, i| %>
                 <tr>
                   <td><%= i + 1 %></td>
                   <td>
@@ -130,7 +130,17 @@
                   </td>
                   <td class="text-center"><%= item.quantity %></td>
                   <td class="text-end"><%= number_to_currency(item.unit_price) %></td>
-                  <td class="text-end fw-bold"><%= number_to_currency(item.total_price) %></td>
+                  <td class="text-end fw-bold">
+                    <%= number_to_currency(item.quantity.to_f * item.unit_price.to_f) %>
+                  </td>
+                </tr>
+              <% end %>
+
+              <% if @quotation.quotation_line_items.empty? %>
+                <tr>
+                  <td colspan="5" class="text-center text-muted py-4">
+                    No line items on this quotation.
+                  </td>
                 </tr>
               <% end %>
 
@@ -151,7 +161,6 @@
         </div>
       </div>
 
-      <!-- NOTES -->
       <% if @quotation.notes.present? %>
         <div class="card shadow-sm mb-4">
           <div class="card-header bg-light">
@@ -165,6 +174,7 @@
           </div>
         </div>
       <% end %>
+
     </div>
 
     <!-- ===================== -->
@@ -188,22 +198,37 @@
             </span>
           <% end %>
 
-          <% if @quotation.can_be_edited? && current_user.agency&.code == "VMCOTT" %>
+          <% if @quotation.draft? && current_user.agency&.code == "VMCOTT" %>
+
             <%= link_to edit_quotation_path(@quotation),
-                  class: "btn btn-outline-secondary" do %>
+                  class: "btn btn-outline-secondary",
+                  data: { turbo: false } do %>
               <i class="bi bi-pencil"></i> Edit
             <% end %>
-          <% end %>
 
-          <% if @quotation.can_be_sent? && current_user.agency&.code == "VMCOTT" %>
             <%= button_to submit_to_agency_quotation_path(@quotation),
                   method: :post,
                   class: "btn btn-success",
+                  form: { data: { turbo: false } },
                   data: {
-                    turbo_confirm: "Submit quotation to agency?\n\nThis will LOCK the quotation and prevent further edits."
+                    turbo: false,
+                    confirm: "Submit quotation to agency?\n\nThis will LOCK the quotation."
                   } do %>
               <i class="bi bi-send-fill"></i> Submit to Agency
             <% end %>
+
+            <!-- ✅ DELETE DRAFT: turbo disabled so redirect always navigates cleanly -->
+            <%= button_to quotation_path(@quotation),
+                  method: :delete,
+                  class: "btn btn-outline-danger",
+                  form: { data: { turbo: false } },
+                  data: {
+                    turbo: false,
+                    confirm: "Delete this draft quotation?\n\nThis cannot be undone."
+                  } do %>
+              <i class="bi bi-trash"></i> Delete Draft
+            <% end %>
+
           <% end %>
 
           <% if current_user.agency&.code != "VMCOTT" && @quotation.sent? %>
@@ -223,6 +248,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </div>
 

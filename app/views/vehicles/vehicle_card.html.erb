@@ -1,57 +1,75 @@
-<%# app/views/vehicles/_vehicle_card.html.erb %>
-<% 
-  # Create permission service instance
+```erb
+<%# File: app/views/vehicles/_vehicle_card.html.erb
+    Replace the ENTIRE file with this.
+
+    ✅ Removes method definitions from the view (no "def" inside ERB)
+    ✅ Keeps your same UI/UX and CSS
+    ✅ Fixes unsafe/invalid delete button usage (uses link_to with data-turbo-method)
+    ✅ Avoids calling current_user.vmcott? if that method doesn't exist
+    ✅ Keeps PermissionService usage clean
+%>
+
+<%# ------------------------------
+    Setup / derived values
+-------------------------------- %>
+<%
   permission = PermissionService.new(current_user, vehicle)
-  
-  # Determine badge styling
-  badge_class, badge_text = case vehicle.respond_to?(:badge_type) ? vehicle.badge_type.to_s.downcase : ''
-    when 'police' then ['badge-police', 'POLICE']
-    when 'ptsc'   then ['badge-ptsc', 'PTSC']
-    when 'fire'   then ['badge-fire', 'FIRE']
-    else ['badge-default', vehicle.service_owner.presence&.upcase || 'VEHICLE']
-  end
-  
-  # Determine utilization class
-  def utilization_class(vehicle)
-    return 'bg-secondary' unless vehicle.respond_to?(:utilization_percent)
-    
-    util = vehicle.utilization_percent.to_f
-    case
-    when util >= 70 then 'bg-success'
-    when util >= 30 then 'bg-warning'
-    else 'bg-danger'
-    end
-  end
-  
-  # Helper for vehicle image
-  def vehicle_image(vehicle, variant: :card)
-    if vehicle.primary_photo.attached?
-      # Use appropriate variant based on context
-      case variant
-      when :card
-        variant = { resize: "300x200" }
-      when :thumb
-        variant = { resize: "100x100" }
-      else
-        variant = { resize: "300x200" }
-      end
-      url_for(vehicle.primary_photo.variant(variant))
+
+  badge_type = vehicle.respond_to?(:badge_type) ? vehicle.badge_type.to_s.downcase : ""
+  badge_class, badge_text =
+    case badge_type
+    when "police" then ["badge-police", "POLICE"]
+    when "ptsc"   then ["badge-ptsc", "PTSC"]
+    when "fire"   then ["badge-fire", "FIRE"]
     else
-      # Fallback image based on service owner
+      ["badge-default", (vehicle.service_owner.presence&.upcase || "VEHICLE")]
+    end
+
+  util =
+    if vehicle.respond_to?(:utilization_percent)
+      vehicle.utilization_percent.to_f
+    else
+      nil
+    end
+
+  utilization_css =
+    if util.nil?
+      "bg-secondary"
+    elsif util >= 70
+      "bg-success"
+    elsif util >= 30
+      "bg-warning"
+    else
+      "bg-danger"
+    end
+
+  # Card photo (ActiveStorage variant if present, otherwise fallback URLs)
+  image_url =
+    if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo&.attached?
+      url_for(vehicle.primary_photo.variant(resize: "300x200"))
+    else
       case vehicle.service_owner.to_s.downcase
-      when 'police'
+      when "police"
         "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200&q=80"
-      when 'ptsc'
+      when "ptsc"
         "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200&q=80"
-      when 'fire service', 'fire'
+      when "fire service", "fire"
         "https://images.unsplash.com/photo-1551524165-6b6e5a6166f3?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200&q=80"
-      when 'ambulance', 'medical'
+      when "ambulance", "medical"
         "https://images.unsplash.com/photo-1582719508461-905c673771fd?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200&q=80"
       else
         "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200&q=80"
       end
     end
-  end
+
+  # Agency label only for VMCOTT/admin (avoid relying on current_user.vmcott?)
+  user_agency_code = current_user&.agency&.code.to_s.upcase
+  show_agency_chip = current_user&.admin? || user_agency_code == "VMCOTT"
+
+  # Status badge
+  status_text = (vehicle.respond_to?(:status) ? vehicle.status.to_s : "")
+  status_badge_class =
+    (status_text.downcase == "active") ? "bg-success" : "bg-secondary"
 %>
 
 <div class="vehicle-card bg-white rounded-xl shadow-md overflow-hidden relative hover-lift transition-all duration-300 border border-gray-200">
@@ -63,10 +81,10 @@
   </div>
 
   <!-- UTILIZATION RIBBON (TOP LEFT, BELOW BADGE) -->
-  <% if vehicle.respond_to?(:utilization_percent) %>
+  <% if util.present? %>
     <div class="absolute top-10 left-2 z-10">
-      <span class="utilization-ribbon <%= utilization_class(vehicle) %> text-white px-2 py-1 rounded text-xs font-medium">
-        <%= vehicle.utilization_percent.to_i %>% utilized
+      <span class="utilization-ribbon <%= utilization_css %> text-white px-2 py-1 rounded text-xs font-medium">
+        <%= util.to_i %>% utilized
       </span>
     </div>
   <% end %>
@@ -89,25 +107,24 @@
   <!-- VEHICLE IMAGE -->
   <div class="vehicle-image-container position-relative" style="height: 180px;">
     <img
-      src="<%= vehicle_image(vehicle, variant: :card) %>"
-      alt="<%= vehicle.name %>"
+      src="<%= image_url %>"
+      alt="<%= vehicle.respond_to?(:name) ? vehicle.name : vehicle.display_name %>"
       class="w-100 h-100 object-fit-cover"
       loading="lazy"
     >
     <!-- HOVER OVERLAY WITH ACTIONS -->
     <div class="hover-overlay position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center opacity-0 transition-opacity">
       <div class="btn-group btn-group-sm">
-        <%# Quick actions on hover %>
         <%= link_to vehicle_path(vehicle), class: "btn btn-light rounded-start", title: "View Details" do %>
           <i class="bi bi-eye"></i>
         <% end %>
-        
+
         <% if permission.can?(:edit_vehicle) %>
           <%= link_to edit_vehicle_path(vehicle), class: "btn btn-light", title: "Edit Vehicle" do %>
             <i class="bi bi-pencil"></i>
           <% end %>
         <% end %>
-        
+
         <% if permission.can?(:report_issue) %>
           <%= link_to report_issue_vehicle_path(vehicle), class: "btn btn-light", title: "Report Issue" do %>
             <i class="bi bi-exclamation-triangle"></i>
@@ -123,20 +140,25 @@
     <div class="d-flex justify-content-between align-items-start mb-2">
       <div>
         <h6 class="fw-bold text-dark mb-0">
-          <%= link_to vehicle.display_name, vehicle_path(vehicle), class: "text-decoration-none text-dark hover-text-primary" %>
+          <%= link_to vehicle.display_name, vehicle_path(vehicle),
+                class: "text-decoration-none text-dark hover-text-primary" %>
         </h6>
+
         <small class="text-muted d-block">
           <%= vehicle.registration_number.presence || "No Plate" %>
-          <% if vehicle.agency && current_user.vmcott? %>
-            <span class="ms-1 badge bg-secondary bg-opacity-25 text-dark"><%= vehicle.agency.code %></span>
+
+          <% if show_agency_chip && vehicle.respond_to?(:agency) && vehicle.agency.present? %>
+            <span class="ms-1 badge bg-secondary bg-opacity-25 text-dark">
+              <%= vehicle.agency.code %>
+            </span>
           <% end %>
         </small>
       </div>
-      
+
       <!-- STATUS INDICATOR -->
-      <% if vehicle.respond_to?(:status) && vehicle.status.present? %>
-        <span class="badge <%= vehicle.status.downcase == 'active' ? 'bg-success' : 'bg-secondary' %>">
-          <%= vehicle.status.titleize %>
+      <% if status_text.present? %>
+        <span class="badge <%= status_badge_class %>">
+          <%= status_text.titleize %>
         </span>
       <% end %>
     </div>
@@ -156,17 +178,19 @@
     <!-- STATS ROW -->
     <div class="d-flex justify-content-between align-items-center small mb-3">
       <div class="text-center">
-        <div class="fw-bold text-dark"><%= vehicle.trips_count.to_i %></div>
+        <div class="fw-bold text-dark"><%= vehicle.respond_to?(:trips_count) ? vehicle.trips_count.to_i : 0 %></div>
         <div class="text-muted">Trips</div>
       </div>
+
       <% if vehicle.respond_to?(:mileage) %>
-      <div class="text-center">
-        <div class="fw-bold text-dark"><%= number_with_delimiter(vehicle.mileage.to_i) %></div>
-        <div class="text-muted">Miles</div>
-      </div>
+        <div class="text-center">
+          <div class="fw-bold text-dark"><%= number_with_delimiter(vehicle.mileage.to_i) %></div>
+          <div class="text-muted">Miles</div>
+        </div>
       <% end %>
+
       <div class="text-center">
-        <div class="fw-bold text-dark"><%= vehicle.service_owner %></div>
+        <div class="fw-bold text-dark"><%= vehicle.service_owner.presence || "N/A" %></div>
         <div class="text-muted">Owner</div>
       </div>
     </div>
@@ -177,25 +201,20 @@
       <%= link_to vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary flex-grow-1" do %>
         <i class="bi bi-eye me-1"></i>View
       <% end %>
-      
+
       <!-- EDIT BUTTON (Conditional) -->
       <% if permission.can?(:edit_vehicle) %>
-        <%= link_to edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-secondary" do %>
+        <%= link_to edit_vehicle_path(vehicle), class: "btn btn-sm btn-outline-secondary", title: "Edit" do %>
           <i class="bi bi-pencil"></i>
         <% end %>
       <% end %>
-      
+
       <!-- DELETE BUTTON (Conditional) -->
       <% if permission.can?(:delete_vehicle) %>
-        <%= button_to vehicle_path(vehicle), 
-            method: :get, 
-            class: "btn btn-sm btn-outline-danger",
-            form: { 
-              "data-turbo" => "false",
-              "data-confirm" => "Are you sure you want to delete this vehicle?",
-              class: "d-inline"
-            },
-            title: "Delete Vehicle" do %>
+        <%= link_to vehicle_path(vehicle),
+              class: "btn btn-sm btn-outline-danger",
+              title: "Delete Vehicle",
+              data: { turbo_method: :delete, turbo_confirm: "Are you sure you want to delete this vehicle?" } do %>
           <i class="bi bi-trash"></i>
         <% end %>
       <% end %>
@@ -264,13 +283,14 @@
   .vehicle-card {
     margin-bottom: 1rem;
   }
-  
+
   .vehicle-image-container {
     height: 150px !important;
   }
-  
+
   .hover-overlay .btn-group {
     transform: scale(0.9);
   }
 }
 </style>
+```

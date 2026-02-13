@@ -1,6 +1,4 @@
-<!-- File: app/views/layouts/application.html.erb -->
-<!-- Replace the ENTIRE file with this (copy/paste). -->
-<!-- ✅ OPTION A: Importmap + Stimulus (no JS bundling) -->
+<%# File: app/views/layouts/application.html.erb %>
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -11,7 +9,7 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
-    <!-- Bootstrap 5 CSS -->
+    <!-- Bootstrap 5 CSS (CDN) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 
     <!-- Bootstrap Icons -->
@@ -23,7 +21,7 @@
 
     <%= stylesheet_link_tag "application", media: "all", "data-turbo-track": "reload" %>
 
-    <!-- ✅ Importmap entrypoint (loads app/javascript/application.js which loads Turbo + Stimulus controllers) -->
+    <!-- Importmap entrypoint -->
     <%= javascript_importmap_tags %>
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
@@ -32,242 +30,35 @@
       <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js" crossorigin="anonymous"></script>
     <% end %>
 
+    <!-- Bootstrap 5 JS Bundle (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" defer></script>
+
     <script>
-      // Theme Controller - consolidated + safer with Turbo
-      class ThemeController {
-        constructor() {
-          this.themes = {
-            1: 'Modern Light',
-            2: 'Dark Professional',
-            3: 'Trinidad Gradient',
-            4: 'Clean Admin',
-            5: 'Map-Centric',
-            6: 'Emergency Response',
-            7: 'Coastal/Tropical',
-            8: 'Modern Tech',
-            9: 'Classic/Vintage',
-            10: 'Luxury/Executive',
-            11: 'Corporate/Professional'
-          };
-        }
-
-        isPTSCPage() {
-          const path = window.location.pathname.toLowerCase();
-          const domHint = document.body.querySelector('.ptsc-header, .badge-ptsc, [class*="ptsc"]');
-          return (
-            path.includes('ptsc') ||
-            (path.includes('agency') && path.includes('ptsc')) ||
-            !!domHint
-          );
-        }
-
-        initialize() {
-          console.log("🎨 ThemeController initializing...");
-
-          if (this.isPTSCPage()) {
-            console.log("🎨 PTSC page detected - disabling themes and applying PTSC blue");
-            this.disableThemesForPTSC();
-            return;
-          }
-
-          const agencyTheme = '<%= session[:agency_theme] %>' || '1';
-          const themeFromURL = this.getThemeFromURL();
-          const themeFromLocalStorage = localStorage.getItem('selectedTheme');
-          const themeTestMode = localStorage.getItem('themeTestMode');
-
-          let themeToApply = agencyTheme;
-
-          if (themeFromURL && themeTestMode === 'true') {
-            console.log("🎨 Theme from URL (test mode):", themeFromURL);
-            themeToApply = themeFromURL;
-            localStorage.setItem('selectedTheme', themeFromURL);
-          } else if (themeFromLocalStorage && themeTestMode === 'true') {
-            console.log("🎨 Theme from localStorage:", themeFromLocalStorage);
-            themeToApply = themeFromLocalStorage;
-          }
-
-          themeToApply = (themeToApply || '1').toString().replace('theme-', '');
-          this.applyTheme(themeToApply);
-
-          if (themeTestMode === 'true') {
-            this.showThemePreviewAlert(themeToApply);
-          }
-        }
-
-        disableThemesForPTSC() {
-          const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
-          document.body.classList.remove(...allThemeClasses);
-
-          document.body.classList.add('ptsc-theme-active');
-          document.body.classList.add('theme-1');
-
-          document.dispatchEvent(new CustomEvent('theme:ptsc', {
-            detail: { agency: 'PTSC' }
-          }));
-        }
-
-        getThemeFromURL() {
-          const urlParams = new URLSearchParams(window.location.search);
-          return urlParams.get('theme');
-        }
-
-        applyTheme(themeNumber) {
-          console.log("🎨 Applying theme:", themeNumber);
-
-          const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
-          document.body.classList.remove(...allThemeClasses);
-
-          document.body.classList.add(`theme-${themeNumber}`);
-
-          document.dispatchEvent(new CustomEvent('theme:changed', {
-            detail: { theme: themeNumber }
-          }));
-        }
-
-        showThemePreviewAlert(themeNumber) {
-          const themeName = this.themes[themeNumber] || 'Unknown Theme';
-
-          let alertDiv = document.getElementById('themePreviewAlert');
-          if (!alertDiv) {
-            alertDiv = document.createElement('div');
-            alertDiv.id = 'themePreviewAlert';
-            document.body.insertBefore(alertDiv, document.body.firstChild);
-          }
-
-          alertDiv.innerHTML = `
-            <div class="alert alert-warning alert-dismissible fade show mb-0 rounded-0" role="alert">
-              <div class="container-fluid">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <i class="bi bi-palette me-2"></i>
-                    <strong>Theme Preview Active:</strong> ${themeName}
-                    <span class="ms-2 small">Changes are temporary</span>
-                  </div>
-                  <div>
-                    <button type="button" class="btn btn-sm btn-outline-danger" id="clearThemeBtn">
-                      <i class="bi bi-x-circle me-1"></i> Clear Theme
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
-          const btn = document.getElementById('clearThemeBtn');
-          if (btn) btn.onclick = () => this.clearTheme();
-        }
-
-        clearTheme() {
-          console.log("🎨 Clearing theme preview");
-          localStorage.removeItem('selectedTheme');
-          localStorage.removeItem('themeTestMode');
-
-          const allThemeClasses = Array.from({length: 12}, (_, i) => `theme-${i}`);
-          document.body.classList.remove(...allThemeClasses);
-
-          let themeNumber = '1';
-
-          if (this.isPTSCPage()) {
-            this.disableThemesForPTSC();
-            themeNumber = '1';
-          } else {
-            const agencyTheme = '<%= session[:agency_theme] %>' || '1';
-            themeNumber = agencyTheme.toString().replace('theme-', '') || '1';
-            document.body.classList.add(`theme-${themeNumber}`);
-          }
-
-          const alertDiv = document.getElementById('themePreviewAlert');
-          if (alertDiv) alertDiv.style.display = 'none';
-
-          document.dispatchEvent(new CustomEvent('theme:changed', {
-            detail: { theme: themeNumber }
-          }));
-        }
-      }
-
-      // Gantt helper
       function initializeGanttWhenReady() {
-        if (typeof gantt !== 'undefined' && gantt) {
+        if (typeof gantt !== 'undefined' && gantt && typeof window.initGanttChart === 'function') {
           console.log("✅ Gantt library is loaded, initializing...");
-          if (typeof window.initGanttChart === 'function') window.initGanttChart();
+          window.initGanttChart();
         } else {
           setTimeout(initializeGanttWhenReady, 100);
         }
       }
 
-      // One setup entry point for DOM + Turbo
-      function setupAppLayout() {
-        // CSRF token for JS
+      function setupApp() {
         const csrfToken = document.querySelector('meta[name="csrf-token"]');
         if (csrfToken) window.csrfToken = csrfToken.getAttribute('content');
 
-        // Theme init
-        if (!window.themeController) window.themeController = new ThemeController();
-        window.themeController.initialize();
-
-        // Gantt init
         if (document.querySelector('meta[name="page-type"]')?.content === 'gantt') {
           console.log("🚀 Starting Gantt initialization...");
           initializeGanttWhenReady();
         }
       }
 
-      document.addEventListener('DOMContentLoaded', setupAppLayout);
-      document.addEventListener('turbo:load', setupAppLayout);
-
-      // Delegated modal loader (works after Turbo navigation)
-      document.addEventListener('click', function(e) {
-        const trigger = e.target.closest('[data-bs-toggle="modal"][data-bs-target="#uploadInvoiceModal"]');
-        if (!trigger) return;
-
-        e.preventDefault();
-
-        const url = trigger.getAttribute('href');
-        if (!url) return;
-
-        // Prefer Bootstrap from importmap (window.bootstrap). If not present, this will throw with a clear console error.
-        fetch(url, {
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'text/html'
-          }
-        })
-        .then(r => r.text())
-        .then(html => {
-          const container = document.getElementById('modal-container') || document.body;
-
-          const existing = document.getElementById('uploadInvoiceModal');
-          if (existing) existing.remove();
-
-          container.insertAdjacentHTML('beforeend', html);
-
-          const modalElement = document.getElementById('uploadInvoiceModal');
-          if (!window.bootstrap || !window.bootstrap.Modal) {
-            console.error("❌ Bootstrap JS not available. Ensure importmap pins bootstrap and app/javascript/application.js imports it.");
-            alert("Bootstrap JS not loaded. Check console.");
-            return;
-          }
-
-          const modal = new window.bootstrap.Modal(modalElement);
-          modal.show();
-
-          modalElement.addEventListener('hidden.bs.modal', function() {
-            modalElement.remove();
-          }, { once: true });
-        })
-        .catch(err => {
-          console.error('Error loading modal:', err);
-          alert('Error loading upload form. Please try again.');
-        });
-      });
+      document.addEventListener('DOMContentLoaded', setupApp);
+      document.addEventListener('turbo:load', setupApp);
     </script>
 
-    <!-- Your existing inline CSS blocks can remain as-is -->
     <style>
-      /* (kept) demo-banner, POS, RFQ, chart container, etc... */
-    </style>
-
-    <style>
-      /* (kept) PTSC blue overrides */
+      /* PTSC blue overrides (kept) */
       body.ptsc-theme-active .ptsc-header,
       .ptsc-header {
         background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%) !important;
@@ -289,27 +80,99 @@
         border-left: 4px solid #004AAD !important;
       }
 
-      body.theme-1 .ptsc-header,
-      body.theme-2 .ptsc-header,
-      body.theme-3 .ptsc-header,
-      body.theme-4 .ptsc-header,
-      body.theme-5 .ptsc-header,
-      body.theme-6 .ptsc-header,
-      body.theme-7 .ptsc-header,
-      body.theme-8 .ptsc-header,
-      body.theme-9 .ptsc-header {
-        background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%) !important;
+      /* Gantt chart container styling */
+      .gantt-chart {
+        width: 100%;
+        height: 600px;
+        border: 1px solid #e9ecef;
+        border-radius: 0.5rem;
+        overflow: hidden;
       }
 
-      body.ptsc-theme-active .ptsc-icon-wrapper .text-primary,
-      .ptsc-icon-wrapper .text-primary {
-        color: #1a73e8 !important;
+      /* Ensure Gantt page has full height */
+      body.gantt-page {
+        height: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      /* AUTO-HIDE FLASH MESSAGES CSS FALLBACK (safe because we scope to flash container) */
+      .alert-auto-hide {
+        animation: fadeOutAlert 2.5s forwards !important;
+        animation-delay: 2s !important;
+      }
+
+      @keyframes fadeOutAlert {
+        0% { opacity: 1; transform: translateY(0); }
+        70% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-20px); max-height: 0; padding: 0; margin: 0; }
+      }
+
+      #flash-messages {
+        transition: max-height 0.5s ease-out;
       }
     </style>
   </head>
 
-  <body class="<%= 'gantt-page' if content_for?(:gantt_page) %>" data-controller="theme">
+  <%
+    # Prefer current_user.agency.code, fallback to @agency (string)
+    agency_code =
+      if defined?(current_user) && current_user&.respond_to?(:agency) && current_user.agency
+        current_user.agency.code.to_s.downcase
+      else
+        @agency.to_s.downcase
+      end
+
+    is_vmcott = (agency_code == "vmcott") || request.path.to_s.downcase.include?("vmcott")
+    is_ptsc   = (agency_code == "ptsc")   || request.path.to_s.downcase.include?("ptsc")
+  %>
+
+  <body class="<%= 'vmcott-page' if is_vmcott %>
+               <%= 'ptsc-theme-active' if is_ptsc %>
+               <%= 'gantt-page' if content_for?(:gantt_page) %>">
+
     <div id="modal-container"></div>
+
+    <!-- NAVIGATION -->
+    <% if defined?(user_signed_in?) && user_signed_in? %>
+      <div class="container mt-3">
+        <%= render "shared/navigation" %>
+      </div>
+    <% end %>
+
+    <!-- Flash Messages (only these should auto-hide) -->
+    <div id="flash-messages" class="container mt-3" data-flash-container>
+      <%= render "shared/flash" %>
+    </div>
+
     <%= yield %>
+
+    <!-- ✅ SAFE fallback: ONLY hide flash alerts INSIDE #flash-messages -->
+    <script>
+      (function () {
+        function hideFlashOnly() {
+          const container = document.getElementById("flash-messages");
+          if (!container) return;
+
+          const alerts = container.querySelectorAll(".alert, .alert-dismissible, [role='alert']");
+          if (!alerts.length) return;
+
+          console.log("✅ Flash fallback (scoped): found", alerts.length, "alerts in #flash-messages");
+
+          alerts.forEach(function (alertEl) {
+            // add CSS animation class (safe because it's scoped)
+            alertEl.classList.add("alert-auto-hide");
+
+            // remove after animation completes
+            setTimeout(function () {
+              try { alertEl.remove(); } catch (_) {}
+            }, 3200);
+          });
+        }
+
+        document.addEventListener("DOMContentLoaded", hideFlashOnly);
+        document.addEventListener("turbo:load", hideFlashOnly);
+      })();
+    </script>
   </body>
 </html>

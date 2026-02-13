@@ -1,87 +1,72 @@
-# config/routes.rb - CLEAN, CONFLICT-FREE, COMPLETE (VMCOTT + PARTS + INVENTORY)
+# config/routes.rb - COMPLETE REVISED VERSION WITH VMCOTT PARTS MANAGEMENT
 
 Rails.application.routes.draw do
+  get "stock_levels/index"
+  get "stock_levels/update_batch"
+  
   # ========================
-  # Healthcheck
+  # Authentication - Use default Devise
   # ========================
-  get "up", to: "rails/health#show", as: :rails_health_check
+  devise_for :users, 
+    skip: :all,
+    controllers: {
+      sessions: 'users/sessions'
+    }
+  
+  # ========================
+  # Explicit session routes for Devise
+  # ========================
+  devise_scope :user do
+    get '/users/sign_in', to: 'devise/sessions#new', as: :new_user_session
+    post '/users/sign_in', to: 'devise/sessions#create', as: :user_session
+    delete '/users/sign_out', to: 'devise/sessions#destroy', as: :destroy_user_session
+    get '/users/sign_out', to: 'devise/sessions#destroy', as: :get_sign_out
+    get '/users/password/new', to: 'devise/passwords#new', as: :new_user_password
+    get '/users/password/edit', to: 'devise/passwords#edit', as: :edit_user_password
+    patch '/users/password', to: 'devise/passwords#update', as: :user_password
+    put '/users/password', to: 'devise/passwords#update'
+    post '/users/password', to: 'devise/passwords#create', as: :user_password_create
+  end
 
-  # ========================
-  # ROOT
-  # ========================
-  root to: "welcome#index"
-
-  # ========================
-  # Authentication (Devise)
-  # ========================
-  # ✅ Keep Devise minimal + explicit, but CONSISTENT.
-  # ✅ Uses your custom sessions controller: Users::SessionsController
-  # ✅ Removes GET sign_out (avoid CSRF / crawler logouts)
-# ========================
-# Authentication (Devise)
-# ========================
-devise_for :users,
-           controllers: {
-             sessions: "users/sessions"
-           }
-
-devise_scope :user do
-  # Your custom app shortcut routes (these are fine)
-  get  "/home",           to: "scanner_home#index", as: :scanner_home
-  post "/vehicle_lookup", to: "vehicles#lookup",    as: :vehicle_lookup
-end
   # ========================
   # Welcome / Public
   # ========================
-  get "welcome", to: "welcome#index", as: :welcome
-  get "logout",  to: "welcome#logout", as: :logout_confirmation
-  get "scan",    to: "welcome#scan", as: :scan
-  get "dashboard", to: "welcome#dashboard", as: :dashboard
-  get "debug_agency", to: "welcome#debug_agency"
-  get "no-agency-assigned", to: "welcome#no_agency_assigned", as: :no_agency_assigned
-
-
-  # Scanner-only vehicle page (separate from VehiclesController#show)
-  get "scanner/vehicles/:id", to: "scanner/vehicles#show", as: :scanner_vehicle
-
+  get 'invoices/test_pdf', to: 'invoices#test_pdf'
+  
+  # ========================
+  # SINGLE ROOT ROUTE
+  # ========================
+  root to: 'welcome#index'
 
   # ========================
-  # Dashboard routes
+  # Dashboards
   # ========================
-  get "ptsc-dashboard",   to: "ptsc_dashboard#index",   as: :ptsc_dashboard
-  get "vmcott-dashboard", to: "vmcott_dashboard#index", as: :vmcott_dashboard
-  get "ttps-dashboard",   to: "ttps_dashboard#index",   as: :ttps_dashboard
-  get "ttdf-dashboard",   to: "ttdf_dashboard#index",   as: :ttdf_dashboard
-  get "main-dashboard",   to: "main_dashboard#index",   as: :main_dashboard
-
+  get 'ptsc-dashboard', to: 'ptsc_dashboard#index', as: 'ptsc_dashboard'
+  get 'vmcott-dashboard', to: 'vmcott_dashboard#index', as: 'vmcott_dashboard'
+  get 'ttps-dashboard', to: 'ttps_dashboard#index', as: 'ttps_dashboard'
+  get 'ttdf-dashboard', to: 'ttdf_dashboard#index', as: 'ttdf_dashboard'
+  get 'main-dashboard', to: 'main_dashboard#index', as: 'main_dashboard'
+  get 'welcome', to: 'welcome#index', as: :welcome
+  
   # Dashboard alert actions
-  post "main-dashboard/alerts/:id/acknowledge", to: "main_dashboard#acknowledge_alert", as: :acknowledge_alert_main_dashboard
-  post "main-dashboard/alerts/:id/resolve",     to: "main_dashboard#resolve_alert",     as: :resolve_alert_main_dashboard
-
-  # PTSC dashboard API
-  get "ptsc-dashboard/vehicle_locations", to: "ptsc_dashboard#vehicle_locations", as: :ptsc_vehicle_locations
-
+  post 'main-dashboard/alerts/:id/acknowledge', to: 'main_dashboard#acknowledge_alert', as: 'acknowledge_alert_main_dashboard'
+  post 'main-dashboard/alerts/:id/resolve', to: 'main_dashboard#resolve_alert', as: 'resolve_alert_main_dashboard'
+  
   # ========================
-  # Simple utility routes (keep only if used)
+  # Other Welcome Routes
   # ========================
-  get "scanner_home/index"
-  get "stock_levels/index"
-  get "stock_levels/update_batch"
-
-  # ========================
-  # Test / Debug
-  # ========================
-  get "invoices/test_pdf", to: "invoices#test_pdf"
-  get "test/cashier_session",  to: "pos_transactions#cashier_session", as: :test_cashier_session
-  get "test/new_transaction",  to: "pos_transactions#new",             as: :test_new_transaction
+  get 'logout', to: 'welcome#logout', as: 'logout_confirmation'
+  get 'scan', to: 'welcome#scan', as: 'scan'
+  get 'dashboard', to: 'welcome#dashboard', as: 'dashboard'
+  get 'debug_agency', to: 'welcome#debug_agency'
+  get 'no-agency-assigned', to: 'welcome#no_agency_assigned', as: 'no_agency_assigned'
 
   # ========================
-  # Agency-scoped vehicle pages (FIXED param name)
-  # Controller expects :agency_id or :agency
+  # Agency-specific routes
   # ========================
-  get "agency/:agency_id/vehicles",     to: "vehicles#index",                as: :agency_vehicles
-  get "agency/:agency_id/analytics",    to: "vehicles#analytics",            as: :agency_analytics
-  get "agency/:agency_id/maintenance",  to: "vehicles#maintenance_dashboard", as: :agency_maintenance
+  get 'agency/:id/vehicles', to: 'vehicles#index', as: :agency_vehicles
+  get 'agency/:id/analytics', to: 'vehicles#analytics', as: :agency_analytics
+  get 'agency/:id/maintenance', to: 'vehicles#maintenance_dashboard', as: :agency_maintenance
 
   # ========================
   # Vehicle Catalog Entries
@@ -89,24 +74,32 @@ end
   resources :vehicle_catalog_entries, only: %i[index create]
 
   # ========================
-  # ALERT SYSTEM ROUTES
+  # Alerts
   # ========================
   resources :alerts do
     member do
       post :acknowledge
       post :resolve
+      get  :resolve_form
       post :escalate
+      post :create_rfq
     end
+
     collection do
-      get :needs_attention
-      get :recent
-      get :summary
+      get  :needs_attention
+      get  :recent
+      get  :summary
+      get  :dashboard
+      get  :export
+      post :bulk_action
     end
   end
 
   # ========================
-  # VENDOR & INVENTORY MANAGEMENT
+  # VENDOR & INVENTORY MANAGEMENT (ENHANCED VERSION)
   # ========================
+  
+  # Vendors (Suppliers) - Enhanced with all features from first file
   resources :suppliers do
     collection do
       get :search
@@ -121,19 +114,24 @@ end
 
       get  :update_stock
       post :process_stock_update
-
-      get  :inventory_items
-      get  :new_item_form
-
-      get  :spending_report
-      get  :performance
+      
+      # Inventory items
+      get :inventory_items
+      get :new_item_form
+      
+      # Analytics
+      get :spending_report
+      get :performance
+      
     end
-
-    resources :vendor_invoices, only: %i[index create]
-    resources :vendor_parts,    only: %i[index create update]
+    
+    # Nested routes for vendor-specific management
+    resources :vendor_invoices, only: [:index, :create]
+    resources :vendor_parts, only: [:index, :create, :update]
   end
-
-  resources :vendor_invoices, except: %i[new edit] do
+  
+  # Vendor invoices standalone - Enhanced with all features from first file
+  resources :vendor_invoices, except: [:new, :edit] do
     collection do
       get  :search
       get  :aging_report
@@ -150,7 +148,8 @@ end
     end
   end
 
-  resources :inventory_items, only: %i[new create] do
+  # Inventory items (vendor-specific creation) - Enhanced
+  resources :inventory_items, only: [:new, :create] do
     collection do
       get  :search_items
       get  :new,    path: "new/:supplier_id",    as: :new_with_supplier
@@ -158,27 +157,14 @@ end
     end
   end
 
-  get "suppliers/:supplier_id/search-items", to: "inventory_items#search_items", as: :search_items_supplier
+  # Vendor-specific inventory management
+  get 'suppliers/:supplier_id/search-items', to: 'inventory_items#search_items', as: 'search_items_supplier'
 
   # ========================
-  # Scanner-only routes (ISOLATED from normal VehiclesController)
-  # ========================
-  namespace :scanner do
-    resources :vehicles, only: [:show] do
-      member do
-        post :check_in_compound
-        post :check_out_compound
-      end
-    end
-  end
-
-
-  # ========================
-  # VMCOTT (MERGED into single namespace)
+  # Purchase Requests - Existing routes
   # ========================
   namespace :vmcott do
-    # Purchase Requests
-    resources :purchase_requests do
+  resources :purchase_requests do
       member do
         post :approve
         post :reject
@@ -187,7 +173,11 @@ end
       end
     end
 
-    # Parts Management
+  # ========================
+  # VMCOTT Inventory Management Routes (ENHANCED)
+  # ========================
+  namespace :vmcott do
+    # PARTS MANAGEMENT - MOVED HERE FROM OUTSIDE NAMESPACE
     resources :parts do
       collection do
         get  :low_stock
@@ -205,49 +195,49 @@ end
         get  :vendor_pricing
       end
     end
-
+    
     # Inventory Dashboard
-    get "inventory_dashboard", to: "inventory#dashboard", as: :inventory_dashboard
-    get "inventory/low_stock", to: "inventory#low_stock", as: :inventory_low_stock
-    get "inventory/consumables", to: "inventory#consumables", as: :inventory_consumables
-    get "inventory/purchase_requests", to: "inventory#purchase_requests", as: :inventory_purchase_requests
-    get "inventory/reorder_suggestions", to: "inventory#reorder_suggestions", as: :inventory_reorder_suggestions
-
-    # Stock adjustments
-    get  "inventory/adjust_stock/:id", to: "inventory#adjust_stock", as: :inventory_adjust_stock
-    post "inventory/adjust_stock/:id", to: "inventory#adjust_stock"
-
+    get 'inventory_dashboard', to: 'inventory#dashboard', as: 'inventory_dashboard'
+    get 'inventory/low_stock', to: 'inventory#low_stock', as: 'inventory_low_stock'
+    get 'inventory/consumables', to: 'inventory#consumables', as: 'inventory_consumables'
+    get 'inventory/purchase_requests', to: 'inventory#purchase_requests', as: 'inventory_purchase_requests'
+    get 'inventory/reorder_suggestions', to: 'inventory#reorder_suggestions', as: 'inventory_reorder_suggestions'
+    
+    # Stock management
+    get 'inventory/adjust_stock/:id', to: 'inventory#adjust_stock', as: 'inventory_adjust_stock'
+    post 'inventory/adjust_stock/:id', to: 'inventory#adjust_stock'  # Process adjustment
+    
     # Stock history
-    get "inventory/stock_history/:id", to: "inventory#stock_history", as: :inventory_stock_history
-
-    # Purchase requests (inventory module)
-    get  "inventory/new_purchase_request",     to: "inventory#new_purchase_request",          as: :inventory_new_purchase_request
-    get  "inventory/new_purchase_request/:id", to: "inventory#new_purchase_request_with_part", as: :inventory_new_purchase_request_with_part
-    post "inventory/create_purchase_request/:id", to: "inventory#create_purchase_request",     as: :inventory_create_purchase_request
-    post "inventory/create_bulk_purchase_requests", to: "inventory#create_bulk_purchase_requests", as: :create_bulk_purchase_requests
-
-    # Import / Export / Settings
-    get  "inventory/import_csv", to: "inventory#import_csv", as: :inventory_import_csv
-    post "inventory/import_csv", to: "inventory#import_csv"
-    get  "inventory/download_csv_template", to: "inventory#download_csv_template", as: :download_csv_template
-    get  "inventory/export_report", to: "inventory#export_report", as: :inventory_export_report
-    get  "inventory/settings", to: "inventory#settings", as: :inventory_settings
-    patch "inventory/update_settings", to: "inventory#update_settings", as: :update_inventory_settings
-    get  "inventory/valuation_report", to: "inventory#valuation_report", as: :inventory_valuation_report
-
-    # Vendor Management shortcuts (namespaced)
-    get "vendor-management", to: "suppliers#index",      as: :vendor_management
-    get "vendor-invoices",   to: "vendor_invoices#index", as: :vendor_invoices
-
-    # Settings
-    get  "labor_rates",       to: "settings#labor_rates",       as: :labor_rates
-    post "update_labor_rates", to: "settings#update_labor_rates", as: :update_labor_rates
-    get  "invoice_management", to: "invoice_management#index",   as: :invoice_management
-
-    # Internal POS
-    get "internal_pos/new_from_part/:part_id",     to: "internal_pos#new_from_part", as: :new_internal_pos_from_part
-    get "internal_pos/from_po/:purchase_order_id", to: "internal_pos#from_po",       as: :internal_pos_from_po
-
+    get 'inventory/stock_history/:id', to: 'inventory#stock_history', as: 'inventory_stock_history'
+    
+    # Purchase requests - FIXED: Corrected route names to avoid conflicts
+    get 'inventory/new_purchase_request', to: 'inventory#new_purchase_request', as: 'inventory_new_purchase_request'
+    get 'inventory/new_purchase_request/:id', to: 'inventory#new_purchase_request_with_part', as: 'inventory_new_purchase_request_with_part'
+    post 'inventory/create_purchase_request/:id', to: 'inventory#create_purchase_request', as: 'inventory_create_purchase_request'
+    post 'inventory/create_bulk_purchase_requests', to: 'inventory#create_bulk_purchase_requests', as: 'create_bulk_purchase_requests'
+    
+    # Import/Export routes
+    get 'inventory/import_csv', to: 'inventory#import_csv', as: 'inventory_import_csv'
+    post 'inventory/import_csv', to: 'inventory#import_csv'
+    get 'inventory/download_csv_template', to: 'inventory#download_csv_template', as: 'download_csv_template'
+    get 'inventory/export_report', to: 'inventory#export_report', as: 'inventory_export_report'
+    get 'inventory/settings', to: 'inventory#settings', as: 'inventory_settings'
+    patch 'inventory/update_settings', to: 'inventory#update_settings', as: 'update_inventory_settings'
+    get 'inventory/valuation_report', to: 'inventory#valuation_report', as: 'inventory_valuation_report'
+    
+    # Vendor Management (New)
+    get 'vendor-management', to: 'suppliers#index', as: 'vendor_management'
+    get 'vendor-invoices', to: 'vendor_invoices#index', as: 'vendor_invoices'
+    
+    # Settings and Configuration
+    get 'labor_rates', to: 'settings#labor_rates', as: 'labor_rates'
+    post 'update_labor_rates', to: 'settings#update_labor_rates', as: 'update_labor_rates'
+    get 'invoice_management', to: 'invoice_management#index', as: 'invoice_management'
+    
+    # Internal POS System - FIXED: Added proper route for creating from part
+    get 'internal_pos/new_from_part/:part_id', to: 'internal_pos#new_from_part', as: 'new_internal_pos_from_part'
+    get 'internal_pos/from_po/:purchase_order_id', to: 'internal_pos#from_po', as: 'internal_pos_from_po'
+    
     resources :internal_pos, except: [:destroy] do
       collection do
         get :active_work
@@ -263,16 +253,12 @@ end
     end
   end
 
-  # Standalone inventory aliases (ONLY ONCE)
-  get "inventory-management", to: redirect("/vmcott/inventory_dashboard")
-  get "inventory-dashboard",  to: redirect("/vmcott/inventory_dashboard")
-  get "inventory-management-dashboard", to: redirect("/vmcott/inventory_dashboard")
-
-  # Easy access alias
-  get "vendors", to: "suppliers#index", as: :vendors
+  # Inventory Management Dashboard (Standalone)
+  get 'inventory-management', to: redirect('/vmcott/inventory_dashboard')
+  get 'inventory-dashboard', to: redirect('/vmcott/inventory_dashboard')
 
   # ========================
-  # VEHICLES (SINGLE definition — fixes duplication)
+  # FLEET & VEHICLE MANAGEMENT
   # ========================
   resources :vehicles do
     member do
@@ -306,7 +292,7 @@ end
   end
 
   # ========================
-  # RFQ WORKFLOW
+  # RFQ WORKFLOW ROUTES (REVISED FOR WORKFLOW)
   # ========================
   resources :rfqs do
     collection do
@@ -373,11 +359,11 @@ end
       get :received
       get :sent
       get :pending_review
-      get :workspace
-
-      get "convert_from_rfq/:rfq_id", to: "quotations#convert_from_rfq", as: :convert_from_rfq
-      get "new_from_rfq/:rfq_id",     to: "quotations#new_from_rfq",     as: :new_from_rfq
-      get "inventory_check/:rfq_id",  to: "quotations#inventory_check",  as: :inventory_check
+      get :workspace, as: 'workspace'        # VMCOTT quotation workspace
+      get 'convert_from_rfq/:rfq_id', to: 'quotations#convert_from_rfq', as: :convert_from_rfq
+      get 'new_from_rfq/:rfq_id', to: 'quotations#new_from_rfq', as: :new_from_rfq
+      # INVENTORY INTEGRATION ROUTES
+      get 'inventory_check/:rfq_id', to: 'quotations#inventory_check', as: :inventory_check
     end
 
     member do
@@ -390,18 +376,17 @@ end
       get  :email
       get  :print
       post :convert_to_po
-      post :convert_to_purchase_order
-      post :reject_items
-      get  :acceptance_summary
-      post :send_acceptance
-      post :process_item_acceptance
-
-      get  :assign_jobs
-      patch :update_jobs
-      get  :pricing
-
-      get  :inventory_status
-      post :create_purchase_request
+      post :convert_to_purchase_order                                           # Agency accepts specific items
+      post :reject_items, as: 'reject_items'                     # Agency rejects specific items                  # Creates PO from accepted items
+      get :acceptance_summary, as: 'acceptance_summary'
+      post :send_acceptance, as: 'send_acceptance'                  # Agency sends acceptance back
+      post :process_item_acceptance, as: 'process_item_acceptance'  # Process item acceptance
+      get 'assign_jobs', to: 'quotations#assign_jobs'
+      patch 'update_jobs', to: 'quotations#update_jobs'
+      get 'pricing', to: 'quotations#pricing'
+      # INVENTORY INTEGRATION ROUTES
+      get 'inventory_status', to: 'quotations#inventory_status'
+      post 'create_purchase_request', to: 'quotations#create_purchase_request'
     end
 
     resources :purchase_orders, only: %i[index show]
@@ -460,21 +445,23 @@ end
       get  :pending_approval
       get  :needs_payment
       post :bulk_approve
-
-      get  :analytics
-      get  :reconciliation
-      get  :compliance_reports
-      get  :vendor_analysis
-      get  :export_reconciliation
-
-      # Accounts payable dashboard (namespaced action)
-      get :ap_dashboard,      to: "purchase_orders#accounts_payable_index", as: :ap_dashboard
-      get :monthly_statement, to: "purchase_orders#monthly_statement",      as: :monthly_statement
-      get :aging_report,      to: "purchase_orders#aging_report",           as: :aging_report
-      post :pay_statement,    to: "purchase_orders#pay_statement",          as: :pay_statement
-
-      get "from_quotation/:quotation_id", to: "purchase_orders#from_quotation", as: :from_quotation
-      get :awaiting_acceptance
+      
+      # Analytics routes
+      get :analytics
+      get :reconciliation
+      get :compliance_reports
+      get :vendor_analysis
+      get :export_reconciliation
+      
+      # Accounts Payable routes - CHANGED NAME TO AVOID CONFLICT
+      get :ap_dashboard, to: 'purchase_orders#accounts_payable_index', as: 'ap_dashboard'
+      get :monthly_statement, to: 'purchase_orders#monthly_statement', as: 'monthly_statement'
+      get :aging_report, to: 'purchase_orders#aging_report', as: 'aging_report'
+      post :pay_statement, to: 'purchase_orders#pay_statement', as: 'pay_statement'
+      
+      # NEW: From quotation and acceptance
+      get 'from_quotation/:quotation_id', to: 'purchase_orders#from_quotation', as: :from_quotation
+      get :awaiting_acceptance, as: 'awaiting_acceptance'  # For VMCOTT to see POs needing acknowledgment
     end
 
     member do
@@ -487,23 +474,26 @@ end
       post :mark_paid
       post :record_payment
       post :convert_to_invoice
-      get  :print
-
-      get  :payment,             to: "purchase_orders#payment",          as: :payment_page
-      post :process_payment,     to: "purchase_orders#process_payment",  as: :process_payment
-      post :authorize_payment,   to: "purchase_orders#authorize_payment", as: :authorize_payment
-      post :complete_payment,    to: "purchase_orders#complete_payment", as: :complete_payment
-      get  :payment_summary,     to: "purchase_orders#payment_summary",  as: :payment_summary
-
-      get  :payment_audits,      to: "purchase_orders#payment_audits"
-
-      post :acknowledge_acceptance
-      post :create_vmcott_pos
-      get  :acceptance_details
-      post :update_item_acceptance
-
-      post :consume_parts
-      get  :parts_usage
+      get :print
+      
+      # Trinidad Payment routes
+      get :payment, to: 'purchase_orders#payment', as: :payment_page
+      post :process_payment, to: 'purchase_orders#process_payment', as: :process_payment
+      post :authorize_payment, to: 'purchase_orders#authorize_payment', as: :authorize_payment
+      post :complete_payment, to: 'purchase_orders#complete_payment', as: :complete_payment
+      get :payment_summary, to: 'purchase_orders#payment_summary', as: :payment_summary
+      
+      # Payment audit route
+      get :payment_audits, to: 'purchase_orders#payment_audits'
+      
+      # NEW: Acceptance workflow routes
+      post :acknowledge_acceptance, as: 'acknowledge_acceptance'  # VMCOTT acknowledges PO acceptance
+      post :create_vmcott_pos, as: 'create_vmcott_pos'            # VMCOTT creates internal POS
+      get :acceptance_details, as: 'acceptance_details'           # View acceptance details
+      post :update_item_acceptance, as: 'update_item_acceptance'  # Update acceptance status of items
+      # INVENTORY INTEGRATION ROUTES
+      post :consume_parts, as: 'consume_parts'
+      get :parts_usage, as: 'parts_usage'
     end
 
     resources :purchase_order_items
@@ -514,30 +504,35 @@ end
   # ========================
   resources :pos_transactions, except: [:destroy] do
     collection do
-      get "ptsc", to: "pos_transactions#ptsc_dashboard", as: :ptsc
-      get "ttps", to: "pos_transactions#ttps_dashboard", as: :ttps
-      get "ttdf", to: "pos_transactions#ttdf_dashboard", as: :ttdf
-      get "vmcott", to: "pos_transactions#vmcott_dashboard", as: :vmcott
-
-      get :dashboard
-      get :reports
-      get :export
-      get :today
-      get :voided
-      post :process_payment
-
-      get  :cashier_session
-      post :open_register
-      post :close_register
-      get  :daily_report
-      get  "z_report/:id", to: "pos_transactions#z_report", as: :z_report
-
-      get "ptsc/fare_rules",      to: "pos_transactions#fare_rules",      as: :ptsc_fare_rules
-      get "ptsc/route_analytics", to: "pos_transactions#route_analytics", as: :ptsc_route_analytics
-      get "ptsc/daily_summary",   to: "pos_transactions#ptsc_daily_summary", as: :ptsc_daily_summary
-
-      get "agency/:agency_code/dashboard", to: "pos_transactions#agency_dashboard", as: :agency_dashboard
-      get "agency/:agency_code/reports",   to: "pos_transactions#agency_reports",   as: :agency_reports
+      # Agency entry points
+      get 'ptsc', to: 'pos_transactions#ptsc_dashboard', as: 'ptsc'
+      get 'ttps', to: 'pos_transactions#ttps_dashboard', as: 'ttps'
+      get 'ttdf', to: 'pos_transactions#ttdf_dashboard', as: 'ttdf'
+      get 'vmcott', to: 'pos_transactions#vmcott_dashboard', as: 'vmcott'
+      
+      # Main routes
+      get :dashboard, as: 'dashboard'
+      get :reports, as: 'reports'
+      get :export, as: 'export'
+      get :today, as: 'today'
+      get :voided, as: 'voided'
+      post :process_payment, as: 'process_payment'
+      
+      # Cashier Session routes
+      get 'cashier_session', to: 'pos_transactions#cashier_session', as: 'cashier_session'
+      post 'open_register', to: 'pos_transactions#open_register', as: 'open_register'
+      post 'close_register', to: 'pos_transactions#close_register', as: 'close_register'
+      get 'daily_report', to: 'pos_transactions#daily_report', as: 'daily_report'
+      get 'z_report/:id', to: 'pos_transactions#z_report', as: 'z_report'
+      
+      # PTSC-specific routes
+      get 'ptsc/fare_rules', to: 'pos_transactions#fare_rules', as: 'ptsc_fare_rules'
+      get 'ptsc/route_analytics', to: 'pos_transactions#route_analytics', as: 'ptsc_route_analytics'
+      get 'ptsc/daily_summary', to: 'pos_transactions#ptsc_daily_summary', as: 'ptsc_daily_summary'
+      
+      # Agency parameter routes
+      get 'agency/:agency_code/dashboard', to: 'pos_transactions#agency_dashboard', as: 'agency_dashboard'
+      get 'agency/:agency_code/reports', to: 'pos_transactions#agency_reports', as: 'agency_reports'
     end
 
     member do
@@ -552,19 +547,20 @@ end
   end
 
   # Cashier Sessions
-  resources :cashier_sessions, only: %i[index show] do
+  resources :cashier_sessions, only: [:index, :show] do
     member do
       post :reopen
       post :reconcile
       get  :print
     end
+
     collection do
       get :reports
       get :export
     end
   end
 
-  # PTSC Routes
+  # PTSC-specific routes
   resources :fare_rules do
     collection do
       post :import
@@ -582,43 +578,43 @@ end
   # ========================
   # Payment Dashboard
   # ========================
-  get "payment-dashboard",                 to: "payment_dashboard#index",          as: :payment_dashboard
-  get "payment-dashboard/aging-analysis",  to: "payment_dashboard#aging_analysis", as: :aging_analysis
-  get "payment-dashboard/bulk-payment",    to: "payment_dashboard#bulk_payment",   as: :bulk_payment_interface
-  post "payment-dashboard/process-bulk",   to: "payment_dashboard#process_bulk_payment", as: :process_bulk_payment
-  get "payment-dashboard/vendor-summary/:vendor", to: "payment_dashboard#vendor_summary", as: :vendor_payment_summary
+  get 'payment-dashboard', to: 'payment_dashboard#index', as: 'payment_dashboard'
+  get 'payment-dashboard/aging-analysis', to: 'payment_dashboard#aging_analysis', as: 'aging_analysis'
+  get 'payment-dashboard/bulk-payment', to: 'payment_dashboard#bulk_payment', as: 'bulk_payment_interface'
+  post 'payment-dashboard/process-bulk', to: 'payment_dashboard#process_bulk_payment', as: 'process_bulk_payment'
+  get 'payment-dashboard/vendor-summary/:vendor', to: 'payment_dashboard#vendor_summary', as: 'vendor_payment_summary'
 
   # ========================
-  # Agency workflow namespaces
+  # AGENCY-SPECIFIC WORKFLOW ROUTES (NEW)
   # ========================
   namespace :ptsc do
-    get "rfq_dashboard",     to: "rfq_dashboard#index",      as: :rfq_dashboard
-    get "quotation_review",  to: "quotations#review_received", as: :quotation_review
-    get "po_acceptance",     to: "purchase_orders#acceptance_queue", as: :po_acceptance
+    get 'rfq_dashboard', to: 'rfq_dashboard#index', as: 'rfq_dashboard'
+    get 'quotation_review', to: 'quotations#review_received', as: 'quotation_review'
+    get 'po_acceptance', to: 'purchase_orders#acceptance_queue', as: 'po_acceptance'
   end
 
   namespace :ttps do
-    get "rfq_dashboard",     to: "rfq_dashboard#index",      as: :rfq_dashboard
-    get "quotation_review",  to: "quotations#review_received", as: :quotation_review
-    get "po_acceptance",     to: "purchase_orders#acceptance_queue", as: :po_acceptance
+    get 'rfq_dashboard', to: 'rfq_dashboard#index', as: 'rfq_dashboard'
+    get 'quotation_review', to: 'quotations#review_received', as: 'quotation_review'
+    get 'po_acceptance', to: 'purchase_orders#acceptance_queue', as: 'po_acceptance'
   end
 
   namespace :ttdf do
-    get "rfq_dashboard",     to: "rfq_dashboard#index",      as: :rfq_dashboard
-    get "quotation_review",  to: "quotations#review_received", as: :quotation_review
-    get "po_acceptance",     to: "purchase_orders#acceptance_queue", as: :po_acceptance
+    get 'rfq_dashboard', to: 'rfq_dashboard#index', as: 'rfq_dashboard'
+    get 'quotation_review', to: 'quotations#review_received', as: 'quotation_review'
+    get 'po_acceptance', to: 'purchase_orders#acceptance_queue', as: 'po_acceptance'
   end
 
   # ========================
-  # Accounting System
+  # ACCOUNTING SYSTEM ROUTES
   # ========================
   resources :accounts do
     collection do
-      get :chart_of_accounts
-      get :balance_sheet
-      get :income_statement
+      get  :chart_of_accounts
+      get  :balance_sheet
+      get  :income_statement
       post :import
-      get :reconciliation
+      get  :reconciliation
       post :setup_defaults
     end
 
@@ -629,8 +625,9 @@ end
       get  :activity
     end
   end
-
-  resources :accounts_payable, only: %i[index show] do
+  
+  # Accounts Payable - Use plural for resources
+  resources :accounts_payable, only: [:index, :show] do
     collection do
       get  :monthly_statement
       get  :reconciliation
@@ -653,8 +650,9 @@ end
       get  :print_statement
     end
   end
-
-  resources :account_transactions, only: %i[index show] do
+  
+  # Account Transactions
+  resources :account_transactions, only: [:index, :show] do
     collection do
       get  :journal
       post :create_journal_entry
@@ -687,13 +685,16 @@ end
       post :bulk_send
     end
   end
+  
+  # Accounting Dashboard
+  get 'accounting-dashboard', to: 'accounting_dashboard#index', as: 'accounting_dashboard'
+  get 'accounting-dashboard/accounts-payable', to: 'accounting_dashboard#accounts_payable', as: 'accounts_payable_dashboard'
+  get 'accounting-dashboard/cash-flow', to: 'accounting_dashboard#cash_flow', as: 'cash_flow_dashboard'
+  get 'accounting-dashboard/financial-reports', to: 'accounting_dashboard#financial_reports', as: 'financial_reports_dashboard'
 
-  get "accounting-dashboard", to: "accounting_dashboard#index", as: :accounting_dashboard
-  get "accounting-dashboard/accounts-payable", to: "accounting_dashboard#accounts_payable", as: :accounts_payable_dashboard
-  get "accounting-dashboard/cash-flow", to: "accounting_dashboard#cash_flow", as: :cash_flow_dashboard
-  get "accounting-dashboard/financial-reports", to: "accounting_dashboard#financial_reports", as: :financial_reports_dashboard
-
-  # Accounting Utilities (quick links)
+  # ========================
+  # Accounting Routes (Added as requested)
+  # ========================
   get "/accounting/general_ledger", to: "accounting#general_ledger", as: :general_ledger
   get "/accounting/trial_balance",  to: "accounting#trial_balance",  as: :trial_balance
   get "/accounting/trial_balance.csv", to: "accounting#trial_balance", defaults: { format: :csv }
@@ -702,27 +703,27 @@ end
   get "/trial_balance",  to: "accounting#trial_balance"
 
   # ========================
-  # QuickBooks Integration
+  # QUICKBOOKS INTEGRATION ROUTES
   # ========================
   namespace :quickbooks do
-    get "dashboard", to: "dashboard#index", as: :dashboard
-    get "settings",  to: "settings#index",  as: :settings
-    post "settings", to: "settings#update"
-    get "connection", to: "connection#index", as: :connection
-    get "connect",    to: "connection#connect", as: :connect
-    get "callback",   to: "connection#callback", as: :callback
-    delete "disconnect", to: "connection#disconnect", as: :disconnect
-    post "sync", to: "connection#sync", as: :sync
-    post "sync_transactions", to: "connection#sync_transactions", as: :sync_transactions
-    post "sync_invoices", to: "connection#sync_invoices", as: :sync_invoices
-    post "sync_payables", to: "connection#sync_payables", as: :sync_payables
-    post "sync_all", to: "connection#sync_all", as: :sync_all
-    post "toggle_auto_sync", to: "connection#toggle_auto_sync", as: :toggle_auto_sync
-    get "status", to: "status#index", as: :status
+    get 'dashboard', to: 'dashboard#index', as: 'dashboard'
+    get 'settings', to: 'settings#index', as: 'settings'
+    post 'settings', to: 'settings#update'
+    get 'connection', to: 'connection#index', as: 'connection'
+    get 'connect', to: 'connection#connect', as: 'connect'
+    get 'callback', to: 'connection#callback', as: 'callback'
+    delete 'disconnect', to: 'connection#disconnect', as: 'disconnect'
+    post 'sync', to: 'connection#sync', as: 'sync'
+    post 'sync_transactions', to: 'connection#sync_transactions', as: 'sync_transactions'
+    post 'sync_invoices', to: 'connection#sync_invoices', as: 'sync_invoices'
+    post 'sync_payables', to: 'connection#sync_payables', as: 'sync_payables'
+    post 'sync_all', to: 'connection#sync_all', as: 'sync_all'
+    post 'toggle_auto_sync', to: 'connection#toggle_auto_sync', as: 'toggle_auto_sync'
+    get 'status', to: 'status#index', as: 'status'
   end
 
   # ========================
-  # Analytics Namespace
+  # ANALYTICS ROUTES
   # ========================
   namespace :analytics do
     resources :payment_analytics, only: [] do
@@ -749,7 +750,7 @@ end
   end
 
   # ========================
-  # Mock / Demo
+  # MOCK DATA ROUTES FOR DEMO SYSTEM
   # ========================
   namespace :mock do
     post "generate_sale", to: "mock_data#generate_sale"
@@ -775,16 +776,14 @@ end
   end
 
   # ========================
-  # Legacy / Alias paths
+  # Aliases / Legacy paths
   # ========================
   get "/vehicle_usages", to: "vehicles#analytics", as: :vehicle_usages
 
-  # ========================
-  # Drivers / Trips / Maintenances / Misc
-  # ========================
+  # Drivers
   resources :drivers do
-    resources :trips, only: %i[index show]
-
+    resources :trips, only: [:index, :show]
+    
     collection do
       get :my_vehicle
       get :my_trips
@@ -792,7 +791,9 @@ end
     end
   end
 
-  resources :transactions, only: %i[new create index show]
+  resources :transactions, only: [:new, :create, :index, :show]
+
+  # Trips
   resources :trips
 
   resources :maintenances do
@@ -805,40 +806,52 @@ end
     end
   end
 
+  # Service providers
   resources :service_providers
 
+  # Gantt Chart
   get "gantt", to: "maintenances#gantt", as: :gantt
 
-  patch "theme/:theme", to: "themes#update", as: :update_theme
+  # Theme management
+  patch 'theme/:theme', to: 'themes#update', as: :update_theme
+  
+  # Quick reports
   resources :quick_reports, only: [:create]
 
   # ========================
   # Financial Dashboard
   # ========================
-  get "financial-dashboard", to: "financial_dashboard#index", as: :financial_dashboard
-  get "financial-dashboard/cashflow", to: "financial_dashboard#cashflow", as: :cashflow_dashboard
-  get "financial-dashboard/aged_receivables", to: "financial_dashboard#aged_receivables", as: :aged_receivables
-  get "financial-dashboard/accounts-payable", to: "financial_dashboard#accounts_payable", as: :financial_accounts_payable
-  get "financial-dashboard/bank-reconciliation", to: "financial_dashboard#bank_reconciliation", as: :bank_reconciliation
+  get 'financial-dashboard', to: 'financial_dashboard#index', as: 'financial_dashboard'
+  get 'financial-dashboard/cashflow', to: 'financial_dashboard#cashflow', as: 'cashflow_dashboard'
+  get 'financial-dashboard/aged_receivables', to: 'financial_dashboard#aged_receivables', as: 'aged_receivables'
+  get 'financial-dashboard/accounts-payable', to: 'financial_dashboard#accounts_payable', as: 'financial_accounts_payable'
+  get 'financial-dashboard/bank-reconciliation', to: 'financial_dashboard#bank_reconciliation', as: 'bank_reconciliation'
 
   # ========================
   # Accounting Tools + Bank Integration
   # ========================
-  get  "accounting-tools/check-writer", to: "accounting_tools#check_writer", as: :check_writer
-  post "accounting-tools/print-check",  to: "accounting_tools#print_check",  as: :print_check
-  get  "accounting-tools/batch-payments", to: "accounting_tools#batch_payments", as: :batch_payments
-  post "accounting-tools/process-batch",  to: "accounting_tools#process_batch",  as: :process_batch
-
-  get  "bank-integration", to: "bank_integration#index", as: :bank_integration
-  post "bank-integration/import-statement", to: "bank_integration#import_statement", as: :import_bank_statement
-  get  "bank-integration/transactions", to: "bank_integration#transactions", as: :bank_transactions
-  post "bank-integration/match-transaction", to: "bank_integration#match_transaction", as: :match_bank_transaction
+  get 'accounting-tools/check-writer', to: 'accounting_tools#check_writer', as: 'check_writer'
+  post 'accounting-tools/print-check', to: 'accounting_tools#print_check', as: 'print_check'
+  get 'accounting-tools/batch-payments', to: 'accounting_tools#batch_payments', as: 'batch_payments'
+  post 'accounting-tools/process-batch', to: 'accounting_tools#process_batch', as: 'process_batch'
+  
+  # Bank integration
+  get 'bank-integration', to: 'bank_integration#index', as: 'bank_integration'
+  post 'bank-integration/import-statement', to: 'bank_integration#import_statement', as: 'import_bank_statement'
+  get 'bank-integration/transactions', to: 'bank_integration#transactions', as: 'bank_transactions'
+  post 'bank-integration/match-transaction', to: 'bank_integration#match_transaction', as: 'match_bank_transaction'
 
   # ========================
   # Misc
   # ========================
-  get "analytics", to: "analytics#index", as: :analytics
-
+  
+  # Analytics routes
+  get 'analytics', to: 'analytics#index', as: 'analytics'
+  
+  # PTSC Dashboard vehicle locations API
+  get 'ptsc-dashboard/vehicle_locations', to: 'ptsc_dashboard#vehicle_locations', as: 'ptsc_vehicle_locations'
+  
+  # Admin user management
   namespace :admin do
     resources :users, only: %i[index edit update destroy] do
       collection do
@@ -847,4 +860,24 @@ end
       end
     end
   end
+
+  # ========================
+  # HELPER ROUTES FOR EASY ACCESS
+  # ========================
+  get 'vendors', to: 'suppliers#index', as: 'vendors'
+  get 'inventory-management-dashboard', to: redirect('/vmcott/inventory_dashboard')
+
+  # ========================
+  # EASY ACCESS ALIASES (from first file)
+  # ========================
+  get 'inventory-dashboard', to: redirect('/vmcott/inventory_dashboard')
+
+  # ========================
+  # Public routes
+  # ========================
+  get "up", to: "rails/health#show", as: :rails_health_check
+  
+  # Test routes for debugging
+  get 'test/cashier_session', to: 'pos_transactions#cashier_session', as: 'test_cashier_session'
+  get 'test/new_transaction', to: 'pos_transactions#new', as: 'test_new_transaction'
 end

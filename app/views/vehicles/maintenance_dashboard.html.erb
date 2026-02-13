@@ -1,550 +1,502 @@
-<!-- app/views/vehicles/maintenance_dashboard.html.erb -->
-<div class="container-fluid py-4 px-4">
-  <!-- Dashboard Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
+<%# File: app/views/vehicles/maintenance_dashboard.html.erb – PTSC MAINTENANCE OPERATIONS CENTER %>
+
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
+
+  agency_code = current_user&.agency&.code.to_s.upcase
+
+  vmcott_maintenance_role =
+       (current_user.respond_to?(:fleet_manager?) && current_user.fleet_manager?) ||
+       (current_user.respond_to?(:supervisor?) && current_user.supervisor?)
+
+  can_write_maintenance =
+       agency_code == "VMCOTT" && (current_user.admin? || vmcott_maintenance_role)
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="ptsc-maintenance-dashboard container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC STYLE WITH FLAG -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
     <div>
-      <h1 class="mb-2">
-        <i class="bi bi-tools me-2 text-primary"></i>Maintenance Operations Center
-      </h1>
-      <p class="text-muted mb-0">Monitor, manage, and track all vehicle maintenance activities</p>
-    </div>
-    <div class="d-flex gap-3">
-      <%= link_to gantt_path, 
-            class: "btn btn-outline-primary d-flex align-items-center gap-2" do %>
-        <i class="bi bi-calendar-range"></i> Timeline View
-      <% end %>
-      <%= link_to analytics_vehicles_path, 
-            class: "btn btn-outline-success d-flex align-items-center gap-2" do %>
-        <i class="bi bi-graph-up"></i> Analytics
-      <% end %>
-      <button class="btn btn-primary d-flex align-items-center gap-2" 
-              data-bs-toggle="modal" data-bs-target="#quickReportModal">
-        <i class="bi bi-plus-circle"></i> Quick Report
-      </button>
-    </div>
-  </div>
-
-  <!-- Maintenance Stats Overview -->
-  <div class="row mb-4 g-3">
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-primary border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">TOTAL ACTIVE</h6>
-              <h2 class="mb-0"><%= Maintenance.where(status: 'Pending').count %></h2>
-            </div>
-            <div class="bg-primary bg-opacity-10 p-3 rounded">
-              <i class="bi bi-tools text-primary"></i>
-            </div>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with MAINTENANCE ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-screwdriver-wrench fa-2x"></i>
           </div>
         </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-danger border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">OVERDUE</h6>
-              <h2 class="mb-0"><%= Maintenance.overdue.count %></h2>
-            </div>
-            <div class="bg-danger bg-opacity-10 p-3 rounded">
-              <i class="bi bi-exclamation-triangle text-danger"></i>
-            </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Maintenance Operations</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
           </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-warning border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">UPCOMING (7D)</h6>
-              <h2 class="mb-0"><%= Maintenance.upcoming(7).count %></h2>
-            </div>
-            <div class="bg-warning bg-opacity-10 p-3 rounded">
-              <i class="bi bi-clock-history text-warning"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-success border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">COMPLETED</h6>
-              <h2 class="mb-0"><%= Maintenance.where(status: 'Completed').count %></h2>
-            </div>
-            <div class="bg-success bg-opacity-10 p-3 rounded">
-              <i class="bi bi-check-circle text-success"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-info border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">TOTAL COST</h6>
-              <h4 class="mb-0"><%= number_to_currency(Maintenance.sum(:cost), unit: "TTD ") %></h4>
-            </div>
-            <div class="bg-info bg-opacity-10 p-3 rounded">
-              <i class="bi bi-currency-dollar text-info"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-lg-4 col-md-6">
-      <div class="card border-start border-secondary border-4 h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">VEHICLES</h6>
-              <h2 class="mb-0"><%= Vehicle.count %></h2>
-            </div>
-            <div class="bg-secondary bg-opacity-10 p-3 rounded">
-              <i class="bi bi-truck text-secondary"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Maintenance Navigation Tabs -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-body p-2">
-      <ul class="nav nav-pills nav-fill mb-0">
-        <li class="nav-item">
-          <%= link_to vehicles_path, 
-                class: "nav-link #{current_page?(vehicles_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-list-ul me-2"></i> Vehicle List
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to analytics_vehicles_path, 
-                class: "nav-link #{current_page?(analytics_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-graph-up me-2"></i> Usage Analytics
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to gantt_path, 
-                class: "nav-link #{current_page?(gantt_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-calendar-range me-2"></i> Maintenance Gantt
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to maintenance_dashboard_vehicles_path, 
-                class: "nav-link #{current_page?(maintenance_dashboard_vehicles_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-speedometer2 me-2"></i> Maintenance Dashboard
-          <% end %>
-        </li>
-        <li class="nav-item">
-          <%= link_to service_providers_path, 
-              class: "nav-link #{current_page?(service_providers_path) ? 'active' : ''} px-3 py-2" do %>
-            <i class="bi bi-building me-2"></i> Providers
-          <% end %>
-        </li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- Advanced Filters Card -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-light">
-      <h5 class="mb-0"><i class="bi bi-funnel me-2"></i>Advanced Filters</h5>
-    </div>
-    <div class="card-body">
-      <%= form_with url: maintenance_dashboard_vehicles_path, method: :get, local: true, 
-            html: { id: "maintenance_filter_form" }, class: "row g-3 align-items-end" do |f| %>
-        
-        <div class="col-md-3">
-          <label class="form-label small fw-bold text-muted">SEARCH VEHICLES</label>
-          <div class="input-group">
-            <span class="input-group-text bg-white border-end-0">
-              <i class="bi bi-search text-muted"></i>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-warehouse me-1"></i> PTSC Workshop</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
             </span>
-            <%= f.text_field :query, value: @query, 
-                  placeholder: "Search by plate, make, model...",
-                  class: "form-control border-start-0" %>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-tools me-1"></i> <%= @vehicles.count %> vehicles
+            </span>
+            <% unless can_write_maintenance %>
+              <span class="badge bg-secondary rounded-pill ms-2 px-3 py-1">Read-only</span>
+            <% end %>
           </div>
         </div>
-        
-        <div class="col-md-3">
-          <label class="form-label small fw-bold text-muted">SERVICE OWNER</label>
-          <%= f.select :owner, 
-                options_for_select(["All Owners", "PTSC", "Police", "Fire Service"], 
-                                   @owner_filter || "All Owners"),
-                {}, { class: "form-select", id: "owner_filter" } %>
+      </div>
+    </div>
+
+    <div class="mt-3 mt-lg-0">
+      <div class="d-flex gap-2">
+        <button class="ptsc-primary-btn" data-bs-toggle="modal" data-bs-target="#quickReportModal">
+          <i class="fas fa-plus-circle me-2"></i> Quick Report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI GRID - TT FLAG COLORS WITH ICON BOXES -->
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Total Active</span>
+              <div class="display-6 fw-bold"><%= @count_pending %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-ptsc-blue-light">
+              <i class="fas fa-tools fa-lg text-ptsc-blue"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
+          </div>
         </div>
-        
-        <div class="col-md-3">
-          <label class="form-label small fw-bold text-muted">MAINTENANCE STATUS</label>
-          <%= f.select :status, 
-                options_for_select([
-                  ["All Statuses", ""],
-                  ["Pending", "Pending"],
-                  ["In Progress", "In Progress"],
-                  ["Completed", "Completed"],
-                  ["Overdue", "Overdue"]
-                ], params[:status]),
-                {}, class: "form-select" %>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Overdue</span>
+              <div class="display-6 fw-bold text-danger"><%= @count_overdue %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-danger bg-opacity-10">
+              <i class="fas fa-exclamation-triangle fa-lg text-danger"></i>
+            </div>
+          </div>
         </div>
-        
-        <div class="col-md-3">
-          <label class="form-label small fw-bold text-muted">URGENCY LEVEL</label>
-          <%= f.select :urgency, 
-                options_for_select([
-                  ["All Urgency", ""],
-                  ["Emergency", "emergency"],
-                  ["High", "high"],
-                  ["Medium", "medium"],
-                  ["Low", "low"]
-                ], params[:urgency]),
-                {}, class: "form-select" %>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Upcoming (7d)</span>
+              <div class="display-6 fw-bold" style="color: <%= ptsc_yellow %>;"><%= @count_upcoming %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-warning bg-opacity-10">
+              <i class="fas fa-clock fa-lg text-warning"></i>
+            </div>
+          </div>
         </div>
-        
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Completed</span>
+              <div class="display-6 fw-bold text-success"><%= @count_completed %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-success bg-opacity-10">
+              <i class="fas fa-check-circle fa-lg text-success"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Total Cost</span>
+              <div class="h5 fw-bold mb-0"><%= number_to_currency(@maintenances.sum { |m| m.cost.to_f }, unit: "TTD ", precision: 0) %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-info bg-opacity-10">
+              <i class="fas fa-dollar-sign fa-lg text-info"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-2">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Vehicles</span>
+              <div class="display-6 fw-bold text-secondary"><%= @vehicles.count %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-secondary bg-opacity-10">
+              <i class="fas fa-bus fa-lg text-secondary"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTER SECTION - PTSC STYLE -->
+  <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+          <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
+        </div>
+        <h5 class="fw-bold mb-0">Advanced Filters</h5>
+        <span class="tt-flag-mini ms-2">
+          <span class="flag-red"></span>
+          <span class="flag-white"></span>
+          <span class="flag-black"></span>
+        </span>
+      </div>
+
+      <%= form_with url: maintenance_dashboard_vehicles_path, method: :get, local: true,
+            html: { id: "maintenance_filter_form" }, class: "row g-3" do |f| %>
+
+        <%= hidden_field_tag :priority, @priority %>
+
+        <div class="col-md-3">
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= f.text_field :query, value: @query,
+                  placeholder: "Search by plate, make, model...",
+                  class: "ptsc-search-input form-control" %>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="ptsc-select-wrapper">
+            <%= f.select :owner,
+                  options_for_select(["All Owners", "PTSC", "Police", "Fire Service"],
+                                     @owner_filter || "All Owners"),
+                  {}, { class: "ptsc-select form-select", id: "owner_filter" } %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="ptsc-select-wrapper">
+            <%= f.select :status,
+                  options_for_select([
+                    ["All Statuses", ""],
+                    ["Pending", "Pending"],
+                    ["In Progress", "In Progress"],
+                    ["Completed", "Completed"],
+                    ["Overdue", "Overdue"]
+                  ], params[:status]),
+                  {}, class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="ptsc-select-wrapper">
+            <%= f.select :urgency,
+                  options_for_select([
+                    ["All Urgency", ""],
+                    ["Emergency", "emergency"],
+                    ["High", "high"],
+                    ["Medium", "medium"],
+                    ["Low", "low"]
+                  ], params[:urgency]),
+                  {}, class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
+        </div>
+
         <div class="col-12">
           <div class="d-flex justify-content-end gap-2">
-            <button type="submit" class="btn btn-primary px-4 d-flex align-items-center gap-2">
-              <i class="bi bi-funnel"></i> Apply Filters
+            <button type="submit" class="ptsc-apply-btn px-4 d-flex align-items-center gap-2">
+              <i class="fas fa-filter"></i> Apply Filters
             </button>
-            <%= link_to maintenance_dashboard_vehicles_path, 
-                  class: "btn btn-outline-secondary d-flex align-items-center gap-2" do %>
-              <i class="bi bi-arrow-clockwise"></i> Reset
+
+            <%= link_to maintenance_dashboard_vehicles_path(priority: @priority),
+                  class: "ptsc-clear-btn d-flex align-items-center gap-2" do %>
+              <i class="fas fa-undo-alt"></i> Reset
             <% end %>
-            <button type="button" class="btn btn-success d-flex align-items-center gap-2"
-                    data-bs-toggle="modal" data-bs-target="#quickMaintenanceModal">
-              <i class="bi bi-plus-circle"></i> Quick Add
-            </button>
           </div>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- Maintenance Priority Tabs -->
-  <ul class="nav nav-tabs nav-fill mb-4" id="priorityTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="overdue-tab" data-bs-toggle="tab" 
-              data-bs-target="#overdue" type="button">
-        <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+  <% preserved = params.permit(:query, :owner, :status, :urgency, :agency).to_h %>
+
+  <!-- PRIORITY TABS - TT STYLE -->
+  <div class="ptsc-priority-tabs mb-4">
+    <div class="d-flex gap-2 flex-wrap">
+      <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "overdue")),
+            class: "ptsc-priority-tab #{(@priority == 'overdue') ? 'active' : ''}" do %>
+        <i class="fas fa-exclamation-triangle me-2" style="color: <%= tt_red %>;"></i>
         Overdue
-        <% if @vehicles.any? %>
-          <span class="badge bg-danger ms-1">
-            <%= @vehicles.sum { |v| v.overdue_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="pending-tab" data-bs-toggle="tab" 
-              data-bs-target="#pending" type="button">
-        <i class="bi bi-clock-history me-2 text-warning"></i>
+        <span class="badge bg-danger ms-2 rounded-pill"><%= @count_overdue %></span>
+      <% end %>
+
+      <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "pending")),
+            class: "ptsc-priority-tab #{(@priority == 'pending') ? 'active' : ''}" do %>
+        <i class="fas fa-clock me-2" style="color: <%= ptsc_yellow %>;"></i>
         Pending
-        <% if @vehicles.any? %>
-          <span class="badge bg-warning ms-1">
-            <%= @vehicles.sum { |v| v.active_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="upcoming-tab" data-bs-toggle="tab" 
-              data-bs-target="#upcoming" type="button">
-        <i class="bi bi-calendar-check me-2 text-info"></i>
+        <span class="badge" style="background: <%= ptsc_yellow %>; color: #000; border-radius: 100px; margin-left: 0.5rem;"><%= @count_pending %></span>
+      <% end %>
+
+      <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "upcoming")),
+            class: "ptsc-priority-tab #{(@priority == 'upcoming') ? 'active' : ''}" do %>
+        <i class="fas fa-calendar-check me-2" style="color: <%= ptsc_blue %>;"></i>
         Upcoming
-        <% if @vehicles.any? %>
-          <span class="badge bg-info ms-1">
-            <%= @vehicles.sum { |v| v.upcoming_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="completed-tab" data-bs-toggle="tab" 
-              data-bs-target="#completed" type="button">
-        <i class="bi bi-check-circle me-2 text-success"></i>
+        <span class="badge bg-info ms-2 rounded-pill text-white"><%= @count_upcoming %></span>
+      <% end %>
+
+      <%= link_to maintenance_dashboard_vehicles_path(preserved.merge(priority: "completed")),
+            class: "ptsc-priority-tab #{(@priority == 'completed') ? 'active' : ''}" do %>
+        <i class="fas fa-check-circle me-2 text-success"></i>
         Completed
-        <% if @vehicles.any? %>
-          <span class="badge bg-success ms-1">
-            <%= @vehicles.sum { |v| v.completed_maintenances.count } %>
-          </span>
-        <% end %>
-      </button>
-    </li>
-  </ul>
-
-  <div class="tab-content" id="priorityTabsContent">
-    <!-- OVERDUE MAINTENANCE TAB -->
-    <div class="tab-pane fade show active" id="overdue" role="tabpanel">
-      <% overdue_vehicles = @vehicles.select { |v| v.overdue_maintenances.any? } %>
-      <% if overdue_vehicles.any? %>
-        <div class="alert alert-danger border-start border-5 border-danger">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
-            <div>
-              <h5 class="alert-heading mb-1">Attention Required!</h5>
-              <p class="mb-0">
-                <%= overdue_vehicles.count %> vehicles have overdue maintenance. 
-                Immediate action is required to prevent further issues.
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <% overdue_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'overdue', maintenances: vehicle.overdue_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-success mb-3">Great News!</h4>
-          <p class="text-muted">No overdue maintenance tasks found.</p>
-        </div>
+        <span class="badge bg-success ms-2 rounded-pill"><%= @count_completed %></span>
       <% end %>
     </div>
+  </div>
 
-    <!-- PENDING MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="pending" role="tabpanel">
-      <% pending_vehicles = @vehicles.select { |v| v.active_maintenances.any? } %>
-      <% if pending_vehicles.any? %>
-        <% pending_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'pending', maintenances: vehicle.active_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-clock text-muted" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-muted mb-3">No Pending Maintenance</h4>
-          <p class="text-muted">All maintenance tasks are either completed or scheduled for future dates.</p>
-        </div>
-      <% end %>
-    </div>
+  <%# Render only the selected tab %>
+  <% if @priority == "overdue" %>
+    <% overdue_vehicles = @overdue_vehicles %>
 
-    <!-- UPCOMING MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="upcoming" role="tabpanel">
-      <% upcoming_vehicles = @vehicles.select { |v| v.upcoming_maintenances.any? } %>
-      <% if upcoming_vehicles.any? %>
-        <% upcoming_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'upcoming', maintenances: vehicle.upcoming_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-calendar-check text-info" style="font-size: 4rem;"></i>
+    <% if overdue_vehicles.any? %>
+      <div class="ptsc-critical-alert mb-4">
+        <div class="d-flex align-items-center">
+          <div class="alert-icon me-3">
+            <i class="fas fa-exclamation-triangle fa-2x" style="color: <%= tt_red %>;"></i>
           </div>
-          <h4 class="text-info mb-3">No Upcoming Maintenance</h4>
-          <p class="text-muted">No maintenance tasks are scheduled for the near future.</p>
+          <div>
+            <h5 class="fw-bold mb-1" style="color: <%= tt_red %>;">Attention Required!</h5>
+            <p class="mb-0 text-muted">
+              <%= overdue_vehicles.count %> vehicles have overdue maintenance.
+              Immediate action is required to prevent further issues.
+            </p>
+          </div>
         </div>
-      <% end %>
-    </div>
+      </div>
 
-    <!-- COMPLETED MAINTENANCE TAB -->
-    <div class="tab-pane fade" id="completed" role="tabpanel">
-      <% completed_vehicles = @vehicles.select { |v| v.completed_maintenances.any? } %>
-      <% if completed_vehicles.any? %>
-        <% completed_vehicles.each do |vehicle| %>
-          <%= render "maintenance_vehicle_card", vehicle: vehicle, 
-                priority: 'completed', maintenances: vehicle.completed_maintenances %>
-        <% end %>
-      <% else %>
-        <div class="text-center py-5">
-          <div class="mb-4">
-            <i class="bi bi-clipboard-check text-muted" style="font-size: 4rem;"></i>
-          </div>
-          <h4 class="text-muted mb-3">No Completed Maintenance</h4>
-          <p class="text-muted">No maintenance tasks have been marked as completed yet.</p>
-        </div>
+      <% overdue_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "overdue",
+              maintenances: vehicle.overdue_maintenances,
+              can_write_maintenance: can_write_maintenance %>
       <% end %>
+    <% else %>
+      <div class="ptsc-empty-state text-center py-5">
+        <div class="ptsc-empty-icon mb-3">
+          <i class="fas fa-check-circle fa-4x text-success opacity-50"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">Great News!</h5>
+        <p class="text-muted mb-0">No overdue maintenance tasks found.</p>
+      </div>
+    <% end %>
+
+  <% elsif @priority == "pending" %>
+    <% pending_vehicles = @pending_vehicles %>
+
+    <% if pending_vehicles.any? %>
+      <% pending_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "pending",
+              maintenances: vehicle.active_maintenances,
+              can_write_maintenance: can_write_maintenance %>
+      <% end %>
+    <% else %>
+      <div class="ptsc-empty-state text-center py-5">
+        <div class="ptsc-empty-icon mb-3">
+          <i class="fas fa-clock fa-4x opacity-50" style="color: <%= ptsc_blue %>;"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Pending Maintenance</h5>
+        <p class="text-muted mb-0">All maintenance tasks are either completed or scheduled for future dates.</p>
+      </div>
+    <% end %>
+
+  <% elsif @priority == "upcoming" %>
+    <% upcoming_vehicles = @upcoming_vehicles %>
+
+    <% if upcoming_vehicles.any? %>
+      <% upcoming_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "upcoming",
+              maintenances: vehicle.upcoming_maintenances,
+              can_write_maintenance: can_write_maintenance %>
+      <% end %>
+    <% else %>
+      <div class="ptsc-empty-state text-center py-5">
+        <div class="ptsc-empty-icon mb-3">
+          <i class="fas fa-calendar-check fa-4x opacity-50" style="color: <%= ptsc_blue %>;"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Upcoming Maintenance</h5>
+        <p class="text-muted mb-0">No maintenance tasks are scheduled for the near future.</p>
+      </div>
+    <% end %>
+
+  <% else %>
+    <% completed_vehicles = @completed_vehicles %>
+
+    <% if completed_vehicles.any? %>
+      <% completed_vehicles.each do |vehicle| %>
+        <%= render "maintenance_vehicle_card",
+              vehicle: vehicle,
+              priority: "completed",
+              maintenances: vehicle.completed_maintenances,
+              can_write_maintenance: can_write_maintenance %>
+      <% end %>
+    <% else %>
+      <div class="ptsc-empty-state text-center py-5">
+        <div class="ptsc-empty-icon mb-3">
+          <i class="fas fa-clipboard-check fa-4x opacity-50" style="color: <%= ptsc_blue %>;"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Completed Maintenance</h5>
+        <p class="text-muted mb-0">No maintenance tasks have been marked as completed yet.</p>
+      </div>
+    <% end %>
+  <% end %>
+
+  <!-- PTSC Maintenance Footer -->
+  <div class="ptsc-maintenance-footer mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </span>
+        <span class="small text-muted">
+          <i class="fas fa-tools me-1" style="color: <%= ptsc_blue %>;"></i> 
+          PTSC Workshop • <%= Date.today.strftime("%B %d, %Y") %>
+        </span>
+      </div>
+      <span class="tt-footer-emblem">
+        <i class="fas fa-tools me-1"></i> 🇹🇹
+      </span>
     </div>
   </div>
 </div>
 
-<!-- Quick Maintenance Modal -->
-<div class="modal fade" id="quickMaintenanceModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Quick Maintenance Entry</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <%= form_with model: Maintenance.new, 
-              url: maintenances_path, 
-              class: "row g-3" do |f| %>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Select Vehicle</label>
-            <%= f.select :vehicle_id, 
-                  options_from_collection_for_select(@vehicles, :id, :display_name),
-                  { prompt: "Choose a vehicle..." },
-                  class: "form-select select2-vehicle",
-                  required: true %>
-          </div>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Service Type</label>
-            <%= f.select :service_type, 
-                  options_for_select([
-                    ["Oil Change", "Oil Change"],
-                    ["Tire Rotation", "Tire Rotation"],
-                    ["Brake Service", "Brake Service"],
-                    ["Engine Repair", "Engine Repair"],
-                    ["Electrical", "Electrical"],
-                    ["Suspension", "Suspension"],
-                    ["Transmission", "Transmission"],
-                    ["Other", "Other"]
-                  ]),
-                  { prompt: "Select service type..." },
-                  class: "form-select",
-                  required: true %>
-          </div>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Start Date</label>
-            <%= f.date_field :start_date, 
-                  value: Date.today,
-                  class: "form-control",
-                  required: true %>
-          </div>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Estimated Completion</label>
-            <%= f.date_field :end_date, 
-                  value: Date.today + 3.days,
-                  class: "form-control",
-                  required: true %>
-          </div>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Urgency Level</label>
-            <%= f.select :urgency, 
-                  options_for_select([
-                    ["Low", "low"],
-                    ["Medium", "medium"],
-                    ["High", "high"],
-                    ["Emergency", "emergency"]
-                  ], "medium"),
-                  {},
-                  class: "form-select" %>
-          </div>
-          
-          <div class="col-md-6">
-            <label class="form-label fw-medium">Estimated Cost (TTD)</label>
-            <%= f.number_field :cost, 
-                  class: "form-control",
-                  placeholder: "0.00",
-                  step: "0.01" %>
-          </div>
-          
-          <div class="col-12">
-            <label class="form-label fw-medium">Description / Notes</label>
-            <%= f.text_area :notes, 
-                  class: "form-control",
-                  rows: 3,
-                  placeholder: "Brief description of the maintenance required..." %>
-          </div>
-          
-          <div class="col-12">
-            <div class="form-check">
-              <%= f.check_box :part_in_stock, class: "form-check-input" %>
-              <label class="form-check-label">
-                Required parts are in stock
-              </label>
-            </div>
-          </div>
-          
-          <div class="col-12 mt-4">
-            <div class="d-flex justify-content-end gap-2">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                Cancel
-              </button>
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save me-1"></i> Save Maintenance
-              </button>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Quick Report Modal -->
-<div class="modal fade" id="quickReportModal" tabindex="-1">
+<!-- Quick Report Modal (kept for all users) - Styled with PTSC theme -->
+<div class="modal fade ptsc-modal" id="quickReportModal" tabindex="-1">
   <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-clipboard-plus me-2"></i>Quick Issue Report</h5>
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      <div class="modal-header border-0 pt-4 px-4" style="background: rgba(255, 184, 28, 0.04);">
+        <div class="d-flex align-items-center gap-2">
+          <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+            <i class="fas fa-clipboard-list text-ptsc-blue"></i>
+          </div>
+          <h5 class="modal-title fw-bold" style="color: <%= ptsc_blue %>;">Quick Issue Report</h5>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <%= form_with url: quick_reports_path, method: :post do |f| %>
+      <div class="modal-body p-4">
+        <%= form_with url: alerts_path, method: :post do |f| %>
           <div class="mb-3">
-            <label class="form-label">Report Type</label>
-            <select class="form-select" name="report_type" required>
-              <option value="">Select type...</option>
-              <option value="maintenance">Maintenance Issue</option>
-              <option value="accident">Accident/Damage</option>
-              <option value="theft">Theft/Vandalism</option>
-              <option value="safety">Safety Concern</option>
-            </select>
+            <label class="form-label small fw-semibold text-muted">REPORT TYPE</label>
+            <div class="ptsc-select-wrapper">
+              <select class="ptsc-select form-select" name="report_type" required>
+                <option value="">Select type...</option>
+                <option value="maintenance">Maintenance Issue</option>
+                <option value="accident">Accident/Damage</option>
+                <option value="theft">Theft/Vandalism</option>
+                <option value="safety">Safety Concern</option>
+              </select>
+              <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label">Select Vehicle</label>
-            <select class="form-select select2-vehicle" name="vehicle_id" required>
-              <option value="">Choose a vehicle...</option>
-              <% @vehicles.each do |vehicle| %>
-                <option value="<%= vehicle.id %>">
-                  <%= vehicle.display_name %> (<%= vehicle.license_plate %>)
-                </option>
-              <% end %>
-            </select>
+            <label class="form-label small fw-semibold text-muted">SELECT VEHICLE</label>
+            <div class="ptsc-select-wrapper">
+              <select class="ptsc-select form-select select2-vehicle" name="vehicle_id" required>
+                <option value="">Choose a vehicle...</option>
+                <% @vehicles.each do |vehicle| %>
+                  <option value="<%= vehicle.id %>">
+                    <%= vehicle.display_name %> (<%= vehicle.license_plate %>)
+                  </option>
+                <% end %>
+              </select>
+              <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label">Description</label>
-            <%= f.text_area :description, 
-                  class: "form-control", 
+            <label class="form-label small fw-semibold text-muted">DESCRIPTION</label>
+            <%= f.text_area :description,
+                  class: "form-control ptsc-textarea",
                   rows: 3,
                   placeholder: "Briefly describe the issue...",
-                  required: true %>
+                  required: true,
+                  style: "border-radius: 16px; border: 1px solid rgba(0, 51, 160, 0.15);" %>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Urgency</label>
-            <div class="btn-group w-100" role="group">
-              <input type="radio" class="btn-check" name="urgency" value="low" id="urgency-low">
-              <label class="btn btn-outline-success" for="urgency-low">Low</label>
-              
-              <input type="radio" class="btn-check" name="urgency" value="medium" id="urgency-medium" checked>
-              <label class="btn btn-outline-warning" for="urgency-medium">Medium</label>
-              
-              <input type="radio" class="btn-check" name="urgency" value="high" id="urgency-high">
-              <label class="btn btn-outline-danger" for="urgency-high">High</label>
+
+          <div class="mb-4">
+            <label class="form-label small fw-semibold text-muted">URGENCY</label>
+            <div class="d-flex gap-2">
+              <div class="flex-fill">
+                <input type="radio" class="btn-check" name="urgency" value="low" id="urgency-low">
+                <label class="btn w-100" for="urgency-low" style="border-radius: 100px; border: 1px solid #6c757d; color: #6c757d;">Low</label>
+              </div>
+              <div class="flex-fill">
+                <input type="radio" class="btn-check" name="urgency" value="medium" id="urgency-medium" checked>
+                <label class="btn w-100" for="urgency-medium" style="border-radius: 100px; border: 1px solid <%= ptsc_yellow %>; color: #000; background: rgba(255, 184, 28, 0.1);">Medium</label>
+              </div>
+              <div class="flex-fill">
+                <input type="radio" class="btn-check" name="urgency" value="high" id="urgency-high">
+                <label class="btn w-100" for="urgency-high" style="border-radius: 100px; border: 1px solid <%= tt_red %>; color: <%= tt_red %>;">High</label>
+              </div>
             </div>
           </div>
+
           <div class="d-flex justify-content-end gap-2">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-danger">
-              <i class="bi bi-exclamation-triangle me-1"></i> Submit Report
+            <button type="button" class="ptsc-clear-btn px-4" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="ptsc-primary-btn px-4" style="background: <%= tt_red %>; color: white !important;">
+              <i class="fas fa-exclamation-triangle me-2"></i> Submit Report
             </button>
           </div>
         <% end %>
@@ -554,330 +506,422 @@
 </div>
 
 <style>
-/* Custom Styles for Maintenance Dashboard */
-.nav-pills .nav-link.active {
-  background: linear-gradient(135deg, #0d6efd, #004aad);
-  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+/* ============================================================
+   PTSC MAINTENANCE DASHBOARD - TRINIDAD & TOBAGO THEME
+   ============================================================ */
+
+.ptsc-maintenance-dashboard {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.nav-tabs .nav-link {
-  border: none;
-  border-bottom: 3px solid transparent;
-  color: #6c757d;
-  font-weight: 500;
-  padding: 0.75rem 1.5rem;
-  transition: all 0.2s;
-}
-
-.nav-tabs .nav-link.active {
-  color: #0d6efd;
-  border-bottom-color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.05);
-}
-
-.nav-tabs .nav-link:hover:not(.active) {
-  color: #0d6efd;
-  border-bottom-color: rgba(13, 110, 253, 0.3);
-}
-
-.card {
-  border-radius: 0.75rem;
+/* TT Flag Stripe */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  height: 56px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
-.alert {
-  border-radius: 0.75rem;
+.stripe-red {
+  background-color: #c8102e;
 }
 
-.btn-group .btn-check:checked + .btn {
-  background-color: var(--bs-btn-active-bg);
-  border-color: var(--bs-btn-active-border-color);
+.stripe-white {
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
 }
 
-/* Progress bar styling */
-.progress {
-  border-radius: 1rem;
-  overflow: hidden;
+.stripe-black {
+  background-color: #000000;
+}
+
+/* TT Flag Indicators */
+.tt-flag-indicator {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.tt-dot-red {
+  width: 8px;
   height: 8px;
+  border-radius: 50%;
+  background-color: #c8102e;
 }
 
-.progress-bar {
-  border-radius: 1rem;
+.tt-dot-white {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
 }
 
-/* Badge styling */
-.badge {
-  font-weight: 500;
-  padding: 0.35em 0.65em;
+.tt-dot-black {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #000000;
 }
 
-/* Table styling */
-.table th {
-  border-top: none;
-  font-weight: 600;
-  color: #495057;
-  background-color: #f8f9fa;
+.tt-flag-mini {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
 }
 
-.table tbody tr:hover {
-  background-color: #f8f9fa;
-}
-
-/* Maintenance card styling */
-.maintenance-card {
-  transition: all 0.3s ease;
-  border: 1px solid #e9ecef;
-}
-
-.maintenance-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
-}
-
-.maintenance-card .card-header {
-  border-bottom: 1px solid #e9ecef;
-}
-
-/* Status colors */
-.status-badge-pending {
-  background: linear-gradient(135deg, #ffc107, #e0a800);
-  color: #212529;
-}
-
-.status-badge-in-progress {
-  background: linear-gradient(135deg, #0dcaf0, #0aa2c0);
-  color: white;
-}
-
-.status-badge-completed {
-  background: linear-gradient(135deg, #198754, #0d633c);
-  color: white;
-}
-
-.status-badge-overdue {
-  background: linear-gradient(135deg, #dc3545, #b02a37);
-  color: white;
-}
-
-/* Urgency badges */
-.urgency-badge-low {
-  background-color: #6c757d;
-  color: white;
-}
-
-.urgency-badge-medium {
-  background-color: #ffc107;
-  color: #212529;
-}
-
-.urgency-badge-high {
-  background-color: #fd7e14;
-  color: white;
-}
-
-.urgency-badge-emergency {
-  background-color: #dc3545;
-  color: white;
-}
-
-/* Timeline styling */
-.timeline {
-  position: relative;
-  padding-left: 30px;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #dee2e6;
-}
-
-.timeline-item {
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.timeline-marker {
-  position: absolute;
-  left: -22px;
-  top: 0.5rem;
+.flag-red, .flag-white, .flag-black {
   width: 12px;
   height: 12px;
+}
+
+/* PTSC Logo */
+.ptsc-tt-logo-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+}
+
+.ptsc-tt-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #0033a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb81c;
+}
+
+.ptsc-tt-title {
+  color: #0033a0;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tt-flag-badge {
+  background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.text-ptsc-blue {
+  color: #0033a0 !important;
+}
+
+/* Buttons */
+.ptsc-primary-btn {
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  color: #0033a0 !important;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 184, 28, 0.2);
+}
+
+.ptsc-primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.3);
+  color: #0033a0 !important;
+  background: linear-gradient(135deg, #ffd700 0%, #ffb81c 100%);
+}
+
+/* KPI Cards with Icon Boxes */
+.ptsc-kpi-card {
+  transition: none;
+  border: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+.ptsc-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ptsc-icon-circle-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bg-ptsc-blue-light {
+  background: rgba(0, 51, 160, 0.08);
+}
+
+/* Filter Card */
+.ptsc-filter-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+}
+
+.ptsc-search-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ptsc-search-icon {
+  position: absolute;
+  left: 16px;
+  z-index: 10;
+}
+
+.ptsc-search-input {
+  padding-left: 48px !important;
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+}
+
+.ptsc-search-input:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.ptsc-select-wrapper {
+  position: relative;
+}
+
+.ptsc-select {
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.ptsc-select:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #0033a0;
+  pointer-events: none;
+}
+
+.ptsc-apply-btn {
+  background: #0033a0;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  height: 48px;
+}
+
+.ptsc-apply-btn:hover {
+  background: #002070;
+  color: white;
+}
+
+.ptsc-clear-btn {
+  background: white;
+  color: #6c757d;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+}
+
+.ptsc-clear-btn:hover {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* Priority Tabs */
+.ptsc-priority-tabs {
+  background: white;
+  padding: 6px;
+  border-radius: 100px;
+  border: 1px solid rgba(0, 51, 160, 0.1);
+  display: inline-flex;
+}
+
+.ptsc-priority-tab {
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  color: #6c757d;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ptsc-priority-tab:hover {
+  background: rgba(0, 51, 160, 0.04);
+  color: #0033a0;
+}
+
+.ptsc-priority-tab.active {
+  background: #0033a0;
+  color: white !important;
+}
+
+.ptsc-priority-tab.active i {
+  color: white !important;
+}
+
+/* Critical Alert */
+.ptsc-critical-alert {
+  background: rgba(200, 16, 46, 0.05);
+  border-left: 4px solid #c8102e;
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.alert-icon {
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  border: 3px solid #fff;
-  z-index: 1;
+  background: rgba(200, 16, 46, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.timeline-overdue .timeline-marker {
-  background-color: #dc3545;
-  box-shadow: 0 0 0 3px #dc3545;
+/* Empty State */
+.ptsc-empty-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 184, 28, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
 }
 
-.timeline-pending .timeline-marker {
-  background-color: #ffc107;
-  box-shadow: 0 0 0 3px #ffc107;
+/* Footer */
+.ptsc-maintenance-footer {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0, 51, 160, 0.1);
 }
 
-.timeline-upcoming .timeline-marker {
-  background-color: #0dcaf0;
-  box-shadow: 0 0 0 3px #0dcaf0;
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
 }
 
-.timeline-completed .timeline-marker {
-  background-color: #198754;
-  box-shadow: 0 0 0 3px #198754;
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 24px;
+  border-radius: 1px;
 }
 
-/* Responsive adjustments */
+.tt-footer-emblem {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
+/* Modal Styles */
+.ptsc-modal .modal-content {
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.ptsc-textarea {
+  border-radius: 16px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  padding: 0.75rem 1rem;
+}
+
+.ptsc-textarea:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+/* Utility Classes */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .nav-tabs .nav-link {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
+  .ptsc-priority-tabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 6px;
   }
   
-  .table-responsive {
-    font-size: 0.875rem;
-  }
-  
-  .btn {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
+  .ptsc-priority-tab {
+    white-space: nowrap;
+    padding: 0.6rem 1rem;
   }
 }
 
-/* Animation for status changes */
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-.urgent-maintenance {
-  animation: pulse 2s infinite;
-}
-
-/* Custom scrollbar for tables */
-.table-responsive::-webkit-scrollbar {
-  height: 6px;
-}
-
-.table-responsive::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.table-responsive::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
-}
-
-.table-responsive::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-  // Initialize Select2 for vehicle selection
-  if (typeof $.fn.select2 !== 'undefined') {
-    $('.select2-vehicle').select2({
-      placeholder: "Select a vehicle...",
-      allowClear: true,
-      width: '100%',
-      theme: 'bootstrap-5'
-    });
-  }
-  
-  // Auto-submit filter form on select change
+  // Auto-submit filter form on owner select change
   const ownerSelect = document.getElementById("owner_filter");
   const filterForm = document.getElementById("maintenance_filter_form");
-  
+
   if (ownerSelect && filterForm) {
     ownerSelect.addEventListener("change", () => {
       filterForm.submit();
     });
   }
-  
-  // Tab functionality
-  const tabTriggers = document.querySelectorAll('#priorityTabs button[data-bs-toggle="tab"]');
-  tabTriggers.forEach(tab => {
-    tab.addEventListener('shown.bs.tab', event => {
-      // Save active tab to localStorage
-      localStorage.setItem('maintenanceActiveTab', event.target.id);
-    });
-  });
-  
-  // Restore active tab from localStorage
-  const activeTabId = localStorage.getItem('maintenanceActiveTab');
-  if (activeTabId) {
-    const activeTab = document.getElementById(activeTabId);
-    if (activeTab) {
-      const tab = new bootstrap.Tab(activeTab);
-      tab.show();
-    }
-  }
-  
-  // Initialize tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-  
-  // Quick maintenance form validation
-  const quickForm = document.querySelector('#quickMaintenanceModal form');
-  if (quickForm) {
-    quickForm.addEventListener('submit', function(e) {
-      const vehicleId = this.querySelector('[name="maintenance[vehicle_id]"]').value;
-      const serviceType = this.querySelector('[name="maintenance[service_type]"]').value;
-      
-      if (!vehicleId || !serviceType) {
-        e.preventDefault();
-        alert('Please select a vehicle and service type.');
-        return false;
-      }
-    });
-  }
-  
-  // Highlight overdue maintenance rows
-  const overdueRows = document.querySelectorAll('tr.table-danger');
-  overdueRows.forEach(row => {
-    row.classList.add('urgent-maintenance');
-  });
-  
+
   // Auto-refresh page every 5 minutes for real-time updates
   setTimeout(() => {
     window.location.reload();
-  }, 300000); // 5 minutes
-  
+  }, 300000);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + N for new maintenance
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-      e.preventDefault();
-      const modal = new bootstrap.Modal(document.getElementById('quickMaintenanceModal'));
-      modal.show();
-    }
-    
     // Ctrl/Cmd + F for focus search
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
       const searchInput = document.querySelector('input[name="query"]');
-      if (searchInput) {
-        searchInput.focus();
-      }
+      if (searchInput) searchInput.focus();
     }
   });
-  
-  // Print maintenance report
-  const printBtn = document.getElementById('printReportBtn');
-  if (printBtn) {
-    printBtn.addEventListener('click', function() {
-      window.print();
-    });
-  }
 });
 </script>

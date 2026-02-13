@@ -325,8 +325,13 @@ module Vmcott
                 type: 'text/csv'
     end
     
-    # EXPORT REPORT FUNCTIONALITY - FIXED for XLSX
+    # EXPORT REPORT FUNCTIONALITY - FIXED for XLSX and PDF
     def export_report
+      # Set default dates for the report
+      @start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : 30.days.ago.to_date
+      @end_date = params[:end_date].present? ? Date.parse(params[:end_date]) : Date.today
+      @agency = current_user.agency || Agency.find_by(code: 'VMCOTT')
+      
       @parts = Part.includes(:supplier)
       
       # Apply filters
@@ -354,6 +359,20 @@ module Vmcott
                              "%#{params[:search]}%", "%#{params[:search]}%")
       end
       
+      # Calculate statistics for the PDF
+      @total_stock_value = @parts.sum { |p| p.stock_value || 0 }
+      @low_stock_count = @parts.count { |p| p.needs_reorder? && p.current_stock > 0 }
+      @out_of_stock_count = @parts.count { |p| p.current_stock == 0 }
+      @low_stock_parts = @parts.select { |p| p.needs_reorder? }
+      
+      # Get recent transactions if requested
+      if params[:include_transactions] == "1"
+        @transactions = InventoryTransaction
+          .where(created_at: @start_date.beginning_of_day..@end_date.end_of_day)
+          .order(created_at: :desc)
+          .limit(50)
+      end
+      
       report_type = params[:type] || 'full'
       
       respond_to do |format|
@@ -374,8 +393,6 @@ module Vmcott
         end
         
         format.xlsx do
-          # Simple XLSX export using RubyXL gem
-          # Make sure you have gem 'rubyXL' in your Gemfile
           filename = case report_type
                      when 'low_stock' then "low-stock-report-#{Date.today}.xlsx"
                      when 'valuation' then "inventory-valuation-#{Date.today}.xlsx"
@@ -383,7 +400,6 @@ module Vmcott
                      else "full-inventory-#{Date.today}.xlsx"
                      end
           
-          # Create a simple workbook
           p = Axlsx::Package.new
           wb = p.workbook
           
@@ -428,12 +444,14 @@ module Vmcott
           @report_type = report_type
           @generated_at = Time.current
           
+          # FIXED: Use the correct template name without .pdf extension
           pdf = WickedPdf.new.pdf_from_string(
             render_to_string(
-              template: 'vmcott/inventory/export_report.pdf.erb',
-              layout: 'pdf.html'
+              template: 'vmcott/inventory/export_report',  # ← Remove .pdf from here
+              layout: 'pdf'
             ),
-            margin: { top: 10, bottom: 10, left: 10, right: 10 }
+            margin: { top: 10, bottom: 10, left: 10, right: 10 },
+            orientation: 'landscape'
           )
           
           filename = case report_type

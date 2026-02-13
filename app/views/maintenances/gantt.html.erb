@@ -1,233 +1,717 @@
-<!-- app/views/maintenances/gantt.html.erb -->
+<!-- File: app/views/maintenances/gantt.html.erb – PTSC MAINTENANCE TIMELINE (VIEW ONLY) -->
+
 <%= content_for :gantt_page do %>
   <!-- This marks the page as a Gantt page -->
 <% end %>
 
-<div class="container-fluid py-4">
-  <!-- Debug Info -->
-  <% if Rails.env.development? %>
-    <div class="alert alert-info mb-4">
-      <h5 class="alert-heading">Gantt Chart Status</h5>
-      <p><strong>Maintenances found:</strong> <%= @maintenances.count %></p>
-      <p><strong>Gantt tasks:</strong> <%= @gantt_tasks&.count || 0 %></p>
-      <p><strong>Service Owners:</strong> <%= @service_owners&.join(", ") || "None" %></p>
-      <p><strong>Data available:</strong> <%= @gantt_json.present? %></p>
-    </div>
-  <% end %>
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  agency_code = current_user&.agency&.code.to_s.upcase
+  can_write_maintenance = current_user&.admin? || agency_code == "VMCOTT"
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<style>
+  body.gantt-page {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: auto !important;
+    background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* TT Flag Stripe */
+  .tt-flag-stripe {
+    display: flex;
+    flex-direction: column;
+    width: 8px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .stripe-red { background-color: #c8102e; }
+  .stripe-white { 
+    background-color: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  .stripe-black { background-color: #000000; }
+
+  /* TT Flag Indicators */
+  .tt-flag-indicator {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .tt-dot-red {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #c8102e;
+  }
+
+  .tt-dot-white {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+
+  .tt-dot-black {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #000000;
+  }
+
+  .tt-flag-mini {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .flag-red, .flag-white, .flag-black {
+    width: 12px;
+    height: 12px;
+  }
+
+  .flag-red { background-color: #c8102e; }
+  .flag-white { 
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+  .flag-black { background-color: #000000; }
+
+  /* PTSC Logo */
+  .ptsc-tt-logo-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+  }
+
+  .ptsc-tt-logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #0033a0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffb81c;
+  }
+
+  .ptsc-tt-title {
+    color: #0033a0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .tt-flag-badge {
+    background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .text-ptsc-blue {
+    color: #0033a0 !important;
+  }
+
+  /* Buttons */
+  .ptsc-primary-btn {
+    background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+    color: #0033a0 !important;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 100px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(255, 184, 28, 0.2);
+  }
+
+  .ptsc-primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(255, 184, 28, 0.3);
+    color: #0033a0 !important;
+    background: linear-gradient(135deg, #ffd700 0%, #ffb81c 100%);
+  }
+
+  .ptsc-outline-btn {
+    background: white;
+    color: #0033a0 !important;
+    border: 1px solid rgba(0, 51, 160, 0.2);
+    padding: 0.6rem 1.2rem;
+    border-radius: 100px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .ptsc-outline-btn:hover {
+    background: rgba(0, 51, 160, 0.04);
+    border-color: #0033a0;
+    color: #0033a0 !important;
+  }
+
+  /* KPI Cards with Icon Boxes */
+  .ptsc-kpi-card {
+    transition: none;
+    border: 1px solid rgba(0, 0, 0, 0.03) !important;
+  }
+
+  .ptsc-icon-circle {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .ptsc-icon-circle-sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bg-ptsc-blue-light {
+    background: rgba(0, 51, 160, 0.08);
+  }
+
+  /* Filter Card */
+  .ptsc-filter-card {
+    border: 1px solid rgba(0, 51, 160, 0.08) !important;
+  }
+
+  .ptsc-search-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .ptsc-search-icon {
+    position: absolute;
+    left: 16px;
+    z-index: 10;
+  }
+
+  .ptsc-search-input {
+    padding-left: 48px !important;
+    border-radius: 100px !important;
+    border: 1px solid rgba(0, 51, 160, 0.15) !important;
+    height: 48px;
+  }
+
+  .ptsc-search-input:focus {
+    border-color: #0033a0 !important;
+    box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+  }
+
+  .ptsc-select-wrapper {
+    position: relative;
+  }
+
+  .ptsc-select {
+    border-radius: 100px !important;
+    border: 1px solid rgba(0, 51, 160, 0.15) !important;
+    height: 48px;
+    padding-right: 40px;
+    appearance: none;
+  }
+
+  .ptsc-select:focus {
+    border-color: #0033a0 !important;
+    box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+  }
+
+  .select-arrow {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #0033a0;
+    pointer-events: none;
+  }
+
+  .ptsc-apply-btn {
+    background: #0033a0;
+    color: white;
+    border: none;
+    padding: 0.6rem 1.5rem;
+    border-radius: 100px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    height: 48px;
+  }
+
+  .ptsc-apply-btn:hover {
+    background: #002070;
+    color: white;
+  }
+
+  .ptsc-clear-btn {
+    background: white;
+    color: #6c757d;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 0.6rem 1.5rem;
+    border-radius: 100px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px;
+  }
+
+  .ptsc-clear-btn:hover {
+    background: #f8f9fa;
+    color: #6c757d;
+  }
+
+  /* Gantt Container */
+  #ganttContainer { 
+    border-radius: 16px; 
+    overflow: hidden; 
+    border: 1px solid rgba(0, 51, 160, 0.08);
+  }
+
+  .gantt-today-marker .gantt_marker_content {
+    background: rgba(200, 16, 46, 0.1);
+    border-left: 2px solid #c8102e;
+  }
+
+  .gantt-weekend { background: rgba(200, 16, 46, 0.02); }
+
+  .gantt_task_line { 
+    border-radius: 999px !important; 
+    box-shadow: 0 2px 8px rgba(0, 51, 160, 0.12); 
+  }
+  
+  .gantt_task_content { 
+    padding: 0 10px; 
+    font-weight: 600; 
+    font-size: 0.85rem;
+  }
+  
+  .gantt-vehicle-bar .gantt_task_content { opacity: 0.85; }
+  .gantt-overdue-bar { outline: 2px solid #c8102e; }
+  .gantt-completed-bar { filter: saturate(1.05); }
+  .gantt-pending-bar .gantt_task_content { color: #1f2d3d; }
+  .gantt-progress-bar { box-shadow: 0 0 0 2px rgba(255, 184, 28, 0.5); }
+  .gantt_task_line:hover { opacity: 0.9; }
+
+  .gantt_grid_scale, .gantt_grid_head_cell {
+    background-color: rgba(255, 184, 28, 0.04);
+    color: #0033a0;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-right: 1px solid rgba(0, 51, 160, 0.1);
+    border-bottom: 1px solid rgba(0, 51, 160, 0.1);
+  }
+
+  .gantt_grid_data .gantt_row { 
+    border-bottom: 1px solid rgba(0, 51, 160, 0.05); 
+    transition: background-color 0.2s; 
+  }
+  
+  .gantt_grid_data .gantt_row.odd { background-color: rgba(255, 184, 28, 0.02); }
+  .gantt_grid_data .gantt_row:hover { background-color: rgba(255, 184, 28, 0.05); }
+
+  .gantt-row { background: transparent; }
+
+  /* Legend */
+  .legend { font-size: 0.875rem; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+
+  /* Footer */
+  .ptsc-gantt-footer {
+    padding: 1rem 0;
+    border-top: 1px solid rgba(0, 51, 160, 0.1);
+  }
+
+  .tt-flag-stripe-small {
+    display: flex;
+    gap: 2px;
+  }
+
+  .tt-flag-stripe-small .stripe-red,
+  .tt-flag-stripe-small .stripe-white,
+  .tt-flag-stripe-small .stripe-black {
+    width: 4px;
+    height: 24px;
+    border-radius: 1px;
+  }
+
+  .tt-footer-emblem {
+    font-size: 1.2rem;
+    opacity: 0.7;
+  }
+
+  /* Table Styles */
+  .ptsc-table-card {
+    border: 1px solid rgba(0, 51, 160, 0.08) !important;
+    overflow: hidden;
+  }
+
+  .ptsc-table thead th {
+    background: rgba(255, 184, 28, 0.04);
+    color: #0033a0;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1rem;
+    border-bottom: 2px solid rgba(0, 51, 160, 0.1);
+  }
+
+  .ptsc-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 51, 160, 0.05);
+  }
+
+  .ptsc-table tbody tr:hover {
+    background: rgba(255, 184, 28, 0.02);
+  }
+
+  /* Action Buttons - Only View remains */
+  .ptsc-view-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: white;
+    border: 1px solid rgba(0, 51, 160, 0.15);
+    color: #0033a0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+  }
+
+  .ptsc-view-btn:hover {
+    background: #0033a0;
+    color: white;
+    border-color: #0033a0;
+  }
+
+  /* Empty State */
+  .ptsc-empty-icon {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 184, 28, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+  }
+
+  /* Badge overrides */
+  .badge {
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  /* Import Inter Font */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+</style>
+
+<div class="container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC STYLE WITH FLAG -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
     <div>
-      <h1 class="h2 mb-1">Maintenance Schedule Gantt Chart</h1>
-      <p class="text-muted mb-0">Interactive timeline with drag-and-drop scheduling</p>
-    </div>
-    <div class="d-flex gap-2">
-      <%= link_to maintenance_dashboard_vehicles_path, 
-            class: "btn btn-outline-primary d-flex align-items-center gap-2" do %>
-        <i class="bi bi-tools me-2"></i>Maintenance Dashboard
-      <% end %>
-      <%= link_to new_maintenance_path,
-            class: "btn btn-primary d-flex align-items-center gap-2" do %>
-        <i class="bi bi-plus-circle me-2"></i>New Maintenance
-      <% end %>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with GANTT ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-chart-gantt fa-2x"></i>
+          </div>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Maintenance Timeline</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-calendar-alt me-1"></i> Gantt Chart View</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+            </span>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-tasks me-1"></i> <%= @maintenances.count %> tasks
+            </span>
+            <% unless can_write_maintenance %>
+              <span class="badge bg-secondary rounded-pill ms-2 px-3 py-1">Read-only</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Enhanced Filters Card -->
-  <div class="card shadow-sm mb-4 card-hover">
-    <div class="card-body p-3">
-      <%= form_with url: gantt_path, method: :get, local: true, class: "row g-2 align-items-center", id: "ganttFilters" do %>
-        <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">View Mode</label>
-          <select name="view_mode" id="viewMode" class="form-select form-select-sm auto-submit">
-            <option value="day" <%= 'selected' if params[:view_mode] == 'day' %>>Day View</option>
-            <option value="week" <%= 'selected' if params[:view_mode] == 'week' %>>Week View</option>
-            <option value="month" <%= params[:view_mode].blank? || params[:view_mode] == 'month' ? 'selected' : '' %>>Month View</option>
-            <option value="quarter" <%= 'selected' if params[:view_mode] == 'quarter' %>>Quarter View</option>
-          </select>
+  <!-- FILTER CARD - PTSC STYLE -->
+  <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+          <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
         </div>
-        
+        <h5 class="fw-bold mb-0">Timeline Filters</h5>
+        <span class="tt-flag-mini ms-2">
+          <span class="flag-red"></span>
+          <span class="flag-white"></span>
+          <span class="flag-black"></span>
+        </span>
+      </div>
+
+      <%= form_with url: gantt_path, method: :get, local: true, class: "row g-3 align-items-center", id: "ganttFilters", data: { turbo_frame: "_top" } do %>
         <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Date Range</label>
-          <select name="date_range" id="dateRange" class="form-select form-select-sm auto-submit">
-            <option value="all_time" <%= 'selected' if params[:date_range] == 'all_time' %>>All Time</option>
-            
-            <optgroup label="Past">
-              <option value="last_7_days" <%= 'selected' if params[:date_range] == 'last_7_days' %>>Last 7 Days</option>
-              <option value="last_30_days" <%= 'selected' if params[:date_range] == 'last_30_days' %>>Last 30 Days</option>
-              <option value="last_3_months" <%= 'selected' if params[:date_range] == 'last_3_months' %>>Last 3 Months</option>
-              <option value="last_6_months" <%= 'selected' if params[:date_range] == 'last_6_months' %>>Last 6 Months</option>
-              <option value="last_year" <%= 'selected' if params[:date_range] == 'last_year' %>>Last Year</option>
-            </optgroup>
-            
-            <optgroup label="Future">
-              <option value="next_7_days" <%= 'selected' if params[:date_range] == 'next_7_days' %>>Next 7 Days</option>
-              <option value="next_30_days" <%= 'selected' if params[:date_range] == 'next_30_days' || params[:date_range] == '30' %>>Next 30 Days</option>
-              <option value="next_3_months" <%= 'selected' if params[:date_range] == 'next_3_months' || params[:date_range] == '90' %>>Next 3 Months</option>
-              <option value="next_6_months" <%= 'selected' if params[:date_range] == 'next_6_months' || params[:date_range] == '180' %>>Next 6 Months</option>
-              <option value="next_year" <%= 'selected' if params[:date_range] == 'next_year' || params[:date_range] == '365' %>>Next Year</option>
-            </optgroup>
-            
-            <option value="custom" <%= 'selected' if params[:date_range] == 'custom' %>>Custom Range</option>
-          </select>
+          <div class="ptsc-select-wrapper">
+            <select name="view_mode" id="viewMode" class="ptsc-select form-select form-select-sm auto-submit">
+              <option value="day" <%= 'selected' if params[:view_mode] == 'day' %>>Day View</option>
+              <option value="week" <%= 'selected' if params[:view_mode] == 'week' %>>Week View</option>
+              <option value="month" <%= params[:view_mode].blank? || params[:view_mode] == 'month' ? 'selected' : '' %>>Month View</option>
+              <option value="quarter" <%= 'selected' if params[:view_mode] == 'quarter' %>>Quarter View</option>
+            </select>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
-        
+
+        <div class="col-md-2">
+          <div class="ptsc-select-wrapper">
+            <select name="date_range" id="dateRange" class="ptsc-select form-select form-select-sm auto-submit">
+              <option value="all_time" <%= 'selected' if params[:date_range] == 'all_time' %>>All Time</option>
+              <optgroup label="Past">
+                <option value="last_7_days" <%= 'selected' if params[:date_range] == 'last_7_days' %>>Last 7 Days</option>
+                <option value="last_30_days" <%= 'selected' if params[:date_range] == 'last_30_days' %>>Last 30 Days</option>
+                <option value="last_3_months" <%= 'selected' if params[:date_range] == 'last_3_months' %>>Last 3 Months</option>
+                <option value="last_6_months" <%= 'selected' if params[:date_range] == 'last_6_months' %>>Last 6 Months</option>
+                <option value="last_year" <%= 'selected' if params[:date_range] == 'last_year' %>>Last Year</option>
+              </optgroup>
+              <optgroup label="Future">
+                <option value="next_7_days" <%= 'selected' if params[:date_range] == 'next_7_days' %>>Next 7 Days</option>
+                <option value="next_30_days" <%= 'selected' if params[:date_range] == 'next_30_days' || params[:date_range] == '30' %>>Next 30 Days</option>
+                <option value="next_3_months" <%= 'selected' if params[:date_range] == 'next_3_months' || params[:date_range] == '90' %>>Next 3 Months</option>
+                <option value="next_6_months" <%= 'selected' if params[:date_range] == 'next_6_months' || params[:date_range] == '180' %>>Next 6 Months</option>
+                <option value="next_year" <%= 'selected' if params[:date_range] == 'next_year' || params[:date_range] == '365' %>>Next Year</option>
+              </optgroup>
+            </select>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
+        </div>
+
         <div class="col-md-3" id="customDateRange" style="display: <%= params[:date_range] == 'custom' ? 'block' : 'none' %>;">
           <div class="row g-1">
             <div class="col-6">
-              <label class="form-label small fw-bold mb-1">Start Date</label>
-              <input type="date" name="start_date" class="form-control form-control-sm auto-submit-date" 
-                     value="<%= params[:start_date] || Date.today.strftime('%Y-%m-%d') %>">
+              <div class="ptsc-search-group">
+                <span class="ptsc-search-icon">
+                  <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+                </span>
+                <input type="date" name="start_date" class="ptsc-search-input form-control form-control-sm auto-submit-date"
+                       value="<%= params[:start_date] || Date.today.strftime('%Y-%m-%d') %>">
+              </div>
             </div>
             <div class="col-6">
-              <label class="form-label small fw-bold mb-1">End Date</label>
-              <input type="date" name="end_date" class="form-control form-control-sm auto-submit-date" 
-                     value="<%= params[:end_date] || (Date.today + 90.days).strftime('%Y-%m-%d') %>">
+              <div class="ptsc-search-group">
+                <span class="ptsc-search-icon">
+                  <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+                </span>
+                <input type="date" name="end_date" class="ptsc-search-input form-control form-control-sm auto-submit-date"
+                       value="<%= params[:end_date] || (Date.today + 90.days).strftime('%Y-%m-%d') %>">
+              </div>
             </div>
           </div>
         </div>
-        
+
         <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Service Owner</label>
-          <%= select_tag :owner,
-                options_for_select(["All Owners"] + @service_owners, params[:owner] || "All Owners"),
-                class: "form-select form-select-sm auto-submit" %>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :status,
+                  options_for_select(["All Statuses", "Pending", "Completed", "In Progress", "Overdue"], params[:status] || "All Statuses"),
+                  class: "ptsc-select form-select form-select-sm auto-submit" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
-        
+
         <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Status</label>
-          <%= select_tag :status,
-                options_for_select(["All Statuses", "Pending", "Completed", "In Progress", "Overdue"], params[:status] || "All Statuses"),
-                class: "form-select form-select-sm auto-submit" %>
-        </div>
-        
-        <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Vehicle Search</label>
-          <div class="input-group input-group-sm">
-            <%= text_field_tag :vehicle_search, params[:vehicle_search], 
-                  class: "form-control auto-submit-vehicle",
-                  placeholder: "Search by reg, make, model...",
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= text_field_tag :vehicle_search, params[:vehicle_search],
+                  class: "ptsc-search-input form-control auto-submit-vehicle",
+                  placeholder: "Search vehicle...",
                   id: "vehicleSearch" %>
-            <button class="btn btn-outline-secondary" type="button" id="clearVehicleSearch" title="Clear search">
-              <i class="bi bi-x"></i>
-            </button>
           </div>
         </div>
-        
+
         <div class="col-md-2">
-          <label class="form-label small fw-bold mb-1">Specific Vehicle</label>
-          <%= select_tag :vehicle_id,
-                options_for_select([["All Vehicles", ""]] + @vehicles_for_filter.map { |v| ["#{v.make} #{v.model} (#{v.registration_number})", v.id] }, 
-                                  params[:vehicle_id] || ""),
-                class: "form-select form-select-sm auto-submit",
-                id: "vehicleSelect" %>
-        </div>
-        
-        <div class="col-md-2 d-flex align-items-end">
-          <div class="d-flex gap-2 w-100">
-            <%= submit_tag "Apply Filters", class: "btn btn-primary btn-sm flex-grow-1", id: "applyFilters" %>
-            <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm">Reset</button>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :vehicle_id,
+                  options_for_select(
+                    [["All Vehicles", ""]] + @vehicles_for_filter.map { |v|
+                      label_id = v.registration_number.presence || v.license_plate.presence || "No ID"
+                      ["#{v.make} #{v.model} (#{label_id})", v.id]
+                    },
+                    params[:vehicle_id].to_s
+                  ),
+                  class: "ptsc-select form-select form-select-sm auto-submit",
+                  id: "vehicleSelect" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
           </div>
         </div>
-        
-        <!-- Hidden fields to preserve vehicle_id when using search -->
-        <%= hidden_field_tag :vehicle_id, params[:vehicle_id] if params[:vehicle_id].present? %>
+
+        <div class="col-md-1 d-flex align-items-end">
+          <div class="d-flex gap-2 w-100">
+            <button type="button" id="resetFilters" class="ptsc-clear-btn w-100">Reset</button>
+          </div>
+        </div>
       <% end %>
     </div>
   </div>
 
-  <!-- Enhanced Statistics Cards -->
-  <div class="row mb-4">
+  <!-- KPI GRID - PTSC STYLE WITH ICON BOXES -->
+  <div class="row g-4 mb-4">
     <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-              <i class="bi bi-tools text-primary fs-4"></i>
-            </div>
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h3 class="mb-0"><%= @maintenances.count %></h3>
-              <p class="text-muted mb-0 small">Total Tasks</p>
+              <span class="text-muted text-uppercase small fw-semibold">Total Tasks</span>
+              <div class="display-6 fw-bold"><%= @maintenances.count %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-ptsc-blue-light">
+              <i class="fas fa-tasks fa-lg text-ptsc-blue"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-2 col-md-4">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Pending</span>
+              <div class="display-6 fw-bold" style="color: <%= ptsc_yellow %>;"><%= @maintenances.where(status: "Pending").count %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-warning bg-opacity-10">
+              <i class="fas fa-clock fa-lg text-warning"></i>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-              <i class="bi bi-clock text-warning fs-4"></i>
-            </div>
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h3 class="mb-0"><%= @maintenances.where(status: "Pending").count %></h3>
-              <p class="text-muted mb-0 small">Pending</p>
+              <span class="text-muted text-uppercase small fw-semibold">Completed</span>
+              <div class="display-6 fw-bold text-success"><%= @maintenances.where(status: "Completed").count %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-success bg-opacity-10">
+              <i class="fas fa-check-circle fa-lg text-success"></i>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-              <i class="bi bi-check-circle text-success fs-4"></i>
-            </div>
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h3 class="mb-0"><%= @maintenances.where(status: "Completed").count %></h3>
-              <p class="text-muted mb-0 small">Completed</p>
+              <span class="text-muted text-uppercase small fw-semibold">Overdue</span>
+              <div class="display-6 fw-bold text-danger"><%= @overdue_count || 0 %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-danger bg-opacity-10">
+              <i class="fas fa-exclamation-triangle fa-lg text-danger"></i>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-              <i class="bi bi-exclamation-triangle text-danger fs-4"></i>
-            </div>
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h3 class="mb-0"><%= @overdue_count || 0 %></h3>
-              <p class="text-muted mb-0 small">Overdue</p>
+              <span class="text-muted text-uppercase small fw-semibold">Vehicles</span>
+              <div class="display-6 fw-bold text-secondary"><%= @vehicles_count || 0 %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-secondary bg-opacity-10">
+              <i class="fas fa-bus fa-lg text-secondary"></i>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-              <i class="bi bi-truck text-info fs-4"></i>
-            </div>
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-              <h3 class="mb-0"><%= @vehicles_count || 0 %></h3>
-              <p class="text-muted mb-0 small">Vehicles</p>
+              <span class="text-muted text-uppercase small fw-semibold">Total Cost</span>
+              <div class="h5 fw-bold mb-0"><%= number_to_currency(@total_cost || 0, unit: "TTD ", precision: 0) %></div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-xl-2 col-md-4">
-      <div class="card border-0 shadow-sm h-100 card-hover">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center">
-            <div class="rounded-circle bg-dark bg-opacity-10 p-3 me-3">
-              <i class="bi bi-currency-dollar text-dark fs-4"></i>
-            </div>
-            <div>
-              <h3 class="mb-0"><%= number_to_currency(@total_cost || 0, unit: "TTD ") %></h3>
-              <p class="text-muted mb-0 small">Total Cost</p>
+            <div class="ptsc-icon-circle bg-info bg-opacity-10">
+              <i class="fas fa-dollar-sign fa-lg text-info"></i>
             </div>
           </div>
         </div>
@@ -236,53 +720,68 @@
   </div>
 
   <% if @gantt_tasks&.any? %>
-    <!-- Store data for JavaScript -->
-    <div id="ganttData" style="display: none;" data-gantt-tasks='<%= @gantt_json %>'></div>
+    <div id="ganttData" style="display:none;" data-gantt-tasks='<%= @gantt_json %>' data-can-write="<%= can_write_maintenance %>"></div>
 
-    <!-- Enhanced Gantt Container -->
-    <div class="card shadow-sm border-0 mb-4">
-      <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Maintenance Timeline</h5>
+    <!-- GANTT CHART CARD -->
+    <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-header bg-transparent pt-4 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
-          <div class="legend d-flex gap-3">
+          <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+            <i class="fas fa-chart-gantt text-ptsc-blue"></i>
+          </div>
+          <h5 class="fw-bold mb-0">Maintenance Timeline</h5>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="legend d-flex gap-3 flex-wrap">
             <div class="d-flex align-items-center gap-1">
-              <div class="legend-color" style="background-color: #6c757d;"></div>
+              <div class="legend-color" style="background-color:#6c757d;"></div>
               <span class="small text-muted">Vehicle</span>
             </div>
             <div class="d-flex align-items-center gap-1">
-              <div class="legend-color" style="background-color: #198754;"></div>
+              <div class="legend-color" style="background-color:#198754;"></div>
               <span class="small text-muted">Completed</span>
             </div>
             <div class="d-flex align-items-center gap-1">
-              <div class="legend-color" style="background-color: #ffc107;"></div>
+              <div class="legend-color" style="background-color:<%= ptsc_yellow %>;"></div>
               <span class="small text-muted">Pending</span>
             </div>
             <div class="d-flex align-items-center gap-1">
-              <div class="legend-color" style="background-color: #dc3545;"></div>
+              <div class="legend-color" style="background-color:<%= tt_red %>;"></div>
               <span class="small text-muted">Overdue</span>
             </div>
           </div>
-          <button class="btn btn-sm btn-outline-secondary me-2" onclick="if (window.gantt) gantt.fitContent();">
-            <i class="bi bi-zoom-in"></i> Fit Content
+
+          <button class="ptsc-outline-btn" type="button" id="fitBtn" style="padding: 0.4rem 1rem;" title="Fit timeline to show all tasks">
+            <i class="fas fa-expand me-1"></i> Fit
           </button>
-          <button class="btn btn-sm btn-outline-secondary" id="fullscreenBtn">
-            <i class="bi bi-arrows-fullscreen"></i>
+          <button class="ptsc-outline-btn" type="button" id="fullscreenBtn" style="padding: 0.4rem 1rem;" title="Enter fullscreen mode">
+            <i class="fas fa-expand-arrows-alt me-1"></i>
           </button>
         </div>
       </div>
       <div class="card-body p-0">
-        <div id="ganttContainer" style="width: 100%; height: 600px;"></div>
+        <div id="ganttContainer" style="width:100%; height:600px;"></div>
       </div>
     </div>
 
-    <!-- Maintenance List -->
-    <div class="card shadow-sm">
-      <div class="card-header bg-light">
-        <h5 class="mb-0">Maintenance Details</h5>
+    <!-- MAINTENANCE DETAILS TABLE - VIEW ONLY -->
+    <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-transparent pt-4 px-4">
+        <div class="d-flex align-items-center gap-2">
+          <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+            <i class="fas fa-list text-ptsc-blue"></i>
+          </div>
+          <h5 class="fw-bold mb-0">Maintenance Details</h5>
+          <span class="tt-flag-mini ms-2">
+            <span class="flag-red"></span>
+            <span class="flag-white"></span>
+            <span class="flag-black"></span>
+          </span>
+        </div>
       </div>
-      <div class="card-body">
+      <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover">
+          <table class="ptsc-table table align-middle mb-0">
             <thead>
               <tr>
                 <th>Vehicle</th>
@@ -292,7 +791,7 @@
                 <th>Status</th>
                 <th>Urgency</th>
                 <th>Cost (TTD)</th>
-                <th>Actions</th>
+                <th class="text-center">View</th>
               </tr>
             </thead>
             <tbody>
@@ -303,7 +802,7 @@
                       <%= maintenance.vehicle&.make %> <%= maintenance.vehicle&.model %>
                     </div>
                     <div class="small text-muted">
-                      <%= maintenance.vehicle&.registration_number %>
+                      <%= maintenance.vehicle&.registration_number.presence || maintenance.vehicle&.license_plate.presence || "No ID" %>
                     </div>
                   </td>
                   <td>
@@ -312,50 +811,33 @@
                       <div class="small text-muted"><%= maintenance.category %></div>
                     <% end %>
                   </td>
+                  <td><%= format_date(maintenance.start_date, "%b %d, %Y") %></td>
+                  <td><%= format_date(maintenance.end_date, "%b %d, %Y") %></td>
                   <td>
-                    <%= format_date(maintenance.start_date, "%b %d, %Y") %>
-                  </td>
-                  <td>
-                    <%= format_date(maintenance.end_date, "%b %d, %Y") %>
-                  </td>
-                  <td>
-                    <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>">
+                    <span class="badge <%= maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %> rounded-pill px-3 py-1">
                       <%= maintenance.status %>
                     </span>
                     <% if maintenance.overdue? %>
-                      <span class="badge bg-danger ms-1">Overdue</span>
+                      <span class="badge bg-danger rounded-pill px-3 py-1 ms-1">Overdue</span>
                     <% end %>
                   </td>
                   <td>
-                    <span class="badge bg-<%= maintenance.urgency == 'high' ? 'danger' : maintenance.urgency == 'medium' ? 'warning' : 'secondary' %>">
+                    <span class="badge rounded-pill px-3 py-1" style="background: <%= 
+                      case maintenance.urgency.to_s
+                      when "high", "emergency" then tt_red
+                      when "medium" then ptsc_yellow
+                      else "#6c757d"
+                      end %>; color: white;">
                       <%= maintenance.urgency&.titleize || "Normal" %>
                     </span>
                   </td>
-                  <td class="fw-medium">
-                    <%= number_to_currency(maintenance.cost || 0, unit: "TTD ") %>
-                  </td>
-                  <td>
-                    <div class="d-flex gap-1">
-                      <%= link_to edit_maintenance_path(maintenance), 
-                            class: "btn btn-sm btn-outline-warning", 
-                            title: "Edit" do %>
-                        <i class="bi bi-pencil"></i>
-                      <% end %>
-                      <%= link_to maintenance_path(maintenance), 
-                            class: "btn btn-sm btn-outline-primary",
-                            title: "View" do %>
-                        <i class="bi bi-eye"></i>
-                      <% end %>
-                      <% if maintenance.status == 'Pending' %>
-                        <%= link_to mark_completed_maintenance_path(maintenance),
-                              method: :patch,
-                              data: { confirm: "Mark as completed?" },
-                              class: "btn btn-sm btn-outline-success",
-                              title: "Mark Completed" do %>
-                          <i class="bi bi-check-circle"></i>
-                        <% end %>
-                      <% end %>
-                    </div>
+                  <td class="fw-medium"><%= number_to_currency(maintenance.cost || 0, unit: "TTD ") %></td>
+                  <td class="text-center">
+                    <%= link_to maintenance_path(maintenance),
+                          class: "ptsc-view-btn",
+                          title: "View Details" do %>
+                      <i class="fas fa-eye"></i>
+                    <% end %>
                   </td>
                 </tr>
               <% end %>
@@ -365,480 +847,313 @@
       </div>
     </div>
 
-    <!-- Enhanced Gantt JavaScript -->
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 Starting Gantt initialization...');
+      // Initialize Gantt chart when everything is loaded
+      function initializeGanttChart() {
+        console.log("🚀 Starting Gantt initialization...");
         
-        // Function to check if Gantt is loaded
-        function checkGanttLoaded() {
-          if (typeof gantt !== 'undefined') {
-            console.log('✅ DHTMLX Gantt is loaded');
-            initializeGantt();
-            return true;
-          }
-          return false;
-        }
-        
-        // Try immediately
-        if (!checkGanttLoaded()) {
-          console.log('⏳ Gantt not loaded yet, waiting...');
-          // Try every 500ms for 5 seconds
-          let attempts = 0;
-          const maxAttempts = 10;
-          const interval = setInterval(function() {
-            attempts++;
-            if (checkGanttLoaded()) {
-              clearInterval(interval);
-            } else if (attempts >= maxAttempts) {
-              clearInterval(interval);
-              console.error('❌ Failed to load Gantt after', maxAttempts * 500, 'ms');
-              showError('Failed to load Gantt chart library. Please refresh the page.');
-            }
-          }, 500);
-        }
-        
-        // Initialize auto-submit functionality
-        initializeAutoSubmit();
-        
-        // Initialize form toggles
-        const dateRangeSelect = document.getElementById('dateRangeSelect');
-        const customDateRange = document.getElementById('customDateRange');
-        
-        if (dateRangeSelect && customDateRange) {
-          dateRangeSelect.addEventListener('change', function() {
-            customDateRange.style.display = this.value === 'custom' ? 'block' : 'none';
-          });
-        }
-        
-        // Fullscreen button
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const ganttContainer = document.getElementById('ganttContainer');
-        
-        if (fullscreenBtn && ganttContainer) {
-          fullscreenBtn.addEventListener('click', function() {
-            if (!document.fullscreenElement) {
-              ganttContainer.requestFullscreen().catch(err => {
-                console.log(`Error attempting fullscreen: ${err.message}`);
-              });
-            } else {
-              document.exitFullscreen();
-            }
-          });
-        }
-      });
-      
-      function initializeGantt() {
-        // Get data
-        const dataElement = document.getElementById('ganttData');
+        const dataElement = document.getElementById("ganttData");
         if (!dataElement) {
-          console.error('❌ No Gantt data element found');
-          showError('No data available');
+          console.error("❌ No ganttData element found");
           return;
         }
-        
+
         const rawData = dataElement.dataset.ganttTasks;
         if (!rawData) {
-          console.error('❌ No Gantt data found');
-          showError('No data available');
+          console.error("❌ No gantt tasks data found");
           return;
         }
-        
-        try {
-          const parsedData = JSON.parse(rawData);
-          console.log('✅ Data parsed successfully, tasks:', parsedData.data?.length || 0);
-          
-          // Enhanced Gantt configuration
-          gantt.config.date_format = "%Y-%m-%d %H:%i";
-          gantt.config.scale_height = 50;
-          gantt.config.row_height = 35;
-          gantt.config.bar_height = 20;
-          gantt.config.grid_width = 350;
-          
-          // Enhanced columns
-          gantt.config.columns = [
-            { name: "text", label: "Task", width: 250, tree: true },
-            { name: "start_date", label: "Start", align: "center", width: 100 },
-            { name: "end_date", label: "End", align: "center", width: 100 },
-            { 
-              name: "status", 
-              label: "Status", 
-              align: "center", 
-              width: 100, 
-              template: function(task) {
-                const status = task.details?.status || task.status || 'Pending';
-                let badgeClass = "badge bg-secondary";
-                if (status === "Completed") badgeClass = "badge bg-success";
-                if (status === "Pending") badgeClass = "badge bg-warning";
-                if (status === "In Progress") badgeClass = "badge bg-info";
-                return `<span class="${badgeClass}">${status}</span>`;
-              }
-            },
-            { 
-              name: "urgency", 
-              label: "Urgency", 
-              align: "center", 
-              width: 90,
-              template: function(task) {
-                const urgency = task.details?.urgency || task.urgency || 'normal';
-                let badgeClass = "badge bg-secondary";
-                if (urgency === "high" || urgency === "emergency") badgeClass = "badge bg-danger";
-                if (urgency === "medium") badgeClass = "badge bg-warning text-dark";
-                if (urgency === "low") badgeClass = "badge bg-primary";
-                return `<span class="${badgeClass}">${urgency}</span>`;
-              }
-            }
-          ];
-          
-          // Enhanced time scale
-          gantt.config.scales = [
-            { unit: "month", step: 1, format: "%F %Y" },
-            { unit: "week", step: 1, format: "Week #%W" }
-          ];
-          
-          // Enhanced tooltip
-          gantt.templates.tooltip_text = function(start, end, task) {
-            if (task.type === 'vehicle') {
-              return `<b>${task.text}</b><br/>Vehicle Group<br/>
-                      <b>Owner:</b> ${task.details?.service_owner || 'Unknown'}<br/>
-                      <b>Driver:</b> ${task.details?.current_driver || 'Unassigned'}`;
-            } else {
-              const overdueText = task.overdue ? '<br/><b style="color: #dc3545;">⚠️ OVERDUE</b>' : '';
-              return `
-                <b>${task.text}</b><br/>
-                <b>Vehicle:</b> ${task.details?.vehicle_name || 'Unknown'}<br/>
-                <b>Status:</b> ${task.status || 'Pending'}<br/>
-                <b>Urgency:</b> ${task.urgency || 'Normal'}<br/>
-                <b>Cost:</b> TTD ${task.details?.cost || '0'}<br/>
-                <b>Dates:</b> ${gantt.templates.tooltip_date_format(start)} - ${gantt.templates.tooltip_date_format(end)}
-                ${overdueText}
-              `;
-            }
-          };
-          
-          // Initialize and parse
-          gantt.init("ganttContainer");
-          gantt.parse(parsedData);
-          
-          // Handle task click to view maintenance
-          gantt.attachEvent("onTaskClick", function(id, e) {
-            const task = gantt.getTask(id);
-            if (task && task.details && task.details.maintenance_id) {
-              window.location.href = `/maintenances/${task.details.maintenance_id}`;
-            }
-            return true;
-          });
-          
-          // Handle task double click for editing
-          gantt.attachEvent("onTaskDblClick", function(id, e) {
-            const task = gantt.getTask(id);
-            if (task && task.details && task.details.maintenance_id) {
-              window.location.href = `/maintenances/${task.details.maintenance_id}/edit`;
-            }
-            return true;
-          });
-          
-          console.log('✅ Gantt chart loaded successfully!');
-          
-        } catch (error) {
-          console.error('❌ Error loading Gantt chart:', error);
-          showError('Error loading chart: ' + error.message);
+
+        const canWrite = (dataElement.dataset.canWrite === "true");
+
+        // Wait for gantt library to load
+        if (typeof gantt === "undefined") {
+          console.log("⏳ Waiting for gantt library...");
+          setTimeout(initializeGanttChart, 100);
+          return;
         }
-      }
-      
-      function showError(message) {
-        const container = document.getElementById('ganttContainer');
-        if (container) {
-          container.innerHTML = `
-            <div class="alert alert-danger m-4">
-              <h4>Error Loading Gantt Chart</h4>
-              <p>${message}</p>
-              <p>Please refresh the page or check the console for details.</p>
-            </div>
-          `;
+
+        console.log("✅ Gantt library loaded, parsing data...");
+
+        let parsedData;
+        try { 
+          parsedData = JSON.parse(rawData); 
+          console.log(`✅ Parsed ${parsedData.data?.length || 0} tasks`);
+        } catch (e) { 
+          console.error("❌ Bad gantt json:", e); 
+          return; 
         }
-      }
-      
-      function initializeAutoSubmit() {
-        const form = document.getElementById('ganttFilters');
-        if (!form) return;
+
+        // Gantt configuration
+        gantt.config.date_format = "%Y-%m-%d %H:%i";
+        gantt.config.scale_height = 50;
+        gantt.config.row_height = 35;
+        gantt.config.bar_height = 20;
+        gantt.config.grid_width = 350;
         
-        // Debounce function to prevent too many submissions
-        let debounceTimer;
-        function debounceSubmit(delay = 300) {
-          clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            // Clear vehicle_id if vehicle_search is used
-            const vehicleSearch = document.getElementById('vehicleSearch');
-            const vehicleSelect = document.getElementById('vehicleSelect');
-            if (vehicleSearch && vehicleSearch.value.trim() !== '') {
-              vehicleSelect.value = '';
+        // ✅ All users are read-only on the Gantt chart (no drag/drop)
+        gantt.config.readonly = true;
+
+        gantt.config.columns = [
+          { name: "text", label: "Task", width: 250, tree: true },
+          { name: "start_date", label: "Start", align: "center", width: 100 },
+          { name: "end_date", label: "End", align: "center", width: 100 },
+          {
+            name: "status",
+            label: "Status",
+            align: "center",
+            width: 100,
+            template: function(task) {
+              const status = (task.details && task.details.status) || task.status || "Pending";
+              let badgeClass = "badge bg-secondary";
+              if (status === "Completed") badgeClass = "badge bg-success";
+              if (status === "Pending") badgeClass = "badge bg-warning text-dark";
+              if (status === "In Progress") badgeClass = "badge bg-info";
+              return `<span class="${badgeClass} rounded-pill px-2 py-1">${status}</span>`;
             }
-            form.submit();
-          }, delay);
-        }
-        
-        // Auto-submit for dropdowns
-        const autoSubmitElements = document.querySelectorAll('.auto-submit');
-        autoSubmitElements.forEach(element => {
-          element.addEventListener('change', function() {
-            debounceSubmit(100);
-          });
+          },
+          {
+            name: "urgency",
+            label: "Urgency",
+            align: "center",
+            width: 90,
+            template: function(task) {
+              const urgency = (task.details && task.details.urgency) || task.urgency || "normal";
+              let badgeClass = "badge bg-secondary";
+              if (urgency === "high" || urgency === "emergency") badgeClass = "badge bg-danger";
+              if (urgency === "medium") badgeClass = "badge bg-warning text-dark";
+              if (urgency === "low") badgeClass = "badge bg-primary";
+              return `<span class="${badgeClass} rounded-pill px-2 py-1">${urgency}</span>`;
+            }
+          }
+        ];
+
+        // Default scales (month)
+        gantt.config.scales = [
+          { unit: "month", step: 1, format: "%F %Y" },
+          { unit: "week", step: 1, format: "Week #%W" }
+        ];
+
+        gantt.templates.tooltip_text = function(start, end, task) {
+          if (task.type === "vehicle") {
+            return `<b>${task.text}</b><br/>
+                    <b>Owner:</b> ${(task.details && task.details.service_owner) || "Unknown"}<br/>
+                    <b>Driver:</b> ${(task.details && task.details.current_driver) || "Unassigned"}`;
+          }
+
+          const status = task.status || (task.details && task.details.status) || "Pending";
+          const urgency = task.urgency || (task.details && task.details.urgency) || "Normal";
+          const cost = (task.details && task.details.cost) || "0";
+
+          const vehicleLabel =
+            (task.details && task.details.registration_number) ||
+            "Unknown";
+
+          const overdueText = task.overdue ? '<br/><b style="color:#c8102e;">⚠️ OVERDUE</b>' : '';
+
+          return `<b>${task.text}</b><br/>
+                  <b>Vehicle:</b> ${vehicleLabel}<br/>
+                  <b>Status:</b> ${status}<br/>
+                  <b>Urgency:</b> ${urgency}<br/>
+                  <b>Cost:</b> TTD ${cost}<br/>
+                  <b>Dates:</b> ${gantt.templates.tooltip_date_format(start)} - ${gantt.templates.tooltip_date_format(end)}
+                  ${overdueText}`;
+        };
+
+        gantt.templates.task_class = function(start, end, task) {
+          if (task.type === "vehicle") return "gantt-vehicle-bar";
+          if (task.overdue) return "gantt-overdue-bar";
+          if ((task.status || "").toLowerCase() === "completed") return "gantt-completed-bar";
+          if ((task.status || "").toLowerCase() === "pending") return "gantt-pending-bar";
+          if ((task.status || "").toLowerCase() === "in progress") return "gantt-progress-bar";
+          return "gantt-default-bar";
+        };
+
+        gantt.init("ganttContainer");
+        gantt.parse(parsedData);
+        console.log("✅ Gantt initialized successfully");
+
+        // Add today marker
+        const today = new Date();
+        gantt.addMarker({
+          start_date: today,
+          css: "gantt-today-marker",
+          text: "Today",
+          title: "Today: " + today.toDateString()
         });
-        
-        // Auto-submit for date inputs
-        const autoSubmitDateElements = document.querySelectorAll('.auto-submit-date');
-        autoSubmitDateElements.forEach(element => {
-          element.addEventListener('change', function() {
-            debounceSubmit(300);
-          });
+
+        // Highlight weekends
+        gantt.templates.timeline_cell_class = function(task, date) {
+          const day = date.getDay();
+          if (day === 0 || day === 6) return "gantt-weekend";
+          return "";
+        };
+
+        // Click to view maintenance
+        gantt.attachEvent("onTaskClick", function(id) {
+          const task = gantt.getTask(id);
+          if (task && task.details && task.details.maintenance_id) {
+            window.location.href = `/maintenances/${task.details.maintenance_id}`;
+          }
+          return true;
         });
+
+        // Double-click disabled for all users (read-only)
+        gantt.attachEvent("onTaskDblClick", function(id) {
+          // Just view on double-click as well
+          const task = gantt.getTask(id);
+          if (task && task.details && task.details.maintenance_id) {
+            window.location.href = `/maintenances/${task.details.maintenance_id}`;
+          }
+          return true;
+        });
+
+        // Button handlers
+        document.getElementById("fitBtn")?.addEventListener("click", () => {
+          gantt.fitContent();
+        });
+
+        const fullscreenBtn = document.getElementById("fullscreenBtn");
+        const ganttWrap = document.getElementById("ganttContainer");
+        fullscreenBtn?.addEventListener("click", () => {
+          if (!document.fullscreenElement) {
+            ganttWrap?.requestFullscreen?.();
+          } else {
+            document.exitFullscreen?.();
+          }
+        });
+
+        // View mode change
+        document.getElementById("viewMode")?.addEventListener("change", function() {
+          switch (this.value) {
+            case "day":
+              gantt.config.scales = [
+                { unit: "day", step: 1, format: "%d %F" },
+                { unit: "hour", step: 3, format: "%H:%i" }
+              ];
+              break;
+            case "week":
+              gantt.config.scales = [
+                { unit: "week", step: 1, format: "Week #%W" },
+                { unit: "day", step: 1, format: "%d" }
+              ];
+              break;
+            case "month":
+              gantt.config.scales = [
+                { unit: "month", step: 1, format: "%F %Y" },
+                { unit: "week", step: 1, format: "Week #%W" }
+              ];
+              break;
+            case "quarter":
+              gantt.config.scales = [
+                { unit: "month", step: 3, format: "%F %Y" },
+                { unit: "month", step: 1, format: "%b" }
+              ];
+              break;
+          }
+          gantt.render();
+        });
+      }
+
+      // Wait for DOM to be ready
+      document.addEventListener("DOMContentLoaded", function() {
+        console.log("📄 DOMContentLoaded - starting Gantt setup");
         
-        // Auto-submit for vehicle search with Enter key
-        const vehicleSearch = document.getElementById('vehicleSearch');
-        if (vehicleSearch) {
-          vehicleSearch.addEventListener('keyup', function(event) {
-            if (event.key === 'Enter') {
-              const vehicleSelect = document.getElementById('vehicleSelect');
-              if (vehicleSelect) vehicleSelect.value = '';
-              debounceSubmit(100);
-            } else if (this.value.trim() === '') {
-              debounceSubmit(500);
-            }
+        // Show/hide custom date range
+        const dateRange = document.getElementById("dateRange");
+        const customDateRange = document.getElementById("customDateRange");
+        if (dateRange && customDateRange) {
+          dateRange.addEventListener("change", function() {
+            customDateRange.style.display = this.value === "custom" ? "block" : "none";
           });
-          
-          // Also submit on blur if value changed
-          vehicleSearch.addEventListener('blur', function() {
-            if (this.dataset.originalValue !== this.value) {
-              const vehicleSelect = document.getElementById('vehicleSelect');
-              if (vehicleSelect) vehicleSelect.value = '';
-              debounceSubmit(300);
-            }
-          });
-          
-          // Store original value
-          vehicleSearch.dataset.originalValue = vehicleSearch.value;
         }
-        
-        // Clear vehicle search button
-        const clearVehicleSearch = document.getElementById('clearVehicleSearch');
-        if (clearVehicleSearch) {
-          clearVehicleSearch.addEventListener('click', function() {
-            const vehicleSearch = document.getElementById('vehicleSearch');
-            if (vehicleSearch) {
-              vehicleSearch.value = '';
-              const vehicleSelect = document.getElementById('vehicleSelect');
-              if (vehicleSelect) vehicleSelect.value = '';
-              form.submit();
-            }
-          });
-        }
-        
-        // Filter form toggle
-        const dateRange = document.getElementById('dateRange');
-        if (dateRange) {
-          dateRange.addEventListener('change', function() {
-            const customRange = document.getElementById('customDateRange');
-            if (this.value === 'custom') {
-              customRange.style.display = 'block';
-            } else {
-              customRange.style.display = 'none';
-              debounceSubmit(100);
-            }
-          });
-        }
-        
+
         // Reset filters
-        const resetFilters = document.getElementById('resetFilters');
-        if (resetFilters) {
-          resetFilters.addEventListener('click', function() {
-            window.location.href = '<%= gantt_path %>';
+        document.getElementById("resetFilters")?.addEventListener("click", () => {
+          window.location.href = "<%= gantt_path %>";
+        });
+
+        // Auto-submit filters
+        document.querySelectorAll(".auto-submit, .auto-submit-date").forEach((el) => {
+          el.addEventListener("change", () => {
+            setTimeout(() => {
+              const form = document.getElementById("ganttFilters");
+              if (form) form.submit();
+            }, 250);
           });
-        }
-        
-        // View mode toggle
-        const viewMode = document.getElementById('viewMode');
-        if (viewMode) {
-          viewMode.addEventListener('change', function() {
-            // Update Gantt scale based on view mode
-            if (window.gantt) {
-              switch(this.value) {
-                case 'day':
-                  gantt.config.scales = [
-                    { unit: "day", step: 1, format: "%d %F" },
-                    { unit: "hour", step: 3, format: "%H:%i" }
-                  ];
-                  break;
-                case 'week':
-                  gantt.config.scales = [
-                    { unit: "week", step: 1, format: "Week #%W" },
-                    { unit: "day", step: 1, format: "%d" }
-                  ];
-                  break;
-                case 'month':
-                  gantt.config.scales = [
-                    { unit: "month", step: 1, format: "%F %Y" },
-                    { unit: "week", step: 1, format: "Week #%W" }
-                  ];
-                  break;
-                case 'quarter':
-                  gantt.config.scales = [
-                    { unit: "month", step: 3, format: "%F %Y" },
-                    { unit: "month", step: 1, format: "%b" }
-                  ];
-                  break;
-              }
-              gantt.render();
+        });
+
+        // Vehicle search on Enter
+        const vehicleSearch = document.getElementById("vehicleSearch");
+        const vehicleSelect = document.getElementById("vehicleSelect");
+        if (vehicleSearch) {
+          vehicleSearch.addEventListener("keyup", (e) => {
+            if (e.key === "Enter") {
+              if (vehicleSelect) vehicleSelect.value = "";
+              document.getElementById("ganttFilters")?.submit();
             }
           });
         }
-      }
+
+        // Start Gantt initialization
+        setTimeout(initializeGanttChart, 100);
+      });
+
+      // Re-initialize on Turbo navigation
+      document.addEventListener("turbo:load", function() {
+        console.log("🌀 turbo:load - reinitializing Gantt");
+        setTimeout(initializeGanttChart, 100);
+      });
+
+      // Clean up on Turbo cache
+      document.addEventListener("turbo:before-cache", function() {
+        console.log("🧹 Cleaning up Gantt before cache");
+        if (window.gantt) {
+          try { 
+            gantt.clearAll(); 
+            gantt.destructor(); 
+          } catch (e) {
+            console.warn("Error cleaning up gantt:", e);
+          }
+        }
+      });
     </script>
-    
+
   <% else %>
-    <!-- No data message -->
-    <div class="card shadow-sm border-0">
+    <!-- EMPTY STATE - PTSC STYLE -->
+    <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
       <div class="card-body text-center py-5">
-        <div class="mb-4">
-          <i class="bi bi-calendar-x text-muted" style="font-size: 4rem;"></i>
+        <div class="ptsc-empty-icon mb-4">
+          <i class="fas fa-calendar-times fa-4x" style="color: <%= ptsc_blue %>; opacity: 0.3;"></i>
         </div>
-        <h4 class="mb-3">No maintenance scheduled</h4>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Maintenance Scheduled</h5>
         <p class="text-muted mb-4">No maintenance records found with valid dates.</p>
-        
-        <div class="d-flex justify-content-center gap-3 mt-4">
-          <%= link_to "View All Vehicles", vehicles_path, class: "btn btn-primary" %>
-          <%= link_to "Add Maintenance", new_maintenance_path, class: "btn btn-success" %>
-          <%= link_to "Reset Filters", gantt_path, class: "btn btn-outline-secondary" %>
+
+        <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
+          <%= link_to "View All Vehicles", vehicles_path, class: "ptsc-primary-btn px-4 py-3" %>
+          <%= link_to "Reset Filters", gantt_path, class: "ptsc-clear-btn px-4 py-3" %>
         </div>
       </div>
     </div>
   <% end %>
+
+  <!-- PTSC Gantt Footer -->
+  <div class="ptsc-gantt-footer mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </span>
+        <span class="small text-muted">
+          <i class="fas fa-chart-gantt me-1" style="color: <%= ptsc_blue %>;"></i> 
+          PTSC Maintenance Timeline • <%= Date.today.strftime("%B %d, %Y") %>
+        </span>
+      </div>
+      <span class="tt-footer-emblem">
+        <i class="fas fa-chart-gantt me-1"></i> 🇹🇹
+      </span>
+    </div>
+  </div>
 </div>
-
-<style>
-#ganttContainer {
-  border-radius: 0.5rem;
-  overflow: hidden;
-}
-
-.gantt_task_line {
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.gantt_task_line:hover {
-  opacity: 0.9;
-}
-
-.gantt_task_content {
-  color: white;
-  font-weight: 500;
-  font-size: 12px;
-  padding: 0 8px;
-}
-
-.gantt_grid_scale, .gantt_grid_head_cell {
-  background-color: #f8f9fa;
-  border-right: 1px solid #dee2e6;
-  border-bottom: 1px solid #dee2e6;
-  font-weight: 500;
-}
-
-.gantt_grid_data .gantt_row {
-  border-bottom: 1px solid #dee2e6;
-  transition: background-color 0.2s;
-}
-
-.gantt_grid_data .gantt_row.odd {
-  background-color: #f8f9fa;
-}
-
-.gantt_grid_data .gantt_row:hover {
-  background-color: #e9ecef;
-}
-
-.legend {
-  font-size: 0.875rem;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.card-hover {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
-}
-
-.badge {
-  font-weight: 500;
-  font-size: 0.75em;
-}
-
-.table th {
-  font-weight: 600;
-  color: #495057;
-  background-color: #f8f9fa;
-}
-
-.table tbody tr:hover {
-  background-color: #f8f9fa;
-}
-
-.btn-sm {
-  padding: 0.25rem 0.5rem;
-}
-
-.form-select, .form-control {
-  border-radius: 0.5rem;
-}
-
-.card {
-  border-radius: 0.75rem;
-}
-
-.rounded-circle {
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  #ganttContainer {
-    height: 400px;
-  }
-  
-  .legend {
-    font-size: 0.75rem;
-  }
-  
-  .table-responsive {
-    font-size: 0.875rem;
-  }
-  
-  .d-flex.gap-2 {
-    flex-wrap: wrap;
-  }
-  
-  .btn {
-    margin-bottom: 0.25rem;
-  }
-  
-  .col-md-2, .col-md-3 {
-    margin-bottom: 0.5rem;
-  }
-  
-  .card-body.p-3 {
-    padding: 1rem !important;
-  }
-}
-</style>

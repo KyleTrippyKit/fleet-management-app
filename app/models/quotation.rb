@@ -19,10 +19,23 @@ class Quotation < ApplicationRecord
   has_one :purchase_order, dependent: :nullify
 
   has_many :quotation_line_items, dependent: :destroy
-  alias_method :line_items, :quotation_line_items
-  accepts_nested_attributes_for :quotation_line_items, 
+
+  # ✅ Backward-compatible association name (so forms using :line_items still save)
+  has_many :line_items,
+          class_name: "QuotationLineItem",
+          foreign_key: :quotation_id,
+          inverse_of: :quotation,
+          dependent: :destroy
+
+  accepts_nested_attributes_for :quotation_line_items,
     allow_destroy: true,
-    reject_if: proc { |attributes| attributes['description'].blank? }
+    reject_if: proc { |attributes| attributes["description"].blank? }
+
+  # ✅ If your form submits line_items_attributes, this will now work too
+  accepts_nested_attributes_for :line_items,
+    allow_destroy: true,
+    reject_if: proc { |attributes| attributes["description"].blank? }
+
 
   has_many :quotation_jobs, dependent: :destroy
   accepts_nested_attributes_for :quotation_jobs, 

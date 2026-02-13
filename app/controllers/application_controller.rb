@@ -211,22 +211,22 @@ end
     end
   end
 
-  # Format date consistently
-  def format_date(date, format: :medium)
-    return "N/A" if date.blank?
-    
-    case format
-    when :short
-      date.strftime("%Y-%m-%d")
-    when :medium
-      date.strftime("%b %d, %Y")
-    when :long
-      date.strftime("%B %d, %Y")
-    when :with_time
-      date.strftime("%Y-%m-%d %H:%M")
-    else
-      date.strftime("%Y-%m-%d")
-    end
+  # Format date consistently - FIXED VERSION
+  def format_date(date, format = "%Y-%m-%d")
+    return "—" if date.blank?
+
+    d =
+      if date.is_a?(String)
+        Date.parse(date) rescue nil
+      elsif date.respond_to?(:to_date)
+        date.to_date
+      else
+        nil
+      end
+
+    return "—" if d.nil?
+
+    d.strftime(format)
   end
 
   # =====================================================
@@ -234,11 +234,8 @@ end
   # =====================================================
   
   def require_vmcott_user
-    return if current_user.admin?
-    
-    unless vmcott?
-      redirect_to root_path, alert: 'Access denied. VMCOTT users only.'
-    end
+    return if current_user&.admin?
+    redirect_to root_path, alert: "Access denied. VMCOTT users only." unless vmcott?
   end
   
   # POS Authorization Methods

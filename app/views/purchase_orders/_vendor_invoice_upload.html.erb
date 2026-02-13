@@ -1,0 +1,164 @@
+<%# app/views/purchase_orders/_vendor_invoice_upload.html.erb %>
+<% purchase_order = local_assigns.fetch(:purchase_order) %>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+    <span>Vendor Invoice</span>
+    <span class="text-muted small">Upload invoice PDF/scan + track status</span>
+  </div>
+
+  <div class="card-body">
+    <%# =========================
+        (A) Upload / Create invoice record
+        ========================= %>
+
+    <div class="mb-3">
+      <div class="alert alert-light border mb-0">
+        <strong>Workflow:</strong> Vendor sends invoice (email/PDF/hard copy). Log it here so Finance can match against the PO before payment.
+      </div>
+    </div>
+
+    <%= form_with model: VendorInvoice.new,
+                  url: vendor_invoices_path,
+                  method: :post,
+                  local: true,
+                  html: { multipart: true, class: "row g-2 align-items-end" } do |f| %>
+
+      <%= f.hidden_field :purchase_order_id, value: purchase_order.id %>
+      <%= f.hidden_field :supplier_id, value: purchase_order.supplier_id if purchase_order.respond_to?(:supplier_id) %>
+
+      <div class="col-12 col-md-3">
+        <%= f.label :invoice_number, "Invoice #", class: "form-label" %>
+        <%= f.text_field :invoice_number, class: "form-control", placeholder: "e.g. INV-10293" %>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <%= f.label :invoice_date, "Invoice date", class: "form-label" %>
+        <%= f.date_field :invoice_date, class: "form-control", value: Date.current %>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <%= f.label :amount, "Amount", class: "form-label" %>
+        <%= f.number_field :amount, class: "form-control", step: "0.01", placeholder: "0.00" %>
+      </div>
+
+      <div class="col-12 col-md-3">
+        <%= f.label :notes, "Notes", class: "form-label" %>
+        <%= f.text_field :notes, class: "form-control", placeholder: "e.g. emailed by vendor / awaiting stamp" %>
+      </div>
+
+      <div class="col-12 col-md-2">
+        <%= f.label :status, "Status", class: "form-label" %>
+        <%= f.select :status,
+              [["Draft", "draft"], ["Received", "received"], ["Under Review", "under_review"], ["Approved", "approved"], ["Disputed", "disputed"], ["Paid", "paid"]],
+              { selected: "draft" },
+              class: "form-select" %>
+      </div>
+
+      <div class="col-12">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <%# Support either :document OR :attachment depending on your model %>
+          <% if VendorInvoice.new.respond_to?(:document) %>
+            <%= f.file_field :document, class: "form-control", accept: "application/pdf,image/*" %>
+          <% else %>
+            <%= f.file_field :attachment, class: "form-control", accept: "application/pdf,image/*" %>
+          <% end %>
+
+          <%= f.submit "Upload / Log Invoice", class: "btn btn-dark" %>
+        </div>
+
+        <div class="form-text">
+          Accepts PDF or image scan. This creates a VendorInvoice record tied to this PO.
+        </div>
+      </div>
+    <% end %>
+
+    <hr class="my-4" />
+
+    <%# =========================
+        (B) Existing invoices for this PO
+        ========================= %>
+    <h6 class="fw-semibold mb-2">Invoices on this Purchase Order</h6>
+
+    <% invoices = purchase_order.vendor_invoices.order(created_at: :desc) rescue [] %>
+
+    <% if invoices.blank? %>
+      <div class="text-muted">No vendor invoices logged yet.</div>
+    <% else %>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Invoice #</th>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>File</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <% invoices.each do |inv| %>
+              <tr>
+                <td class="fw-semibold"><%= inv.try(:invoice_number).presence || "—" %></td>
+                <td><%= inv.try(:invoice_date).present? ? inv.invoice_date.strftime("%d/%m/%Y") : "—" %></td>
+                <td>
+                  <% amt = inv.try(:amount) %>
+                  <%= amt.present? ? number_to_currency(amt) : "—" %>
+                </td>
+                <td>
+                  <span class="badge bg-secondary"><%= inv.try(:status).to_s.presence || "unknown" %></span>
+                </td>
+
+                <td>
+                  <% blob =
+                       (inv.respond_to?(:document) && inv.document.attached?) ? inv.document :
+                       ((inv.respond_to?(:attachment) && inv.attachment.attached?) ? inv.attachment : nil) %>
+
+                  <% if blob.present? %>
+                    <%= link_to "View",
+                          rails_blob_path(blob, disposition: "attachment"),
+                          target: "_blank",
+                          class: "btn btn-sm btn-outline-primary" %>
+                  <% elsif inv.respond_to?(:download) %>
+                    <%= link_to "Download",
+                          download_vendor_invoice_path(inv),
+                          class: "btn btn-sm btn-outline-primary" %>
+                  <% else %>
+                    <span class="text-muted">None</span>
+                  <% end %>
+                </td>
+
+                <td class="text-end">
+                  <%# These member routes exist in your routes.rb %>
+                  <%= button_to "Mark Reviewed",
+                        mark_reviewed_vendor_invoice_path(inv),
+                        method: :post,
+                        class: "btn btn-sm btn-outline-secondary" %>
+
+                  <%= button_to "Mark Paid",
+                        mark_paid_vendor_invoice_path(inv),
+                        method: :post,
+                        class: "btn btn-sm btn-outline-success ms-1" %>
+
+                  <%# Optional: dispute route exists in your routes.rb too %>
+                  <% if Rails.application.routes.url_helpers.respond_to?(:dispute_vendor_invoice_path) %>
+                    <%= button_to "Dispute",
+                          dispute_vendor_invoice_path(inv),
+                          method: :post,
+                          class: "btn btn-sm btn-outline-danger ms-1" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="small text-muted">
+        Tip: Keep invoice status separate from PO payment status. Finance can approve invoice first, then pay.
+      </div>
+    <% end %>
+  </div>
+</div>

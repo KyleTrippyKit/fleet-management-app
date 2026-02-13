@@ -1,0 +1,186 @@
+<%# File: app/views/alerts/new.html.erb %>
+<div class="container-fluid py-4" data-controller="alert-search">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Create New Alert</h4>
+            <%= link_to alerts_path, class: "btn btn-outline-secondary btn-sm" do %>
+              <i class="bi bi-arrow-left me-1"></i>Back
+            <% end %>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <%= form_with(model: @alert, local: true) do |form| %>
+            <% if @alert.errors.any? %>
+              <div class="alert alert-danger">
+                <h5><%= pluralize(@alert.errors.count, "error") %> prohibited this alert from being saved:</h5>
+                <ul class="mb-0">
+                  <% @alert.errors.full_messages.each do |message| %>
+                    <li><%= message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :title, class: "form-label" %>
+                  <%= form.text_field :title, class: "form-control", required: true, placeholder: "Enter alert title" %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :alert_type, "Type", class: "form-label" %>
+                  <%= form.select :alert_type, @alert_types, { include_blank: "Select Type" }, class: "form-select", required: true %>
+                </div>
+              </div>
+
+              <div class="col-md-12">
+                <div class="mb-3">
+                  <%= form.label :description, class: "form-label" %>
+                  <%= form.text_area :description, class: "form-control", rows: 3, placeholder: "Describe the alert details..." %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :severity, class: "form-label" %>
+                  <%= form.select :severity, @severities, { include_blank: "Select Severity" }, class: "form-select", required: true %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :priority, class: "form-label" %>
+                  <%= form.select :priority, @priorities, { include_blank: "Select Priority" }, class: "form-select", required: true %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :status, class: "form-label" %>
+                  <%= form.select :status, @statuses, { include_blank: "Select Status" }, class: "form-select", required: true %>
+                </div>
+              </div>
+
+              <!-- Vehicle Search -->
+              <div class="col-md-6">
+                <div class="mb-3 position-relative">
+                  <label class="form-label">Vehicle Search</label>
+
+                  <input type="text"
+                         class="form-control"
+                         placeholder="Search by license plate, make, or model..."
+                         autocomplete="off"
+                         data-alert-search-target="vehicleInput"
+                         data-action="input->alert-search#vehicleInput"
+                         data-search-url="<%= search_vehicles_path(format: :json) %>">
+
+                  <%= form.hidden_field :vehicle_id, data: { alert_search_target: "vehicleHidden" } %>
+
+                  <!-- ✅ ONE dropdown container, ONE list target -->
+                  <div class="list-group position-absolute w-100 shadow"
+                       style="z-index: 1055; display:none;"
+                       data-alert-search-target="vehicleResults">
+                    <div data-alert-search-target="vehicleList"></div>
+                  </div>
+
+                  <!-- Selected chip -->
+                  <div class="mt-2" style="display:none;" data-alert-search-target="vehicleSelected">
+                    <div class="alert alert-info py-2 mb-0">
+                      <i class="bi bi-car-front me-2"></i>
+                      <span data-alert-search-target="vehicleSelectedText"></span>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger float-end"
+                              data-action="click->alert-search#clearVehicle">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Driver Search -->
+              <div class="col-md-6">
+                <div class="mb-3 position-relative">
+                  <label class="form-label">Driver Search</label>
+
+                  <input type="text"
+                         class="form-control"
+                         placeholder="Search driver by name..."
+                         autocomplete="off"
+                         data-alert-search-target="driverInput"
+                         data-action="input->alert-search#driverInput"
+                         data-search-url="<%= search_drivers_path(format: :json) %>">
+
+                  <%= form.hidden_field :driver_id, data: { alert_search_target: "driverHidden" } %>
+
+                  <!-- ✅ ONE dropdown container, ONE list target -->
+                  <div class="list-group position-absolute w-100 shadow"
+                       style="z-index: 1055; display:none;"
+                       data-alert-search-target="driverResults">
+                    <div data-alert-search-target="driverList"></div>
+                  </div>
+
+                  <!-- Selected chip -->
+                  <div class="mt-2" style="display:none;" data-alert-search-target="driverSelected">
+                    <div class="alert alert-info py-2 mb-0">
+                      <i class="bi bi-person-badge me-2"></i>
+                      <span data-alert-search-target="driverSelectedText"></span>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger float-end"
+                              data-action="click->alert-search#clearDriver">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-12">
+                <div class="mb-3">
+                  <%= form.label :location, class: "form-label" %>
+                  <%= form.text_field :location, class: "form-control", placeholder: "Enter location (optional)" %>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <%= form.label :incident_time, "Incident Time", class: "form-label" %>
+                  <%= form.datetime_local_field :incident_time, class: "form-control" %>
+                </div>
+              </div>
+
+              <%= form.hidden_field :created_by, value: current_user&.name || "System" %>
+
+              <div class="col-12">
+                <div class="d-flex justify-content-end gap-2">
+                  <%= link_to "Cancel", alerts_path, class: "btn btn-outline-secondary" %>
+                  <%= form.submit "Create Alert", class: "btn btn-primary" %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.search-result-item { cursor: pointer; }
+.search-result-item:hover { background-color: #f8f9fa; }
+
+/* ✅ Put your max-height HERE */
+[data-alert-search-target="vehicleResults"],
+[data-alert-search-target="driverResults"] {
+  max-height: 250px;
+  overflow-y: auto;
+}
+</style>

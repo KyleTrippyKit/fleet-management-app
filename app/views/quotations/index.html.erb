@@ -1,55 +1,84 @@
+<%# File: app/views/quotations/index.html.erb %>
 <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
 
-<div class="container-fluid">
+<%# =====================================================================
+    ✅ Updates in this revision:
+    - Removed Drafts/Sent stats cards from NON-VMCOTT users (agencies shouldn’t care)
+    - Improved action buttons: visible labels, inline button_to forms, better spacing
+    - Turbo-safe tooltips init on turbo:load (no duplicate listeners)
+    - Fixed tooltip data attr: use data-bs-toggle consistently
+    - Fixed dropdown delete links to be button_to (Turbo-friendly) already present
+    - Small safety fixes (nil valid_to, icon fallback)
+   ===================================================================== %>
+
+<div class="container-fluid quotations-index">
+
+  <!-- ===================== -->
   <!-- HEADER SECTION -->
+  <!-- Dashboard > Workflow > (Status) Quotations -->
+  <!-- ===================== -->
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
+
           <li class="breadcrumb-item">
-            <%= link_to 'Dashboard', root_path, class: 'text-decoration-none' %>
+            <%= link_to "Dashboard", root_path, class: "text-decoration-none" %>
           </li>
-          <li class="breadcrumb-item active" aria-current="page">Quotations</li>
+
+          <% if current_user.agency&.code == "VMCOTT" %>
+            <li class="breadcrumb-item">
+              <%= link_to "Workflow", vmcott_quotation_workspace_path, class: "text-decoration-none" %>
+            </li>
+          <% end %>
+
+          <li class="breadcrumb-item active" aria-current="page">
+            <%= params[:status].present? ? "#{params[:status].to_s.titleize} Quotations" : "Quotations" %>
+          </li>
         </ol>
       </nav>
-      <h1 class="h2 mb-0 mt-2">Quotation Management</h1>
-      <p class="text-muted mb-0">View, manage, and track all agency quotations from VMCOTT</p>
+
+      <h1 class="h2 mb-0 mt-2">
+        <%= params[:status].present? ? "#{params[:status].to_s.titleize} Quotations" : "Quotation Management" %>
+      </h1>
+
+      <p class="text-muted mb-0">
+        <% if current_user.agency&.code == "VMCOTT" %>
+          Manage, track, and submit quotations to agencies
+        <% else %>
+          View and respond to quotations received from VMCOTT
+        <% end %>
+      </p>
     </div>
-    
+
     <!-- ACTION BUTTONS -->
     <div class="d-flex gap-2">
       <% if current_user.can_create_quotations? %>
-        <%= link_to new_quotation_path, class: 'btn btn-primary gov-btn d-flex align-items-center' do %>
+        <%= link_to new_quotation_path, class: "btn btn-primary gov-btn d-flex align-items-center" do %>
           <i class="bi bi-plus-circle me-2"></i>
           <span>New Quotation</span>
         <% end %>
       <% end %>
-      
+
       <% if current_user.can_view_quotation_reports? %>
         <div class="dropdown">
-          <button class="btn btn-secondary gov-btn dropdown-toggle d-flex align-items-center" type="button" 
-                  data-bs-toggle="dropdown" aria-expanded="false">
+          <button class="btn btn-secondary gov-btn dropdown-toggle d-flex align-items-center"
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-graph-up me-2"></i>
             <span>Reports</span>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li>
-              <%= link_to 'Dashboard Overview', vmcott_dashboard_path, class: 'dropdown-item' %>
-            </li>
-            <li>
-              <%= link_to 'Quotation Reports', reports_quotations_path, class: 'dropdown-item' %>
-            </li>
+            <li><%= link_to "Dashboard Overview", vmcott_dashboard_path, class: "dropdown-item" %></li>
+            <li><%= link_to "Quotation Reports", reports_quotations_path, class: "dropdown-item" %></li>
             <li><hr class="dropdown-divider"></li>
-            <li>
-              <%= link_to 'Export to Excel', quotations_path(format: :xlsx), class: 'dropdown-item' %>
-            </li>
+            <li><%= link_to "Export to Excel", quotations_path(format: :xlsx), class: "dropdown-item" %></li>
           </ul>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- FILTER SECTION - UPDATED: Removed vendor filter -->
+  <!-- FILTER SECTION -->
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom py-3">
       <h5 class="mb-0 d-flex align-items-center">
@@ -58,76 +87,70 @@
       </h5>
     </div>
     <div class="card-body">
-      <%= form_with url: quotations_path, method: :get, local: true, class: 'row g-3', id: 'filter-form' do |f| %>
+      <%= form_with url: quotations_path, method: :get, local: true, class: "row g-3", id: "filter-form" do %>
+
         <div class="col-md-3">
           <label class="form-label fw-semibold">Status</label>
-          <%= select_tag :status, 
-              options_for_select([
-                ['All Statuses', ''],
-                ['Draft', 'draft'],
-                ['Sent to Agency', 'sent'],
-                ['Accepted', 'accepted'],
-                ['Rejected', 'rejected'],
-                ['Expired', 'expired'],
-                ['Converted to PO', 'converted']
-              ], params[:status]), 
-              class: 'form-select gov-select',
-              onchange: "this.form.requestSubmit()" %>
+          <%= select_tag :status,
+                options_for_select([
+                  ["All Statuses", ""],
+                  ["Draft", "draft"],
+                  ["Sent to Agency", "sent"],
+                  ["Accepted", "accepted"],
+                  ["Rejected", "rejected"],
+                  ["Expired", "expired"],
+                  ["Converted to PO", "converted"]
+                ], params[:status]),
+                class: "form-select gov-select",
+                onchange: "this.form.requestSubmit()" %>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label fw-semibold">Date Range</label>
           <div class="input-group">
-            <%= text_field_tag :start_date, params[:start_date], 
-                  class: 'form-control gov-input datepicker',
-                  placeholder: 'From Date',
-                  'data-controller': 'datepicker' %>
-            <%= text_field_tag :end_date, params[:end_date], 
-                  class: 'form-control gov-input datepicker',
-                  placeholder: 'To Date',
-                  'data-controller': 'datepicker' %>
+            <%= text_field_tag :start_date, params[:start_date],
+                  class: "form-control gov-input datepicker",
+                  placeholder: "From Date",
+                  "data-controller": "datepicker" %>
+            <%= text_field_tag :end_date, params[:end_date],
+                  class: "form-control gov-input datepicker",
+                  placeholder: "To Date",
+                  "data-controller": "datepicker" %>
           </div>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label fw-semibold">Agency</label>
-          <%= select_tag :agency_id, 
-              options_for_select(
-                Agency.all.map { |a| [a.name, a.id] },
-                params[:agency_id]
-              ),
-              include_blank: 'All Agencies',
-              class: 'form-select gov-select',
-              onchange: "this.form.requestSubmit()" %>
+          <%= select_tag :agency_id,
+                options_for_select(Agency.all.map { |a| [a.name, a.id] }, params[:agency_id]),
+                include_blank: "All Agencies",
+                class: "form-select gov-select",
+                onchange: "this.form.requestSubmit()" %>
         </div>
-        
+
         <div class="col-md-6">
           <label class="form-label fw-semibold">Search</label>
           <div class="input-group">
-            <%= text_field_tag :search, params[:search], 
-                  class: 'form-control gov-input', 
-                  placeholder: 'Quote #, Vehicle, Notes...' %>
-            <button class="btn btn-outline-secondary" type="submit">
+            <%= text_field_tag :search, params[:search],
+                  class: "form-control gov-input",
+                  placeholder: "Quote #, Vehicle, Notes..." %>
+            <button class="btn btn-outline-secondary" type="submit" title="Search">
               <i class="bi bi-search"></i>
             </button>
           </div>
         </div>
-        
+
         <div class="col-md-3">
           <label class="form-label fw-semibold">Amount Range</label>
           <div class="input-group">
-            <%= text_field_tag :min_amount, params[:min_amount], 
-                  class: 'form-control gov-input', 
-                  placeholder: 'Min' %>
-            <%= text_field_tag :max_amount, params[:max_amount], 
-                  class: 'form-control gov-input', 
-                  placeholder: 'Max' %>
+            <%= text_field_tag :min_amount, params[:min_amount], class: "form-control gov-input", placeholder: "Min" %>
+            <%= text_field_tag :max_amount, params[:max_amount], class: "form-control gov-input", placeholder: "Max" %>
           </div>
         </div>
-        
+
         <div class="col-md-3 d-flex align-items-end gap-2">
-          <%= submit_tag 'Apply Filters', class: 'btn btn-primary gov-btn flex-grow-1' %>
-          <%= link_to 'Clear All', quotations_path, class: 'btn btn-outline-secondary gov-btn flex-grow-1' %>
+          <%= submit_tag "Apply Filters", class: "btn btn-primary gov-btn flex-grow-1" %>
+          <%= link_to "Clear All", quotations_path, class: "btn btn-outline-secondary gov-btn flex-grow-1" %>
         </div>
       <% end %>
     </div>
@@ -142,35 +165,50 @@
             <i class="bi bi-file-text fs-3 text-primary"></i>
           </div>
           <h3 class="card-title mb-1"><%= @stats[:total] %></h3>
-          <p class="card-text text-muted small">Total Quotations</p>
+          <p class="card-text text-muted small">Total</p>
         </div>
       </div>
     </div>
-    
-    <div class="col-md-2">
-      <div class="card stats-card">
-        <div class="card-body text-center p-3">
-          <div class="stats-icon mb-2">
-            <i class="bi bi-clock-history fs-3 text-warning"></i>
+
+    <%# ✅ Only VMCOTT should see draft/sent operational stats %>
+    <% if current_user.agency&.code == "VMCOTT" %>
+      <div class="col-md-2">
+        <div class="card stats-card">
+          <div class="card-body text-center p-3">
+            <div class="stats-icon mb-2">
+              <i class="bi bi-clock-history fs-3 text-warning"></i>
+            </div>
+            <h3 class="card-title mb-1"><%= @stats[:draft] %></h3>
+            <p class="card-text text-muted small">Drafts</p>
           </div>
-          <h3 class="card-title mb-1"><%= @stats[:draft] %></h3>
-          <p class="card-text text-muted small">Drafts</p>
         </div>
       </div>
-    </div>
-    
-    <div class="col-md-2">
-      <div class="card stats-card">
-        <div class="card-body text-center p-3">
-          <div class="stats-icon mb-2">
-            <i class="bi bi-send-check fs-3 text-info"></i>
+
+      <div class="col-md-2">
+        <div class="card stats-card">
+          <div class="card-body text-center p-3">
+            <div class="stats-icon mb-2">
+              <i class="bi bi-send-check fs-3 text-info"></i>
+            </div>
+            <h3 class="card-title mb-1"><%= @stats[:sent] %></h3>
+            <p class="card-text text-muted small">Sent</p>
           </div>
-          <h3 class="card-title mb-1"><%= @stats[:sent] %></h3>
-          <p class="card-text text-muted small">Sent</p>
         </div>
       </div>
-    </div>
-    
+    <% else %>
+      <div class="col-md-2">
+        <div class="card stats-card">
+          <div class="card-body text-center p-3">
+            <div class="stats-icon mb-2">
+              <i class="bi bi-inbox fs-3 text-info"></i>
+            </div>
+            <h3 class="card-title mb-1"><%= @stats[:sent] %></h3>
+            <p class="card-text text-muted small">Received</p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <div class="col-md-2">
       <div class="card stats-card">
         <div class="card-body text-center p-3">
@@ -182,7 +220,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-md-2">
       <div class="card stats-card">
         <div class="card-body text-center p-3">
@@ -194,7 +232,7 @@
         </div>
       </div>
     </div>
-    
+
     <div class="col-md-2">
       <div class="card stats-card">
         <div class="card-body text-center p-3">
@@ -202,13 +240,13 @@
             <i class="bi bi-percent fs-3 text-purple"></i>
           </div>
           <h3 class="card-title mb-1"><%= @stats[:conversion_rate] %>%</h3>
-          <p class="card-text text-muted small">Conversion Rate</p>
+          <p class="card-text text-muted small">Conversion</p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- QUOTATIONS TABLE - UPDATED: Removed vendor column -->
+  <!-- QUOTATIONS TABLE -->
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white border-bottom py-3">
       <div class="d-flex justify-content-between align-items-center">
@@ -219,94 +257,78 @@
             <span class="badge bg-light text-dark ms-2"><%= @quotations.total_count %></span>
           <% end %>
         </h5>
-        
+
         <div class="d-flex align-items-center gap-2">
           <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" 
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
                     data-bs-toggle="dropdown" aria-expanded="false">
               <i class="bi bi-download me-1"></i> Export
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><%= link_to 'PDF Report', quotations_path(format: :pdf), class: 'dropdown-item' %></li>
-              <li><%= link_to 'Excel', quotations_path(format: :xlsx), class: 'dropdown-item' %></li>
-              <li><%= link_to 'CSV', quotations_path(format: :csv), class: 'dropdown-item' %></li>
+              <li><%= link_to "PDF Report", quotations_path(format: :pdf), class: "dropdown-item" %></li>
+              <li><%= link_to "Excel", quotations_path(format: :xlsx), class: "dropdown-item" %></li>
+              <li><%= link_to "CSV", quotations_path(format: :csv), class: "dropdown-item" %></li>
             </ul>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="card-body p-0">
       <% if @quotations.any? %>
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th width="12%" class="ps-4">
-                  <%= sort_link(@q, :quote_number, 'Quote #', default_order: :desc) %>
-                </th>
+                <th width="12%" class="ps-4"><%= sort_link(@q, :quote_number, "Quote #", default_order: :desc) %></th>
                 <th width="15%">Vehicle</th>
-                <th width="20%">
-                  <%= sort_link(@q, :agency_name, 'Agency') %>
-                </th>
-                <th width="12%" class="text-end">
-                  <%= sort_link(@q, :amount, 'Amount') %>
-                </th>
-                <th width="12%">
-                  <%= sort_link(@q, :valid_to, 'Valid To') %>
-                </th>
-                <th width="10%">
-                  <%= sort_link(@q, :status, 'Status') %>
-                </th>
-                <th width="12%" class="text-center">Actions</th>
+                <th width="20%"><%= sort_link(@q, :agency_name, "Agency") %></th>
+                <th width="12%" class="text-end"><%= sort_link(@q, :amount, "Amount") %></th>
+                <th width="12%"><%= sort_link(@q, :valid_to, "Valid To") %></th>
+                <th width="10%"><%= sort_link(@q, :status, "Status") %></th>
+                <th width="19%" class="text-center">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <% @quotations.each do |quotation| %>
-                <tr class="<%= 'table-warning' if quotation.expiring_soon? %>">
+                <tr class="<%= "table-warning" if quotation.expiring_soon? %>">
                   <td class="ps-4">
                     <div class="fw-bold"><%= quotation.quote_number %></div>
-                    <small class="text-muted">
-                      <%= quotation.created_at.strftime("%d/%m/%Y") %>
-                    </small>
+                    <small class="text-muted"><%= quotation.created_at.strftime("%d/%m/%Y") %></small>
                   </td>
-                  
+
                   <td>
                     <% if quotation.vehicle %>
                       <div class="d-flex align-items-center">
-                        <i class="bi bi-<%= quotation.vehicle.icon %> me-2 text-muted"></i>
+                        <i class="bi bi-<%= quotation.vehicle.icon.presence || "truck" %> me-2 text-muted"></i>
                         <span class="fw-semibold"><%= quotation.vehicle.license_plate %></span>
                       </div>
-                      <small class="text-muted">
-                        <%= quotation.vehicle.make %> <%= quotation.vehicle.model %>
-                      </small>
+                      <small class="text-muted"><%= quotation.vehicle.make %> <%= quotation.vehicle.model %></small>
                     <% else %>
                       <span class="text-muted">N/A</span>
                     <% end %>
                   </td>
-                  
+
                   <td>
                     <div class="fw-semibold"><%= quotation.agency_name %></div>
                     <% if quotation.created_by %>
-                      <small class="text-muted">
-                        By: <%= quotation.created_by.initials %>
-                      </small>
+                      <small class="text-muted">By: <%= quotation.created_by.initials %></small>
                     <% end %>
                   </td>
-                  
+
                   <td class="text-end">
                     <div class="fw-bold"><%= quotation.formatted_amount %></div>
-                    <small class="text-success">
-                      +VAT: <%= number_to_currency(quotation.vat_amount) %>
-                    </small>
+                    <small class="text-success">+VAT: <%= number_to_currency(quotation.vat_amount) %></small>
                   </td>
-                  
+
                   <td>
                     <div><%= quotation.valid_to&.strftime("%d/%m/%Y") || "N/A" %></div>
+
                     <% if quotation.days_until_expiry && quotation.days_until_expiry >= 0 %>
                       <span class="badge <%= quotation.urgency_badge_class %>">
                         <i class="bi bi-clock me-1"></i>
-                        <%= pluralize(quotation.days_until_expiry, 'day') %>
+                        <%= pluralize(quotation.days_until_expiry, "day") %>
                       </span>
                     <% elsif quotation.expired? %>
                       <span class="badge bg-danger">
@@ -315,112 +337,122 @@
                       </span>
                     <% end %>
                   </td>
-                  
+
                   <td>
                     <div class="d-flex align-items-center">
                       <span class="badge <%= quotation.status_badge_class %> me-2">
                         <%= quotation.display_status %>
                       </span>
                       <% if quotation.sent? %>
-                        <i class="bi bi-lock text-muted" 
-                           title="Submitted and locked" 
+                        <i class="bi bi-lock text-muted"
+                           title="Submitted and locked"
                            data-bs-toggle="tooltip"></i>
                       <% end %>
                     </div>
                     <% if quotation.sent_at %>
-                      <small class="text-muted">
-                        <%= time_ago_in_words(quotation.sent_at) %> ago
-                      </small>
+                      <small class="text-muted"><%= time_ago_in_words(quotation.sent_at) %> ago</small>
                     <% end %>
                   </td>
-                  
-                  <td class="text-center">
-                    <div class="btn-group btn-group-sm" role="group">
-                      <%= link_to quotation_path(quotation), 
-                            class: 'btn btn-outline-primary', 
-                            title: 'View Details',
-                            data: { bs_toggle: 'tooltip' } do %>
+
+                  <td class="text-center actions-cell">
+                    <div class="btn-group btn-group-sm quotation-actions" role="group" aria-label="Quotation actions">
+
+                      <%= link_to quotation_path(quotation),
+                            class: "btn btn-outline-primary",
+                            title: "View Details",
+                            data: { bs_toggle: "tooltip" } do %>
                         <i class="bi bi-eye"></i>
+                        <span class="btn-label d-none d-md-inline">View</span>
                       <% end %>
-                      
-                      <!-- VMCOTT ACTIONS -->
+
                       <% if current_user.agency&.code == "VMCOTT" %>
                         <% if quotation.can_be_sent? %>
                           <%= button_to submit_to_agency_quotation_path(quotation),
                                 method: :post,
                                 class: "btn btn-outline-success",
-                                title: 'Submit to Agency',
-                                data: { 
-                                  bs_toggle: 'tooltip',
-                                  turbo_confirm: "Submit this quotation to #{quotation.agency_name}?" 
-                                } do %>
+                                title: "Submit to Agency",
+                                form: { class: "d-inline-block m-0 p-0" },
+                                data: { turbo_confirm: "Submit this quotation to #{quotation.agency_name}?" } do %>
                             <i class="bi bi-send"></i>
+                            <span class="btn-label d-none d-md-inline">Submit</span>
                           <% end %>
                         <% end %>
-                        
+
                         <% if quotation.can_be_edited? %>
-                          <%= link_to edit_quotation_path(quotation), 
-                                class: 'btn btn-outline-secondary',
-                                title: 'Edit Quotation',
-                                data: { bs_toggle: 'tooltip' } do %>
+                          <%= link_to edit_quotation_path(quotation),
+                                class: "btn btn-outline-secondary",
+                                title: "Edit Quotation",
+                                data: { bs_toggle: "tooltip" } do %>
                             <i class="bi bi-pencil"></i>
+                            <span class="btn-label d-none d-md-inline">Edit</span>
                           <% end %>
                         <% end %>
                       <% end %>
-                      
-                      <!-- AGENCY ACTIONS -->
+
                       <% if current_user.agency&.code != "VMCOTT" && quotation.sent? %>
                         <% if quotation.can_be_accepted? %>
-                          <%= button_to accept_quotation_path(quotation), 
+                          <%= button_to accept_quotation_path(quotation),
                                 method: :post,
-                                class: 'btn btn-outline-success',
-                                title: 'Accept Quotation',
-                                data: { 
-                                  bs_toggle: 'tooltip',
-                                  turbo_confirm: "Accept this quotation from VMCOTT?" 
-                                } do %>
+                                class: "btn btn-outline-success",
+                                title: "Accept Quotation",
+                                form: { class: "d-inline-block m-0 p-0" },
+                                data: { turbo_confirm: "Accept this quotation from VMCOTT?" } do %>
                             <i class="bi bi-check-lg"></i>
+                            <span class="btn-label d-none d-md-inline">Accept</span>
                           <% end %>
                         <% end %>
                       <% end %>
-                      
+
                       <!-- QUICK ACTIONS DROPDOWN -->
                       <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle" 
-                                type="button" 
-                                data-bs-toggle="dropdown" 
-                                aria-expanded="false">
-                        </button>
+                        <button class="btn btn-outline-secondary dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                title="More"></button>
+
                         <ul class="dropdown-menu dropdown-menu-end">
+                          <li><%= link_to "View Details", quotation, class: "dropdown-item" %></li>
                           <li>
-                            <%= link_to 'View Details', quotation, class: 'dropdown-item' %>
+                            <%= link_to "Print Quotation",
+                                  quotation_path(quotation, format: :pdf),
+                                  class: "dropdown-item",
+                                  target: "_blank",
+                                  rel: "noopener" %>
                           </li>
-                          <li>
-                            <%= link_to 'Print Quotation', quotation_path(quotation, format: :pdf), 
-                                  class: 'dropdown-item', target: '_blank' %>
-                          </li>
+
                           <% if quotation.can_be_duplicated? %>
                             <li>
-                              <%= button_to 'Duplicate', duplicate_quotation_path(quotation),
+                              <%= button_to duplicate_quotation_path(quotation),
                                     method: :post,
-                                    class: 'dropdown-item',
-                                    form_class: 'd-inline' %>
+                                    class: "dropdown-item",
+                                    form: { class: "d-inline" } do %>
+                                Duplicate
+                              <% end %>
                             </li>
                           <% end %>
+
                           <% if quotation.can_be_edited? && current_user.can_edit_quotations? %>
-                            <li>
-                              <%= link_to 'Edit', edit_quotation_path(quotation), class: 'dropdown-item' %>
-                            </li>
+                            <li><%= link_to "Edit", edit_quotation_path(quotation), class: "dropdown-item" %></li>
                           <% end %>
+
                           <li><hr class="dropdown-divider"></li>
-                          <% if quotation.can_be_deleted? %>
+
+                          <% if quotation.respond_to?(:draft?) && quotation.draft? && current_user.agency&.code == "VMCOTT" %>
                             <li>
-                              <%= link_to quotation, 
+                              <%= button_to quotation_path(quotation),
                                     method: :delete,
-                                    class: 'dropdown-item text-danger',
-                                    data: { 
-                                      turbo_confirm: "Delete quotation #{quotation.quote_number}? This cannot be undone." 
-                                    } do %>
+                                    class: "dropdown-item text-danger",
+                                    form: { data: { turbo_confirm: "Delete draft quotation #{quotation.quote_number}? This cannot be undone." } } do %>
+                                <i class="bi bi-trash me-2"></i> Delete Draft
+                              <% end %>
+                            </li>
+                          <% elsif quotation.can_be_deleted? %>
+                            <li>
+                              <%= button_to quotation_path(quotation),
+                                    method: :delete,
+                                    class: "dropdown-item text-danger",
+                                    form: { data: { turbo_confirm: "Delete quotation #{quotation.quote_number}? This cannot be undone." } } do %>
                                 <i class="bi bi-trash me-2"></i> Delete
                               <% end %>
                             </li>
@@ -434,13 +466,13 @@
             </tbody>
           </table>
         </div>
-        
+
         <!-- PAGINATION -->
         <div class="card-footer bg-white border-top py-3">
           <div class="d-flex justify-content-between align-items-center">
             <div class="text-muted small">
-              Showing <%= @quotations.offset_value + 1 %> to 
-              <%= @quotations.offset_value + @quotations.length %> of 
+              Showing <%= @quotations.offset_value + 1 %> to
+              <%= @quotations.offset_value + @quotations.length %> of
               <%= @quotations.total_count %> entries
             </div>
             <div>
@@ -448,7 +480,7 @@
             </div>
           </div>
         </div>
-        
+
       <% else %>
         <!-- EMPTY STATE -->
         <div class="text-center py-5">
@@ -457,12 +489,10 @@
           </div>
           <h4 class="text-muted mb-3">No quotations found</h4>
           <p class="text-muted mb-4">
-            <%= params[:search].present? ? 
-                "No quotations match your search criteria." : 
-                "Get started by creating your first quotation." %>
+            <%= params[:search].present? ? "No quotations match your search criteria." : "Get started by creating your first quotation." %>
           </p>
           <% if current_user.can_create_quotations? %>
-            <%= link_to new_quotation_path, class: 'btn btn-primary' do %>
+            <%= link_to new_quotation_path, class: "btn btn-primary" do %>
               <i class="bi bi-plus-circle me-2"></i>
               Create New Quotation
             <% end %>
@@ -471,6 +501,7 @@
       <% end %>
     </div>
   </div>
+
 </div>
 
 <style>
@@ -555,9 +586,7 @@
   margin: 0;
 }
 
-.text-purple {
-  color: #6f42c1 !important;
-}
+.text-purple { color: #6f42c1 !important; }
 
 /* Table Styling */
 .table th {
@@ -577,9 +606,7 @@
   border-color: #f0f0f0;
 }
 
-.table-hover tbody tr:hover {
-  background-color: rgba(0, 82, 180, 0.04);
-}
+.table-hover tbody tr:hover { background-color: rgba(0, 82, 180, 0.04); }
 
 /* Status Badges */
 .badge {
@@ -589,186 +616,77 @@
   border-radius: 20px;
 }
 
-.badge.bg-success {
-  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
-}
+.badge.bg-success { background: linear-gradient(135deg, #28a745 0%, #218838 100%); }
+.badge.bg-warning { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); color: #212529; }
+.badge.bg-danger  { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
+.badge.bg-info    { background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
+.badge.bg-secondary { background: linear-gradient(135deg, #6c757d 0%, #545b62 100%); }
 
-.badge.bg-warning {
-  background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-  color: #212529;
-}
-
-.badge.bg-danger {
-  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-}
-
-.badge.bg-info {
-  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-}
-
-.badge.bg-secondary {
-  background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
-}
+/* Actions */
+.quotations-index .actions-cell { white-space: nowrap; }
+.quotations-index .quotation-actions .btn { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; }
+.quotations-index .quotation-actions form { display: inline-block; margin: 0; padding: 0; }
+.quotations-index .btn-label { display: inline !important; opacity: 1 !important; visibility: visible !important; }
 
 /* Button Groups */
-.btn-group-sm .btn {
-  border-radius: 4px !important;
-  margin-right: 2px;
-}
-
-.btn-group-sm .btn:last-child {
-  margin-right: 0;
-}
-
-.btn-outline-primary, .btn-outline-success, .btn-outline-secondary {
-  border-width: 1px;
-}
+.btn-group-sm .btn { border-radius: 4px !important; margin-right: 2px; }
+.btn-group-sm .btn:last-child { margin-right: 0; }
 
 /* Pagination */
-.pagination {
-  margin-bottom: 0;
-}
-
-.page-link {
-  color: #0052b4;
-  border-color: #dee2e6;
-}
-
-.page-link:hover {
-  color: #003d82;
-  background-color: #e9ecef;
-  border-color: #dee2e6;
-}
-
-.page-item.active .page-link {
-  background-color: #0052b4;
-  border-color: #0052b4;
-}
+.pagination { margin-bottom: 0; }
+.page-link { color: #0052b4; border-color: #dee2e6; }
+.page-link:hover { color: #003d82; background-color: #e9ecef; border-color: #dee2e6; }
+.page-item.active .page-link { background-color: #0052b4; border-color: #0052b4; }
 
 /* Breadcrumb */
-.breadcrumb {
-  background-color: transparent;
-  padding: 0;
-  margin-bottom: 0.5rem;
-}
-
-.breadcrumb-item a {
-  color: #6c757d;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.breadcrumb-item a:hover {
-  color: #0052b4;
-  text-decoration: underline;
-}
-
-.breadcrumb-item.active {
-  color: #0052b4;
-  font-weight: 600;
-}
+.breadcrumb { background-color: transparent; padding: 0; margin-bottom: 0.5rem; }
+.breadcrumb-item a { color: #6c757d; text-decoration: none; font-weight: 500; }
+.breadcrumb-item a:hover { color: #0052b4; text-decoration: underline; }
+.breadcrumb-item.active { color: #0052b4; font-weight: 600; }
 
 /* Card Styling */
-.card {
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  border-radius: 8px;
-}
+.card { border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-radius: 8px; }
+.card-header { background-color: #fff; border-bottom: 1px solid #e9ecef; }
 
-.card-header {
-  background-color: #fff;
-  border-bottom: 1px solid #e9ecef;
-}
-
-/* Responsive Design */
+/* Responsive */
 @media (max-width: 768px) {
-  .d-flex.align-items-center.justify-content-between {
-    flex-direction: column;
-    align-items: flex-start !important;
-  }
-  
-  .d-flex.gap-2 {
-    margin-top: 1rem;
-    width: 100%;
-  }
-  
-  .gov-btn {
-    min-width: auto;
-    flex: 1;
-  }
-  
-  .row.g-3 > div {
-    margin-bottom: 1rem;
-  }
-  
-  .row.mb-4 {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 10px;
-  }
-  
-  .row.mb-4 > div {
-    min-width: 150px;
-  }
-  
-  .table-responsive {
-    font-size: 0.875rem;
-  }
-  
-  .btn-group-sm {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  
-  .dropdown-menu {
-    position: absolute !important;
-  }
+  .d-flex.align-items-center.justify-content-between { flex-direction: column; align-items: flex-start !important; }
+  .d-flex.gap-2 { margin-top: 1rem; width: 100%; }
+  .gov-btn { min-width: auto; flex: 1; }
+  .row.mb-4 { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 10px; }
+  .row.mb-4 > div { min-width: 150px; }
+  .table-responsive { font-size: 0.875rem; }
+  .btn-group-sm { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 }
-
 @media (max-width: 576px) {
-  .table td, .table th {
-    padding: 8px;
-  }
-  
-  .stats-card .card-body {
-    padding: 1rem !important;
-  }
-  
-  .card-title {
-    font-size: 1.25rem;
-  }
+  .table td, .table th { padding: 8px; }
+  .card-title { font-size: 1.25rem; }
 }
 
 /* Empty State */
-.display-1 {
-  font-size: 5rem;
-  opacity: 0.3;
-}
+.display-1 { font-size: 5rem; opacity: 0.3; }
 
 /* Tooltip Fix */
-.tooltip {
-  z-index: 9999;
-}
+.tooltip { z-index: 9999; }
 </style>
 
 <script>
-// Initialize tooltips
-document.addEventListener('DOMContentLoaded', function() {
-  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl)
-  })
-  
-  // Auto-submit form on select changes
-  const filterForm = document.getElementById('filter-form');
-  if (filterForm) {
-    const autoSubmitElements = filterForm.querySelectorAll('[onchange*="requestSubmit"]');
-    autoSubmitElements.forEach(el => {
-      el.addEventListener('change', function() {
-        this.form.requestSubmit();
-      });
+document.addEventListener("turbo:load", function () {
+  // Init Bootstrap tooltips safely
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.forEach(function (el) {
+    try { new bootstrap.Tooltip(el); } catch (e) {}
+  });
+
+  // Auto-submit form on select changes (Status/Agency)
+  var filterForm = document.getElementById("filter-form");
+  if (!filterForm) return;
+
+  var autoSubmitElements = filterForm.querySelectorAll('[onchange*="requestSubmit"]');
+  autoSubmitElements.forEach(function (el) {
+    el.addEventListener("change", function () {
+      if (this.form) this.form.requestSubmit();
     });
-  }
+  });
 });
 </script>

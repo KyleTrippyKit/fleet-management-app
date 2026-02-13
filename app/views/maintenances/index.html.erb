@@ -1,156 +1,330 @@
-<h1 class="mb-4">Maintenance Records</h1>
+<%# app/views/maintenances/index.html.erb %>
 
-<% @dates ||= [] %>
-<% @statuses ||= {} %>
-<% @maintenances ||= [] %>
+<% agency_code = current_user&.agency&.code.to_s.upcase %>
+<% vmcott_staff = (current_user&.admin? ||
+                  (current_user.respond_to?(:fleet_manager?) && current_user.fleet_manager?) ||
+                  (current_user.respond_to?(:supervisor?) && current_user.supervisor?)) %>
+<% can_write_maintenance = (agency_code == "VMCOTT") && vmcott_staff %>
 
-<!-- BAR CHART -->
-<h2 class="mb-4">Maintenance Trends</h2>
-<div class="mb-5">
-  <canvas id="maintenanceBarChart" width="400" height="150"></canvas>
-</div>
+<%# -----------------------
+    Basic datasets
+------------------------ %>
+<% rows = (@maintenances || []) %>
 
-<!-- GANTT CHART -->
-<h2 class="mb-4">Maintenance Gantt Chart</h2>
-<div class="mb-5">
-  <canvas id="maintenanceGanttChart" width="900" height="400"></canvas>
-</div>
+<%# Build trend series (by day) using start_date (fallback to date) %>
+<%
+  by_day = Hash.new { |h, k| h[k] = { "Pending" => 0, "In Progress" => 0, "Completed" => 0 } }
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  // --- BAR CHART ---
-  const barCtx = document.getElementById('maintenanceBarChart').getContext('2d');
-  const labels = <%= raw @dates.to_json %>;
-  const pendingData = <%= raw (@dates.map { |date| @statuses[[date, "Pending"]] || 0 }).to_json %>;
-  const completedData = <%= raw (@dates.map { |date| @statuses[[date, "Completed"]] || 0 }).to_json %>;
+  rows.each do |m|
+    d = (m.respond_to?(:start_date) && m.start_date.present?) ? m.start_date : m.try(:date)
+    next unless d.present?
+    key = d.to_date
+    st = m.status.to_s.presence || "Pending"
+    st = "Pending" unless ["Pending", "In Progress", "Completed"].include?(st)
+    by_day[key][st] += 1
+  end
 
-  new Chart(barCtx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Pending', data: pendingData, backgroundColor: 'rgba(255, 99, 132, 0.7)' },
-        { label: 'Completed', data: completedData, backgroundColor: 'rgba(75, 192, 192, 0.7)' }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: 'top' },
-        title: { display: true, text: 'Maintenance Tasks by Date' }
-      }
-    }
-  });
+  trend_labels = by_day.keys.sort
+  pending_series = trend_labels.map { |d| [d, by_day[d]["Pending"]] }
+  progress_series = trend_labels.map { |d| [d, by_day[d]["In Progress"]] }
+  completed_series = trend_labels.map { |d| [d, by_day[d]["Completed"]] }
 
-  // --- GANTT CHART --- (SAFE VERSION)
-  const ganttCtx = document.getElementById('maintenanceGanttChart').getContext('2d');
-  
-  // SAFE DATA PREPARATION
-  const ganttDatasets = <%= raw @maintenances.map { |m|
-    {
-      label: "#{m.details.presence || m.service_type || 'Maintenance'} (#{m.status.presence || 'Pending'})",
-      backgroundColor: m.status == 'Completed' ? 'rgba(75, 192, 192, 0.7)' : 'rgba(255, 99, 132, 0.7)',
-      data: [{
-        x: m.start_date ? m.start_date.strftime("%Y-%m-%d") : Date.today.strftime("%Y-%m-%d"),
-        x2: m.end_date ? m.end_date.strftime("%Y-%m-%d") : (Date.today + 1.day).strftime("%Y-%m-%d"),
-        y: m.vehicle ? "#{m.vehicle.make} - #{m.vehicle.license_plate.presence || m.vehicle.registration_number}" : "Unknown Vehicle"
-      }]
-    }
-  }.to_json %>;
+  # “Recent” list
+  recent_rows = rows.sort_by { |m| (m.respond_to?(:start_date) && m.start_date.present?) ? m.start_date : (m.try(:date) || Date.new(1900,1,1)) }.reverse.first(6)
 
-  if (ganttDatasets.length > 0) {
-    ganttDatasets.forEach(ds => {
-      ds.data.forEach(d => {
-        d.x = new Date(d.x).getTime();
-        d.x2 = new Date(d.x2).getTime();
-      });
-    });
+  # Upcoming / overdue
+  today = Date.current
+  overdue_rows = rows.select { |m| m.respond_to?(:end_date) && m.end_date.present? && m.end_date < today && m.status.to_s != "Completed" }
+                     .sort_by { |m| m.end_date }
+                     .first(6)
+
+  upcoming_rows = rows.select { |m| m.respond_to?(:start_date) && m.start_date.present? && m.start_date >= today && m.status.to_s != "Completed" }
+                     .sort_by { |m| m.start_date }
+                     .first(6)
+
+  totals = {
+    total: rows.size,
+    pending: rows.count { |m| m.status.to_s == "Pending" },
+    in_progress: rows.count { |m| m.status.to_s == "In Progress" },
+    completed: rows.count { |m| m.status.to_s == "Completed" },
+    overdue: overdue_rows.size
   }
+%>
 
-  new Chart(ganttCtx, {
-    type: 'bar',
-    data: { 
-      datasets: ganttDatasets 
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const d = context.raw;
-              return context.dataset.label + ": " +
-                     new Date(d.x).toLocaleDateString() + " - " +
-                     new Date(d.x2).toLocaleDateString();
-            }
-          }
-        },
-        title: { display: true, text: 'Maintenance Gantt Chart' }
-      },
-      scales: {
-        x: {
-          type: 'time',
-          time: { unit: 'day' },
-          title: { display: true, text: 'Date' }
-        },
-        y: {
-          type: 'category',
-          title: { display: true, text: 'Vehicles' }
-        }
-      }
-    }
-  });
-});
-</script>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+      <h2 class="mb-1">Maintenance Records</h2>
+      <div class="text-muted">
+        <% if defined?(@vehicle) && @vehicle.present? %>
+          Vehicle: <strong><%= @vehicle.display_name rescue "#{@vehicle.make} #{@vehicle.model}" %></strong>
+        <% else %>
+          All vehicles (scoped)
+        <% end %>
 
-<div class="mb-3 text-end">
-  <%= link_to "Add Maintenance", new_maintenance_path, class: "btn btn-primary" %>
-</div>
+        <% unless can_write_maintenance %>
+          • <span class="badge bg-secondary">Read-only</span>
+        <% end %>
+      </div>
+    </div>
 
-<table class="table table-striped table-bordered align-middle">
-  <thead class="table-dark">
-    <tr>
-      <th>Date</th>
-      <th>Task</th>
-      <th>Status</th>
-      <th>Urgency</th>
-      <th>Vehicle</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    <% @maintenances.each do |m| %>
-      <tr>
-        <!-- SAFE DATE FORMATTING -->
-        <td><%= display_date(m.date) %></td>
-        <td><%= m.details.presence || m.service_type || "N/A" %></td>
-        <td>
-          <span class="badge <%= m.status == 'Completed' ? 'bg-success' : 'bg-warning text-dark' %>">
-            <%= m.status.presence || 'Pending' %>
-          </span>
-        </td>
-        <td>
-          <%= urgency_badge(m) %>
-        </td>
-        <td>
-          <% if m.vehicle.present? %>
-            <%= m.vehicle.make %> - <%= m.vehicle.license_plate.presence || m.vehicle.registration_number %>
-          <% else %>
-            Vehicle not found
+    <%# ✅ ONLY VMCOTT admin/maintenance staff can create %>
+    <% if can_write_maintenance %>
+      <div>
+        <% if defined?(@vehicle) && @vehicle.present? %>
+          <%= link_to new_vehicle_maintenance_path(@vehicle), class: "btn btn-primary" do %>
+            <i class="bi bi-plus-circle me-1"></i> Add Maintenance
           <% end %>
-        </td>
-        <td>
-          <%= link_to "Edit", edit_maintenance_path(m), class: "btn btn-sm btn-warning me-1" %>
-          <%= link_to "Delete", m, method: :get, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-danger" %>
-        </td>
-      </tr>
+        <% else %>
+          <%= link_to new_maintenance_path, class: "btn btn-primary" do %>
+            <i class="bi bi-plus-circle me-1"></i> Add Maintenance
+          <% end %>
+        <% end %>
+      </div>
     <% end %>
+  </div>
 
-    <% if @maintenances.empty? %>
-      <tr>
-        <td colspan="6" class="text-center">No maintenance records found</td>
-      </tr>
-    <% end %>
-  </tbody>
-</table>
+  <div class="row g-3 mb-4">
+    <!-- LEFT: TRENDS -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">Maintenance Trends</div>
+            <div class="text-muted small">Pending vs In Progress vs Completed (by date)</div>
+          </div>
+          <span class="badge bg-light text-dark border">
+            <i class="bi bi-bar-chart me-1"></i> Bar
+          </span>
+        </div>
+
+        <div class="card-body">
+          <%# If enough points, show chart; otherwise show a useful summary %>
+          <% if trend_labels.size >= 2 %>
+            <%= column_chart [
+                  { name: "Pending", data: pending_series },
+                  { name: "In Progress", data: progress_series },
+                  { name: "Completed", data: completed_series }
+                ],
+                height: "260px",
+                stacked: true %>
+          <% else %>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <span class="badge bg-primary">Total: <%= totals[:total] %></span>
+              <span class="badge bg-warning text-dark">Pending: <%= totals[:pending] %></span>
+              <span class="badge bg-info text-dark">In Progress: <%= totals[:in_progress] %></span>
+              <span class="badge bg-success">Completed: <%= totals[:completed] %></span>
+              <span class="badge bg-danger">Overdue: <%= totals[:overdue] %></span>
+            </div>
+
+            <div class="text-muted small mb-2">
+              <i class="bi bi-info-circle me-1"></i>
+              Not enough date points to chart trends yet — showing recent items instead.
+            </div>
+
+            <div class="list-group">
+              <% if recent_rows.any? %>
+                <% recent_rows.each do |m| %>
+                  <div class="list-group-item d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-semibold"><%= m.service_type.presence || "Maintenance ##{m.id}" %></div>
+                      <div class="text-muted small">
+                        <%= m.vehicle&.display_name || "#{m.vehicle&.make} #{m.vehicle&.model}" %>
+                        • <%= (m.start_date || m.try(:date))&.strftime("%b %d, %Y") || "TBD" %>
+                      </div>
+                    </div>
+                    <span class="badge <%= m.status.to_s == "Completed" ? "bg-success" : (m.status.to_s == "In Progress" ? "bg-info text-dark" : "bg-warning text-dark") %>">
+                      <%= m.status.presence || "Pending" %>
+                    </span>
+                  </div>
+                <% end %>
+              <% else %>
+                <div class="text-muted small">No maintenance rows yet.</div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: SCHEDULE OVERVIEW (NEVER BLANK) -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">Schedule Overview</div>
+            <div class="text-muted small">Upcoming windows + overdue items</div>
+          </div>
+          <span class="badge bg-light text-dark border">
+            <i class="bi bi-calendar-range me-1"></i> Timeline
+          </span>
+        </div>
+
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="fw-semibold mb-2">
+                <i class="bi bi-exclamation-triangle text-danger me-1"></i> Overdue
+              </div>
+
+              <% if overdue_rows.any? %>
+                <div class="list-group">
+                  <% overdue_rows.each do |m| %>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between">
+                        <div class="fw-semibold"><%= m.service_type.presence || "Maintenance ##{m.id}" %></div>
+                        <span class="badge bg-danger">Overdue</span>
+                      </div>
+                      <div class="text-muted small">
+                        <%= m.vehicle&.display_name || "#{m.vehicle&.make} #{m.vehicle&.model}" %>
+                        • Due: <%= m.end_date&.strftime("%b %d, %Y") %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-muted small">No overdue items.</div>
+              <% end %>
+            </div>
+
+            <div class="col-md-6">
+              <div class="fw-semibold mb-2">
+                <i class="bi bi-calendar-check text-info me-1"></i> Upcoming
+              </div>
+
+              <% if upcoming_rows.any? %>
+                <div class="list-group">
+                  <% upcoming_rows.each do |m| %>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between">
+                        <div class="fw-semibold"><%= m.service_type.presence || "Maintenance ##{m.id}" %></div>
+                        <span class="badge bg-info text-dark">Scheduled</span>
+                      </div>
+                      <div class="text-muted small">
+                        <%= m.vehicle&.display_name || "#{m.vehicle&.make} #{m.vehicle&.model}" %>
+                        • Start: <%= m.start_date&.strftime("%b %d, %Y") %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="text-muted small">No upcoming scheduled items.</div>
+              <% end %>
+            </div>
+          </div>
+
+          <% if rows.blank? %>
+            <div class="mt-3 text-muted small">
+              <i class="bi bi-exclamation-circle me-1"></i>
+              No maintenance rows available to render schedule information yet.
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECORDS TABLE -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <div>
+        <div class="fw-bold">Records</div>
+        <div class="text-muted small">Detailed maintenance log</div>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th style="min-width:120px;">Date</th>
+              <th style="min-width:220px;">Task</th>
+              <th style="min-width:160px;">Status</th>
+              <th style="min-width:120px;">Urgency</th>
+              <th style="min-width:260px;">Vehicle</th>
+              <th class="text-end" style="min-width:200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if rows.any? %>
+              <% rows.each do |m| %>
+                <% overdue = m.respond_to?(:end_date) && m.end_date.present? && m.end_date < Date.current && m.status.to_s != "Completed" %>
+
+                <tr>
+                  <td>
+                    <div class="fw-semibold"><%= (m.start_date || m.try(:date))&.to_date || "—" %></div>
+                    <div class="text-muted small">
+                      <% if m.respond_to?(:end_date) && m.end_date.present? %>
+                        Due: <%= m.end_date.to_date %>
+                      <% end %>
+                    </div>
+                  </td>
+
+                  <td class="fw-semibold">
+                    <%= m.service_type.presence || "Maintenance ##{m.id}" %>
+                  </td>
+
+                  <td>
+                    <span class="badge <%= m.status.to_s == "Completed" ? "bg-success" : (m.status.to_s == "In Progress" ? "bg-info text-dark" : "bg-warning text-dark") %>">
+                      <%= m.status.presence || "Pending" %>
+                    </span>
+                    <% if overdue %>
+                      <span class="badge bg-danger ms-1">Overdue</span>
+                    <% end %>
+                  </td>
+
+                  <td>
+                    <span class="badge bg-warning text-dark">
+                      <%= m.urgency.presence&.capitalize || "Scheduled" %>
+                    </span>
+                  </td>
+
+                  <td>
+                    <div class="fw-semibold">
+                      <%= m.vehicle&.display_name || "#{m.vehicle&.make} #{m.vehicle&.model}" %>
+                    </div>
+                    <div class="text-muted small">
+                      <%= m.vehicle&.registration_number || m.vehicle&.license_plate %>
+                      <% if m.vehicle&.agency %>
+                        • <%= m.vehicle.agency.code %>
+                      <% end %>
+                    </div>
+                  </td>
+
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to vehicle_maintenance_path(m.vehicle, m),
+                            class: "btn btn-outline-primary" do %>
+                        View
+                      <% end %>
+
+                      <%# ✅ Only VMCOTT write users can edit/delete %>
+                      <% if can_write_maintenance %>
+                        <%= link_to edit_vehicle_maintenance_path(m.vehicle, m),
+                              class: "btn btn-warning" do %>
+                          Edit
+                        <% end %>
+
+                        <%= link_to confirm_delete_vehicle_maintenance_path(m.vehicle, m),
+                              class: "btn btn-danger" do %>
+                          Delete
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                  No maintenance records found.
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,68 @@
+<%= form_with model: [:vmcott, @service_provider], local: true do |f| %>
+  <% if @service_provider.errors.any? %>
+    <div class="alert alert-danger">
+      <strong><%= pluralize(@service_provider.errors.count, "error") %> prevented saving:</strong>
+      <ul class="mb-0">
+        <% @service_provider.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <%= f.label :name, class: "form-label fw-bold" %>
+      <%= f.text_field :name, class: "form-control", placeholder: "e.g. VMCOTT Workshop - El Socorro" %>
+    </div>
+
+    <div class="col-md-6">
+      <%= f.label :provider_type, "Type", class: "form-label fw-bold" %>
+      <%= f.select :provider_type,
+            options_for_select(
+              [["Internal Workshop", "internal_workshop"], ["External Contractor", "external_contractor"]],
+              @service_provider.provider_type
+            ),
+            {},
+            class: "form-select" %>
+      <div class="form-text">VMCOTT can manage both internal workshops and external contractors.</div>
+    </div>
+
+    <div class="col-md-12">
+      <%= f.label :address, class: "form-label fw-bold" %>
+      <%= f.text_field :address, class: "form-control", placeholder: "Address / location details" %>
+    </div>
+
+    <div class="col-md-4">
+      <%= f.label :contact_name, "Contact Person", class: "form-label fw-bold" %>
+      <%= f.text_field :contact_name, class: "form-control", placeholder: "Name" %>
+    </div>
+
+    <div class="col-md-4">
+      <%= f.label :phone, class: "form-label fw-bold" %>
+      <%= f.telephone_field :phone, class: "form-control", placeholder: "e.g. 868-555-1234" %>
+    </div>
+
+    <div class="col-md-4">
+      <%= f.label :email, class: "form-label fw-bold" %>
+      <%= f.email_field :email, class: "form-control", placeholder: "email@example.com" %>
+    </div>
+
+    <div class="col-md-3">
+      <div class="form-check mt-4">
+        <%= f.check_box :is_active, class: "form-check-input" %>
+        <%= f.label :is_active, "Active", class: "form-check-label fw-bold" %>
+      </div>
+    </div>
+
+    <div class="col-md-12">
+      <%= f.label :notes, class: "form-label fw-bold" %>
+      <%= f.text_area :notes, class: "form-control", rows: 4, placeholder: "Notes (capabilities, hours, specialties, etc.)" %>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mt-4">
+    <%= f.submit class: "btn btn-primary" %>
+    <%= link_to "Cancel", vmcott_service_providers_path, class: "btn btn-outline-secondary" %>
+  </div>
+<% end %>

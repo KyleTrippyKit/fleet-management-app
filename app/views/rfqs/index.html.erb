@@ -1,51 +1,202 @@
 <%# app/views/rfqs/index.html.erb %>
-<div class="container mt-4">
-  <h1>Request for Quotations</h1>
-  <p class="text-muted">Manage your Requests for Quotation (RFQs)</p>
-  
-  <!-- Stats & Filters -->
-  <div class="row mb-4">
-    <div class="col-md-8">
-      <div class="btn-group" role="group">
-        <%= link_to 'All RFQs', rfqs_path, 
-              class: "btn btn-outline-primary #{'active' unless params[:status].present?}" %>
-        <%= link_to 'Drafts', rfqs_path(status: 'draft'), 
-              class: "btn btn-outline-primary #{'active' if params[:status] == 'draft'}" %>
-        <%= link_to 'Submitted', rfqs_path(status: 'submitted'), 
-              class: "btn btn-outline-primary #{'active' if params[:status] == 'submitted'}" %>
-        <%= link_to 'Under Review', rfqs_path(status: 'under_review'), 
-              class: "btn btn-outline-primary #{'active' if params[:status] == 'under_review'}" %>
-        <%= link_to 'Sent', sent_rfqs_path, 
-              class: "btn btn-outline-primary #{'active' if current_page?(sent_rfqs_path)}" %>
-      </div>
+
+<%# =====================================================================
+    ✅ Updates made:
+    - Cleaner header + better “status tabs” that wrap nicely on mobile
+    - Stronger, consistent button styling + visible labels in table actions
+    - Turbo-safe confirmations using `data-turbo-confirm`
+    - Removed inline `def rfq_status_badge` from the view (views shouldn’t define methods)
+      → replaced with a local mapping hash for badge classes
+    - Improved empty state + spacing
+   ===================================================================== %>
+
+<% content_for :head do %>
+  <style>
+    /* =========================
+       RFQ INDEX - SCOPED STYLES
+       ========================= */
+    body.rfq-index-page { background: #f8f9fa; }
+
+    .rfq-index .page-title { font-weight: 800; letter-spacing: .2px; }
+    .rfq-index .subtitle { margin-top: .25rem; }
+
+    /* Status tabs */
+    .rfq-index .status-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .rfq-index .status-tabs .btn {
+      border-radius: 999px;
+      font-weight: 700;
+      padding: .45rem .85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      white-space: nowrap;
+    }
+    .rfq-index .status-tabs .btn i { width: 1rem; text-align: center; }
+
+    /* Primary action */
+    .rfq-index .btn-primary-action {
+      font-weight: 800;
+      padding: .6rem 1rem;
+      border-radius: .6rem;
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    /* Stats card */
+    .rfq-index .stats-card .stat {
+      min-width: 110px;
+      text-align: center;
+      padding: .35rem .25rem;
+    }
+    .rfq-index .stats-card .stat h5 { margin: 0; font-weight: 800; }
+    .rfq-index .stats-card .stat small { display: block; }
+
+    /* Filter card */
+    .rfq-index .filters .form-control,
+    .rfq-index .filters .form-select {
+      border-radius: .6rem;
+    }
+
+    /* Table */
+    .rfq-index .table thead th {
+      text-transform: uppercase;
+      font-size: .8rem;
+      letter-spacing: .5px;
+      color: #0b3d91;
+      border-bottom: 2px solid #e9ecef;
+    }
+    .rfq-index .table td { vertical-align: middle; }
+
+    /* Action buttons */
+    .rfq-index .actions {
+      white-space: nowrap;
+    }
+    .rfq-index .actions .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      font-weight: 700;
+      border-radius: .55rem;
+    }
+    .rfq-index .actions .btn i { width: 1rem; text-align: center; }
+
+    /* Make button_to forms inline */
+    .rfq-index .actions form { display: inline-block; margin: 0; padding: 0; }
+
+    /* Dropdown button */
+    .rfq-index .kebab-btn {
+      border-radius: .55rem;
+    }
+
+    @media (max-width: 768px) {
+      .rfq-index .header-row {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 1rem;
+      }
+      .rfq-index .header-actions {
+        width: 100%;
+        display: flex;
+        justify-content: flex-start;
+        gap: .75rem;
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+
+  <script>
+    function markRfqIndexBody() {
+      document.body.classList.add("rfq-index-page");
+    }
+    document.addEventListener("DOMContentLoaded", markRfqIndexBody);
+    document.addEventListener("turbo:load", markRfqIndexBody);
+  </script>
+<% end %>
+
+<%# Local badge mapping (keeps view self-contained without defining methods) %>
+<% badge_for_status = {
+  "draft"        => "secondary",
+  "submitted"    => "warning",
+  "under_review" => "info",
+  "converted"    => "success",
+  "cancelled"    => "danger"
+} %>
+
+<div class="container mt-4 rfq-index">
+  <!-- HEADER -->
+  <div class="d-flex justify-content-between align-items-start header-row mb-3">
+    <div>
+      <h1 class="page-title mb-0">Request for Quotations</h1>
+      <p class="text-muted subtitle">Manage your Requests for Quotation (RFQs)</p>
     </div>
-    <div class="col-md-4 text-end">
-      <%= link_to '📝 New RFQ', new_agency_rfq_path(current_user.agency), 
-            class: 'btn btn-success' %>
+
+    <div class="header-actions">
+      <%= link_to new_agency_rfq_path(current_user.agency),
+            class: "btn btn-success btn-primary-action" do %>
+        <i class="bi bi-plus-circle"></i>
+        New RFQ
+      <% end %>
     </div>
   </div>
-  
-  <!-- Quick Stats -->
+
+  <!-- STATUS TABS -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="status-tabs" role="group" aria-label="RFQ status filters">
+        <%= link_to rfqs_path,
+              class: "btn btn-outline-primary #{'active' unless params[:status].present? && !current_page?(sent_rfqs_path)}" do %>
+          <i class="bi bi-collection"></i> All
+        <% end %>
+
+        <%= link_to rfqs_path(status: "draft"),
+              class: "btn btn-outline-primary #{'active' if params[:status] == 'draft'}" do %>
+          <i class="bi bi-pencil"></i> Drafts
+        <% end %>
+
+        <%= link_to rfqs_path(status: "submitted"),
+              class: "btn btn-outline-primary #{'active' if params[:status] == 'submitted'}" do %>
+          <i class="bi bi-send"></i> Submitted
+        <% end %>
+
+        <%= link_to rfqs_path(status: "under_review"),
+              class: "btn btn-outline-primary #{'active' if params[:status] == 'under_review'}" do %>
+          <i class="bi bi-hourglass-split"></i> Under Review
+        <% end %>
+
+        <%= link_to sent_rfqs_path,
+              class: "btn btn-outline-primary #{'active' if current_page?(sent_rfqs_path)}" do %>
+          <i class="bi bi-envelope-paper"></i> Sent
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUICK STATS -->
   <% if @stats.present? %>
     <div class="row mb-4">
-      <div class="col-md-12">
-        <div class="card">
-          <div class="card-body py-2">
-            <div class="d-flex justify-content-between">
-              <div class="text-center px-3">
-                <h5 class="mb-0"><%= @stats[:total] %></h5>
+      <div class="col-12">
+        <div class="card stats-card border-0 shadow-sm">
+          <div class="card-body py-3">
+            <div class="d-flex justify-content-between flex-wrap gap-2">
+              <div class="stat">
+                <h5><%= @stats[:total] %></h5>
                 <small class="text-muted">Total</small>
               </div>
-              <div class="text-center px-3">
-                <h5 class="mb-0 text-warning"><%= @stats[:draft] %></h5>
+              <div class="stat">
+                <h5 class="text-secondary"><%= @stats[:draft] %></h5>
                 <small class="text-muted">Drafts</small>
               </div>
-              <div class="text-center px-3">
-                <h5 class="mb-0 text-info"><%= @stats[:submitted] %></h5>
+              <div class="stat">
+                <h5 class="text-warning"><%= @stats[:submitted] %></h5>
                 <small class="text-muted">Submitted</small>
               </div>
-              <div class="text-center px-3">
-                <h5 class="mb-0 text-success"><%= @stats[:converted] || 0 %></h5>
+              <div class="stat">
+                <h5 class="text-success"><%= @stats[:converted] || 0 %></h5>
                 <small class="text-muted">Converted</small>
               </div>
             </div>
@@ -54,50 +205,60 @@
       </div>
     </div>
   <% end %>
-  
-  <!-- Search & Filters -->
-  <div class="card mb-4">
+
+  <!-- SEARCH & FILTERS -->
+  <div class="card mb-4 border-0 shadow-sm filters">
     <div class="card-body">
-      <%= form_with(url: rfqs_path, method: :get, local: true, class: 'row g-3') do |f| %>
+      <%= form_with(url: rfqs_path, method: :get, local: true, class: "row g-3") do %>
         <div class="col-md-4">
-          <%= text_field_tag :search, params[:search], 
-                class: 'form-control', 
-                placeholder: 'Search by description or notes...' %>
+          <%= text_field_tag :search, params[:search],
+                class: "form-control",
+                placeholder: "Search by description or notes..." %>
         </div>
+
         <div class="col-md-3">
-          <%= select_tag :vehicle_id, 
+          <%= select_tag :vehicle_id,
                 options_from_collection_for_select(@vehicles || [], :id, :display_name, params[:vehicle_id]),
-                include_blank: 'All Vehicles',
-                class: 'form-control' %>
+                include_blank: "All Vehicles",
+                class: "form-select" %>
         </div>
+
         <div class="col-md-2">
-          <%= date_field_tag :date_from, params[:date_from], 
-                class: 'form-control', placeholder: 'From date' %>
+          <%= date_field_tag :date_from, params[:date_from], class: "form-control" %>
         </div>
+
         <div class="col-md-2">
-          <%= date_field_tag :date_to, params[:date_to], 
-                class: 'form-control', placeholder: 'To date' %>
+          <%= date_field_tag :date_to, params[:date_to], class: "form-control" %>
         </div>
-        <div class="col-md-1">
-          <%= submit_tag 'Filter', class: 'btn btn-primary w-100' %>
+
+        <div class="col-md-1 d-grid">
+          <%= submit_tag "Filter", class: "btn btn-primary" %>
+        </div>
+
+        <div class="col-12">
+          <%= link_to "Clear filters", rfqs_path, class: "small text-muted" %>
         </div>
       <% end %>
     </div>
   </div>
-  
-  <!-- RFQs Table -->
-  <div class="card">
+
+  <!-- RFQS TABLE -->
+  <div class="card border-0 shadow-sm">
     <div class="card-header bg-white">
-      <h5 class="mb-0">
-        <% if params[:status].present? %>
-          <%= params[:status].humanize %> RFQs
-        <% else %>
-          All RFQs
-        <% end %>
-        <span class="badge bg-secondary ms-2"><%= @rfqs.total_count %></span>
-      </h5>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0">
+          <% if current_page?(sent_rfqs_path) %>
+            Sent RFQs
+          <% elsif params[:status].present? %>
+            <%= params[:status].humanize %> RFQs
+          <% else %>
+            All RFQs
+          <% end %>
+          <span class="badge bg-secondary ms-2"><%= @rfqs.total_count %></span>
+        </h5>
+      </div>
     </div>
-    
+
     <div class="card-body p-0">
       <% if @rfqs.any? %>
         <div class="table-responsive">
@@ -110,61 +271,64 @@
                 <th>Status</th>
                 <th>Date</th>
                 <th>Response Due</th>
-                <th>Actions</th>
+                <th class="text-end pe-3">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <% @rfqs.each do |rfq| %>
+                <% badge = badge_for_status[rfq.status.to_s] || "secondary" %>
+
                 <tr>
                   <td>
-                    <strong><%= rfq.rfq_number %></strong>
-                    <% if rfq.urgency == 'urgent' %>
-                      <span class="badge bg-danger ms-1">URGENT</span>
+                    <div class="fw-bold"><%= rfq.rfq_number %></div>
+                    <% if rfq.urgency == "urgent" %>
+                      <span class="badge bg-danger mt-1">URGENT</span>
                     <% end %>
                   </td>
+
                   <td>
-                    <%= rfq.vehicle&.license_plate || 'No Vehicle' %>
-                    <br>
+                    <div class="fw-semibold"><%= rfq.vehicle&.license_plate || "No Vehicle" %></div>
                     <small class="text-muted">
-                      <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
+                      <%= [rfq.vehicle&.make, rfq.vehicle&.model].compact.join(" ") %>
                     </small>
                   </td>
+
                   <td>
                     <div class="fw-semibold"><%= truncate(rfq.description, length: 60) %></div>
+
                     <% if rfq.special_instructions.present? %>
-                      <small class="text-muted">
-                        <i class="bi bi-info-circle"></i> Has special instructions
+                      <small class="text-muted d-block">
+                        <i class="bi bi-info-circle"></i> Special instructions
                       </small>
                     <% end %>
+
                     <% if rfq.rfq_line_items.any? %>
                       <small class="text-muted d-block">
                         <i class="bi bi-list-check"></i> <%= rfq.rfq_line_items.count %> items
                       </small>
                     <% end %>
                   </td>
+
                   <td>
-                    <span class="badge bg-<%= rfq_status_badge(rfq.status) %>">
-                      <%= rfq.status.humanize %>
-                    </span>
+                    <span class="badge bg-<%= badge %>"><%= rfq.status.humanize %></span>
+
                     <% if rfq.converted_to_quotation_id.present? %>
-                      <br>
-                      <small class="text-success">
+                      <div class="small text-success mt-1">
                         <i class="bi bi-check-circle"></i> Converted
-                      </small>
+                      </div>
                     <% end %>
                   </td>
+
                   <td>
-                    <%= rfq.request_date.strftime('%b %d, %Y') %>
-                    <br>
-                    <small class="text-muted">
-                      <%= time_ago_in_words(rfq.created_at) %> ago
-                    </small>
+                    <div><%= rfq.request_date.strftime("%b %d, %Y") %></div>
+                    <small class="text-muted"><%= time_ago_in_words(rfq.created_at) %> ago</small>
                   </td>
+
                   <td>
                     <% if rfq.response_due_date.present? %>
-                      <%= rfq.response_due_date.strftime('%b %d') %>
+                      <div><%= rfq.response_due_date.strftime("%b %d, %Y") %></div>
                       <% if rfq.response_due_date < Date.today %>
-                        <br>
                         <small class="text-danger">
                           <i class="bi bi-exclamation-triangle"></i> Overdue
                         </small>
@@ -173,79 +337,87 @@
                       <span class="text-muted">—</span>
                     <% end %>
                   </td>
-                  <td>
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to rfq_path(rfq), 
-                            class: 'btn btn-outline-primary',
-                            title: 'View RFQ' do %>
-                        <i class="bi bi-eye"></i>
-                      <% end %>
-                      
-                      <% if rfq.draft? %>
-                        <%= link_to edit_rfq_path(rfq), 
-                              class: 'btn btn-outline-warning',
-                              title: 'Edit RFQ' do %>
-                          <i class="bi bi-pencil"></i>
+
+                  <td class="text-end pe-3 actions">
+                    <div class="d-inline-flex align-items-center gap-2">
+                      <div class="btn-group btn-group-sm" role="group" aria-label="RFQ actions">
+                        <%= link_to rfq_path(rfq),
+                              class: "btn btn-outline-primary",
+                              title: "View" do %>
+                          <i class="bi bi-eye"></i>
+                          <span class="d-none d-md-inline">View</span>
                         <% end %>
-                        <%= link_to submit_to_vmcott_rfq_path(rfq),
-                              method: :post,
-                              data: { 
-                                confirm: 'Submit this RFQ to VMCOTT?',
-                                turbo_confirm: 'Submit this RFQ to VMCOTT?'
-                              },
-                              class: 'btn btn-outline-success',
-                              title: 'Submit to VMCOTT' do %>
-                          <i class="bi bi-send"></i>
-                        <% end %>
-                      <% end %>
-                      
-                      <% if rfq.submitted? && current_user.agency&.code == 'VMCOTT' %>
-                        <%= link_to convert_from_rfq_quotations_path(rfq.id),
-                              class: 'btn btn-sm btn-outline-success',
-                              data: { turbo: false } do %>
-                          <i class="fas fa-exchange-alt"></i> Convert to Quotation
-                        <% end %>
-                      <% end %>
-                    </div>
-                    
-                    <!-- Quick Actions Dropdown -->
-                    <div class="dropdown d-inline-block ms-1">
-                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                              type="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-three-dots-vertical"></i>
-                      </button>
-                      <ul class="dropdown-menu">
-                        <li>
-                          <%= link_to 'View Details', rfq_path(rfq), 
-                                class: 'dropdown-item' %>
-                        </li>
+
                         <% if rfq.draft? %>
-                          <li>
-                            <%= link_to 'Duplicate', clone_rfq_path(rfq), 
-                                  class: 'dropdown-item' %>
-                          </li>
+                          <%= link_to edit_rfq_path(rfq),
+                                class: "btn btn-outline-warning",
+                                title: "Edit" do %>
+                            <i class="bi bi-pencil"></i>
+                            <span class="d-none d-md-inline">Edit</span>
+                          <% end %>
+
+                          <%= link_to submit_to_vmcott_rfq_path(rfq),
+                                method: :post,
+                                class: "btn btn-outline-success",
+                                data: { turbo_confirm: "Submit this RFQ to VMCOTT?" },
+                                title: "Submit to VMCOTT" do %>
+                            <i class="bi bi-send"></i>
+                            <span class="d-none d-md-inline">Submit</span>
+                          <% end %>
                         <% end %>
-                        <% if rfq.submitted? && current_user.agency&.code == 'VMCOTT' %>
-                          <li>
-                            <%= link_to 'Acknowledge Receipt', 
-                                  acknowledge_receipt_rfq_path(rfq),
-                                  method: :post,
-                                  class: 'dropdown-item' %>
-                          </li>
+
+                        <% if rfq.submitted? && current_user.agency&.code == "VMCOTT" %>
+                          <%= link_to convert_from_rfq_quotations_path(rfq.id),
+                                class: "btn btn-outline-success",
+                                data: { turbo: false },
+                                title: "Convert to Quotation" do %>
+                            <i class="bi bi-arrow-left-right"></i>
+                            <span class="d-none d-md-inline">Convert</span>
+                          <% end %>
                         <% end %>
-                        <% if rfq.draft? %>
-                          <li><hr class="dropdown-divider"></li>
+                      </div>
+
+                      <!-- KEBAB -->
+                      <div class="dropdown d-inline-block">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle kebab-btn"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+
+                        <ul class="dropdown-menu dropdown-menu-end">
                           <li>
-                            <%= link_to 'Delete', rfq_path(rfq),
-                                  method: :delete,
-                                  data: { 
-                                    confirm: 'Delete this RFQ?',
-                                    turbo_confirm: 'Delete this RFQ?'
-                                  },
-                                  class: 'dropdown-item text-danger' %>
+                            <%= link_to "View Details", rfq_path(rfq), class: "dropdown-item" %>
                           </li>
-                        <% end %>
-                      </ul>
+
+                          <% if rfq.draft? %>
+                            <li>
+                              <%= link_to "Duplicate", clone_rfq_path(rfq), class: "dropdown-item" %>
+                            </li>
+                          <% end %>
+
+                          <% if rfq.submitted? && current_user.agency&.code == "VMCOTT" %>
+                            <li>
+                              <%= link_to "Acknowledge Receipt",
+                                    acknowledge_receipt_rfq_path(rfq),
+                                    method: :post,
+                                    class: "dropdown-item",
+                                    data: { turbo_confirm: "Acknowledge receipt for RFQ #{rfq.rfq_number}?" } %>
+                            </li>
+                          <% end %>
+
+                          <% if rfq.draft? %>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                              <%= link_to rfq_path(rfq),
+                                    method: :delete,
+                                    class: "dropdown-item text-danger",
+                                    data: { turbo_confirm: "Delete this RFQ? This cannot be undone." } do %>
+                                <i class="bi bi-trash me-2"></i> Delete
+                              <% end %>
+                            </li>
+                          <% end %>
+                        </ul>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -258,46 +430,49 @@
           <div class="mb-3">
             <i class="bi bi-inbox" style="font-size: 3rem; color: #6c757d;"></i>
           </div>
-          <h5>No RFQs found</h5>
-          <p class="text-muted">
+          <h5 class="mb-2">No RFQs found</h5>
+          <p class="text-muted mb-3">
             <% if params[:search].present? || params[:status].present? %>
-              Try changing your filters or
+              Try changing your filters, or
             <% end %>
-            <%= link_to 'create your first RFQ', new_agency_rfq_path(current_user.agency) %>
+            <%= link_to "create your first RFQ", new_agency_rfq_path(current_user.agency) %>.
           </p>
+          <%= link_to new_agency_rfq_path(current_user.agency),
+                class: "btn btn-success btn-primary-action" do %>
+            <i class="bi bi-plus-circle"></i> New RFQ
+          <% end %>
         </div>
       <% end %>
     </div>
-    
+
     <!-- Pagination -->
     <% if @rfqs.total_pages > 1 %>
       <div class="card-footer bg-white">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <small class="text-muted">
-              Showing <%= @rfqs.offset_value + 1 %> to 
-              <%= @rfqs.offset_value + @rfqs.length %> of 
-              <%= @rfqs.total_count %> entries
-            </small>
-          </div>
-          <div>
-            <%= paginate @rfqs, theme: 'bootstrap-5' %>
-          </div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <small class="text-muted">
+            Showing <%= @rfqs.offset_value + 1 %> to
+            <%= @rfqs.offset_value + @rfqs.length %> of
+            <%= @rfqs.total_count %> entries
+          </small>
+
+          <%= paginate @rfqs, theme: "bootstrap-5" %>
         </div>
       </div>
     <% end %>
   </div>
-  
+
   <!-- Help Section -->
-  <div class="card mt-4">
-    <div class="card-header">
-      <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>RFQ Workflow Guide</h6>
+  <div class="card mt-4 border-0 shadow-sm">
+    <div class="card-header bg-white">
+      <h6 class="mb-0">
+        <i class="bi bi-info-circle me-2"></i> RFQ Workflow Guide
+      </h6>
     </div>
     <div class="card-body">
       <div class="row">
         <div class="col-md-3">
           <div class="text-center mb-3">
-            <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" 
+            <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center"
                  style="width: 60px; height: 60px;">
               <i class="bi bi-pencil fs-4 text-primary"></i>
             </div>
@@ -305,9 +480,10 @@
             <p class="text-muted small">Create RFQ with required items</p>
           </div>
         </div>
+
         <div class="col-md-3">
           <div class="text-center mb-3">
-            <div class="rounded-circle bg-warning bg-opacity-10 d-inline-flex align-items-center justify-content-center" 
+            <div class="rounded-circle bg-warning bg-opacity-10 d-inline-flex align-items-center justify-content-center"
                  style="width: 60px; height: 60px;">
               <i class="bi bi-send fs-4 text-warning"></i>
             </div>
@@ -315,9 +491,10 @@
             <p class="text-muted small">Submit RFQ for quotation</p>
           </div>
         </div>
+
         <div class="col-md-3">
           <div class="text-center mb-3">
-            <div class="rounded-circle bg-info bg-opacity-10 d-inline-flex align-items-center justify-content-center" 
+            <div class="rounded-circle bg-info bg-opacity-10 d-inline-flex align-items-center justify-content-center"
                  style="width: 60px; height: 60px;">
               <i class="bi bi-file-earmark-text fs-4 text-info"></i>
             </div>
@@ -325,9 +502,10 @@
             <p class="text-muted small">VMCOTT prepares quotation with prices</p>
           </div>
         </div>
+
         <div class="col-md-3">
           <div class="text-center mb-3">
-            <div class="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center" 
+            <div class="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center"
                  style="width: 60px; height: 60px;">
               <i class="bi bi-check-circle fs-4 text-success"></i>
             </div>
@@ -339,15 +517,3 @@
     </div>
   </div>
 </div>
-
-<%# Helper method for status badges %>
-<% def rfq_status_badge(status) 
-  case status
-  when 'draft' then 'secondary'
-  when 'submitted' then 'warning'
-  when 'under_review' then 'info'
-  when 'converted' then 'success'
-  when 'cancelled' then 'danger'
-  else 'secondary'
-  end
-end %>

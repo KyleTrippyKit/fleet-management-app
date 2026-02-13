@@ -72,23 +72,26 @@ end
 
 
   # ====================================================
-  # List all vehicles
+  # List all vehicles (OPTIMIZED WITH AGENCY SCOPE)
   # ====================================================
   def index
-    @query = params[:query]
-    @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
+    @query  = params[:search].presence || params[:query].presence
+    @status = params[:status].presence
 
-    @vehicles = scoped_vehicles_by_agency
-    @vehicles = @vehicles.search(@query) if @query.present?
-    @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
+    # Always agency-scoped
+    base = current_user.agency.vehicles
 
-    if is_vmcott?
-      @agency_filter = params[:agency].presence
-      @vehicles = @vehicles.where(agency_id: @agency_filter) if @agency_filter.present?
-      @agencies = Agency.all.order(:name)
-    end
+    base = base.search(@query) if @query.present?
+    base = base.where(status: @status) if @status.present?
 
-    @vehicles = @vehicles.order(:make, :model).page(params[:page]).per(20)
+    @vehicles_count  = base.count
+    @kpi_active      = base.where(status: "active").count
+    @kpi_maintenance = base.where(status: "maintenance").count
+    @kpi_out         = base.where(status: ["out", "inactive"]).count
+
+    @vehicles = base.with_attached_primary_photo.with_attached_gallery_photos
+                    .order(:make, :model)
+                    .page(params[:page]).per(20)
   end
 
   # ====================================================
@@ -123,7 +126,38 @@ end
   end
 
   # ====================================================
-  # Catalog search endpoint (JSON) - PUBLIC
+  # Maintenance Dashboard
+  # ====================================================
+  def maintenance_dashboard
+    @query = params[:query]
+    @owner_filter = params[:owner].presence && params[:owner] != "All" ? params[:owner] : nil
+
+    @vehicles = scoped_vehicles_by_agency
+    @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
+    @vehicles = @vehicles.search(@query) if @query.present?
+
+    if is_vmcott?
+      @agency_filter = params[:agency].presence
+      @vehicles = @vehicles.where(agency_id: @agency_filter) if @agency_filter.present?
+      @agencies = Agency.all.order(:name)
+    end
+
+    @vehicles = @vehicles.sort_by do |vehicle|
+      has_pending = vehicle.maintenances.any? { |m| m.present? && m.status == "Pending" }
+      has_pending ? 0 : 1
+    end
+
+    @maintenances = @vehicles.flat_map(&:maintenances).compact
+  end
+
+  # ====================================================
+  # Catalog search endpoint (JSON)
+  # PUBLIC so autocomplete works without login.
+  #
+  # Improvements:
+  # - Larger result set (limit 30)
+  # - Exact make+model matches first
+  # - Also supports searching by make-only / model-only
   # ====================================================
   def catalog_search
     q = params[:q].presence || params[:term].presence || params[:query].presence
@@ -138,12 +172,12 @@ end
 
     rel = VehicleCatalogEntry.all
 
-    exact =
-      if make_guess.present? && model_guess.present?
-        rel.where("LOWER(make) = ? AND LOWER(model) = ?", make_guess.downcase, model_guess.downcase)
-      else
-        VehicleCatalogEntry.none
-      end
+    # Exact match first (make+model)
+    exact = if make_guess.present? && model_guess.present?
+      rel.where("LOWER(make) = ? AND LOWER(model) = ?", make_guess.downcase, model_guess.downcase)
+    else
+      VehicleCatalogEntry.none
+    end
 
     partial = rel.where(
       "make ILIKE :q OR model ILIKE :q OR (make || ' ' || model) ILIKE :q",
@@ -435,11 +469,20 @@ end
       model_part = parts.length > 1 ? parts[1].to_s.strip : ""
 
       vehicle.make  = make_part if make_part.present?
-      vehicle.model = model_part.presence || vehicle.model.presence || "Unknown"
+
+      # IMPORTANT: prevent validation crash if user typed only one word.
+      # If no model provided, set a safe placeholder so the record can still save.
+      if model_part.present?
+        vehicle.model = model_part
+      else
+        vehicle.model = vehicle.model.presence || "Unknown"
+      end
     end
 
     vehicle.make  = raw["make"].to_s.strip if vehicle.make.blank? && raw["make"].present?
     vehicle.model = raw["model"].to_s.strip if vehicle.model.blank? && raw["model"].present?
+
+    # 3) If model is still blank, force safe placeholder to avoid "Model can't be blank"
     vehicle.model = "Unknown" if vehicle.model.blank? && vehicle.make.present?
 
     lr = raw["license_registration_ui"].to_s.strip
@@ -453,9 +496,7 @@ end
       vehicle.registration_number = reg if reg.present?
     end
 
-    # Normalize plate field if present
-    vehicle.license_plate = normalize_plate(vehicle.license_plate) if vehicle.license_plate.present?
-
+    # 5) Autofill vehicle_type from catalog only when blank
     if vehicle.vehicle_type.blank? && vehicle.make.present? && vehicle.model.present? && defined?(VehicleCatalogEntry)
       entry = VehicleCatalogEntry
               .where("LOWER(make) = ? AND LOWER(model) = ?", vehicle.make.downcase, vehicle.model.downcase)
@@ -491,6 +532,9 @@ end
     (types + fallback).map(&:to_s).map(&:strip).reject(&:blank?).uniq
   end
 
+  # ====================================================
+  # Agency scoping
+  # ====================================================
   def set_agency_from_params
     agency_id = params[:agency_id].presence || params[:agency].presence
     @selected_agency = Agency.find_by(id: agency_id) if agency_id.present?
@@ -501,14 +545,12 @@ end
   end
 
   def scoped_vehicles_by_agency
-    base_includes = [:agency, :driver, primary_photo_attachment: { blob: :variant_records }]
-
     if @selected_agency
-      @selected_agency.vehicles.includes(*base_includes)
+      @selected_agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     elsif is_vmcott?
-      Vehicle.all.includes(*base_includes)
+      Vehicle.all.with_attached_primary_photo.with_attached_gallery_photos
     else
-      current_user.agency.vehicles.includes(:driver, primary_photo_attachment: { blob: :variant_records })
+      current_user.agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     end
   end
 
@@ -560,7 +602,10 @@ end
     redirect_to vehicles_path, alert: "You are not authorized to view maintenance data."
   end
 
+  # ====================================================
+  # Role helper
+  # ====================================================
   def is_vmcott?
-    current_user&.agency&.code == "VMCOTT" || current_user&.admin?
+    current_user&.agency&.code.to_s.downcase == "vmcott"
   end
 end

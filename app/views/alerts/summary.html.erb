@@ -1,0 +1,277 @@
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h2 mb-0">Alerts Summary</h1>
+      <p class="text-muted mb-0">Detailed statistics and analytics</p>
+    </div>
+    <div>
+      <%= link_to alerts_path, class: "btn btn-outline-secondary" do %>
+        <i class="bi bi-arrow-left me-2"></i>Back to Alerts
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Overall Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-primary border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Total Alerts</h6>
+              <h4 class="mb-0"><%= @summary_stats[:total] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-primary rounded-circle">
+                <i class="bi bi-bell fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-danger border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Active</h6>
+              <h4 class="mb-0"><%= @summary_stats[:active] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-danger rounded-circle">
+                <i class="bi bi-exclamation-triangle fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-warning border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Critical</h6>
+              <h4 class="mb-0"><%= @summary_stats[:critical] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-warning rounded-circle">
+                <i class="bi bi-exclamation-octagon fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card border-start border-info border-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-muted mb-1">Needs Attention</h6>
+              <h4 class="mb-0"><%= @summary_stats[:needs_attention] %></h4>
+            </div>
+            <div class="avatar-sm">
+              <span class="avatar-title bg-info rounded-circle">
+                <i class="bi bi-eye fs-4"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed Statistics -->
+  <div class="row">
+    <!-- By Type -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Alerts by Type</h5>
+        </div>
+        <div class="card-body">
+          <% if @summary_stats[:by_type].any? %>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Count</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @summary_stats[:by_type].each do |type, count| %>
+                  <tr>
+                    <td><%= type.humanize %></td>
+                    <td><%= count %></td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                          <div class="progress-bar" style="width: <%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%"></div>
+                        </div>
+                        <span><%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="text-muted text-center">No alert type data available.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- By Severity -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Alerts by Severity</h5>
+        </div>
+        <div class="card-body">
+          <% if @summary_stats[:by_severity].any? %>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Severity</th>
+                  <th>Count</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @summary_stats[:by_severity].each do |severity, count| %>
+                  <tr>
+                    <td>
+                      <span class="badge bg-<%= Alert.new(severity: severity).severity_color %>">
+                        <%= severity.gsub('_', ' ').humanize %>
+                      </span>
+                    </td>
+                    <td><%= count %></td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                          <div class="progress-bar bg-<%= Alert.new(severity: severity).severity_color %>" style="width: <%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%"></div>
+                        </div>
+                        <span><%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="text-muted text-center">No severity data available.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- By Priority -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Alerts by Priority</h5>
+        </div>
+        <div class="card-body">
+          <% if @summary_stats[:by_priority].any? %>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Priority</th>
+                  <th>Count</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @summary_stats[:by_priority].each do |priority, count| %>
+                  <tr>
+                    <td>
+                      <span class="badge bg-<%= Alert.new(priority: priority).priority_color %>">
+                        <%= priority.gsub('_', ' ').humanize %>
+                      </span>
+                    </td>
+                    <td><%= count %></td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                          <div class="progress-bar bg-<%= Alert.new(priority: priority).priority_color %>" style="width: <%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%"></div>
+                        </div>
+                        <span><%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="text-muted text-center">No priority data available.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- By Status -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h5 class="mb-0">Alerts by Status</h5>
+        </div>
+        <div class="card-body">
+          <% if @summary_stats[:by_status].any? %>
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Count</th>
+                  <th>Percentage</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @summary_stats[:by_status].each do |status, count| %>
+                  <tr>
+                    <td>
+                      <span class="badge bg-<%= status == 'active' ? 'danger' : status == 'resolved' ? 'success' : 'warning' %>">
+                        <%= status.humanize %>
+                      </span>
+                    </td>
+                    <td><%= count %></td>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                          <div class="progress-bar bg-<%= status == 'active' ? 'danger' : status == 'resolved' ? 'success' : 'warning' %>" style="width: <%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%"></div>
+                        </div>
+                        <span><%= (count.to_f / @summary_stats[:total] * 100).round(1) %>%</span>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="text-muted text-center">No status data available.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Options -->
+  <div class="card">
+    <div class="card-header">
+      <h5 class="mb-0">Export Data</h5>
+    </div>
+    <div class="card-body">
+      <div class="d-flex gap-2">
+        <%= link_to export_alerts_path(format: :csv), class: "btn btn-outline-primary" do %>
+          <i class="bi bi-download me-2"></i>Export as CSV
+        <% end %>
+        <%= link_to alerts_path, class: "btn btn-outline-secondary" do %>
+          <i class="bi bi-list me-2"></i>View All Alerts
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

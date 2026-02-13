@@ -1,12 +1,18 @@
 <div class="container py-4">
+  <% agency_code = current_user&.agency&.code.to_s.upcase %>
+  <% vmcott_maintenance_role =
+      (current_user.respond_to?(:fleet_manager?) && current_user.fleet_manager?) ||
+      (current_user.respond_to?(:supervisor?) && current_user.supervisor?) %>
+  <% can_write_maintenance = (agency_code == "VMCOTT") && (current_user.admin? || vmcott_maintenance_role) %>
+
   <div class="row">
     <!-- Left Column: Vehicle Image & Info -->
     <div class="col-md-4">
       <div class="card shadow-sm mb-4">
         <div class="card-body text-center">
-          <% if @vehicle.primary_photo.attached? %>
+          <% if @vehicle.respond_to?(:primary_photo) && @vehicle.primary_photo.attached? %>
             <%= image_tag @vehicle.primary_photo, class: "img-fluid rounded mb-3", style: "max-height: 200px; object-fit: cover;" %>
-                    <% else %>
+          <% else %>
             <div class="bg-light rounded d-flex align-items-center justify-content-center mb-3" style="height: 200px;">
               <i class="bi bi-car-front text-muted" style="font-size: 4rem;"></i>
             </div>
@@ -20,13 +26,13 @@
             <% end %>
           </p>
           <p class="mb-2">
-            <strong>Service Owner:</strong> 
+            <strong>Service Owner:</strong>
             <span class="badge bg-<%= owner_color(@vehicle.service_owner) %>"><%= @vehicle.service_owner %></span>
           </p>
           <p class="mb-0"><strong>Current Mileage:</strong> <%= @vehicle.mileage %> km</p>
         </div>
       </div>
-      
+
       <!-- Timeline Progress -->
       <div class="card shadow-sm mb-4">
         <div class="card-header bg-light">
@@ -35,12 +41,12 @@
         <div class="card-body">
           <p><strong>Duration:</strong> <%= @maintenance.duration_days %> days</p>
           <div class="progress mb-2" style="height: 8px;">
-            <div class="progress-bar <%= @maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>" 
+            <div class="progress-bar <%= @maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>"
                  style="width: <%= @maintenance.progress_percentage %>%">
             </div>
           </div>
           <p class="small text-center mb-0"><%= @maintenance.progress_percentage %>% complete</p>
-          
+
           <% if @maintenance.overdue? %>
             <div class="alert alert-danger mt-3 mb-0 py-2">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -68,14 +74,21 @@
           <div class="d-flex justify-content-between align-items-center">
             <h1 class="h4 mb-0">Maintenance Details</h1>
             <div>
-              <%= link_to "View Timeline", gantt_path, class: "btn btn-outline-info btn-sm me-2" %>
+              <%= link_to "View Timeline",
+                    gantt_path(vehicle_id: @vehicle.id),
+                    class: "btn btn-outline-info btn-sm me-2" %>
+
               <span class="badge <%= @maintenance.status == 'Completed' ? 'bg-success' : 'bg-warning' %>">
                 <%= @maintenance.status %>
               </span>
+
+              <% unless can_write_maintenance %>
+                <span class="badge bg-secondary ms-2">Read-only</span>
+              <% end %>
             </div>
           </div>
         </div>
-        
+
         <div class="card-body">
           <div class="row g-3">
             <!-- Row 1: Dates -->
@@ -154,7 +167,7 @@
             <!-- Row 7: Technician & Source -->
             <div class="col-md-6">
               <strong>Technician:</strong><br>
-              <%= @maintenance.technician || "N/A" %>
+              <%= @maintenance.respond_to?(:technician) ? (@maintenance.technician.presence || "N/A") : "N/A" %>
             </div>
             <div class="col-md-6">
               <strong>Source:</strong><br>
@@ -164,9 +177,22 @@
             <!-- Row 8: Part Status -->
             <div class="col-md-6">
               <strong>Part in Stock:</strong><br>
-              <span class="badge <%= @maintenance.part_in_stock ? 'bg-success' : 'bg-danger' %>">
-                <%= @maintenance.part_in_stock ? 'Yes' : 'No' %>
-              </span>
+              <% part_in_stock_value =
+                  if @maintenance.respond_to?(:part_in_stock)
+                    @maintenance.part_in_stock
+                  elsif @maintenance.respond_to?(:part_in_stock?)
+                    @maintenance.part_in_stock?
+                  else
+                    nil
+                  end %>
+
+              <% if part_in_stock_value.nil? %>
+                <span class="badge bg-secondary">N/A</span>
+              <% else %>
+                <span class="badge <%= part_in_stock_value ? 'bg-success' : 'bg-danger' %>">
+                  <%= part_in_stock_value ? 'Yes' : 'No' %>
+                </span>
+              <% end %>
             </div>
             <div class="col-md-6">
               <strong>Estimated Delivery:</strong><br>
@@ -195,7 +221,7 @@
             <% end %>
 
             <!-- Details Section -->
-            <% if @maintenance.details.present? %>
+            <% if @maintenance.respond_to?(:details) && @maintenance.details.present? %>
               <div class="col-12 mt-3">
                 <strong>Details:</strong>
                 <div class="border rounded p-3 bg-light mt-1">
@@ -207,17 +233,21 @@
 
           <!-- Action Buttons -->
           <div class="d-flex gap-2 mt-4">
-            <%= link_to edit_vehicle_maintenance_path(@vehicle, @maintenance), class: "btn btn-warning" do %>
-              <i class="bi bi-pencil me-2"></i>Edit
-            <% end %>
-            <% if @maintenance.pending? %>
-              <%= button_to mark_completed_vehicle_maintenance_path(@vehicle, @maintenance), 
-                    method: :patch, 
-                    class: "btn btn-success",
-                    data: { confirm: "Mark this maintenance as completed?" } do %>
-                <i class="bi bi-check-circle me-2"></i>Mark Completed
+            <% if can_write_maintenance %>
+              <%= link_to edit_vehicle_maintenance_path(@vehicle, @maintenance), class: "btn btn-warning" do %>
+                <i class="bi bi-pencil me-2"></i>Edit
+              <% end %>
+
+              <% if @maintenance.pending? %>
+                <%= button_to mark_completed_vehicle_maintenance_path(@vehicle, @maintenance),
+                      method: :patch,
+                      class: "btn btn-success",
+                      data: { confirm: "Mark this maintenance as completed?" } do %>
+                  <i class="bi bi-check-circle me-2"></i>Mark Completed
+                <% end %>
               <% end %>
             <% end %>
+
             <%= link_to vehicle_path(@vehicle), class: "btn btn-outline-secondary ms-auto" do %>
               <i class="bi bi-arrow-left me-2"></i>Back to Vehicle
             <% end %>
@@ -254,7 +284,7 @@
                     </div>
                     <div class="mt-1">
                       <small>
-                        <strong>Mileage:</strong> <%= m.mileage || "-" %> km | 
+                        <strong>Mileage:</strong> <%= m.mileage || "-" %> km |
                         <strong>Cost:</strong> <%= m.cost.present? ? number_to_currency(m.cost) : "-" %> |
                         <strong>Duration:</strong> <%= m.duration_days %> days
                       </small>
@@ -310,9 +340,7 @@
 }
 
 /* Progress bar */
-.progress {
-  background-color: #e9ecef;
-}
+.progress { background-color: #e9ecef; }
 
 /* Badge spacing */
 .badge {
@@ -321,9 +349,7 @@
 }
 
 /* Card styling */
-.card {
-  border: 1px solid rgba(0,0,0,.125);
-}
+.card { border: 1px solid rgba(0,0,0,.125); }
 .card-header {
   background-color: rgba(0,0,0,.03);
   border-bottom: 1px solid rgba(0,0,0,.125);
@@ -336,8 +362,6 @@
     padding-bottom: 1rem;
     border-bottom: 1px solid #dee2e6;
   }
-  .col-md-6:last-child {
-    border-bottom: none;
-  }
+  .col-md-6:last-child { border-bottom: none; }
 }
 </style>

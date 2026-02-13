@@ -1,240 +1,497 @@
-<%= render 'shared/navigation' %>
+<%# app/views/agencies_dashboard/index.html.erb - VMCOTT AGENCIES OVERVIEW (PROFESSIONAL GOVERNMENT LAYOUT) %>
 
-<div class="container-fluid py-4">
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="display-6 fw-bold text-primary">
-        <i class="bi bi-shield-check text-primary me-2"></i>
-        VMCOTT - Agencies Overview Dashboard
-      </h1>
-      <p class="text-muted mb-0">
-        Central oversight of all government vehicle fleets in Trinidad and Tobago
-      </p>
-    </div>
-    <div class="badge bg-primary fs-5 p-3">
-      <i class="bi bi-building me-2"></i>
-      <%= current_user.agency.name %> (Central Authority)
-    </div>
-  </div>
+<%
+  # VMCOTT Official Colors
+  vmcott_dark_blue = "#002D62"  # Primary - Dark professional blue
+  vmcott_gold = "#D4AF37"        # Accent - Subtle gold (more professional than bright gold)
+  vmcott_light_gray = "#F8F9FA"  # Background
+  vmcott_border_gray = "#E5E7EB" # Borders
+  vmcott_text_gray = "#4B5563"   # Text
+  vmcott_success = "#10B981"     # Success green
+  vmcott_warning = "#F59E0B"     # Warning orange
+  vmcott_danger = "#EF4444"      # Danger red
   
-  <!-- Overall Stats -->
-  <div class="row mb-4">
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body text-center">
-          <div class="text-primary mb-3">
-            <i class="bi bi-building fs-1"></i>
-          </div>
-          <h3 class="mb-2"><%= @overall_stats[:total_agencies] %></h3>
-          <p class="text-muted mb-0">Managed Agencies</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body text-center">
-          <div class="text-success mb-3">
-            <i class="bi bi-car-front fs-1"></i>
-          </div>
-          <h3 class="mb-2"><%= @overall_stats[:total_vehicles] %></h3>
-          <p class="text-muted mb-0">Total Vehicles</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body text-center">
-          <div class="text-warning mb-3">
-            <i class="bi bi-tools fs-1"></i>
-          </div>
-          <h3 class="mb-2"><%= @overall_stats[:pending_requests] %></h3>
-          <p class="text-muted mb-0">Pending Requests</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm">
-        <div class="card-body text-center">
-          <div class="text-info mb-3">
-            <i class="bi bi-graph-up fs-1"></i>
-          </div>
-          <h3 class="mb-2"><%= @overall_stats[:avg_utilization] %>%</h3>
-          <p class="text-muted mb-0">Avg Utilization</p>
-        </div>
-      </div>
-    </div>
-  </div>
+  # TT Flag colors (for national pride)
+  tt_red = "#C8102E"
+  tt_white = "#FFFFFF"
+  tt_black = "#000000"
   
-  <!-- Agency Performance Table -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-header bg-light">
-      <h5 class="mb-0">
-        <i class="bi bi-bar-chart me-2"></i>
-        Agency Performance Overview
-      </h5>
+  # Agency-specific badge colors
+  agency_colors = {
+    "PTSC" => { bg: "#0033a0", text: "#FFFFFF" },
+    "TTPS" => { bg: "#C8102E", text: "#FFFFFF" },
+    "TTDF" => { bg: "#006747", text: "#D4AF37" },
+    "VMCOTT" => { bg: vmcott_dark_blue, text: "#FFFFFF" }
+  }
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="vmcott-dashboard">
+  <!-- Fixed width container for better readability on large screens -->
+  <div class="container-fluid px-4 py-4" style="max-width: 1600px; margin: 0 auto;">
+
+    <!-- HEADER SECTION - Clean and professional -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4 pb-2 border-bottom" style="border-color: <%= vmcott_border_gray %> !important;">
+      <div>
+        <div class="d-flex align-items-center gap-3">
+          <!-- TT Flag Stripe (subtle) -->
+          <div class="tt-flag-stripe" style="height: 48px;">
+            <div class="stripe-red"></div>
+            <div class="stripe-white"></div>
+            <div class="stripe-black"></div>
+          </div>
+          <div>
+            <h1 class="h2 fw-bold mb-1" style="color: <%= vmcott_dark_blue %>;">Fleet Oversight Dashboard</h1>
+            <p class="text-muted mb-0" style="color: <%= vmcott_text_gray %> !important;">
+              <i class="fas fa-building me-2" style="color: <%= vmcott_gold %>;"></i>
+              Vehicle Maintenance Corporation of Trinidad and Tobago
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-3 mt-lg-0">
+        <div class="d-flex align-items-center gap-3">
+          <div class="px-3 py-2 rounded-3" style="background: <%= vmcott_light_gray %>; border: 1px solid <%= vmcott_border_gray %>;">
+            <i class="fas fa-user-circle me-2" style="color: <%= vmcott_dark_blue %>;"></i>
+            <span class="fw-medium"><%= current_user.name || current_user.email %></span>
+            <span class="badge ms-2" style="background: <%= vmcott_dark_blue %>; color: white; padding: 0.35rem 0.75rem; border-radius: 100px; font-size: 0.75rem;">
+              <%= current_user.role_name %>
+            </span>
+          </div>
+          <div class="text-muted small">
+            <i class="far fa-clock me-1"></i><%= Time.current.strftime("%b %d, %I:%M %p") %>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="card-body">
-      <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Agency</th>
-              <th>Total Vehicles</th>
-              <th>Active Vehicles</th>
-              <th>Pending Requests</th>
-              <th>Total Distance (km)</th>
-              <th>Avg Utilization</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @agency_stats.each do |stats| %>
+
+    <!-- KEY METRICS SECTION - Clean KPI cards -->
+    <div class="row g-4 mb-5">
+      <div class="col-12 col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px; border-left: 4px solid <%= vmcott_dark_blue %> !important;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-uppercase small fw-semibold" style="color: <%= vmcott_text_gray %>;">Agencies</span>
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: <%= vmcott_dark_blue %>10;">
+                <i class="fas fa-building" style="color: <%= vmcott_dark_blue %>; font-size: 1rem;"></i>
+              </div>
+            </div>
+            <div class="h2 fw-bold mb-1" style="color: <%= vmcott_dark_blue %>;"><%= @overall_stats[:total_agencies] %></div>
+            <span class="small text-muted">Managed agencies</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-12 col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-uppercase small fw-semibold" style="color: <%= vmcott_text_gray %>;">Total Vehicles</span>
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: <%= vmcott_success %>10;">
+                <i class="fas fa-bus" style="color: <%= vmcott_success %>; font-size: 1rem;"></i>
+              </div>
+            </div>
+            <div class="h2 fw-bold mb-1" style="color: <%= vmcott_dark_blue %>;"><%= @overall_stats[:total_vehicles] %></div>
+            <span class="small text-muted">Fleet size</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-12 col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-uppercase small fw-semibold" style="color: <%= vmcott_text_gray %>;">Pending</span>
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: <%= vmcott_warning %>10;">
+                <i class="fas fa-clock" style="color: <%= vmcott_warning %>; font-size: 1rem;"></i>
+              </div>
+            </div>
+            <div class="h2 fw-bold mb-1" style="color: <%= vmcott_dark_blue %>;"><%= @overall_stats[:pending_requests] %></div>
+            <span class="small text-muted">Awaiting action</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-12 col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="text-uppercase small fw-semibold" style="color: <%= vmcott_text_gray %>;">Utilization</span>
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: <%= vmcott_gold %>20;">
+                <i class="fas fa-chart-line" style="color: <%= vmcott_dark_blue %>; font-size: 1rem;"></i>
+              </div>
+            </div>
+            <div class="h2 fw-bold mb-1" style="color: <%= vmcott_dark_blue %>;"><%= @overall_stats[:avg_utilization] %>%</div>
+            <span class="small text-muted">Average utilization</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENCY PERFORMANCE TABLE - Clean and readable -->
+    <div class="card border-0 shadow-sm mb-5" style="border-radius: 12px; overflow: hidden;">
+      <div class="card-header bg-transparent px-4 py-3 d-flex justify-content-between align-items-center" style="border-bottom: 1px solid <%= vmcott_border_gray %>;">
+        <div class="d-flex align-items-center gap-2">
+          <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: <%= vmcott_dark_blue %>10;">
+            <i class="fas fa-chart-bar" style="color: <%= vmcott_dark_blue %>; font-size: 0.9rem;"></i>
+          </div>
+          <h5 class="fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Agency Performance</h5>
+        </div>
+        <span class="small text-muted">Last updated: <%= Date.today.strftime("%B %d, %Y") %></span>
+      </div>
+      
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" style="min-width: 1000px;">
+            <thead style="background: <%= vmcott_light_gray %>;">
               <tr>
-                <td>
-                  <div class="d-flex align-items-center">
-                    <% badge_class = case stats[:agency].code
-                                    when "TTPS" then "badge-ttps"
-                                    when "TTDF" then "badge-ttdf"
-                                    when "PTSC" then "badge-ptsc"
-                                    else "badge-secondary"
-                                    end %>
-                    <span class="badge <%= badge_class %> me-2">
-                      <%= stats[:agency].code %>
-                    </span>
-                    <%= stats[:agency].name %>
-                  </div>
-                </td>
-                <td><%= stats[:vehicle_stats][:total_vehicles] %></td>
-                <td>
-                  <span class="badge bg-success">
-                    <%= stats[:vehicle_stats][:active_vehicles] %>
-                  </span>
-                </td>
-                <td>
-                  <span class="badge bg-warning">
-                    <%= stats[:maintenance_requests][:pending] || 0 %>
-                  </span>
-                </td>
-                <td><%= stats[:usage_stats][:total_distance] %> km</td>
-                <td>
-                  <div class="d-flex align-items-center">
-                    <span class="me-2"><%= stats[:usage_stats][:average_utilization] %>%</span>
-                    <div class="progress" style="width: 60px; height: 6px;">
-                      <% util = stats[:usage_stats][:average_utilization].to_f %>
-                      <div class="progress-bar bg-<%= util >= 70 ? 'success' : util >= 30 ? 'warning' : 'danger' %>" 
-                           style="width: <%= [util, 100].min %>%"></div>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="btn-group btn-group-sm">
-                    <%= link_to agency_vehicles_path(stats[:agency]), 
-                          class: "btn btn-outline-success" do %>
-                      <i class="bi bi-car-front"></i> Vehicles
-                    <% end %>
-                    <%= link_to agency_analytics_path(stats[:agency]), 
-                          class: "btn btn-outline-info" do %>
-                      <i class="bi bi-graph-up"></i> Analytics
-                    <% end %>
-                    <%= link_to agency_maintenance_path(stats[:agency]), 
-                          class: "btn btn-outline-warning" do %>
-                      <i class="bi bi-tools"></i> Maintenance
-                    <% end %>
-                  </div>
-                </td>
+                <th class="px-4 py-3 small fw-semibold" style="color: <%= vmcott_text_gray %>;">Agency</th>
+                <th class="px-3 py-3 small fw-semibold text-center" style="color: <%= vmcott_text_gray %>;">Vehicles</th>
+                <th class="px-3 py-3 small fw-semibold text-center" style="color: <%= vmcott_text_gray %>;">Active</th>
+                <th class="px-3 py-3 small fw-semibold text-center" style="color: <%= vmcott_text_gray %>;">Pending</th>
+                <th class="px-3 py-3 small fw-semibold text-center" style="color: <%= vmcott_text_gray %>;">Distance</th>
+                <th class="px-3 py-3 small fw-semibold text-center" style="color: <%= vmcott_text_gray %>;">Utilization</th>
+                <th class="px-4 py-3 small fw-semibold text-end" style="color: <%= vmcott_text_gray %>;">Actions</th>
               </tr>
-            <% end %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% @agency_stats.each do |stats| %>
+                <% agency = stats[:agency] %>
+                <% agency_color = agency_colors[agency.code] || { bg: "#6B7280", text: "#FFFFFF" } %>
+                <% util = stats[:usage_stats][:average_utilization].to_f %>
+                <% util_color = util >= 70 ? vmcott_success : (util >= 30 ? vmcott_warning : vmcott_danger) %>
+                
+                <tr>
+                  <td class="px-4">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge rounded-pill px-3 py-2" style="background: <%= agency_color[:bg] %>; color: <%= agency_color[:text] %>; font-weight: 500; font-size: 0.7rem;">
+                        <%= agency.code %>
+                      </span>
+                      <span class="fw-medium"><%= agency.name %></span>
+                    </div>
+                  </td>
+                  <td class="px-3 text-center fw-medium"><%= stats[:vehicle_stats][:total_vehicles] %></td>
+                  <td class="px-3 text-center">
+                    <span class="badge rounded-pill px-3 py-1" style="background: <%= vmcott_success %>10; color: <%= vmcott_success %>; font-weight: 500;">
+                      <%= stats[:vehicle_stats][:active_vehicles] %>
+                    </span>
+                  </td>
+                  <td class="px-3 text-center">
+                    <% if stats[:pending_requests] > 0 %>
+                      <span class="badge rounded-pill px-3 py-1" style="background: <%= vmcott_warning %>10; color: <%= vmcott_warning %>; font-weight: 500;">
+                        <%= stats[:pending_requests] %>
+                      </span>
+                    <% else %>
+                      <span class="text-muted small">—</span>
+                    <% end %>
+                  </td>
+                  <td class="px-3 text-center"><%= number_with_delimiter(stats[:usage_stats][:total_distance]) %> km</td>
+                  <td class="px-3">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="fw-medium" style="min-width: 45px; color: <%= util_color %>;"><%= util %>%</span>
+                      <div class="progress flex-grow-1" style="height: 6px; background: <%= vmcott_border_gray %>;">
+                        <div class="progress-bar rounded-pill" role="progressbar" 
+                             style="width: <%= [util, 100].min %>%; background: <%= util_color %>;"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 text-end">
+                    <div class="d-flex gap-1 justify-content-end">
+                      <%= link_to agency_vehicles_path(agency), class: "btn btn-sm rounded-circle p-2", 
+                            style: "width: 32px; height: 32px; background: transparent; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue};", 
+                            title: "View Vehicles" do %>
+                        <i class="fas fa-bus"></i>
+                      <% end %>
+                      <%= link_to agency_analytics_path(agency), class: "btn btn-sm rounded-circle p-2", 
+                            style: "width: 32px; height: 32px; background: transparent; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue};", 
+                            title: "Analytics" do %>
+                        <i class="fas fa-chart-line"></i>
+                      <% end %>
+                      <%= link_to agency_maintenance_path(agency), class: "btn btn-sm rounded-circle p-2", 
+                            style: "width: 32px; height: 32px; background: transparent; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue};", 
+                            title: "Maintenance" do %>
+                        <i class="fas fa-tools"></i>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
-  
-  <!-- Recent Maintenance Requests -->
-  <div class="row">
-    <div class="col-md-8">
-      <div class="card shadow-sm">
-        <div class="card-header bg-light">
-          <h5 class="mb-0">
-            <i class="bi bi-clock-history me-2"></i>
-            Recent Maintenance Requests from All Agencies
-          </h5>
-        </div>
-        <div class="card-body">
-          <% if @recent_maintenances.any? %>
-            <div class="list-group">
-              <% @recent_maintenances.each do |maintenance| %>
-                <div class="list-group-item">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 class="mb-1">
-                        <%= maintenance.vehicle.display_name %>
-                        <span class="badge bg-<%= case maintenance.status
-                                                when 'pending' then 'warning'
-                                                when 'in_progress' then 'info'
-                                                when 'completed' then 'success'
-                                                else 'secondary'
-                                                end %> ms-2">
-                          <%= maintenance.status.titleize %>
-                        </span>
-                      </h6>
-                      <p class="mb-1 small text-muted">
-                        <i class="bi bi-building me-1"></i>
-                        <%= maintenance.vehicle.agency.name %> •
-                        <%= maintenance.service_type || 'Maintenance' %> •
-                        <strong>Urgency:</strong> <%= maintenance.urgency || 'Normal' %>
-                      </p>
-                    </div>
-                    <div class="text-end">
-                      <small class="text-muted">
-                        <%= time_ago_in_words(maintenance.created_at) %> ago
-                      </small>
+
+    <!-- BOTTOM SECTION - Two column layout -->
+    <div class="row g-4">
+      <!-- Recent Maintenance -->
+      <div class="col-12 col-lg-7">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
+          <div class="card-header bg-transparent px-4 py-3 d-flex justify-content-between align-items-center" style="border-bottom: 1px solid <%= vmcott_border_gray %>;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: <%= vmcott_dark_blue %>10;">
+                <i class="fas fa-clock" style="color: <%= vmcott_dark_blue %>; font-size: 0.9rem;"></i>
+              </div>
+              <h5 class="fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Recent Maintenance</h5>
+            </div>
+            <span class="small text-muted"><%= @recent_maintenances.count %> requests</span>
+          </div>
+          
+          <div class="card-body p-0">
+            <% if @recent_maintenances.any? %>
+              <div class="list-group list-group-flush">
+                <% @recent_maintenances.limit(5).each do |maintenance| %>
+                  <% status_color = case maintenance.status
+                    when 'pending' then vmcott_warning
+                    when 'in_progress' then vmcott_dark_blue
+                    when 'completed' then vmcott_success
+                    else vmcott_text_gray
+                    end
+                  %>
+                  <div class="list-group-item px-4 py-3 border-0" style="border-bottom: 1px solid <%= vmcott_border_gray %> !important;">
+                    <div class="d-flex justify-content-between align-items-center">
                       <div>
-                        <%= link_to "View", maintenance_path(maintenance), 
-                              class: "btn btn-sm btn-outline-primary mt-1" %>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                          <span class="badge rounded-pill px-3 py-1" style="background: <%= status_color %>10; color: <%= status_color %>; font-weight: 500; font-size: 0.7rem;">
+                            <%= maintenance.status.titleize %>
+                          </span>
+                          <span class="fw-medium"><%= maintenance.vehicle.display_name %></span>
+                        </div>
+                        <div class="small text-muted">
+                          <i class="fas fa-building me-1" style="color: <%= vmcott_gold %>;"></i>
+                          <%= maintenance.vehicle.agency.name %> • 
+                          <i class="fas fa-wrench me-1 ms-1" style="color: <%= vmcott_gold %>;"></i>
+                          <%= maintenance.service_type || 'General Service' %>
+                        </div>
+                      </div>
+                      <div class="text-end">
+                        <div class="small text-muted">
+                          <i class="far fa-clock me-1"></i><%= time_ago_in_words(maintenance.created_at) %> ago
+                        </div>
+                        <%= link_to maintenance_path(maintenance), class: "btn btn-sm rounded-circle p-2 mt-1", 
+                              style: "width: 28px; height: 28px; background: transparent; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue};", 
+                              title: "View Details" do %>
+                          <i class="fas fa-eye" style="font-size: 0.8rem;"></i>
+                        <% end %>
                       </div>
                     </div>
                   </div>
+                <% end %>
+              </div>
+              
+              <% if @recent_maintenances.count > 5 %>
+                <div class="text-center p-3">
+                  <%= link_to "View All Maintenance", maintenance_dashboard_vehicles_path, class: "btn btn-sm", 
+                        style: "color: #{vmcott_dark_blue}; border-color: #{vmcott_border_gray};" %>
                 </div>
               <% end %>
-            </div>
-          <% else %>
-            <div class="alert alert-info">
-              <i class="bi bi-info-circle me-2"></i>
-              No recent maintenance requests
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="col-md-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-light">
-          <h5 class="mb-0">
-            <i class="bi bi-lightning me-2"></i>
-            Quick Actions
-          </h5>
-        </div>
-        <div class="card-body">
-          <div class="d-grid gap-2">
-            <%= link_to vehicles_path, class: "btn btn-primary" do %>
-              <i class="bi bi-car-front me-2"></i>View All Vehicles
-            <% end %>
-            <%= link_to gantt_path, class: "btn btn-outline-primary" do %>
-              <i class="bi bi-calendar-week me-2"></i>Maintenance Schedule
-            <% end %>
-            <%= link_to analytics_vehicles_path, class: "btn btn-outline-success" do %>
-              <i class="bi bi-graph-up me-2"></i>Usage Analytics
-            <% end %>
-            <%= link_to new_vehicle_path, class: "btn btn-outline-secondary" do %>
-              <i class="bi bi-plus-circle me-2"></i>Add New Vehicle
+            <% else %>
+              <div class="text-center py-5">
+                <div class="mb-3">
+                  <i class="fas fa-check-circle fa-3x" style="color: <%= vmcott_success %>; opacity: 0.3;"></i>
+                </div>
+                <p class="text-muted mb-0">No recent maintenance requests</p>
+              </div>
             <% end %>
           </div>
         </div>
       </div>
+
+      <!-- Quick Actions & Summary -->
+      <div class="col-12 col-lg-5">
+        <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
+          <div class="card-header bg-transparent px-4 py-3" style="border-bottom: 1px solid <%= vmcott_border_gray %>;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; background: <%= vmcott_dark_blue %>10;">
+                <i class="fas fa-bolt" style="color: <%= vmcott_dark_blue %>; font-size: 0.9rem;"></i>
+              </div>
+              <h5 class="fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Quick Actions</h5>
+            </div>
+          </div>
+          
+          <div class="card-body p-4">
+            <div class="d-grid gap-2">
+              <%= link_to vehicles_path, class: "btn d-flex align-items-center justify-content-between p-3 rounded-3", 
+                    style: "background: #{vmcott_light_gray}; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue}; text-decoration: none;" do %>
+                <span><i class="fas fa-bus me-2" style="color: <%= vmcott_gold %>;"></i> View All Vehicles</span>
+                <i class="fas fa-arrow-right" style="color: <%= vmcott_gold %>;"></i>
+              <% end %>
+              
+              <%= link_to gantt_path, class: "btn d-flex align-items-center justify-content-between p-3 rounded-3 mt-2", 
+                    style: "background: #{vmcott_light_gray}; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue}; text-decoration: none;" do %>
+                <span><i class="fas fa-calendar-alt me-2" style="color: <%= vmcott_gold %>;"></i> Maintenance Schedule</span>
+                <i class="fas fa-arrow-right" style="color: <%= vmcott_gold %>;"></i>
+              <% end %>
+              
+              <%= link_to analytics_vehicles_path, class: "btn d-flex align-items-center justify-content-between p-3 rounded-3 mt-2", 
+                    style: "background: #{vmcott_light_gray}; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue}; text-decoration: none;" do %>
+                <span><i class="fas fa-chart-line me-2" style="color: <%= vmcott_gold %>;"></i> Usage Analytics</span>
+                <i class="fas fa-arrow-right" style="color: <%= vmcott_gold %>;"></i>
+              <% end %>
+              
+              <%= link_to new_vehicle_path, class: "btn d-flex align-items-center justify-content-between p-3 rounded-3 mt-2", 
+                    style: "background: #{vmcott_light_gray}; border: 1px solid #{vmcott_border_gray}; color: #{vmcott_dark_blue}; text-decoration: none;" do %>
+                <span><i class="fas fa-plus-circle me-2" style="color: <%= vmcott_gold %>;"></i> Add New Vehicle</span>
+                <i class="fas fa-arrow-right" style="color: <%= vmcott_gold %>;"></i>
+              <% end %>
+            </div>
+            
+            <!-- Summary Stats -->
+            <div class="mt-4 p-3 rounded-3" style="background: <%= vmcott_light_gray %>;">
+              <div class="small text-uppercase fw-semibold mb-2" style="color: <%= vmcott_text_gray %>;">Fleet Summary</div>
+              <div class="row g-2">
+                <div class="col-6">
+                  <div class="d-flex justify-content-between">
+                    <span class="small text-muted">Active:</span>
+                    <span class="fw-medium"><%= @overall_stats[:total_vehicles] - @overall_stats[:pending_requests] %></span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between">
+                    <span class="small text-muted">In Maintenance:</span>
+                    <span class="fw-medium"><%= @overall_stats[:pending_requests] %></span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between">
+                    <span class="small text-muted">Agencies:</span>
+                    <span class="fw-medium"><%= @overall_stats[:total_agencies] %></span>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between">
+                    <span class="small text-muted">Utilization:</span>
+                    <span class="fw-medium"><%= @overall_stats[:avg_utilization] %>%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-5 pt-4 d-flex justify-content-between align-items-center border-top" style="border-color: <%= vmcott_border_gray %> !important;">
+      <div class="d-flex align-items-center gap-3">
+        <div class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </div>
+        <span class="small text-muted">
+          <i class="fas fa-shield-alt me-1" style="color: <%= vmcott_gold %>;"></i>
+          Vehicle Maintenance Corporation of Trinidad and Tobago
+        </span>
+      </div>
+      <span class="small text-muted">
+        © <%= Date.today.year %> • All rights reserved
+      </span>
     </div>
   </div>
 </div>
+
+<style>
+/* ============================================================
+   VMCOTT AGENCIES DASHBOARD - PROFESSIONAL GOVERNMENT STYLE
+   ============================================================ */
+
+.vmcott-dashboard {
+  background: #FFFFFF;
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* TT Flag Stripe */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.stripe-red { 
+  flex: 1;
+  background-color: #C8102E; 
+}
+.stripe-white { 
+  flex: 1;
+  background-color: #FFFFFF;
+  border-top: 1px solid #E5E7EB;
+  border-bottom: 1px solid #E5E7EB;
+}
+.stripe-black { 
+  flex: 1;
+  background-color: #000000; 
+}
+
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
+}
+
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 20px;
+  border-radius: 1px;
+}
+
+/* Card hover effects */
+.card {
+  transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Button hover effects */
+.btn.rounded-circle:hover {
+  background: <%= vmcott_dark_blue %> !important;
+  color: white !important;
+  border-color: <%= vmcott_dark_blue %> !important;
+}
+
+/* Quick action buttons */
+.btn.d-flex:hover {
+  background: <%= vmcott_dark_blue %> !important;
+  color: white !important;
+  border-color: <%= vmcott_dark_blue %> !important;
+}
+
+.btn.d-flex:hover i {
+  color: white !important;
+}
+
+/* Table row hover */
+.table tbody tr:hover td {
+  background: rgba(0, 45, 98, 0.02);
+}
+
+/* Progress bar */
+.progress {
+  background-color: #E5E7EB;
+  border-radius: 100px;
+}
+
+.progress-bar {
+  border-radius: 100px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .table thead th:nth-child(5),
+  .table tbody td:nth-child(5) {
+    display: none;
+  }
+}
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+</style>

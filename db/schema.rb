@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_02_173823) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -131,7 +131,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
 
   create_table "alerts", force: :cascade do |t|
     t.text "actions_taken"
-    t.bigint "agency_id"
+    t.bigint "agency_id", null: false
     t.string "alert_type", null: false
     t.string "assigned_to"
     t.string "coordinates"
@@ -671,7 +671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   create_table "purchase_order_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", null: false
-    t.boolean "is_accepted", default: true
+    t.boolean "is_accepted"
     t.text "notes"
     t.bigint "part_id"
     t.bigint "purchase_order_id", null: false
@@ -687,6 +687,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   end
 
   create_table "purchase_orders", force: :cascade do |t|
+    t.datetime "acceptance_acknowledged_at"
     t.string "acceptance_status", default: "pending_acceptance"
     t.decimal "amount", precision: 10, scale: 2, null: false
     t.datetime "approved_at"
@@ -727,6 +728,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
     t.bigint "vehicle_id"
     t.string "vendor", null: false
     t.string "vmcott_status", default: "pending_internal_work", null: false
+    t.index ["acceptance_acknowledged_at"], name: "index_purchase_orders_on_acceptance_acknowledged_at"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"
@@ -842,11 +844,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   create_table "quotation_line_items", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
+    t.bigint "part_id", null: false
     t.integer "quantity"
     t.bigint "quotation_id", null: false
     t.text "specifications"
     t.decimal "unit_price"
     t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_quotation_line_items_on_part_id"
     t.index ["quotation_id"], name: "index_quotation_line_items_on_quotation_id"
   end
 
@@ -890,6 +894,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   end
 
   create_table "rfqs", force: :cascade do |t|
+    t.bigint "awarded_supplier_id"
     t.bigint "converted_to_quotation_id"
     t.datetime "created_at", null: false
     t.text "description"
@@ -900,14 +905,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
     t.bigint "requesting_agency_id", null: false
     t.date "response_due_date"
     t.string "rfq_number", null: false
+    t.string "rfq_type", default: "agency_to_vmcott", null: false
     t.text "special_instructions"
     t.string "status", default: "draft"
+    t.string "title"
     t.datetime "updated_at", null: false
     t.string "urgency"
     t.bigint "vehicle_id"
+    t.jsonb "vendor_supplier_ids", default: [], null: false
+    t.index ["awarded_supplier_id"], name: "index_rfqs_on_awarded_supplier_id"
     t.index ["processing_agency_id"], name: "index_rfqs_on_processing_agency_id"
     t.index ["requesting_agency_id"], name: "index_rfqs_on_requesting_agency_id"
     t.index ["rfq_number"], name: "index_rfqs_on_rfq_number", unique: true
+    t.index ["rfq_type"], name: "index_rfqs_on_rfq_type"
     t.index ["status"], name: "index_rfqs_on_status"
     t.index ["vehicle_id"], name: "index_rfqs_on_vehicle_id"
   end
@@ -948,9 +958,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   end
 
   create_table "service_providers", force: :cascade do |t|
+    t.string "address"
+    t.bigint "agency_id"
+    t.string "contact_name"
     t.datetime "created_at", null: false
+    t.string "email"
+    t.boolean "is_active", default: true, null: false
     t.string "name"
+    t.text "notes"
+    t.string "phone"
+    t.string "provider_type", default: "internal_workshop", null: false
     t.datetime "updated_at", null: false
+    t.index ["agency_id", "name"], name: "index_service_providers_on_agency_id_and_name"
+    t.index ["agency_id"], name: "index_service_providers_on_agency_id"
+    t.index ["is_active"], name: "index_service_providers_on_is_active"
+    t.index ["name"], name: "index_service_providers_on_name"
+    t.index ["provider_type"], name: "index_service_providers_on_provider_type"
   end
 
   create_table "stores", force: :cascade do |t|
@@ -1180,6 +1203,80 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
     t.index ["supplier_id"], name: "index_vendor_parts_on_supplier_id"
   end
 
+  create_table "vendor_quotation_lines", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "part_id", null: false
+    t.integer "quantity"
+    t.decimal "total_price"
+    t.decimal "unit_price"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_quotation_id", null: false
+    t.index ["part_id"], name: "index_vendor_quotation_lines_on_part_id"
+    t.index ["vendor_quotation_id"], name: "index_vendor_quotation_lines_on_vendor_quotation_id"
+  end
+
+  create_table "vendor_quotations", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.text "notes"
+    t.bigint "purchase_order_id"
+    t.string "status"
+    t.bigint "supplier_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_rfq_id", null: false
+    t.index ["purchase_order_id"], name: "index_vendor_quotations_on_purchase_order_id"
+    t.index ["supplier_id"], name: "index_vendor_quotations_on_supplier_id"
+    t.index ["vendor_rfq_id"], name: "index_vendor_quotations_on_vendor_rfq_id"
+  end
+
+  create_table "vendor_rfq_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.bigint "part_id", null: false
+    t.integer "quantity"
+    t.string "unit_of_measure"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_rfq_id", null: false
+    t.index ["part_id"], name: "index_vendor_rfq_items_on_part_id"
+    t.index ["vendor_rfq_id"], name: "index_vendor_rfq_items_on_vendor_rfq_id"
+  end
+
+  create_table "vendor_rfq_responses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "lead_time_days"
+    t.text "notes"
+    t.date "quote_date"
+    t.bigint "rfq_id", null: false
+    t.string "status", default: "received", null: false
+    t.bigint "supplier_id", null: false
+    t.decimal "total_amount", precision: 15, scale: 2, default: "0.0", null: false
+    t.datetime "updated_at", null: false
+    t.date "valid_until"
+    t.string "vendor_quote_number"
+    t.index ["rfq_id", "supplier_id"], name: "index_vendor_rfq_responses_on_rfq_id_and_supplier_id", unique: true
+    t.index ["status"], name: "index_vendor_rfq_responses_on_status"
+  end
+
+  create_table "vendor_rfqs", force: :cascade do |t|
+    t.datetime "awarded_at"
+    t.bigint "awarded_vendor_quotation_id"
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.date "due_date"
+    t.text "notes"
+    t.bigint "processing_agency_id"
+    t.string "rfq_number", null: false
+    t.date "sent_date"
+    t.string "status", default: "draft", null: false
+    t.datetime "updated_at", null: false
+    t.index ["awarded_vendor_quotation_id"], name: "index_vendor_rfqs_on_awarded_vendor_quotation_id"
+    t.index ["created_by_id"], name: "index_vendor_rfqs_on_created_by_id"
+    t.index ["processing_agency_id"], name: "index_vendor_rfqs_on_processing_agency_id"
+    t.index ["rfq_number"], name: "index_vendor_rfqs_on_rfq_number", unique: true
+    t.index ["status"], name: "index_vendor_rfqs_on_status"
+  end
+
   create_table "z_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1251,6 +1348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   add_foreign_key "quotation_job_parts", "quotation_jobs"
   add_foreign_key "quotation_jobs", "job_templates"
   add_foreign_key "quotation_jobs", "quotations"
+  add_foreign_key "quotation_line_items", "parts"
   add_foreign_key "quotation_line_items", "quotations"
   add_foreign_key "quotations", "agencies"
   add_foreign_key "quotations", "rfqs"
@@ -1261,6 +1359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   add_foreign_key "rfqs", "agencies", column: "requesting_agency_id"
   add_foreign_key "rfqs", "maintenance_requests"
   add_foreign_key "rfqs", "vehicles"
+  add_foreign_key "service_providers", "agencies"
   add_foreign_key "transactions", "invoices"
   add_foreign_key "transactions", "users"
   add_foreign_key "transactions", "vehicles"
@@ -1275,4 +1374,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_03_043437) do
   add_foreign_key "vendor_invoices", "users"
   add_foreign_key "vendor_parts", "parts"
   add_foreign_key "vendor_parts", "suppliers"
+  add_foreign_key "vendor_quotation_lines", "parts"
+  add_foreign_key "vendor_quotation_lines", "vendor_quotations"
+  add_foreign_key "vendor_quotations", "purchase_orders"
+  add_foreign_key "vendor_quotations", "suppliers"
+  add_foreign_key "vendor_quotations", "vendor_rfqs"
+  add_foreign_key "vendor_rfq_items", "parts"
+  add_foreign_key "vendor_rfq_items", "vendor_rfqs"
+  add_foreign_key "vendor_rfq_responses", "rfqs"
+  add_foreign_key "vendor_rfq_responses", "suppliers"
+  add_foreign_key "vendor_rfqs", "agencies", column: "processing_agency_id"
+  add_foreign_key "vendor_rfqs", "users", column: "created_by_id"
+  add_foreign_key "vendor_rfqs", "vendor_quotations", column: "awarded_vendor_quotation_id"
 end

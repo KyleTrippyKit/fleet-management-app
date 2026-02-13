@@ -2,8 +2,6 @@
 require 'csv'
 
 class QuotationsController < ApplicationController
-  # REMOVED: skip_before_action :verify_authenticity_token, only: [:process_item_acceptance]
-  
   before_action :authenticate_user!
   before_action :set_quotation, only: [:show, :edit, :update, :destroy, :accept, :reject, 
                                         :convert_to_purchase_order, :print, :email, :send_to_vendor, 
@@ -57,31 +55,13 @@ class QuotationsController < ApplicationController
       return
     end
 
-    Rails.logger.info "================ RECEIVED QUOTATIONS ================="
-    Rails.logger.info "Current user ID: #{current_user.id}"
-    Rails.logger.info "Agency ID: #{current_user.agency_id}"
-    Rails.logger.info "Agency Code: #{current_user.agency&.code}"
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(agency_id: current_user.agency_id)
+                 .where.not(status: Quotation.statuses[:draft])
+                 .order(sent_at: :desc)
 
-    # ✅ Quotations SENT TO this agency (source of truth)
-    base_scope = Quotation
-      .where(agency_id: current_user.agency_id)
-      .where.not(status: Quotation.statuses[:draft])
-
-    @quotations = base_scope
-      .order(sent_at: :desc)
-      .page(params[:page])
-
-    Rails.logger.info "Found #{@quotations.size} received quotations"
-
-    @quotations.each do |q|
-      Rails.logger.info(
-        "Quotation #{q.quote_number} | " \
-        "Status=#{q.status} | " \
-        "Vendor=#{q.vendor} | " \
-        "RFQ Requesting Agency=#{q.rfq&.requesting_agency_id} | " \
-        "Assigned Agency=#{q.agency_id}"
-      )
-    end
+    @quotations = base_scope.page(params[:page])
 
     # 📊 Stats for received dashboard
     @stats = {
@@ -98,11 +78,13 @@ class QuotationsController < ApplicationController
   def sent
     return redirect_to quotations_path, alert: 'Access denied' unless current_user.agency&.code == 'VMCOTT'
     
-    base_scope = Quotation.where(vendor: 'VMCOTT').where.not(status: 'draft')
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(vendor: 'VMCOTT')
+                 .where.not(status: 'draft')
+                 .order(created_at: :desc)
     
-    @quotations = base_scope
-      .order(created_at: :desc)
-      .page(params[:page])
+    @quotations = base_scope.page(params[:page])
     
     @stats = {
       total: base_scope.count,
@@ -118,11 +100,13 @@ class QuotationsController < ApplicationController
   def workspace
     return redirect_to quotations_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
     
-    base_scope = Quotation.where(vendor: 'VMCOTT').where(status: ['draft', 'sent'])
+    # ✅ FIXED: Use scope_quotations for consistent authorization
+    base_scope = scope_quotations
+                 .where(vendor: 'VMCOTT')
+                 .where(status: ['draft', 'sent'])
+                 .order(created_at: :desc)
     
-    @quotations = base_scope
-      .order(created_at: :desc)
-      .page(params[:page])
+    @quotations = base_scope.page(params[:page])
     
     @stats = {
       draft: base_scope.where(status: 'draft').count,
@@ -364,7 +348,9 @@ class QuotationsController < ApplicationController
   # POST /quotations/1/reject_items
   def reject_items
     if params[:items].present?
-      session["quotation_#{@quotation.id}_rejected_items"] = params[:items]
+      # ✅ FIXED: Normalize to IDs instead of storing raw params
+      rejected_item_ids = params[:items].keys.map(&:to_i)
+      session["quotation_#{@quotation.id}_rejected_items"] = rejected_item_ids
       @quotation.update(status: 'partially_rejected')
       redirect_to acceptance_summary_quotation_path(@quotation), notice: 'Items rejected. Please review rejection summary.'
     else
@@ -396,7 +382,12 @@ class QuotationsController < ApplicationController
     ).to_f.round(2)
 
     # Optional: show rejected items
-    @rejected_items = session["quotation_#{@quotation.id}_rejected_items"] || {}
+    @rejected_item_ids = session["quotation_#{@quotation.id}_rejected_items"] || []
+    @rejected_items = {
+      line_items: @quotation.quotation_line_items.where(id: @rejected_item_ids),
+      jobs: @quotation.quotation_jobs.where(id: @rejected_item_ids),
+      job_parts: @quotation.quotation_job_parts.where(id: @rejected_item_ids)
+    }
 
     render :acceptance_summary
   end
@@ -512,7 +503,9 @@ class QuotationsController < ApplicationController
 
       notify_agency_of_quotation
 
-      redirect_to quotations_path, notice: "Quotation #{@quotation.quote_number} submitted and locked."
+      # ✅ SIMPLIFIED FIX: Redirect to quotation show page instead of index
+      redirect_to quotation_path(@quotation), 
+                  notice: "Quotation #{@quotation.quote_number} submitted and locked."
     else
       Rails.logger.error "FAILED: #{@quotation.errors.full_messages.join(', ')}"
       redirect_to @quotation, alert: "Failed to submit quotation."
@@ -604,13 +597,26 @@ class QuotationsController < ApplicationController
     # Let model callbacks handle amount calculation
     @quotation.recalculate_amount!
     
-    # Redirect based on whether we need to create a purchase request
-    if params[:create_purchase_request] == 'true'
-      redirect_to create_purchase_request_quotation_path(@quotation), 
-                notice: 'Jobs assigned. Creating purchase request for missing parts...'
-    else
-      redirect_to edit_quotation_path(@quotation), 
-                notice: 'Jobs assigned successfully. Please review and set prices.'
+    # ✅ FIX 1: Turbo-compatible redirects
+    respond_to do |format|
+      format.html do
+        if params[:create_purchase_request] == 'true'
+          redirect_to create_purchase_request_quotation_path(@quotation), 
+                    notice: 'Jobs assigned. Creating purchase request for missing parts...'
+        else
+          redirect_to edit_quotation_path(@quotation), 
+                    notice: 'Jobs assigned successfully. Please review and set prices.'
+        end
+      end
+      format.turbo_stream do
+        if params[:create_purchase_request] == 'true'
+          redirect_to create_purchase_request_quotation_path(@quotation), 
+                    notice: 'Jobs assigned. Creating purchase request for missing parts...'
+        else
+          redirect_to edit_quotation_path(@quotation), 
+                    notice: 'Jobs assigned successfully. Please review and set prices.'
+        end
+      end
     end
   end
 
@@ -682,7 +688,8 @@ class QuotationsController < ApplicationController
     @vendors = get_vendors_list
     load_parts_for_inventory
     
-    render :new
+    # ✅ FIX 3: Add stimulus controller for job template clicks
+    render :new, locals: { stimulus_controller: 'job-templates' }
   end
 
   # GET /quotations/1/edit
@@ -698,23 +705,45 @@ class QuotationsController < ApplicationController
     @vehicles = available_vehicles
     @vendors = get_vendors_list
     load_parts_for_inventory
+    
+    # ✅ FIX 3: Add stimulus controller for job template clicks
+    render :edit, locals: { stimulus_controller: 'job-templates' }
   end
 
   # POST /quotations
   def create
-    Rails.logger.info "=== QUOTATION CREATE DEBUG ==="
-    Rails.logger.info "Params received: #{params.to_unsafe_h.inspect}"
+    # ✅ FIXED: Remove dangerous params logging in production
+    if Rails.env.development?
+      Rails.logger.debug "=== QUOTATION CREATE DEBUG ==="
+      Rails.logger.debug "Current user agency: #{current_user.agency&.code}"
+    end
     
     begin
       quotation_params_hash = quotation_params
-      Rails.logger.info "DEBUG - quotation_params hash: #{quotation_params_hash.inspect}"
+      
+      if Rails.env.development?
+        Rails.logger.debug "DEBUG - quotation_params hash (safe): #{quotation_params_hash.to_h.except(:quotation_line_items_attributes, :quotation_jobs_attributes).inspect}"
+      end
       
       @quotation = Quotation.new(quotation_params_hash)
       @quotation.created_by = current_user
       
-      if @quotation.agency_id.blank? && @quotation.vehicle_id.present?
-        @quotation.vehicle = Vehicle.find_by(id: @quotation.vehicle_id)
-        @quotation.agency = @quotation.vehicle&.agency
+      # ✅ FIXED: Security - Set agency_id only for admin/finance users
+      # For normal users, derive from vehicle/RFQ
+      unless current_user.admin? || current_user.finance?
+        # Determine agency from vehicle or RFQ
+        determined_agency_id = nil
+        
+        if @quotation.vehicle_id.present?
+          @quotation.vehicle = Vehicle.find_by(id: @quotation.vehicle_id)
+          determined_agency_id = @quotation.vehicle&.agency_id
+        elsif @quotation.rfq_id.present?
+          rfq = Rfq.find_by(id: @quotation.rfq_id)
+          determined_agency_id = rfq&.requesting_agency_id
+        end
+        
+        # Override with determined agency if present
+        @quotation.agency_id = determined_agency_id if determined_agency_id.present?
       end
       
       if params[:job_assignments].present?
@@ -731,23 +760,56 @@ class QuotationsController < ApplicationController
         when 'Submit Quotation', 'SUBMIT QUOTATION'
           if @quotation.send_to_vendor!
             notify_agency_of_quotation
-            redirect_to @quotation, notice: 'Quotation created and sent to vendor.'
+            # ✅ FIX 1: Turbo-compatible redirect
+            respond_to do |format|
+              format.html { redirect_to @quotation, notice: 'Quotation created and sent to vendor.' }
+              format.turbo_stream do
+                redirect_to @quotation, 
+                          notice: 'Quotation created and sent to vendor.'
+              end
+            end
           else
             redirect_to @quotation, alert: 'Unable to send quotation.'
           end
         when 'Save as Draft', 'SAVE AS DRAFT'
           @quotation.draft!
-          redirect_to @quotation, notice: 'Quotation saved as draft.'
+          # ✅ FIX 1: Turbo-compatible redirect
+          respond_to do |format|
+            format.html { redirect_to @quotation, notice: 'Quotation saved as draft.' }
+            format.turbo_stream do
+              redirect_to @quotation, 
+                        notice: 'Quotation saved as draft.'
+            end
+          end
         else
-          redirect_to @quotation, notice: 'Quotation was successfully created.'
+          # ✅ FIX 1: Turbo-compatible redirect
+          respond_to do |format|
+            format.html { redirect_to @quotation, notice: 'Quotation was successfully created.' }
+            format.turbo_stream do
+              redirect_to @quotation, 
+                        notice: 'Quotation was successfully created.'
+            end
+          end
         end
       else
-        Rails.logger.error "DEBUG - Quotation save failed: #{@quotation.errors.full_messages}"
+        if Rails.env.development?
+          Rails.logger.error "DEBUG - Quotation save failed: #{@quotation.errors.full_messages}"
+        end
         load_job_templates
         @vehicles = available_vehicles
         @vendors = get_vendors_list
         load_parts_for_inventory
-        render :new, status: :unprocessable_entity
+        
+        # ✅ FIX 1: Render with proper status
+        respond_to do |format|
+          format.html { render :new, status: :unprocessable_entity }
+          format.turbo_stream do
+            render turbo_stream: turbo_stream.replace("quotation-form",
+              partial: "quotations/form",
+              locals: { quotation: @quotation }
+            )
+          end
+        end
       end
     rescue ActionController::UnfilteredParameters => e
       Rails.logger.error "UnfilteredParameters error in create: #{e.message}"
@@ -764,7 +826,16 @@ class QuotationsController < ApplicationController
       load_parts_for_inventory
       
       flash.now[:alert] = "Error creating quotation: Invalid parameters format. Please check your input."
-      render :new, status: :unprocessable_entity
+      
+      respond_to do |format|
+        format.html { render :new, status: :unprocessable_entity }
+        format.turbo_stream do
+          render turbo_stream: turbo_stream.replace("flash-messages",
+            partial: "shared/flash",
+            locals: { alert: "Error creating quotation: Invalid parameters format. Please check your input." }
+          )
+        end
+      end
     rescue => e
       Rails.logger.error "Unexpected error in create: #{e.class.name} - #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
@@ -780,7 +851,16 @@ class QuotationsController < ApplicationController
       load_parts_for_inventory
       
       flash.now[:alert] = "Unexpected error: #{e.message}"
-      render :new, status: :unprocessable_entity
+      
+      respond_to do |format|
+        format.html { render :new, status: :unprocessable_entity }
+        format.turbo_stream do
+          render turbo_stream: turbo_stream.replace("flash-messages",
+            partial: "shared/flash",
+            locals: { alert: "Unexpected error: #{e.message}" }
+          )
+        end
+      end
     end
   end
 
@@ -790,6 +870,12 @@ class QuotationsController < ApplicationController
     
     begin
       quotation_params_hash = quotation_params
+      
+      # ✅ FIXED: Security - Only allow agency_id update for admin/finance users
+      unless current_user.admin? || current_user.finance?
+        # Remove agency_id from params for non-admin users
+        quotation_params_hash.delete(:agency_id)
+      end
       
       if current_user.agency&.code == 'VMCOTT'
         quotation_params_hash[:vendor] = 'VMCOTT'
@@ -814,13 +900,30 @@ class QuotationsController < ApplicationController
           notice = 'Quotation was successfully updated.'
         end
         
-        redirect_to @quotation, notice: notice
+        # ✅ FIX 1: Turbo-compatible redirect
+        respond_to do |format|
+          format.html { redirect_to @quotation, notice: notice }
+          format.turbo_stream do
+            redirect_to @quotation, 
+                      notice: notice
+          end
+        end
       else
         load_job_templates
         @vehicles = available_vehicles
         @vendors = get_vendors_list
         load_parts_for_inventory
-        render :edit, status: :unprocessable_entity
+        
+        # ✅ FIX 1: Turbo-compatible render
+        respond_to do |format|
+          format.html { render :edit, status: :unprocessable_entity }
+          format.turbo_stream do
+            render turbo_stream: turbo_stream.replace("quotation-form",
+              partial: "quotations/form",
+              locals: { quotation: @quotation }
+            )
+          end
+        end
       end
     rescue ActionController::UnfilteredParameters => e
       Rails.logger.error "UnfilteredParameters error in update: #{e.message}"
@@ -829,15 +932,38 @@ class QuotationsController < ApplicationController
       @vehicles = available_vehicles
       @vendors = get_vendors_list
       load_parts_for_inventory
-      render :edit, status: :unprocessable_entity
+      
+      respond_to do |format|
+        format.html { render :edit, status: :unprocessable_entity }
+        format.turbo_stream do
+          render turbo_stream: turbo_stream.replace("flash-messages",
+            partial: "shared/flash",
+            locals: { alert: "Error updating quotation: Invalid parameters format." }
+          )
+        end
+      end
     end
   end
 
   # DELETE /quotations/1
+# DELETE /quotations/1
   def destroy
-    check_delete_permission
-    @quotation.destroy
-    redirect_to quotations_url, notice: 'Quotation was successfully deleted.'
+    # 🔒 Only allow deleting draft quotations
+    unless @quotation.draft?
+      return redirect_to @quotation, alert: "Only draft quotations can be deleted."
+    end
+
+    # 🔒 Only VMCOTT (or admin) can delete drafts
+    unless current_user.admin? || current_user.agency&.code == "VMCOTT"
+      return redirect_to @quotation, alert: "You are not authorized to delete this quotation."
+    end
+
+    @quotation.destroy!
+
+    # ✅ IMPORTANT: Always redirect after delete (Turbo needs 303 to navigate cleanly)
+    redirect_to workspace_quotations_path,
+                status: :see_other,
+                notice: "Draft quotation deleted successfully."
   end
 
   # POST /quotations/1/send_to_vendor
@@ -848,7 +974,14 @@ class QuotationsController < ApplicationController
     
     if @quotation.send_to_vendor!
       notify_agency_of_quotation
-      redirect_to @quotation, notice: 'Quotation sent to agency.'
+      # ✅ FIX 1: Turbo-compatible redirect
+      respond_to do |format|
+        format.html { redirect_to @quotation, notice: 'Quotation sent to agency.' }
+        format.turbo_stream do
+          redirect_to @quotation, 
+                    notice: 'Quotation sent to agency.'
+        end
+      end
     else
       redirect_to @quotation, alert: 'Unable to send quotation.'
     end
@@ -885,7 +1018,14 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/convert_to_po - CANONICAL CONVERSION METHOD
   def convert_to_po
-    # ✅ FIXED: Redirect to send_acceptance to use the single canonical PO creation path
+    # ✅ FIXED: Only allow agency users who can accept items (not VMCOTT/finance)
+    unless can_accept_items?
+      redirect_to @quotation, 
+                  alert: 'Only the receiving agency can convert quotations to purchase orders.'
+      return
+    end
+    
+    # Redirect to send_acceptance to use the single canonical PO creation path
     redirect_to send_acceptance_quotation_path(@quotation)
   end
 
@@ -956,11 +1096,25 @@ class QuotationsController < ApplicationController
 
   # POST /quotations/1/send_email
   def send_email
+    # ✅ FIXED: Actually send email if mailer exists
     recipient = params[:recipient_email]
     subject = params[:subject] || "Quotation #{@quotation.quote_number}"
     message = params[:message]
     
-    redirect_to @quotation, notice: "Quotation email sent to #{recipient}."
+    # Check if mailer exists
+    if defined?(QuotationMailer)
+      begin
+        QuotationMailer.quotation_email(@quotation, recipient, subject, message).deliver_later
+        notice = "Quotation email sent to #{recipient}."
+      rescue => e
+        Rails.logger.error "Failed to send quotation email: #{e.message}"
+        notice = "Failed to send email: #{e.message}"
+      end
+    else
+      notice = "Email functionality not configured. Quotation would have been sent to #{recipient}."
+    end
+    
+    redirect_to @quotation, notice: notice
   end
 
   # GET /quotations/reports
@@ -1038,7 +1192,8 @@ class QuotationsController < ApplicationController
   # 🔒 FIXED: Prevent editing ALL locked statuses, not just sent
   def prevent_edit_if_locked
     return unless @quotation
-    if @quotation.locked?
+    # Ensure Quotation model has locked? method defined
+    if @quotation.respond_to?(:locked?) && @quotation.locked?
       redirect_to @quotation, alert: 'This quotation is locked and can no longer be edited.'
     end
   end
@@ -1344,13 +1499,14 @@ class QuotationsController < ApplicationController
     end
   end
 
-  # ✅ FIXED: Removed :status from strong params for workflow integrity
+  # ✅ FIXED: Security - Only permit agency_id for admin/finance users
   def quotation_params
-    params.require(:quotation).permit(
+    # Base allowed parameters for everyone
+    allowed = [
       :vehicle_id, :vendor, :valid_from, :valid_to, 
-      :notes, :rfq_id, :agency_id,
+      :notes, :rfq_id,
       quotation_line_items_attributes: [
-        :id, :description, :quantity, :unit_price, :specifications, :_destroy
+        :id, :description, :quantity, :unit_price, :specifications, :_destroy, :part_id
       ],
       quotation_jobs_attributes: [
         :id, :job_template_id, :job_type, :name, :description, 
@@ -1360,7 +1516,12 @@ class QuotationsController < ApplicationController
           :id, :part_id, :quantity, :unit_price, :total_price, :_destroy
         ]
       ]
-    ).tap do |whitelisted|
+    ]
+    
+    # Only allow agency_id for admin/finance users
+    allowed << :agency_id if current_user.admin? || current_user.finance?
+    
+    params.require(:quotation).permit(*allowed).tap do |whitelisted|
       # Force VMCOTT vendor for VMCOTT users
       if current_user.agency&.code == 'VMCOTT'
         whitelisted[:vendor] = 'VMCOTT'
@@ -1463,18 +1624,39 @@ class QuotationsController < ApplicationController
     generate_readable_po_number
   end
 
+  # ✅ FIXED: Safe notification method that won't crash if Notification model doesn't exist
   def notify_agency_of_quotation
     return unless @quotation.agency
     
-    Notification.create!(
-      agency_id: @quotation.agency_id,
-      title: "New Quotation from VMCOTT",
-      message: "VMCOTT has submitted a quotation #{@quotation.quote_number} for vehicle #{@quotation.vehicle&.license_plate || 'N/A'}",
-      link: Rails.application.routes.url_helpers.quotation_path(@quotation),
-      priority: 'medium'
-    )
+    begin
+      # Check if Notification model exists and table exists
+      if defined?(Notification) && Notification.table_exists?
+        Notification.create!(
+          agency_id: @quotation.agency_id,
+          title: "New Quotation from VMCOTT",
+          message: "VMCOTT has submitted a quotation #{@quotation.quote_number} for vehicle #{@quotation.vehicle&.license_plate || 'N/A'}",
+          link: Rails.application.routes.url_helpers.quotation_path(@quotation),
+          priority: 'medium'
+        )
+        Rails.logger.info "Notification created for agency #{@quotation.agency_id}"
+      else
+        Rails.logger.warn "Notification model not found or table doesn't exist. Skipping notification creation."
+      end
+    rescue => e
+      Rails.logger.error "Failed to create notification: #{e.message}"
+      # Don't crash the main flow if notifications fail
+    end
     
-    QuotationMailer.quotation_submitted(@quotation).deliver_later if defined?(QuotationMailer)
+    # Try to send email if mailer exists
+    begin
+      if defined?(QuotationMailer) && defined?(QuotationMailer.quotation_submitted)
+        QuotationMailer.quotation_submitted(@quotation).deliver_later
+        Rails.logger.info "Quotation submission email queued"
+      end
+    rescue => e
+      Rails.logger.error "Failed to queue quotation email: #{e.message}"
+      # Don't crash the main flow if email fails
+    end
   end
 
   def create_jobs_from_params(quotation, job_assignments_json)
@@ -1540,34 +1722,35 @@ class QuotationsController < ApplicationController
 
     accepted_total = line_total + jobs_labor_total + parts_total
 
-    # Build attributes with required fields
-    attrs = {
+    # ✅ FIXED: Explicit attribute assignment instead of slice(column_names)
+    po_attrs = {
       quotation_id: quotation.id,
       amount: accepted_total,
       vendor: quotation.vendor,
       vehicle_id: quotation.vehicle_id,
       agency_id: quotation.agency_id,
-      created_by_id: current_user.id,
+      created_by: current_user, # Use association if available
+      created_by_id: current_user.id, # Also set foreign key for safety
       po_number: generate_readable_po_number,
       status: "draft",
       notes: "Created from Quotation #{quotation.quote_number}"
     }
 
-    po = PurchaseOrder.create!(attrs.slice(*PurchaseOrder.column_names.map(&:to_sym)))
+    po = PurchaseOrder.create!(po_attrs)
 
     # ---- Create PO items for line items ----
     Array(accepted_line_items).each do |li|
       item_attrs = {
-        purchase_order_id: po.id,
-        description: (li.respond_to?(:description) ? li.description : nil),
-        specifications: (li.respond_to?(:specifications) ? li.specifications : nil),
+        purchase_order: po,
+        description: li.description,
+        specifications: li.specifications,
         quantity: li.quantity.to_f,
         unit_price: li.unit_price.to_f,
         total_price: (li.quantity.to_f * li.unit_price.to_f)
       }
 
-      if defined?(PurchaseOrderItem)
-        PurchaseOrderItem.create!(item_attrs.slice(*PurchaseOrderItem.column_names.map(&:to_sym)))
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(item_attrs)
       end
     end
 
@@ -1576,13 +1759,15 @@ class QuotationsController < ApplicationController
       labor = job.respond_to?(:total_labor_cost) ? job.total_labor_cost.to_f : 0.0
       next if labor <= 0
 
-      PurchaseOrderItem.create!(
-        purchase_order_id: po.id,
-        description: "Labor: #{job.name}",
-        quantity: 1,
-        unit_price: labor,
-        total_price: labor
-      )
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(
+          purchase_order: po,
+          description: "Labor: #{job.name}",
+          quantity: 1,
+          unit_price: labor,
+          total_price: labor
+        )
+      end
     end
 
     # ✅ FIXED: Create PO items for parts
@@ -1593,14 +1778,16 @@ class QuotationsController < ApplicationController
                     jp.quantity.to_f * jp.unit_price.to_f
                   end
 
-      PurchaseOrderItem.create!(
-        purchase_order_id: po.id,
-        part_id: jp.part_id,
-        description: (jp.part&.name || "Part"),
-        quantity: jp.quantity.to_f,
-        unit_price: jp.unit_price.to_f,
-        total_price: part_total
-      )
+      if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
+        PurchaseOrderItem.create!(
+          purchase_order: po,
+          part_id: jp.part_id,
+          description: jp.part&.name || "Part",
+          quantity: jp.quantity.to_f,
+          unit_price: jp.unit_price.to_f,
+          total_price: part_total
+        )
+      end
     end
 
     po

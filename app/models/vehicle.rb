@@ -192,6 +192,56 @@ class Vehicle < ApplicationRecord
   scope :education_vehicles, -> { for_agency('EDUCATION') }
 
   # ------------------------------------------------------------
+  # ✅ IMPROVED: Search scope - CASE INSENSITIVE and MORE FLEXIBLE
+  # ------------------------------------------------------------
+  scope :search, ->(query) {
+    return all if query.blank?
+    
+    query = query.to_s.strip
+    
+    # Remove any special characters and normalize
+    clean_query = query.gsub(/[^a-zA-Z0-9\s]/, '').downcase
+    
+    # For very short queries (2-3 chars), be more flexible
+    if clean_query.length <= 3
+      # Search ANYWHERE in the fields (more permissive)
+      where(
+        "LOWER(make) LIKE :q OR 
+         LOWER(model) LIKE :q OR 
+         LOWER(license_plate) LIKE :q OR 
+         LOWER(registration_number) LIKE :q OR
+         LOWER(CONCAT(make, ' ', model)) LIKE :q",
+        q: "%#{clean_query}%"
+      )
+    else
+      # For longer queries, can be more specific
+      where(
+        "LOWER(make) LIKE :q OR 
+         LOWER(model) LIKE :q OR 
+         LOWER(license_plate) LIKE :q OR 
+         LOWER(registration_number) LIKE :q",
+        q: "%#{clean_query}%"
+      )
+    end
+  }
+  
+  # Alternative: PostgreSQL ILIKE version (more efficient)
+  scope :search_improved, ->(query) {
+    return all if query.blank?
+    
+    query = "%#{query.to_s.strip}%"
+    
+    where(
+      "make ILIKE ? OR 
+       model ILIKE ? OR 
+       license_plate ILIKE ? OR 
+       registration_number ILIKE ? OR
+       make || ' ' || model ILIKE ?",
+      query, query, query, query, query
+    )
+  }
+
+  # ------------------------------------------------------------
   # Image helpers (Asset Pipeline + ActiveStorage)
   # ------------------------------------------------------------
   def asset_image_path
@@ -428,14 +478,6 @@ class Vehicle < ApplicationRecord
   def simple_display_name
     [make, model].compact.join(" ")
   end
-
-  # ------------------------------------------------------------
-  # Search scope
-  # ------------------------------------------------------------
-  scope :search, ->(query) {
-    return all if query.blank?
-    where("make ILIKE :q OR model ILIKE :q OR license_plate ILIKE :q OR registration_number ILIKE :q", q: "%#{query}%")
-  }
 
   # ------------------------------------------------------------
   # Usage analytics helper

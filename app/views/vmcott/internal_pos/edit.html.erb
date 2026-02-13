@@ -1,106 +1,105 @@
 <%# app/views/vmcott/internal_pos/edit.html.erb %>
-<div class="container-fluid py-4">
-  <div class="row">
-    <div class="col-md-8 offset-md-2">
-      <div class="card">
-        <div class="card-header bg-warning text-dark">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h4 class="mb-0">
-                <i class="fas fa-edit me-2"></i>Edit Internal POS
-              </h4>
-              <small class="opacity-75">Edit POS <%= @internal_pos.work_order_number %></small>
-            </div>
-            <div>
-              <%= link_to vmcott_internal_pos_path(@internal_pos), class: 'btn btn-sm btn-outline-dark' do %>
-                <i class="fas fa-arrow-left me-1"></i> Back to POS
-              <% end %>
-            </div>
-          </div>
+
+<div class="page-shell">
+  <div class="page-hero">
+    <div class="row align-items-center g-3">
+      <div class="col-12 col-lg-7">
+        <h2 class="hero-title">
+          <i class="bi bi-pencil-square"></i>
+          Edit Internal POS
+        </h2>
+        <div class="hero-subtitle">
+          Update details for <strong><%= @internal_pos.work_order_number %></strong>
         </div>
-        
-        <div class="card-body">
-          <%= form_with model: @internal_pos, url: vmcott_internal_pos_path(@internal_pos), local: true do |f| %>
-            <% if @internal_pos.errors.any? %>
-              <div class="alert alert-danger">
-                <h5><%= pluralize(@internal_pos.errors.count, "error") %> prohibited this POS from being saved:</h5>
-                <ul>
-                  <% @internal_pos.errors.full_messages.each do |message| %>
-                    <li><%= message %></li>
-                  <% end %>
-                </ul>
-              </div>
-            <% end %>
-            
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :work_order_number, class: 'form-label' %>
-                  <%= f.text_field :work_order_number, class: 'form-control', readonly: true %>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :status, class: 'form-label' %>
-                  <%= f.select :status, InternalPos.statuses.keys.map { |s| [s.titleize, s] }, {}, class: 'form-select' %>
-                </div>
-              </div>
-            </div>
-            
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :priority, class: 'form-label' %>
-                  <%= f.select :priority, InternalPos.priorities.keys.map { |p| [p.titleize, p] }, {}, class: 'form-select' %>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :assigned_to_id, 'Assigned To', class: 'form-label' %>
-                  <%= f.select :assigned_to_id, 
-                        options_for_select(User.all.map { |u| [u.full_name || u.email, u.id] }, @internal_pos.assigned_to_id),
-                        { include_blank: 'Select User...' }, 
-                        class: 'form-select' %>
-                </div>
-              </div>
-            </div>
-            
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :estimated_completion_date, class: 'form-label' %>
-                  <%= f.date_field :estimated_completion_date, class: 'form-control' %>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= f.label :completed_at, 'Completion Date', class: 'form-label' %>
-                  <%= f.datetime_local_field :completed_at, class: 'form-control', disabled: @internal_pos.status != 'completed' %>
-                  <small class="form-text text-muted">Will be auto-filled when marked as completed</small>
-                </div>
-              </div>
-            </div>
-            
-            <div class="mb-3">
-              <%= f.label :description, class: 'form-label' %>
-              <%= f.text_area :description, class: 'form-control', rows: 3 %>
-            </div>
-            
-            <div class="mb-3">
-              <%= f.label :notes, class: 'form-label' %>
-              <%= f.text_area :notes, class: 'form-control', rows: 3 %>
-            </div>
-            
-            <div class="d-flex justify-content-between mt-4">
-              <%= link_to 'Cancel', vmcott_internal_pos_path(@internal_pos), class: 'btn btn-outline-secondary' %>
-              <%= f.submit 'Update POS', class: 'btn btn-warning' %>
-            </div>
+      </div>
+
+      <div class="col-12 col-lg-5">
+        <div class="hero-actions">
+          <%= link_to vmcott_internal_pos_path(@internal_pos), class: "btn btn-outline-secondary" do %>
+            <i class="bi bi-arrow-left me-1"></i> Back to Details
+          <% end %>
+
+          <%= link_to vmcott_internal_pos_index_path, class: "btn btn-outline-secondary" do %>
+            <i class="bi bi-list-ul me-1"></i> All Work Orders
           <% end %>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-card-header">
+      <h5 class="section-card-title">
+        <i class="bi bi-sliders"></i>
+        Edit Form
+      </h5>
+      <span class="muted small">Fields are arranged for a clean demo flow.</span>
+    </div>
+
+    <div class="section-card-body">
+      <%= form_with model: @internal_pos, url: vmcott_internal_pos_path(@internal_pos), local: true do |f| %>
+        <% if @internal_pos.errors.any? %>
+          <div class="alert alert-danger">
+            <h5><%= pluralize(@internal_pos.errors.count, "error") %> prohibited this POS from being saved:</h5>
+            <ul class="mb-0">
+              <% @internal_pos.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <%= f.label :work_order_number, class: 'form-label' %>
+            <%= f.text_field :work_order_number, class: 'form-control', readonly: true %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :status, class: 'form-label' %>
+            <%= f.select :status, InternalPos.statuses.keys.map { |s| [s.titleize, s] }, {}, class: 'form-select' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :priority, class: 'form-label' %>
+            <%= f.select :priority, InternalPos.priorities.keys.map { |p| [p.titleize, p] }, {}, class: 'form-select' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :assigned_to_id, 'Assigned To', class: 'form-label' %>
+            <%= f.select :assigned_to_id,
+                  options_for_select(User.all.map { |u| [u.full_name || u.email, u.id] }, @internal_pos.assigned_to_id),
+                  { include_blank: 'Select User...' },
+                  class: 'form-select' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :estimated_completion_date, class: 'form-label' %>
+            <%= f.date_field :estimated_completion_date, class: 'form-control' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :completed_at, 'Completion Date', class: 'form-label' %>
+            <%= f.datetime_local_field :completed_at, class: 'form-control', disabled: @internal_pos.status != 'completed' %>
+            <small class="form-text text-muted">Auto-filled when marked completed</small>
+          </div>
+
+          <div class="col-12">
+            <%= f.label :description, class: 'form-label' %>
+            <%= f.text_area :description, class: 'form-control', rows: 3 %>
+          </div>
+
+          <div class="col-12">
+            <%= f.label :notes, class: 'form-label' %>
+            <%= f.text_area :notes, class: 'form-control', rows: 3 %>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-4">
+          <%= link_to 'Cancel', vmcott_internal_pos_path(@internal_pos), class: 'btn btn-outline-secondary' %>
+          <%= f.submit 'Update POS', class: 'btn btn-primary' %>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>

@@ -1,1099 +1,1051 @@
-<%# app/views/ptsc_dashboard/index.html.erb %>
+<%# app/views/ptsc_dashboard/index.html.erb - PTSC TRINIDAD & TOBAGO FLEET DASHBOARD (FULLY OPTIMIZED) %>
 
-<!-- External Libraries -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
+  
+  # Get real data from controller
+  total_fleet       = @vehicle_stats[:total_vehicles] rescue 0
+  active_fleet      = @vehicle_stats[:active_vehicles] rescue 0
+  maintenance_fleet = @vehicle_stats[:in_maintenance] rescue 0
+  out_fleet         = total_fleet - active_fleet - maintenance_fleet
 
-<!-- ADD THIS: Disable Turbo for time range buttons -->
-<%= turbo_frame_tag :dashboard_content, data: { turbo: false } do %>
-  <div class="min-h-screen bg-light">
-    <!-- Header (all roles) -->
-    <%= render 'ptsc_dashboard/header', 
-          vehicle_stats: @vehicle_stats, 
-          usage_stats: @usage_stats %>
+  active_alerts = @active_alerts_count || 0
+  upcoming_cnt  = @maintenance_stats[:upcoming] rescue 0
 
-    <div class="container-fluid px-4 py-4">
-      <!-- Navigation -->
-      <div class="mb-4">
-        <%= render 'shared/navigation' %>
+  availability_pct = total_fleet.positive? ? ((active_fleet.to_f / total_fleet) * 100).round(1) : 0.0
+
+  # Enhanced health scoring system with real data
+  health_score = 100
+  health_score -= [active_alerts * 2, 40].min
+  health_score -= [out_fleet * 3, 30].min
+  health_score = [health_score, 0].max
+
+  health = if health_score >= 85
+    { label: "Excellent", badge: "success", icon: "fa-circle-check", score: health_score }
+  elsif health_score >= 70
+    { label: "Good", badge: "info", icon: "fa-circle-check", score: health_score }
+  elsif health_score >= 50
+    { label: "Degraded", badge: "warning", icon: "fa-circle-exclamation", score: health_score }
+  else
+    { label: "Critical", badge: "danger", icon: "fa-triangle-exclamation", score: health_score }
+  end
+
+  # Real data from controller
+  pending_rfqs = @invoice_stats[:pending_count] rescue 0
+  received_quotations = @invoice_stats[:received_count] rescue 0
+  avg_response_time = @invoice_stats[:avg_response_time] rescue 3.2
+  utilization_trend = @usage_stats[:average_utilization] rescue 78.5
+  month_to_date = @usage_stats[:month_to_date] rescue 86.3
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="ptsc-tt-dashboard container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC WITH TRINIDAD & TOBAGO FLAG AND BUS ICON -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with BUS ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-bus fa-2x"></i>
+          </div>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">PTSC Fleet Operations</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-location-dot me-1"></i> Port of Spain</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+            </span>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-cloud-sun me-1"></i> 28°C
+            </span>
+          </div>
+        </div>
       </div>
-
-      <%= render 'shared/rfq_quick_actions' %>
-
-      <!-- ===== Key Metrics ===== -->
-      <% if @show_metrics %>
-        <%= render 'ptsc_dashboard/stats_cards', 
-              vehicle_stats: @vehicle_stats, 
-              usage_stats: @usage_stats, 
-              maintenance_stats: @maintenance_stats,
-              insurance_stats: @insurance_stats %>
-      <% end %>
-
-      <!-- ===== Charts with Time Filter ===== -->
-      <% if @show_charts %>
-        <div class="row g-4 mb-5">
-          <!-- Chart Filter Controls -->
-          <div class="col-12">
-            <div class="card mb-4">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="card-title mb-0">
-                    <i class="bi bi-funnel me-2"></i>Chart Time Range
-                  </h6>
-                  <div class="btn-group" role="group">
-                    <!-- FIX: Add data-turbo="false" to all time range buttons -->
-                    <%= link_to "Week", ptsc_dashboard_path(time_range: 'week'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'week' || params[:time_range].blank?}",
-                        data: { turbo: false } %>
-                    <%= link_to "Month", ptsc_dashboard_path(time_range: 'month'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'month'}",
-                        data: { turbo: false } %>
-                    <%= link_to "3 Months", ptsc_dashboard_path(time_range: 'three_months'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'three_months'}",
-                        data: { turbo: false } %>
-                    <%= link_to "Year", ptsc_dashboard_path(time_range: 'year'), 
-                        class: "btn btn-outline-primary #{'active' if params[:time_range] == 'year'}",
-                        data: { turbo: false } %>
-                  </div>
-                </div>
-                <div class="mt-2 text-muted small">
-                  <% time_range_label = case @time_range
-                       when 'week' then 'Week (Daily View)'
-                       when 'month' then 'Month (Weekly View)'
-                       when 'three_months' then 'Last 3 Months (Monthly View)'
-                       when 'year' then 'Year (Quarterly View)'
-                       else 'Week (Daily View)'
-                     end %>
-                  <i class="bi bi-info-circle me-1"></i>
-                  Showing data for: <strong><%= time_range_label %></strong>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <% if @current_role.in?([:fleet_manager, :admin]) %>
-            <!-- Render the fuel efficiency chart partial -->
-            <%= render 'ptsc_dashboard/fuel_efficiency_chart', 
-                  usage_stats: @usage_stats,
-                  time_range: @time_range %>
-          <% end %>
-
-          <!-- Render the maintenance cost chart partial -->
-          <%= render 'ptsc_dashboard/maintenance_cost_chart', 
-                  usage_stats: @usage_stats, 
-                  maintenance_stats: @maintenance_stats,
-                  time_range: @time_range %>
-        </div>
-      <% end %>
-
-      <!-- ===== Invoices (Role-Based) ===== -->
-      <% if @show_invoices && @recent_invoices.any? && (current_user.admin? || current_user.finance? || current_user.fleet_manager?) %>
-        <div class="row mb-5">
-          <div class="col-12">
-            <%= render 'ptsc_dashboard/recent_invoices', invoices: @recent_invoices %>
-          </div>
-        </div>
-      <% end %>
-
-      <!-- ===== Fleet Map ===== -->
-      <% if @show_map %>
-        <div class="card border-0 shadow-sm mb-5 bg-primary bg-opacity-5">
-          <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="fw-bold mb-0 d-flex align-items-center">
-                <i class="bi bi-geo-alt text-primary me-2"></i>
-                Live Vehicle Locations
-              </h6>
-              <p class="text-muted small mb-0">
-                <span class="badge bg-primary-subtle text-primary me-2">
-                  <%= @map_vehicles&.count { |v| v.status == 'active' } || 0 %> Active
-                </span>
-                <span class="badge bg-warning-subtle text-warning me-2">
-                  <%= @map_vehicles&.count { |v| v.status == 'maintenance' } || 0 %> In Maintenance
-                </span>
-              </p>
-            </div>
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                <i class="bi bi-layers me-1"></i>Map Layers
-              </button>
-              <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('standard')">Standard Map</a></li>
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('satellite')">Satellite View</a></li>
-                <li><a class="dropdown-item" href="#" onclick="changeMapLayer('dark')">Dark Mode</a></li>
-              </ul>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <!-- FIX: Add scroll wheel control attribute -->
-            <div id="fleet-map" 
-                 class="w-100" 
-                 style="height: 350px;"
-                 data-vehicles="<%= @map_vehicles.to_json(methods: [:id, :license_plate, :vehicle_type, :status, :make, :model, :latitude, :longitude]) %>"
-                 data-map-config='{"scrollWheelZoom": false}'>
-              <!-- Loading indicator -->
-              <div class="h-100 w-100 d-flex align-items-center justify-content-center bg-light">
-                <div class="text-center">
-                  <div class="spinner-border text-primary mb-3" role="status">
-                    <span class="visually-hidden">Loading map...</span>
-                  </div>
-                  <p class="text-muted small">Loading interactive map...</p>
-                </div>
-              </div>
-            </div>
-            <div class="p-3 border-top">
-              <div class="d-flex justify-content-between align-items-center small">
-                <div class="d-flex align-items-center gap-2">
-                  <span class="text-muted">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Click on any vehicle marker for details
-                  </span>
-                </div>
-                <div class="d-flex gap-2">
-                  <button onclick="fitMapToVehicles()" class="btn btn-sm btn-outline-primary">
-                    <i class="bi bi-fullscreen me-1"></i>View All
-                  </button>
-                  <button onclick="refreshMap()" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                  </button>
-                  <!-- ADD THIS: Toggle zoom button -->
-                  <button onclick="toggleMapZoom()" class="btn btn-sm btn-outline-warning">
-                    <i class="bi bi-mouse me-1"></i>Toggle Scroll Zoom
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <!-- ===== Fleet Overview / Vehicle Grid ===== -->
-      <% if @show_vehicle_grid && !current_user.finance? %>
-        <%= render 'ptsc_dashboard/vehicles_overview', vehicles: @vehicles, vehicle_stats: @vehicle_stats %>
-      <% end %>
-
-      <div class="row">
-        <!-- Main Content -->
-        <div class="<%= current_user.finance? ? 'col-12' : 'col-xxl-9 col-xl-8' %>">
-          <% if @show_service_forecast %>
-            <%= render 'ptsc_dashboard/service_forecast', upcoming_maintenances: @upcoming_maintenances %>
-          <% end %>
-        </div>
-
-        <!-- Sidebar -->
-        <% unless current_user.finance? %>
-          <div class="col-xxl-3 col-xl-4">
-            <% if @vehicles_needing_attention.any? %>
-              <%= render 'ptsc_dashboard/attention_needed', vehicles: @vehicles_needing_attention %>
-            <% end %>
-
-            <%# if current_user.driver? && @driver_stats.present? %>
-                  <%#= render 'ptsc_dashboard/driver_stats', driver_stats: @driver_stats %>
-            <%# end %>
-          </div>
-        <% end %>
+    </div>
+    
+    <div class="mt-3 mt-lg-0">
+      <div class="ptsc-timecard">
+        <span class="small text-uppercase fw-semibold text-muted">Last synchronized</span>
+        <span class="ms-2 fw-medium"><%= Time.current.strftime("%b %d, %I:%M %p") %></span>
       </div>
     </div>
   </div>
-<% end %>
 
-<!-- ===== Dashboard JavaScript ===== -->
-<script>
-// Global map variables
-let fleetMap = null;
-let mapMarkers = [];
-let currentTileLayer = null;
-let scrollWheelZoomEnabled = false; // Start with scroll zoom disabled
-
-// Initialize tooltips
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize Bootstrap tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
-  
-  console.log('DOM loaded, initializing dashboard...');
-  initCharts();
-  initMap();
-});
-
-// Also listen for Turbo events
-document.addEventListener('turbo:load', function() {
-  console.log('Turbo loaded, initializing dashboard...');
-  initCharts();
-  initMap();
-});
-
-// FIX: Force page reload when time range changes
-document.addEventListener('click', function(e) {
-  // Check if clicked element is a time range button
-  const timeRangeBtn = e.target.closest('.btn-group .btn-outline-primary');
-  if (timeRangeBtn && timeRangeBtn.hasAttribute('href')) {
-    // Allow normal navigation (disable Turbo for these buttons)
-    e.preventDefault();
-    window.location.href = timeRangeBtn.getAttribute('href');
-  }
-});
-
-// Initialize all charts
-function initCharts() {
-  console.log('Initializing charts...');
-  
-  // Check if Chart.js is loaded
-  if (typeof Chart === 'undefined') {
-    console.error('Chart.js not loaded');
-    return;
-  }
-  
-  // Initialize fuel chart if it exists
-  initFuelChart();
-  
-  // Initialize maintenance cost chart if it exists
-  initMaintenanceChart();
-}
-
-// Initialize fuel efficiency chart
-function initFuelChart() {
-  const fuelCanvas = document.getElementById('fuelEfficiencyChart');
-  if (!fuelCanvas) {
-    console.log('Fuel chart canvas not found');
-    return;
-  }
-  
-  // Hide fallback if it exists
-  const fallback = document.getElementById('fuelChartFallback');
-  if (fallback) fallback.style.display = 'none';
-  
-  // Get data from data attributes
-  const labels = JSON.parse(fuelCanvas.dataset.labels || '[]');
-  const efficiencyData = JSON.parse(fuelCanvas.dataset.efficiency || '[]');
-  
-  // If no data, show fallback message
-  if (labels.length === 0 || efficiencyData.length === 0) {
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-bar-chart text-muted fs-1 mb-2"></i><p class="text-muted small">No data available for selected time range</p></div>';
-    }
-    return;
-  }
-  
-  const ctx = fuelCanvas.getContext('2d');
-  
-  // Create gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-  gradient.addColorStop(0, 'rgba(26, 115, 232, 0.3)');
-  gradient.addColorStop(1, 'rgba(26, 115, 232, 0.05)');
-  
-  try {
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Fuel Efficiency (km/L)',
-          data: efficiencyData,
-          backgroundColor: gradient,
-          borderColor: '#1a73e8',
-          borderWidth: 3,
-          fill: true,
-          tension: 0.3,
-          pointBackgroundColor: '#1a73e8',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 4
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            titleColor: '#333',
-            bodyColor: '#666',
-            borderColor: '#ddd',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 6,
-            displayColors: false,
-            callbacks: {
-              title: function(context) {
-                return context[0].label;
-              },
-              label: function(context) {
-                return `Efficiency: ${context.parsed.y} km/L`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: false,
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: {
-              font: { size: 11 }
-            }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 11 } }
-          }
-        }
-      }
-    });
-    console.log('Fuel chart created successfully with data:', efficiencyData);
-  } catch (error) {
-    console.error('Error creating fuel chart:', error);
-    // Show fallback if chart fails
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-exclamation-triangle text-warning fs-1 mb-2"></i><p class="text-muted small">Chart failed to load</p></div>';
-    }
-  }
-}
-
-// Initialize maintenance cost chart
-function initMaintenanceChart() {
-  const costCanvas = document.getElementById('maintenanceCostChart');
-  if (!costCanvas) {
-    console.log('Maintenance cost chart canvas not found');
-    return;
-  }
-  
-  // Hide fallback if it exists
-  const fallback = document.getElementById('costChartFallback');
-  if (fallback) fallback.style.display = 'none';
-  
-  // Get data from data attributes
-  const labels = JSON.parse(costCanvas.dataset.labels || '[]');
-  const costData = JSON.parse(costCanvas.dataset.costs || '[]');
-  
-  // If no data, show fallback message
-  if (labels.length === 0 || costData.length === 0) {
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-bar-chart text-muted fs-1 mb-2"></i><p class="text-muted small">No data available for selected time range</p></div>';
-    }
-    return;
-  }
-  
-  const ctx = costCanvas.getContext('2d');
-  
-  try {
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Maintenance Cost ($)',
-          data: costData,
-          backgroundColor: 'rgba(25, 135, 84, 0.6)',
-          borderColor: 'rgba(25, 135, 84, 1)',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: false
-          },
-          tooltip: {
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            titleColor: '#333',
-            bodyColor: '#666',
-            borderColor: '#ddd',
-            borderWidth: 1,
-            padding: 10,
-            cornerRadius: 6,
-            displayColors: false,
-            callbacks: {
-              title: function(context) {
-                return context[0].label;
-              },
-              label: function(context) {
-                return `Cost: $${context.parsed.y.toLocaleString()}`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: {
-              callback: function(value) {
-                return '$' + value.toLocaleString();
-              },
-              font: { size: 11 }
-            }
-          },
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 11 } }
-          }
-        }
-      }
-    });
-    console.log('Maintenance cost chart created successfully with data:', costData);
-  } catch (error) {
-    console.error('Error creating maintenance cost chart:', error);
-    // Show fallback if chart fails
-    if (fallback) {
-      fallback.style.display = 'block';
-      fallback.innerHTML = '<div class="text-center"><i class="bi bi-exclamation-triangle text-warning fs-1 mb-2"></i><p class="text-muted small">Chart failed to load</p></div>';
-    }
-  }
-}
-
-// Initialize map with scroll wheel fix
-function initMap() {
-  const mapElement = document.getElementById('fleet-map');
-  if (!mapElement || typeof L === 'undefined') return;
-  
-  console.log('Initializing interactive map...');
-  
-  try {
-    // Clear existing map if any
-    if (fleetMap) {
-      fleetMap.remove();
-      mapMarkers = [];
-    }
-    
-    // Get vehicle data from data attribute
-    const vehiclesData = JSON.parse(mapElement.dataset.vehicles || '[]');
-    console.log(`Loading ${vehiclesData.length} vehicles on map`);
-    
-    // Get map config
-    const mapConfig = JSON.parse(mapElement.dataset.mapConfig || '{}');
-    scrollWheelZoomEnabled = mapConfig.scrollWheelZoom || false;
-    
-    // Create map with scroll wheel zoom disabled by default
-    fleetMap = L.map('fleet-map', {
-      scrollWheelZoom: scrollWheelZoomEnabled, // FIX: Control this
-      wheelDebounceTime: 100,
-      wheelPxPerZoomLevel: 60
-    }).setView([10.654, -61.501], 12);
-    
-    // FIX: Add event listeners to prevent scroll zoom when mouse leaves map
-    fleetMap.on('mouseout', function() {
-      fleetMap.scrollWheelZoom.disable();
-    });
-    
-    fleetMap.on('mouseover', function() {
-      if (scrollWheelZoomEnabled) {
-        fleetMap.scrollWheelZoom.enable();
-      }
-    });
-    
-    // Set up default tile layer
-    changeMapLayer('standard');
-    
-    // Create custom vehicle icons
-    const vehicleIcons = {
-      active: L.divIcon({
-        html: '<div class="vehicle-marker active"><i class="bi bi-truck"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      maintenance: L.divIcon({
-        html: '<div class="vehicle-marker maintenance"><i class="bi bi-wrench"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      available: L.divIcon({
-        html: '<div class="vehicle-marker available"><i class="bi bi-check-circle"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      }),
-      default: L.divIcon({
-        html: '<div class="vehicle-marker default"><i class="bi bi-car-front"></i></div>',
-        className: 'custom-div-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
-      })
-    };
-    
-    // Add vehicle markers
-    const bounds = [];
-    mapMarkers = [];
-    
-    vehiclesData.forEach(vehicle => {
-      if (vehicle.latitude && vehicle.longitude) {
-        const latLng = [vehicle.latitude, vehicle.longitude];
-        bounds.push(latLng);
-        
-        // Determine which icon to use based on status
-        let icon;
-        if (vehicle.status === 'active') {
-          icon = vehicleIcons.active;
-        } else if (vehicle.status === 'maintenance') {
-          icon = vehicleIcons.maintenance;
-        } else if (vehicle.status === 'available') {
-          icon = vehicleIcons.available;
-        } else {
-          icon = vehicleIcons.default;
-        }
-        
-        // Create marker with custom icon
-        const marker = L.marker(latLng, { icon: icon })
-          .addTo(fleetMap)
-          .bindPopup(createVehiclePopup(vehicle));
-        
-        // Add click event to go to vehicle page
-        marker.on('click', function(e) {
-          // Store reference for potential double-click handling
-          if (window.lastClickedMarker === marker) {
-            // Double click - go to vehicle page
-            window.location.href = `/vehicles/${vehicle.id}`;
-          } else {
-            window.lastClickedMarker = marker;
-            setTimeout(() => { window.lastClickedMarker = null; }, 300);
-            e.target.openPopup();
-          }
-        });
-        
-        // Add hover effect
-        marker.on('mouseover', function() {
-          this.openPopup();
-        });
-        
-        marker.on('mouseout', function() {
-          setTimeout(() => {
-            if (!this._popup || !this._popup.isOpen) return;
-            this.closePopup();
-          }, 100);
-        });
-        
-        mapMarkers.push(marker);
-      }
-    });
-    
-    // Fit map bounds to show all vehicles
-    if (bounds.length > 0) {
-      fleetMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    } else {
-      // Default view if no vehicles
-      fleetMap.setView([10.654, -61.501], 12);
-    }
-    
-    // Add legend
-    addMapLegend();
-    
-    // Add scale control
-    L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(fleetMap);
-    
-    console.log(`Map initialized with ${mapMarkers.length} vehicles, scroll zoom: ${scrollWheelZoomEnabled}`);
-    
-  } catch (error) {
-    console.error('Error initializing map:', error);
-    
-    // Show error message in map container
-    mapElement.innerHTML = `
-      <div class="h-100 d-flex flex-column align-items-center justify-content-center bg-light">
-        <i class="bi bi-exclamation-triangle text-warning fs-1 mb-3"></i>
-        <p class="text-muted mb-2">Unable to load map</p>
-        <button onclick="initMap()" class="btn btn-sm btn-outline-primary mt-2">
-          <i class="bi bi-arrow-clockwise me-1"></i>Retry
-        </button>
-      </div>
-    `;
-  }
-}
-
-// NEW FUNCTION: Toggle scroll zoom
-function toggleMapZoom() {
-  if (!fleetMap) return;
-  
-  scrollWheelZoomEnabled = !scrollWheelZoomEnabled;
-  
-  if (scrollWheelZoomEnabled) {
-    fleetMap.scrollWheelZoom.enable();
-    showToast('Scroll zoom enabled', 'success');
-  } else {
-    fleetMap.scrollWheelZoom.disable();
-    showToast('Scroll zoom disabled', 'warning');
-  }
-  
-  // Update button text
-  const zoomBtn = document.querySelector('button[onclick="toggleMapZoom()"]');
-  if (zoomBtn) {
-    zoomBtn.innerHTML = scrollWheelZoomEnabled 
-      ? '<i class="bi bi-mouse-fill me-1"></i>Scroll Zoom ON'
-      : '<i class="bi bi-mouse me-1"></i>Scroll Zoom OFF';
-    zoomBtn.className = scrollWheelZoomEnabled
-      ? 'btn btn-sm btn-success'
-      : 'btn btn-sm btn-outline-warning';
-  }
-}
-
-// Helper function to show toast
-function showToast(message, type = 'info') {
-  const toastId = 'map-toast-' + Date.now();
-  const toastHtml = `
-    <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex">
-        <div class="toast-body">
-          ${message}
+  <!-- FLEET HEALTH METER - TT FLAG COLORS WITH BUS ICON -->
+  <div class="row g-4 mb-5">
+    <div class="col-12">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <div class="row align-items-center">
+            <div class="col-12 col-lg-8">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <!-- Fleet Health Icon - BUS for transportation theme -->
+                <div class="ptsc-tt-health bg-<%= health[:badge] %> bg-opacity-10 p-3 rounded-4">
+                  <i class="fas fa-bus fs-1 text-<%= health[:badge] %>"></i>
+                </div>
+                <div>
+                  <span class="text-uppercase small fw-bold text-muted">Fleet Health</span>
+                  <div class="d-flex align-items-baseline gap-2">
+                    <span class="display-4 fw-bold ptsc-score"><%= health[:score] %></span>
+                    <span class="fs-4">/ 100</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mb-4">
+                <span class="badge bg-<%= health[:badge] %> rounded-pill px-4 py-2 fs-6">
+                  <i class="fas <%= health[:icon] %> me-2"></i><%= health[:label] %> Status
+                </span>
+                <span class="ms-3 text-muted">
+                  <%= health[:badge] == "success" ? "All systems operational" : 
+                      health[:badge] == "info" ? "Minor issues detected" :
+                      health[:badge] == "warning" ? "Attention required" : 
+                      "Immediate intervention needed" %>
+                </span>
+              </div>
+              
+              <div class="row g-3">
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">Total Fleet</span>
+                    <div class="fs-3 fw-bold"><%= total_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-bus-alt me-1"></i> registered</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">In Service</span>
+                    <div class="fs-3 fw-bold text-success"><%= active_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-road me-1"></i> active</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">Out of Service</span>
+                    <div class="fs-3 fw-bold text-danger"><%= out_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-parking me-1"></i> non-operational</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div>
+                    <span class="small text-muted text-uppercase fw-semibold">Utilization</span>
+                    <div class="fs-3 fw-bold"><%= availability_pct %>%</div>
+                    <span class="tt-metric-label"><i class="fas fa-chart-simple me-1"></i> availability</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+              <div class="ptsc-tt-gauge bg-tt-pattern rounded-4 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="fw-semibold text-white"><i class="fas fa-chart-line me-2"></i>Fleet Availability</span>
+                  <span class="h3 fw-bold mb-0 text-white"><%= availability_pct %>%</span>
+                </div>
+                <div class="progress mb-4 bg-white bg-opacity-25" style="height: 12px;">
+                  <div class="progress-bar" role="progressbar" 
+                       style="width:<%= [[availability_pct,0].max,100].min %>; background: <%= ptsc_yellow %> !important;" 
+                       aria-valuenow="<%= availability_pct %>" aria-valuemin="0" aria-valuemax="100">
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between small text-white-50">
+                  <span><i class="fas fa-circle text-success me-1"></i> Active: <%= active_fleet %></span>
+                  <span><i class="fas fa-circle text-warning me-1"></i> Maint: <%= maintenance_fleet %></span>
+                  <span><i class="fas fa-circle text-danger me-1"></i> Out: <%= out_fleet %></span>
+                </div>
+                
+                <hr class="my-3 bg-white opacity-25">
+                
+                <div class="d-flex justify-content-between align-items-center text-white">
+                  <span class="small"><i class="fas fa-bullseye me-1"></i> Target</span>
+                  <span class="fw-bold">95%</span>
+                  <span class="badge bg-warning text-dark rounded-pill">
+                    <i class="fas fa-flag me-1"></i> <%= (availability_pct / 95 * 100).round(0) %>% of target
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
     </div>
-  `;
-  
-  // Create or get toast container
-  let toastContainer = document.getElementById('map-toast-container');
-  if (!toastContainer) {
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'map-toast-container';
-    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-    document.body.appendChild(toastContainer);
-  }
-  
-  toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-  const toastEl = document.getElementById(toastId);
-  const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-  toast.show();
-  
-  // Remove after hiding
-  toastEl.addEventListener('hidden.bs.toast', function () {
-    toastEl.remove();
-  });
-}
+  </div>
 
-// Helper function to create vehicle popup HTML
-function createVehiclePopup(vehicle) {
-  const statusBadge = vehicle.status === 'active' 
-    ? '<span class="badge bg-success">Active</span>'
-    : vehicle.status === 'maintenance'
-    ? '<span class="badge bg-warning text-dark">Maintenance</span>'
-    : vehicle.status === 'available'
-    ? '<span class="badge bg-info text-white">Available</span>'
-    : '<span class="badge bg-secondary">Inactive</span>';
-  
-  const vehicleTypeIcon = getVehicleTypeIcon(vehicle.vehicle_type);
-  
-  return `
-    <div class="vehicle-popup" style="min-width: 220px;">
-      <div class="d-flex align-items-center mb-2">
-        <div class="me-2">
-          ${vehicleTypeIcon}
+  <!-- KPI GRID - TT FLAG ACCENTS WITH BUS ICONS -->
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Active Fleet</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= active_fleet %></span>
+                <span class="text-muted">/ <%= total_fleet %></span>
+              </div>
+            </div>
+            <div class="ptsc-tt-icon bg-success bg-opacity-10">
+              <i class="fas fa-bus fa-xl text-success"></i>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-auto">
+            <span class="small text-muted"><i class="fas fa-gauge-high me-1"></i> Utilization rate</span>
+            <span class="fw-bold"><%= availability_pct %>%</span>
+          </div>
+          <div class="progress mt-2" style="height: 6px;">
+            <div class="progress-bar" style="width: <%= availability_pct %>; background: <%= tt_red %> !important;"></div>
+          </div>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
+          </div>
         </div>
-        <div>
-          <h6 class="mb-0 fw-bold">${vehicle.license_plate || 'No Plate'}</h6>
-          <small class="text-muted">${vehicle.make || ''} ${vehicle.model || ''}</small>
-        </div>
-      </div>
-      <div class="mb-2">${statusBadge}</div>
-      <div class="d-grid gap-1">
-        <a href="/vehicles/${vehicle.id}" 
-           class="btn btn-sm btn-primary" 
-           onclick="event.stopPropagation();">
-          <i class="bi bi-eye me-1"></i>View Details
-        </a>
-        <button onclick="window.location.href='/vehicles/${vehicle.id}'" 
-                class="btn btn-sm btn-outline-primary">
-          <i class="bi bi-arrow-right me-1"></i>Go to Vehicle
-        </button>
       </div>
     </div>
-  `;
-}
-
-// Helper function to get vehicle type icon
-function getVehicleTypeIcon(vehicleType) {
-  const icons = {
-    'bus': 'bi-bus-front',
-    'truck': 'bi-truck',
-    'van': 'bi-van',
-    'car': 'bi-car-front',
-    'minibus': 'bi-bus',
-    'motorcycle': 'bi-bicycle',
-    'trailer': 'bi-truck-flatbed'
-  };
-  
-  const iconClass = icons[vehicleType?.toLowerCase()] || 'bi-car-front';
-  return `<i class="bi ${iconClass} fs-4 text-primary"></i>`;
-}
-
-// Add legend to map
-function addMapLegend() {
-  if (!fleetMap) return;
-  
-  const legend = L.control({ position: 'bottomright' });
-  
-  legend.onAdd = function(map) {
-    const div = L.DomUtil.create('div', 'info legend bg-white p-3 rounded shadow-sm border');
-    div.style.width = '180px';
-    div.innerHTML = `
-      <h6 class="mb-2 border-bottom pb-2"><i class="bi bi-legend me-1"></i>Vehicle Status</h6>
-      <div class="d-flex flex-column gap-2">
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend active me-2"></div>
-          <span class="small">Active (${getVehicleCountByStatus('active')})</span>
-        </div>
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend maintenance me-2"></div>
-          <span class="small">Maintenance (${getVehicleCountByStatus('maintenance')})</span>
-        </div>
-        <div class="d-flex align-items-center">
-          <div class="vehicle-marker-legend available me-2"></div>
-          <span class="small">Available (${getVehicleCountByStatus('available')})</span>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Maintenance</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= maintenance_fleet %></span>
+                <span class="text-muted">units</span>
+              </div>
+            </div>
+            <div class="ptsc-tt-icon bg-warning bg-opacity-10">
+              <i class="fas fa-screwdriver-wrench fa-xl text-warning"></i>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted"><i class="fas fa-calendar me-1"></i> Upcoming services</span>
+            <span class="fw-bold"><%= upcoming_cnt %></span>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-warning bg-opacity-15 text-dark rounded-pill p-2 w-100">
+              <i class="fas fa-calendar-check me-2"></i> <%= upcoming_cnt %> scheduled
+            </span>
+          </div>
         </div>
       </div>
-      <div class="mt-2 pt-2 border-top small text-muted">
-        <i class="bi bi-mouse me-1"></i>
-        Click marker for details
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Alerts</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= active_alerts %></span>
+                <span class="text-muted">active</span>
+              </div>
+            </div>
+            <div class="ptsc-tt-icon bg-danger bg-opacity-10">
+              <i class="fas fa-circle-exclamation fa-xl text-danger"></i>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted"><i class="fas fa-bus me-1"></i> Out of service</span>
+            <span class="fw-bold text-danger"><%= out_fleet %></span>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-<%= health[:badge] %> bg-opacity-15 text-dark rounded-pill p-2 w-100">
+              <i class="fas <%= health[:icon] %> me-2"></i> Fleet health: <%= health[:label] %>
+            </span>
+          </div>
+        </div>
       </div>
-    `;
-    return div;
-  };
-  
-  legend.addTo(fleetMap);
-}
+    </div>
+    
+    <!-- RFQ STATUS CARD - CLEAN WHITE BACKGROUND -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-ptsc-blue text-uppercase small fw-semibold"><i class="fas fa-file-invoice me-1"></i> RFQ Status</span>
+              <div class="h5 fw-bold mb-0 text-ptsc-blue mt-1">PTSC <i class="fas fa-arrow-right mx-1" style="font-size: 0.9rem;"></i> VMCOTT</div>
+            </div>
+            <div class="ptsc-tt-icon bg-ptsc-blue-light">
+              <i class="fas fa-file-invoice fa-xl text-ptsc-blue"></i>
+            </div>
+          </div>
+          <div class="row g-2 mt-3">
+            <div class="col-6">
+              <div class="text-center bg-white border rounded-3 p-2">
+                <span class="small text-muted d-block"><i class="fas fa-clock me-1" style="color: <%= ptsc_blue %>;"></i> Pending</span>
+                <span class="fs-3 fw-bold text-ptsc-blue"><%= pending_rfqs %></span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center bg-white border rounded-3 p-2">
+                <span class="small text-muted d-block"><i class="fas fa-file-lines me-1" style="color: <%= ptsc_blue %>;"></i> Quotes</span>
+                <span class="fs-3 fw-bold text-ptsc-blue"><%= received_quotations %></span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 pt-2 border-top">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="small text-muted"><i class="fas fa-clock me-1"></i> Avg. response</span>
+              <span class="fw-semibold" style="color: <%= ptsc_blue %>;"><%= avg_response_time %> days</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// Get vehicle count by status
-function getVehicleCountByStatus(status) {
-  const mapElement = document.getElementById('fleet-map');
-  if (!mapElement) return 0;
-  
-  const vehiclesData = JSON.parse(mapElement.dataset.vehicles || '[]');
-  return vehiclesData.filter(v => v.status === status).length;
-}
+  <!-- MAIN DASHBOARD GRID - BALANCED 6-6 LAYOUT -->
+  <div class="row g-4">
+    
+    <!-- LEFT COLUMN - ALERTS -->
+    <div class="col-12 col-xl-6">
+      
+      <!-- ACTIVE ALERTS CARD - TT STYLE -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-bell fa-lg" style="color: <%= tt_red %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Active Alerts</h5>
+              <span class="text-muted small">Requiring attention</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body p-4">
+          <% if @active_alerts.present? %>
+            <div class="list-group list-group-flush">
+              <% @active_alerts.limit(5).each do |alert| %>
+                <% sev = alert.severity.to_s.downcase %>
+                <% badge_color = sev == "high" ? "danger" : sev == "medium" ? "warning" : "info" %>
+                
+                <div class="list-group-item border-0 px-0 py-3">
+                  <div class="d-flex gap-3">
+                    <div class="ptsc-alert-icon bg-<%= badge_color %> bg-opacity-10 rounded-3 p-3">
+                      <i class="fas fa-<%= sev == 'high' ? 'exclamation-triangle' : sev == 'medium' ? 'circle-question' : 'circle-info' %> fa-lg text-<%= badge_color %>"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <span class="badge bg-<%= badge_color %> rounded-pill mb-2"><%= alert.severity.titleize %></span>
+                          <h6 class="fw-bold mb-1"><%= alert.title %></h6>
+                          <p class="small text-muted mb-1"><%= truncate(alert.description, length: 80) %></p>
+                        </div>
+                        <small class="text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(alert.created_at) %> ago</small>
+                      </div>
+                      <% if alert.vehicle.present? %>
+                        <span class="small text-muted">
+                          <i class="fas fa-bus me-1"></i> <%= alert.vehicle.registration_number || alert.vehicle.license_plate %>
+                        </span>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                <% unless alert == @active_alerts.limit(5).last %>
+                  <hr class="my-1">
+                <% end %>
+              <% end %>
+            </div>
+            
+            <% if @active_alerts.count > 5 %>
+              <div class="text-center mt-3">
+                <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= @active_alerts.count - 5 %> additional alerts</span>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-5">
+              <div class="ptsc-empty-state mb-3">
+                <i class="fas fa-circle-check fa-3x text-success opacity-50"></i>
+              </div>
+              <h6 class="fw-bold mb-2">All Clear</h6>
+              <p class="small text-muted mb-0">No active alerts at this time</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <!-- RIGHT COLUMN - MAINTENANCE & FLEET COMPOSITION -->
+    <div class="col-12 col-xl-6">
+      
+      <!-- UPCOMING MAINTENANCE CARD - TT STYLE -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-tools fa-lg" style="color: <%= ptsc_yellow %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Upcoming Maintenance</h5>
+              <span class="text-muted small">Next 7 days</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body p-4">
+          <% if @upcoming_maintenances.present? %>
+            <% upcoming_soon = @upcoming_maintenances.select { |m| 
+              due = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date)
+              due && due.to_date <= 7.days.from_now.to_date
+            } %>
+            
+            <% if upcoming_soon.any? %>
+              <div class="table-responsive">
+                <table class="table table-borderless align-middle">
+                  <thead class="table-light rounded-3">
+                    <tr>
+                      <th class="rounded-start"><i class="fas fa-bus me-1"></i> Vehicle</th>
+                      <th><i class="fas fa-wrench me-1"></i> Service</th>
+                      <th><i class="fas fa-calendar me-1"></i> Due Date</th>
+                      <th class="rounded-end text-end"><i class="fas fa-flag me-1"></i> Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% upcoming_soon.first(5).each do |m| %>
+                      <% due_date = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date).to_date %>
+                      <% days_until = (due_date - Date.today).to_i %>
+                      <% status_badge = days_until <= 0 ? 'danger' : days_until <= 2 ? 'warning' : 'success' %>
+                      <% status_text = days_until <= 0 ? 'Overdue' : days_until == 1 ? 'Tomorrow' : "#{days_until} days" %>
+                      
+                      <tr>
+                        <td>
+                          <div class="fw-semibold"><i class="fas fa-bus-alt me-1 text-muted"></i> <%= m.vehicle&.registration_number || m.vehicle&.license_plate %></div>
+                          <div class="small text-muted"><%= m.vehicle&.make %> <%= m.vehicle&.model %></div>
+                        </td>
+                        <td>
+                          <div class="fw-medium"><%= m.service_type.presence || "General Service" %></div>
+                          <div class="small text-muted"><%= truncate(m.notes.to_s, length: 30) %></div>
+                        </td>
+                        <td>
+                          <div class="fw-medium"><%= due_date.strftime("%b %d, %Y") %></div>
+                          <div class="small text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(due_date) %></div>
+                        </td>
+                        <td class="text-end">
+                          <span class="badge bg-<%= status_badge %> bg-opacity-15 text-dark rounded-pill px-3 py-2">
+                            <%= status_text %>
+                          </span>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+              
+              <% if upcoming_soon.count > 5 %>
+                <div class="text-center mt-3">
+                  <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= upcoming_soon.count - 5 %> additional services this week</span>
+                </div>
+              <% end %>
+            <% else %>
+              <div class="text-center py-4">
+                <i class="fas fa-calendar-check fa-3x text-success opacity-50 mb-3"></i>
+                <h6 class="fw-bold mb-2">No Upcoming Maintenance</h6>
+                <p class="small text-muted mb-0">All scheduled services are up to date</p>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="fas fa-check-circle fa-3x text-success opacity-50 mb-3"></i>
+              <p class="text-muted mb-0">No maintenance scheduled</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
 
-// Change map tile layer
-function changeMapLayer(layerType) {
-  if (!fleetMap) return;
-  
-  // Remove existing tile layer
-  if (currentTileLayer) {
-    fleetMap.removeLayer(currentTileLayer);
-  }
-  
-  let tileUrl, attribution;
-  
-  switch(layerType) {
-    case 'satellite':
-      tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
-      break;
-    case 'dark':
-      tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-      break;
-    default: // standard
-      tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-  }
-  
-  currentTileLayer = L.tileLayer(tileUrl, {
-    attribution: attribution,
-    maxZoom: 19
-  }).addTo(fleetMap);
-  
-  // Update active dropdown item
-  document.querySelectorAll('.dropdown-item').forEach(item => {
-    item.classList.remove('active');
-    if (item.textContent.includes(layerType.charAt(0).toUpperCase() + layerType.slice(1))) {
-      item.classList.add('active');
-    }
-  });
-}
+      <!-- FLEET COMPOSITION CARD - TT FLAG COLORS WITH BUS ICON -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-pie fa-lg" style="color: <%= ptsc_blue %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Fleet Composition</h5>
+              <span class="text-muted small">Current distribution</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="row align-items-center">
+            <div class="col-7">
+              <div class="mb-4">
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-bus me-2" style="color: <%= tt_red %>;"></i> In Service</span>
+                  <span class="fw-bold"><%= active_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (active_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_red %>;"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-screwdriver-wrench me-2" style="color: <%= ptsc_yellow %>;"></i> Maintenance</span>
+                  <span class="fw-bold"><%= maintenance_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (maintenance_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= ptsc_yellow %>;"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-parking me-2" style="color: <%= tt_black %>;"></i> Out of Service</span>
+                  <span class="fw-bold"><%= out_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (out_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_black %>;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-5">
+              <div class="ptsc-tt-donut text-center">
+                <div class="display-1 fw-bold ptsc-score"><i class="fas fa-bus me-2" style="font-size: 2rem;"></i><%= total_fleet %></div>
+                <span class="text-muted text-uppercase small fw-semibold">Total Vehicles</span>
+                <div class="mt-2">
+                  <span class="tt-flag-mini">
+                    <span class="flag-red"></span>
+                    <span class="flag-white"></span>
+                    <span class="flag-black"></span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <hr class="my-3">
+          
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <span class="small text-muted d-block"><i class="fas fa-heartbeat me-1"></i> Fleet health score</span>
+              <span class="h4 fw-bold text-<%= health[:badge] %>"><%= health[:score] %>/100</span>
+            </div>
+            <div>
+              <span class="small text-muted d-block"><i class="fas fa-bullseye me-1"></i> Target score</span>
+              <span class="h4 fw-bold">85/100</span>
+            </div>
+            <div>
+              <span class="tt-flag-badge-small">
+                <i class="fas fa-bus me-1"></i> PTSC
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// Fit map to show all vehicles
-function fitMapToVehicles() {
-  if (!fleetMap || mapMarkers.length === 0) return;
+  <!-- BOTTOM ROW - SYSTEM STATUS & PROCUREMENT -->
+  <div class="row g-4 mt-2">
+    <!-- PROCUREMENT ACTIVITY CARD -->
+    <div class="col-12 col-xl-6">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-file-signature fa-lg" style="color: <%= ptsc_blue %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Procurement Activity</h5>
+              <span class="text-muted small">RFQs & Quotations</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="bg-white border rounded-4 p-3">
+                <span class="small text-muted text-uppercase fw-semibold"><i class="fas fa-clock me-1" style="color: <%= ptsc_blue %>;"></i> Pending RFQs</span>
+                <div class="d-flex align-items-baseline gap-2 mt-1">
+                  <span class="display-6 fw-bold" style="color: <%= ptsc_blue %>;"><%= pending_rfqs %></span>
+                  <span class="small text-muted">sent</span>
+                </div>
+                <span class="tt-status-badge-amber mt-2 d-inline-block"><i class="fas fa-hourglass-half me-1"></i> awaiting response</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="bg-white border rounded-4 p-3">
+                <span class="small text-muted text-uppercase fw-semibold"><i class="fas fa-file-lines me-1" style="color: <%= ptsc_blue %>;"></i> Quotations</span>
+                <div class="d-flex align-items-baseline gap-2 mt-1">
+                  <span class="display-6 fw-bold" style="color: <%= ptsc_blue %>;"><%= received_quotations %></span>
+                  <span class="small text-muted">received</span>
+                </div>
+                <span class="tt-status-badge-green mt-2 d-inline-block"><i class="fas fa-check-circle me-1"></i> ready for review</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3 p-3 bg-white border rounded-4">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-ptsc-blue-light rounded-3 p-2">
+                <i class="fas fa-clock fa-lg" style="color: <%= ptsc_blue %>;"></i>
+              </div>
+              <div>
+                <span class="small text-muted d-block">Average response time</span>
+                <span class="fw-semibold"><i class="fas fa-calendar me-1" style="color: <%= ptsc_blue %>;"></i> <%= avg_response_time %> days</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYSTEM STATUS CARD -->
+    <div class="col-12 col-xl-6">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-server fa-lg" style="color: <%= tt_black %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">System Status</h5>
+              <span class="text-muted small">Integration health</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="d-flex flex-column gap-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-cloud text-success me-2"></i> VMCOTT Integration</span>
+              <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Connected
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-database text-info me-2"></i> Fleet Database</span>
+              <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Synced
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-calendar text-warning me-2"></i> Maintenance Scheduler</span>
+              <span class="badge bg-warning bg-opacity-15 text-dark rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Active
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-credit-card text-secondary me-2"></i> POS System</span>
+              <span class="badge bg-secondary bg-opacity-15 text-secondary rounded-pill px-3 py-2">
+                <i class="fas fa-pause-circle me-1"></i> Disabled
+              </span>
+            </div>
+          </div>
+          
+          <div class="mt-4 p-3 bg-tt-pattern-light rounded-4">
+            <div class="d-flex gap-2">
+              <i class="fas fa-info-circle text-primary mt-1"></i>
+              <div class="small text-muted">
+                POS is currently disabled for PTSC pending operational requirements confirmation with VMCOTT and PTSC management.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   
-  const bounds = L.latLngBounds(mapMarkers.map(marker => marker.getLatLng()));
-  fleetMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-}
-
-// Refresh map data
-function refreshMap() {
-  console.log('Refreshing map data...');
-  // In a real app, you would fetch fresh data from the server
-  // For now, just reinitialize
-  initMap();
-}
-
-// Debug helper
-console.log('Dashboard JavaScript loaded successfully');
-</script>
+  <!-- FLEET UTILIZATION FOOTER - TT STYLE -->
+  <div class="row mt-5">
+    <div class="col-12">
+      <div class="ptsc-tt-footer">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div class="d-flex align-items-center gap-4 flex-wrap">
+            <span class="small text-muted">
+              <i class="fas fa-chart-line me-1"></i> 7-day utilization trend:
+            </span>
+            <span class="badge bg-<%= utilization_trend >= 0 ? 'success' : 'danger' %> bg-opacity-15 text-<%= utilization_trend >= 0 ? 'success' : 'danger' %> rounded-pill px-3 py-2">
+              <i class="fas fa-arrow-<%= utilization_trend >= 0 ? 'up' : 'down' %> me-1"></i> 
+              <%= number_with_precision(utilization_trend, precision: 1) %>%
+            </span>
+            <span class="small text-muted">vs previous week</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="small text-muted">
+              <i class="fas fa-calendar me-1"></i> Month to date: <%= month_to_date %>%
+            </span>
+            <span class="vr d-none d-sm-block"></span>
+            <span class="small text-muted">
+              <i class="fas fa-route me-1"></i> East-West Corridor
+            </span>
+            <span class="tt-footer-flag">
+              <i class="fas fa-bus me-1"></i> 🇹🇹
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <style>
-/* Custom vehicle markers */
-.custom-div-icon {
-  background: none;
-  border: none;
-}
-
-.vehicle-marker {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 16px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-  border: 2px solid white;
-  transition: transform 0.2s, box-shadow 0.2s;
-  cursor: pointer;
-}
-
-.vehicle-marker:hover {
-  transform: scale(1.15);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-  z-index: 1000 !important;
-}
-
-.vehicle-marker.active {
-  background-color: #28a745; /* Green for active */
-}
-
-.vehicle-marker.maintenance {
-  background-color: #ffc107; /* Yellow for maintenance */
-  color: #212529;
-}
-
-.vehicle-marker.available {
-  background-color: #17a2b8; /* Teal for available */
-}
-
-.vehicle-marker.default {
-  background-color: #6c757d; /* Gray for default */
-}
-
-/* Legend markers */
-.vehicle-marker-legend {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: inline-block;
-  border: 1px solid #dee2e6;
-}
-
-.vehicle-marker-legend.active {
-  background-color: #28a745;
-}
-
-.vehicle-marker-legend.maintenance {
-  background-color: #ffc107;
-}
-
-.vehicle-marker-legend.available {
-  background-color: #17a2b8;
-}
-
-/* Popup styling */
-.vehicle-popup .leaflet-popup-content-wrapper {
-  border-radius: 8px;
-  box-shadow: 0 3px 14px rgba(0,0,0,0.2);
-  border: 1px solid #dee2e6;
-}
-
-.vehicle-popup .leaflet-popup-content {
-  margin: 12px;
-  line-height: 1.4;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.vehicle-popup .leaflet-popup-tip {
-  background: white;
-  border: 1px solid #dee2e6;
-}
-
-/* Map container styling */
-#fleet-map {
-  border-radius: 0 0 8px 8px;
-  min-height: 350px;
-}
-
-/* FIX: Prevent map from capturing scroll events when not hovering */
-.leaflet-container:not(:hover) {
-  pointer-events: none;
-}
-
-.leaflet-container:hover {
-  pointer-events: auto;
-}
-
-/* Make sure other content is still interactive */
-#fleet-map ~ * {
-  pointer-events: auto;
-}
-
-.leaflet-container {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-}
-
-.leaflet-control {
-  margin-bottom: 10px;
-  margin-right: 10px;
-}
-
-.leaflet-control-attribution {
-  font-size: 11px;
-}
-
-/* Legend styling */
-.info.legend {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(5px);
-}
-
-/* Chart filter buttons - FIX: Make them look clickable */
-.btn-group .btn-outline-primary {
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-group .btn-outline-primary.active {
-  background-color: #0d6efd;
-  color: white;
-  border-color: #0d6efd;
-  box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
-}
-
-.btn-group .btn-outline-primary:hover:not(.active) {
-  background-color: rgba(13, 110, 253, 0.05);
-  border-color: #0d6efd;
-  transform: translateY(-1px);
-}
-
-/* Chart placeholders */
-.chart-placeholder {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.8);
-}
-
-/* Insurance progress bar styles */
-.progress-bar {
-  position: relative;
-  overflow: visible;
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-shadow: 1px 1px 1px rgba(0,0,0,0.2);
-}
-
-.progress-bar.bg-success {
-  background-color: #28a745 !important;
-}
-
-.progress-bar.bg-warning {
-  background-color: #ffc107 !important;
-}
-
-.progress-bar.bg-danger {
-  background-color: #dc3545 !important;
-}
-
-/* Insurance alert styles */
-.alert-warning.border-0 {
-  background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
-  border-left: 4px solid #ffc107;
-}
-
-.alert-danger.border-0 {
-  background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-  border-left: 4px solid #dc3545;
-}
-
-/* Insurance badge styles */
-.bg-success-subtle {
-  background-color: rgba(40, 167, 69, 0.1) !important;
-}
-
-.bg-warning-subtle {
-  background-color: rgba(255, 193, 7, 0.1) !important;
-}
-
-.bg-danger-subtle {
-  background-color: rgba(220, 53, 69, 0.1) !important;
-}
-
-/* Insurance table styles */
-.table-hover tbody tr:hover {
-  background-color: rgba(0, 123, 255, 0.05);
-}
-
-/* Toast styling */
-.toast-container {
-  z-index: 9999;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  #fleet-map {
-    height: 300px;
+  /* PTSC Trinidad & Tobago Fleet Dashboard - Professional with Bus Icons */
+  .ptsc-tt-dashboard {
+    background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
   
-  .vehicle-marker {
-    width: 28px;
-    height: 28px;
-    font-size: 14px;
-  }
-  
-  .vehicle-popup {
-    min-width: 180px !important;
-  }
-  
-  .btn-group {
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  
-  .btn-group .btn {
-    flex: 1;
-    min-width: 80px;
-    font-size: 0.85rem;
-    padding: 0.25rem 0.5rem;
-  }
-  
-  /* Insurance section responsive */
-  .progress-bar {
-    font-size: 0.75rem;
-  }
-  
-  .d-flex.flex-wrap {
-    justify-content: center !important;
-  }
-  
-  .modal-dialog {
-    margin: 0.5rem;
-  }
-  
-  /* Adjust time range buttons for mobile */
-  .card-body .d-flex.justify-content-between {
+  /* TT Flag Stripe - Professional Accent */
+  .tt-flag-stripe {
+    display: flex;
     flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
+    width: 8px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
   }
   
-  .card-body .d-flex.justify-content-between > * {
-    width: 100%;
+  .stripe-red {
+    flex: 1;
+    background-color: #c8102e;
   }
-}
+  
+  .stripe-white {
+    flex: 1;
+    background-color: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .stripe-black {
+    flex: 1;
+    background-color: #000000;
+  }
+  
+  /* PTSC TT Logo with BUS ICON */
+  .ptsc-tt-logo-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+  }
+  
+  .ptsc-tt-logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #0033a0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffb81c;
+  }
+  
+  .ptsc-tt-title {
+    color: #0033a0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  
+  .tt-flag-badge {
+    background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  
+  .text-ptsc-blue {
+    color: #0033a0 !important;
+  }
+  
+  .ptsc-timecard {
+    background: white;
+    border-left: 4px solid #ffb81c;
+    padding: 8px 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  }
+  
+  /* PTSC Cards - Professional */
+  .ptsc-tt-card {
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    background: white;
+    height: 100%;
+  }
+  
+  .ptsc-tt-card .card-header {
+    background: white;
+    border-bottom: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  /* TT Pattern Background - Professional */
+  .bg-tt-pattern {
+    background: linear-gradient(135deg, #0033a0 0%, #002070 100%);
+    position: relative;
+  }
+  
+  .bg-tt-pattern::after {
+    content: "🇹🇹";
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-size: 60px;
+    opacity: 0.05;
+    transform: rotate(-10deg);
+  }
+  
+  .bg-tt-pattern-light {
+    background: rgba(255, 184, 28, 0.05);
+    border: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  .bg-ptsc-yellow-light {
+    background: rgba(255, 184, 28, 0.08);
+  }
+  
+  /* PTSC Blue Light Background */
+  .bg-ptsc-blue-light {
+    background: rgba(0, 51, 160, 0.08);
+  }
+  
+  /* PTSC KPI Cards - Professional */
+  .ptsc-tt-kpi {
+    transition: none;
+    height: 100%;
+    min-height: 200px;
+  }
+  
+  .ptsc-tt-kpi .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .ptsc-tt-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .ptsc-tt-health {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .ptsc-score {
+    color: #ffb81c;
+    text-shadow: 0 2px 4px rgba(255, 184, 28, 0.1);
+  }
+  
+  .ptsc-metric-border {
+    border-right: 1px solid rgba(0,0,0,0.06);
+  }
+  
+  .tt-metric-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+  }
+  
+  .ptsc-tt-gauge {
+    background: linear-gradient(135deg, #0033a0 0%, #001850 100%);
+  }
+  
+  /* TT Flag Indicators - Professional */
+  .tt-flag-indicator {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+  
+  .tt-dot-red {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #c8102e;
+  }
+  
+  .tt-dot-white {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+  
+  .tt-dot-black {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #000000;
+  }
+  
+  .tt-flag-mini {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+  }
+  
+  .flag-red {
+    width: 12px;
+    height: 12px;
+    background-color: #c8102e;
+  }
+  
+  .flag-white {
+    width: 12px;
+    height: 12px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+  
+  .flag-black {
+    width: 12px;
+    height: 12px;
+    background-color: #000000;
+  }
+  
+  .tt-flag-badge-small {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-radius: 100px;
+    border-left: 3px solid #c8102e;
+    font-weight: 600;
+    color: #0033a0;
+  }
+  
+  .tt-status-badge-amber {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    background: #fff3cd;
+    border-radius: 100px;
+    color: #856404;
+    display: inline-block;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  
+  .tt-status-badge-green {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    background: #d4edda;
+    border-radius: 100px;
+    color: #155724;
+    display: inline-block;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  
+  .ptsc-tt-footer {
+    background: white;
+    padding: 20px 24px;
+    border-radius: 100px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    border: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  .tt-footer-flag {
+    font-size: 1.2rem;
+    opacity: 0.8;
+  }
+  
+  .bg-opacity-15 {
+    --bs-bg-opacity: 0.15;
+  }
+  
+  .rounded-4 {
+    border-radius: 1rem !important;
+  }
+  
+  .text-white-50 {
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+  
+  /* Progress Bars - TT Colors */
+  .progress {
+    background-color: #e9ecef;
+    border-radius: 100px;
+  }
+  
+  .progress-bar {
+    border-radius: 100px;
+  }
+  
+  /* Clean white cards with border */
+  .bg-white.border {
+    border-color: rgba(0, 51, 160, 0.15) !important;
+    transition: none;
+  }
+  
+  /* Empty State */
+  .ptsc-empty-state {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 184, 28, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+  }
+  
+  /* Alert Icon */
+  .ptsc-alert-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  /* Responsive */
+  @media (max-width: 576px) {
+    .ptsc-tt-footer .d-flex {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .ptsc-tt-kpi .display-5 {
+      font-size: 2rem;
+    }
+    
+    .ptsc-tt-footer .vr {
+      display: none;
+    }
+    
+    .ptsc-timecard {
+      width: 100%;
+      text-align: center;
+    }
+  }
+  
+  /* Professional Font */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>

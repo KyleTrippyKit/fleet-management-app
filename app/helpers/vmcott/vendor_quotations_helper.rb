@@ -1,0 +1,2 @@
+module Vmcott::VendorQuotationsHelper
+end

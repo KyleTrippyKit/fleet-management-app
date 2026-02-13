@@ -1,129 +1,125 @@
 <%# app/views/quotations/workspace.html.erb %>
-<%
-  # Disable Turbo for this entire page to prevent blinking/flash
-  content_for :head do %>
-    <meta name="turbo-visit-control" content="reload">
-    <meta name="turbo-cache-control" content="no-cache">
-    <style>
-      /* EMERGENCY BLINKING FIX - INLINE FOR IMMEDIATE EFFECT */
-      body.purchase-orders-page {
-        background-color: #f8f9fa !important;
-        animation: none !important;
-        transition: none !important;
-      }
-      
-      .purchase-orders-page .container-fluid.py-4,
-      .purchase-orders-page .card:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
-      .purchase-orders-page .card-body:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark),
-      .purchase-orders-page .table,
-      .purchase-orders-page .table th,
-      .purchase-orders-page .table td,
-      .purchase-orders-page .table tbody tr {
-        background-color: white !important;
-        color: #212529 !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        animation: none !important;
-        transition: none !important;
-      }
-      
-      /* Force all text to be visible immediately */
-      .purchase-orders-page *:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-dark):not(.btn-primary):not(.btn-success):not(.btn-info):not(.btn-warning):not(.btn-danger) {
-        color: #212529 !important;
-      }
-      
-      /* Keep colored elements readable */
-      .purchase-orders-page .card.bg-primary *,
-      .purchase-orders-page .card.bg-success *,
-      .purchase-orders-page .card.bg-info *,
-      .purchase-orders-page .card.bg-danger *,
-      .purchase-orders-page .card.bg-dark * {
-        color: white !important;
-      }
-      
-      .purchase-orders-page .card.bg-warning * {
-        color: #212529 !important;
-      }
-      
-      /* Prevent Turbo from interfering */
-      [data-turbo-preview] * {
-        opacity: 1 !important;
-        visibility: visible !important;
-      }
-      
-      /* Disable ALL animations and transitions */
-      .purchase-orders-page * {
-        animation: none !important;
-        transition: none !important;
-      }
-    </style>
-    <script>
-      // IMMEDIATE FIX FOR BLINKING ISSUE
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('Quotations Workspace Page - Applying emergency fix for blinking');
-        
-        // Add class immediately
-        document.body.classList.add('purchase-orders-page');
-        
-        // Force immediate visibility
-        document.body.style.opacity = '1';
-        document.body.style.visibility = 'visible';
-        
-        // Force a reflow to fix rendering
-        setTimeout(function() {
-          const containers = document.querySelectorAll('.container-fluid, .card, .table, .row');
-          containers.forEach(container => {
-            container.style.display = 'none';
-            void container.offsetHeight; // Trigger reflow
-            container.style.display = '';
-          });
-          
-          // Force text colors
-          const allElements = document.querySelectorAll('.purchase-orders-page *');
-          allElements.forEach(el => {
-            const bgColor = window.getComputedStyle(el).backgroundColor;
-            const textColor = window.getComputedStyle(el).color;
-            
-            // If background is light and text is white/transparent, make text dark
-            if ((bgColor === 'rgba(0, 0, 0, 0)' || 
-                 bgColor === 'rgb(255, 255, 255)' || 
-                 bgColor === 'rgb(248, 249, 250)' ||
-                 bgColor === '#ffffff' ||
-                 bgColor === '#f8f9fa') &&
-                (textColor === 'rgba(0, 0, 0, 0)' || 
-                 textColor === 'rgb(255, 255, 255)' ||
-                 textColor === '#ffffff')) {
-              el.style.color = '#212529';
-            }
-          });
-        }, 10);
-      });
-      
-      // Disable Turbo completely for quotations workspace
-      document.addEventListener('turbo:load', function() {
-        if (window.location.pathname.includes('/workspace')) {
-          console.log('Quotations Workspace page detected, disabling Turbo');
-          
-          // Disable all Turbo links and forms
-          document.querySelectorAll('a:not([data-turbo="false"])').forEach(link => {
-            link.setAttribute('data-turbo', 'false');
-          });
-          
-          document.querySelectorAll('form:not([data-turbo="false"])').forEach(form => {
-            form.setAttribute('data-turbo', 'false');
-          });
-          
-          // Disable Turbo caching
-          if (typeof Turbo !== 'undefined') {
-            Turbo.cache.exemptPageFromPreview();
-            Turbo.cache.exemptPageFromCache();
-          }
-        }
-      });
-    </script>
+
+<%# =====================================================================
+    IMPORTANT:
+    - We keep this page readable using scoped CSS (NOT global nukes).
+    - We also keep Turbo off for links/forms on this page.
+    - Action buttons now show visible TEXT labels (icons optional).
+    - ✅ Removed top "Drafts" + "Sent" buttons (they already exist in stat cards).
+   ===================================================================== %>
+
+<% content_for :head do %>
+  <meta name="turbo-visit-control" content="reload">
+
+  <style>
+    /* =========================
+       WORKSPACE SCOPED THEME FIX
+       ========================= */
+
+    body.quotation-workspace-page {
+      background: #f8f9fa;
+    }
+
+    /* Force readable text ONLY inside workspace wrapper */
+    .quotation-workspace {
+      color: #212529;
+    }
+
+    .quotation-workspace .text-muted { color: #6c757d !important; }
+    .quotation-workspace a { color: inherit; }
+    .quotation-workspace a.text-decoration-none:hover { text-decoration: underline; }
+
+    .quotation-workspace .card {
+      background: #ffffff;
+      color: #212529;
+    }
+
+    .quotation-workspace .table,
+    .quotation-workspace .table th,
+    .quotation-workspace .table td {
+      color: #212529 !important;
+    }
+
+    /* Keep colored stat cards readable */
+    .quotation-workspace .card.bg-primary *,
+    .quotation-workspace .card.bg-success *,
+    .quotation-workspace .card.bg-info *,
+    .quotation-workspace .card.bg-danger *,
+    .quotation-workspace .card.bg-dark * {
+      color: #ffffff !important;
+    }
+
+    .quotation-workspace .card.bg-warning * {
+      color: #212529 !important;
+    }
+
+    /* =========================
+       ACTION BUTTON FIXES
+       ========================= */
+
+    /* Keep actions on one line (unless small screens) */
+    .quotation-workspace .actions-cell { white-space: nowrap; }
+
+    @media (max-width: 576px) {
+      .quotation-workspace .actions-cell { white-space: normal; }
+    }
+
+    /* Make buttons align nicely */
+    .quotation-workspace .btn-group .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      font-weight: 600;
+    }
+
+    /* Rails button_to generates a form — keep it inline like a button */
+    .quotation-workspace .btn-group form {
+      display: inline-block;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* Ensure text labels are always visible and never "invisible" */
+    .quotation-workspace .btn .btn-label {
+      display: inline !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      line-height: 1;
+    }
+
+    /* Force outline button text colors (so you always see the words) */
+    .quotation-workspace .btn-outline-primary { color: #0d6efd !important; }
+    .quotation-workspace .btn-outline-secondary { color: #6c757d !important; }
+    .quotation-workspace .btn-outline-success { color: #198754 !important; }
+    .quotation-workspace .btn-outline-dark { color: #212529 !important; }
+
+    /* Keep label readable on hover too */
+    .quotation-workspace .btn-outline-primary:hover,
+    .quotation-workspace .btn-outline-secondary:hover,
+    .quotation-workspace .btn-outline-success:hover,
+    .quotation-workspace .btn-outline-dark:hover {
+      color: #ffffff !important;
+    }
+
+    /* Slightly reduce icon width so labels line up */
+    .quotation-workspace .btn i {
+      width: 1.1rem;
+      text-align: center;
+    }
+  </style>
+
+  <script>
+    // Ensure body class is present even if Turbo is on
+    function markWorkspaceBody() {
+      document.body.classList.add("quotation-workspace-page");
+    }
+    document.addEventListener("DOMContentLoaded", markWorkspaceBody);
+    document.addEventListener("turbo:load", markWorkspaceBody);
+  </script>
 <% end %>
 
-<div class="container-fluid py-4 purchase-orders-container" data-controller="purchase-orders">
+<div class="container-fluid py-4 quotation-workspace" data-controller="purchase-orders">
   <div class="row mb-4">
     <div class="col">
       <h1 class="h3 mb-0">
@@ -132,15 +128,11 @@
       </h1>
       <p class="text-muted">Manage all quotations from VMCOTT to agencies</p>
     </div>
+
+    <!-- ✅ TOP ACTIONS (Removed Drafts + Sent buttons) -->
     <div class="col-auto">
-      <%= link_to new_quotation_path, class: 'btn btn-primary', data: { turbo: false } do %>
+      <%= link_to new_quotation_path, class: "btn btn-primary", data: { turbo: false } do %>
         <i class="fas fa-plus me-2"></i> New Quotation
-      <% end %>
-      <%= link_to quotations_path(status: 'draft'), class: 'btn btn-outline-secondary ms-2', data: { turbo: false } do %>
-        <i class="fas fa-edit me-2"></i> Drafts
-      <% end %>
-      <%= link_to quotations_path(status: 'sent'), class: 'btn btn-outline-warning ms-2', data: { turbo: false } do %>
-        <i class="fas fa-paper-plane me-2"></i> Sent
       <% end %>
     </div>
   </div>
@@ -158,13 +150,14 @@
             <i class="fas fa-edit fa-2x opacity-50"></i>
           </div>
           <div class="mt-3">
-            <%= link_to 'View Drafts', quotations_path(status: 'draft'), 
-                  class: 'btn btn-light btn-sm w-100' %>
+            <%= link_to "View Drafts", quotations_path(status: "draft"),
+                  class: "btn btn-light btn-sm w-100",
+                  data: { turbo: false } %>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-md-3">
       <div class="card border-0 shadow-sm bg-warning text-dark">
         <div class="card-body">
@@ -176,13 +169,14 @@
             <i class="fas fa-paper-plane fa-2x opacity-50"></i>
           </div>
           <div class="mt-3">
-            <%= link_to 'View Sent', quotations_path(status: 'sent'), 
-                  class: 'btn btn-light btn-sm w-100' %>
+            <%= link_to "View Sent", quotations_path(status: "sent"),
+                  class: "btn btn-light btn-sm w-100",
+                  data: { turbo: false } %>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-md-3">
       <div class="card border-0 shadow-sm bg-success text-white">
         <div class="card-body">
@@ -194,26 +188,28 @@
             <i class="fas fa-clock fa-2x opacity-50"></i>
           </div>
           <div class="mt-3">
-            <%= link_to 'View Pending', quotations_path(status: 'sent'), 
-                  class: 'btn btn-light btn-sm w-100' %>
+            <%= link_to "View Pending", quotations_path(status: "sent"),
+                  class: "btn btn-light btn-sm w-100",
+                  data: { turbo: false } %>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div class="col-md-3">
       <div class="card border-0 shadow-sm bg-info text-white">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-uppercase mb-0">Total Value</h6>
-              <h3 class="mb-0">TTD <%= number_to_currency(@stats[:total_value] || 0, unit: '') %></h3>
+              <h3 class="mb-0">TTD <%= number_to_currency(@stats[:total_value] || 0, unit: "") %></h3>
             </div>
             <i class="fas fa-dollar-sign fa-2x opacity-50"></i>
           </div>
           <div class="mt-3">
-            <%= link_to 'All Quotations', quotations_path, 
-                  class: 'btn btn-light btn-sm w-100' %>
+            <%= link_to "All Quotations", quotations_path,
+                  class: "btn btn-light btn-sm w-100",
+                  data: { turbo: false } %>
           </div>
         </div>
       </div>
@@ -223,46 +219,49 @@
   <!-- Filters -->
   <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body">
-      <%= form_with url: workspace_quotations_path, method: :get, local: true, class: 'row g-3', data: { turbo: false } do |f| %>
+      <%= form_with url: workspace_quotations_path, method: :get, local: true,
+            class: "row g-3", data: { turbo: false } do %>
+
         <div class="col-md-3">
-          <%= label_tag :agency_id, 'Agency', class: 'form-label' %>
-          <%= select_tag :agency_id, 
-                options_from_collection_for_select(Agency.where.not(code: 'VMCOTT'), :id, :name, params[:agency_id]),
-                include_blank: 'All Agencies',
-                class: 'form-select' %>
+          <%= label_tag :agency_id, "Agency", class: "form-label" %>
+          <%= select_tag :agency_id,
+                options_from_collection_for_select(Agency.where.not(code: "VMCOTT"), :id, :name, params[:agency_id]),
+                include_blank: "All Agencies",
+                class: "form-select" %>
         </div>
-        
+
         <div class="col-md-2">
-          <%= label_tag :status, 'Status', class: 'form-label' %>
-          <%= select_tag :status, 
+          <%= label_tag :status, "Status", class: "form-label" %>
+          <%= select_tag :status,
                 options_for_select(Quotation.statuses.keys.map { |s| [s.humanize.titleize, s] }, params[:status]),
-                include_blank: 'All Statuses',
-                class: 'form-select' %>
+                include_blank: "All Statuses",
+                class: "form-select" %>
         </div>
-        
+
         <div class="col-md-2">
-          <%= label_tag :date_from, 'From Date', class: 'form-label' %>
-          <%= date_field_tag :date_from, params[:date_from], class: 'form-control' %>
+          <%= label_tag :date_from, "From Date", class: "form-label" %>
+          <%= date_field_tag :date_from, params[:date_from], class: "form-control" %>
         </div>
-        
+
         <div class="col-md-2">
-          <%= label_tag :date_to, 'To Date', class: 'form-label' %>
-          <%= date_field_tag :date_to, params[:date_to], class: 'form-control' %>
+          <%= label_tag :date_to, "To Date", class: "form-label" %>
+          <%= date_field_tag :date_to, params[:date_to], class: "form-control" %>
         </div>
-        
+
         <div class="col-md-2">
-          <%= label_tag :vehicle_search, 'Vehicle', class: 'form-label' %>
-          <%= text_field_tag :vehicle_search, params[:vehicle_search], 
-                class: 'form-control',
-                placeholder: 'License plate...' %>
+          <%= label_tag :vehicle_search, "Vehicle", class: "form-label" %>
+          <%= text_field_tag :vehicle_search, params[:vehicle_search],
+                class: "form-control",
+                placeholder: "License plate..." %>
         </div>
-        
+
         <div class="col-md-1 d-flex align-items-end">
           <div class="btn-group w-100">
-            <%= submit_tag 'Filter', class: 'btn btn-primary' %>
-            <%= link_to 'Clear', workspace_quotations_path, class: 'btn btn-outline-secondary', data: { turbo: false } %>
+            <%= submit_tag "Filter", class: "btn btn-primary" %>
+            <%= link_to "Clear", workspace_quotations_path, class: "btn btn-outline-secondary", data: { turbo: false } %>
           </div>
         </div>
+
       <% end %>
     </div>
   </div>
@@ -284,30 +283,37 @@
               <th class="border-0">Actions</th>
             </tr>
           </thead>
+
           <tbody>
             <% if @quotations.any? %>
               <% @quotations.each do |quotation| %>
                 <tr>
                   <td>
-                    <strong><%= link_to quotation.quote_number, quotation_path(quotation), 
-                            class: 'text-decoration-none', data: { turbo: false } %></strong>
+                    <strong>
+                      <%= link_to quotation.quote_number, quotation_path(quotation),
+                            class: "text-decoration-none",
+                            data: { turbo: false } %>
+                    </strong>
                     <div class="small text-muted">
-                      <%= quotation.created_at.strftime('%b %d, %Y') %>
+                      <%= quotation.created_at.strftime("%b %d, %Y") %>
                     </div>
                   </td>
+
                   <td>
                     <% if quotation.vehicle&.agency %>
-                      <span class="badge bg-<%= quotation.vehicle.agency.code.downcase %>-subtle 
-                                text-<%= quotation.vehicle.agency.code.downcase %> 
-                                border border-<%= quotation.vehicle.agency.code.downcase %>">
+                      <span class="badge bg-secondary">
                         <%= quotation.vehicle.agency.code %>
                       </span>
+                    <% else %>
+                      <span class="text-muted">—</span>
                     <% end %>
                   </td>
+
                   <td>
                     <% if quotation.vehicle %>
-                      <%= link_to quotation.vehicle.license_plate, quotation.vehicle, 
-                            class: 'badge bg-info text-decoration-none', data: { turbo: false } %>
+                      <%= link_to quotation.vehicle.license_plate, quotation.vehicle,
+                            class: "badge bg-info text-decoration-none",
+                            data: { turbo: false } %>
                       <div class="small text-muted">
                         <%= quotation.vehicle.make %> <%= quotation.vehicle.model %>
                       </div>
@@ -315,36 +321,39 @@
                       <span class="text-muted">N/A</span>
                     <% end %>
                   </td>
+
                   <td>
-                    <strong class="text-nowrap">TTD <%= number_with_precision(quotation.amount, precision: 2) %></strong>
+                    <strong class="text-nowrap">
+                      TTD <%= number_with_precision(quotation.amount, precision: 2) %>
+                    </strong>
                   </td>
+
                   <td>
-                    <span class="badge bg-<%= 
+                    <span class="badge bg-<%=
                       case quotation.status
-                      when 'draft' then 'secondary'
-                      when 'sent' then 'warning'
-                      when 'accepted' then 'success'
-                      when 'rejected' then 'danger'
-                      else 'info'
+                      when "draft" then "secondary"
+                      when "sent" then "warning"
+                      when "accepted" then "success"
+                      when "rejected" then "danger"
+                      else "info"
                       end
                     %>">
                       <%= quotation.status.titleize %>
                     </span>
                   </td>
+
                   <td>
                     <% if quotation.sent? %>
                       <span class="badge bg-success">Sent</span>
+                      <i class="bi bi-lock text-muted ms-1" title="Locked"></i>
                     <% else %>
                       <span class="badge bg-secondary">Draft</span>
                     <% end %>
-                    
-                    <% if quotation.sent? %>
-                      <i class="bi bi-lock text-muted ms-1" title="Locked"></i>
-                    <% end %>
                   </td>
+
                   <td>
                     <div class="d-flex flex-column">
-                      <span><%= quotation.valid_to.strftime('%b %d, %Y') %></span>
+                      <span><%= quotation.valid_to.strftime("%b %d, %Y") %></span>
                       <% if quotation.valid_to < Date.today %>
                         <span class="badge bg-danger mt-1">Expired</span>
                       <% elsif quotation.valid_to < Date.today + 7.days %>
@@ -352,40 +361,48 @@
                       <% end %>
                     </div>
                   </td>
-                  <td>
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to quotation_path(quotation), 
-                            class: 'btn btn-outline-primary', 
-                            title: 'View',
+
+                  <td class="actions-cell">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Actions">
+
+                      <%= link_to quotation_path(quotation),
+                            class: "btn btn-outline-primary d-inline-flex align-items-center gap-1",
+                            title: "View",
                             data: { turbo: false } do %>
                         <i class="fas fa-eye"></i>
+                        <span class="btn-label">View</span>
                       <% end %>
-                      
+
                       <% if quotation.draft? %>
-                        <%= link_to edit_quotation_path(quotation), 
-                              class: 'btn btn-outline-secondary', 
-                              title: 'Edit',
+                        <%= link_to edit_quotation_path(quotation),
+                              class: "btn btn-outline-secondary d-inline-flex align-items-center gap-1",
+                              title: "Edit",
                               data: { turbo: false } do %>
                           <i class="fas fa-edit"></i>
+                          <span class="btn-label">Edit</span>
                         <% end %>
-                        
+
                         <%= button_to submit_to_agency_quotation_path(quotation),
                               method: :post,
-                              class: 'btn btn-outline-success',
-                              title: 'Submit to Agency',
-                              form: { class: 'd-inline', data: { turbo: false } },
-                              data: { confirm: 'Submit this quotation to the agency?' } do %>
+                              class: "btn btn-outline-success d-inline-flex align-items-center gap-1",
+                              title: "Submit to Agency",
+                              form: { class: "d-inline-block m-0 p-0", data: { turbo: false } },
+                              data: { turbo: false, confirm: "Submit this quotation to the agency?" } do %>
                           <i class="fas fa-paper-plane"></i>
+                          <span class="btn-label">Submit</span>
                         <% end %>
                       <% end %>
-                      
-                      <%= link_to print_quotation_path(quotation, format: :pdf), 
-                            class: 'btn btn-outline-dark',
-                            target: '_blank',
-                            title: 'Print',
+
+                      <%= link_to print_quotation_path(quotation, format: :pdf),
+                            class: "btn btn-outline-dark d-inline-flex align-items-center gap-1",
+                            target: "_blank",
+                            rel: "noopener",
+                            title: "Print",
                             data: { turbo: false } do %>
                         <i class="fas fa-print"></i>
+                        <span class="btn-label">Print</span>
                       <% end %>
+
                     </div>
                   </td>
                 </tr>
@@ -396,16 +413,17 @@
                   <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
                   <h4 class="text-muted">No quotations found</h4>
                   <p class="text-muted">Create your first quotation to get started</p>
-                  <%= link_to 'Create Quotation', new_quotation_path, 
-                        class: 'btn btn-primary', data: { turbo: false } %>
+                  <%= link_to "Create Quotation", new_quotation_path,
+                        class: "btn btn-primary",
+                        data: { turbo: false } %>
                 </td>
               </tr>
             <% end %>
           </tbody>
         </table>
       </div>
-      
-      <% if @quotations.total_pages > 1 %>
+
+      <% if @quotations.respond_to?(:total_pages) && @quotations.total_pages.to_i > 1 %>
         <div class="card-footer border-0 bg-light">
           <div class="d-flex justify-content-center">
             <%= paginate @quotations %>
@@ -415,146 +433,3 @@
     </div>
   </div>
 </div>
-
-<script>
-// FIX FOR BLINKING/WHITE TEXT ISSUE
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Quotations Workspace - DOM Loaded, applying fixes');
-  
-  // Add class to body for CSS targeting - MUST MATCH CSS CLASS
-  document.body.classList.add('purchase-orders-page');
-  
-  // Force immediate visibility with NO transitions
-  document.body.style.transition = 'none';
-  document.body.style.animation = 'none';
-  
-  // Force all transitions to be disabled immediately
-  const disableAllTransitions = () => {
-    const allElements = document.querySelectorAll('*');
-    allElements.forEach(el => {
-      el.style.transition = 'none';
-      el.style.animation = 'none';
-      el.style.opacity = '1';
-      el.style.visibility = 'visible';
-    });
-  };
-  
-  disableAllTransitions();
-  
-  // Force proper text colors immediately
-  setTimeout(() => {
-    const forceTextColor = () => {
-      // Force all text in purchase orders container to be visible
-      const container = document.querySelector('.purchase-orders-container');
-      if (container) {
-        const allElements = container.querySelectorAll('*');
-        allElements.forEach(el => {
-          const computedStyle = window.getComputedStyle(el);
-          const bgColor = computedStyle.backgroundColor;
-          const textColor = computedStyle.color;
-          
-          // If text color is white/transparent and background is light, make text dark
-          if ((textColor === 'rgba(0, 0, 0, 0)' || 
-               textColor === 'transparent' || 
-               textColor === 'rgb(255, 255, 255)' || 
-               textColor === '#ffffff') &&
-              (bgColor === 'rgba(0, 0, 0, 0)' ||
-               bgColor === 'transparent' ||
-               bgColor === 'rgb(255, 255, 255)' ||
-               bgColor === '#ffffff' ||
-               bgColor === 'rgb(248, 249, 250)' ||
-               bgColor === '#f8f9fa')) {
-            el.style.color = '#212529';
-            el.style.setProperty('color', '#212529', 'important');
-          }
-          
-          // Force background colors for cards and tables
-          if (el.classList.contains('card') && 
-              !el.classList.contains('bg-primary') &&
-              !el.classList.contains('bg-success') &&
-              !el.classList.contains('bg-info') &&
-              !el.classList.contains('bg-warning') &&
-              !el.classList.contains('bg-danger') &&
-              !el.classList.contains('bg-dark')) {
-            el.style.backgroundColor = 'white';
-            el.style.setProperty('background-color', 'white', 'important');
-          }
-          
-          if (el.tagName === 'TABLE' || el.classList.contains('table')) {
-            el.style.backgroundColor = 'white';
-            el.style.setProperty('background-color', 'white', 'important');
-          }
-        });
-      }
-    };
-    
-    forceTextColor();
-    
-    // Run again after a short delay to catch any dynamically loaded content
-    setTimeout(forceTextColor, 50);
-    setTimeout(forceTextColor, 100);
-    setTimeout(forceTextColor, 200);
-  }, 20);
-  
-  // Completely disable Turbo for this page
-  if (typeof Turbo !== 'undefined') {
-    console.log('Disabling Turbo for quotations workspace page');
-    
-    // Prevent Turbo from caching this page
-    Turbo.cache.exemptPageFromCache();
-    Turbo.cache.exemptPageFromPreview();
-    
-    document.addEventListener('turbo:before-cache', function(event) {
-      if (window.location.pathname.includes('/workspace')) {
-        console.log('Preventing Turbo cache for quotations workspace');
-        event.preventDefault();
-        Turbo.cache.clear();
-      }
-    });
-    
-    // Override Turbo.visit to force full page reloads for quotations workspace pages
-    const originalVisit = Turbo.visit;
-    Turbo.visit = function(url, options = {}) {
-      if (url.toString().includes('/workspace')) {
-        console.log('Preventing Turbo visit to quotations workspace page');
-        window.location.href = url;
-        return;
-      }
-      return originalVisit.call(this, url, options);
-    };
-  }
-  
-  // Force disable Turbo for all links and forms
-  setTimeout(() => {
-    document.querySelectorAll('a').forEach(link => {
-      if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
-        link.setAttribute('data-turbo', 'false');
-      }
-    });
-    
-    document.querySelectorAll('form').forEach(form => {
-      if (!form.hasAttribute('data-turbo')) {
-        form.setAttribute('data-turbo', 'false');
-      }
-    });
-  }, 100);
-  
-  // Fix for pagination links
-  const paginationLinks = document.querySelectorAll('.pagination a');
-  paginationLinks.forEach(link => {
-    link.setAttribute('data-turbo', 'false');
-  });
-  
-  // Final check after everything loads
-  setTimeout(() => {
-    console.log('Final check - ensuring all text is visible');
-    const allTextElements = document.querySelectorAll('.purchase-orders-page p, .purchase-orders-page span, .purchase-orders-page td, .purchase-orders-page th, .purchase-orders-page div, .purchase-orders-page h1, .purchase-orders-page h2, .purchase-orders-page h3, .purchase-orders-page h4, .purchase-orders-page h5, .purchase-orders-page h6');
-    allTextElements.forEach(el => {
-      if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
-          window.getComputedStyle(el).color === '#ffffff') {
-        el.style.color = '#212529';
-      }
-    });
-  }, 500);
-});
-</script>
