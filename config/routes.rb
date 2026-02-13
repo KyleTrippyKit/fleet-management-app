@@ -164,7 +164,7 @@ Rails.application.routes.draw do
   # Purchase Requests - Existing routes
   # ========================
   namespace :vmcott do
-  resources :purchase_requests do
+    resources :purchase_requests do
       member do
         post :approve
         post :reject
@@ -172,7 +172,7 @@ Rails.application.routes.draw do
         post :mark_received
       end
     end
-
+  end
   # ========================
   # VMCOTT Inventory Management Routes (ENHANCED)
   # ========================
