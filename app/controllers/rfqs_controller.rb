@@ -31,8 +31,10 @@ class RfqsController < ApplicationController
       format.json { render json: @rfqs }
       format.pdf do
         render pdf: "RFQs_Report_#{Date.today}",
-               template: "rfqs/index.pdf.erb",
-               layout: "pdf.html",
+               template: "rfqs/index",
+               formats: [:pdf],
+               handlers: [:erb],
+               layout: "pdf",
                orientation: "Landscape"
       end
     end
@@ -53,8 +55,13 @@ class RfqsController < ApplicationController
       format.html
       format.pdf do
         render pdf: "Sent_RFQs_#{Date.today}",
-               template: "rfqs/sent.pdf.erb",
-               layout: "pdf.html"
+               template: "rfqs/sent",
+               formats: [:pdf],
+               handlers: [:erb],
+               layout: "pdf",
+               orientation: "Landscape",
+               page_size: "A4",
+               disposition: "inline"
       end
       format.csv do
         send_data generate_csv(@rfqs), filename: "sent_rfqs_#{Date.today}.csv"
@@ -277,7 +284,9 @@ class RfqsController < ApplicationController
 
         render pdf: "RFQ_#{@rfq.rfq_number}",
                template: "rfqs/show",
-               layout: false,
+               formats: [:pdf],
+               handlers: [:erb],
+               layout: "pdf",
                disposition: "attachment"
       end
     end

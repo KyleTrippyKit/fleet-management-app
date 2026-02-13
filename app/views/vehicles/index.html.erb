@@ -1,281 +1,309 @@
-<%# app/views/vehicles/index.html.erb – FLEET MANAGEMENT DASHBOARD WITH UNIVERSAL IMAGE HANDLING %>
-<div class="page-shell fleet-dashboard">
-  <!-- Page Header -->
-  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+<%# app/views/vehicles/index.html.erb – PTSC FLEET MANAGEMENT (COMPACT CARDS) %>
+
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
+%>
+
+<!-- Font Awesome 6 (Free) - Explicitly added to ensure icons load -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="ptsc-fleet-dashboard container-fluid py-4 px-4">
+  
+  <!-- HEADER - PTSC STYLE WITH FLAG -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
     <div>
-      <h2 class="mb-1">
-        <i class="fas fa-car-side me-2 text-primary"></i>
-        Fleet Management
-      </h2>
-      <div class="page-subtitle">
-        Complete fleet overview • Maintenance tracking • Real-time status
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with BUS ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-bus fa-2x"></i>
+          </div>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Fleet Management</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-warehouse me-1"></i> Vehicle Registry</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+            </span>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-bus-simple me-1"></i> <%= @vehicles_count %> units
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-3 mt-lg-0">
+      <div class="d-flex gap-2">
+        <%= link_to new_vehicle_path, class: "ptsc-primary-btn" do %>
+          <i class="fas fa-plus-circle me-2"></i> Add Vehicle
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI GRID - TT FLAG COLORS WITH ICON BOXES -->
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Total Fleet</span>
+              <div class="display-5 fw-bold"><%= @vehicles_count %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-ptsc-blue-light">
+              <i class="fas fa-bus fa-xl text-ptsc-blue"></i>
+            </div>
+          </div>
+          <div class="d-flex align-items-center text-muted small">
+            <i class="fas fa-filter me-1"></i> Filtered vehicles
+          </div>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="d-flex gap-2 flex-wrap">
-      <%= link_to maintenance_dashboard_vehicles_path, class: "btn btn-outline-secondary" do %>
-        <i class="fas fa-screwdriver-wrench me-1"></i> Maintenance Dashboard
-      <% end %>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Active</span>
+              <div class="display-5 fw-bold text-success"><%= @kpi_active %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-success bg-opacity-10">
+              <i class="fas fa-check-circle fa-xl text-success"></i>
+            </div>
+          </div>
+          <div class="d-flex align-items-center text-success small">
+            <i class="fas fa-circle-check me-1"></i> In service
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Maintenance</span>
+              <div class="display-5 fw-bold" style="color: <%= ptsc_yellow %>;"><%= @kpi_maintenance %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-warning bg-opacity-10">
+              <i class="fas fa-screwdriver-wrench fa-xl text-warning"></i>
+            </div>
+          </div>
+          <div class="d-flex align-items-center text-warning small">
+            <i class="fas fa-wrench me-1"></i> Under repair
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Out of Service</span>
+              <div class="display-5 fw-bold text-danger"><%= @kpi_out %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-danger bg-opacity-10">
+              <i class="fas fa-exclamation-triangle fa-xl text-danger"></i>
+            </div>
+          </div>
+          <div class="d-flex align-items-center text-danger small">
+            <i class="fas fa-triangle-exclamation me-1"></i> Needs attention
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTER SECTION - CLEAN WHITE -->
+  <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+          <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
+        </div>
+        <h5 class="fw-bold mb-0">Filter & Search</h5>
+        <span class="tt-flag-mini ms-2">
+          <span class="flag-red"></span>
+          <span class="flag-white"></span>
+          <span class="flag-black"></span>
+        </span>
+      </div>
       
-      <%= link_to analytics_vehicles_path, class: "btn btn-outline-primary" do %>
-        <i class="fas fa-chart-line me-1"></i> Analytics
-      <% end %>
-
-      <%= link_to new_vehicle_path, class: "btn btn-primary" do %>
-        <i class="fas fa-plus me-1"></i> Add Vehicle
-      <% end %>
-    </div>
-  </div>
-
-  <!-- KPI Strip - FIXED: Using controller variables -->
-  <div class="kpi-grid">
-    <div class="kpi-tile">
-      <div class="kpi-label">Total Fleet</div>
-      <div class="kpi-value"><%= @vehicles_count %></div>
-      <div class="kpi-foot">
-        <i class="fas fa-cars text-primary me-1"></i>
-        Filtered vehicles
-      </div>
-    </div>
-
-    <div class="kpi-tile">
-      <div class="kpi-label">Active</div>
-      <div class="kpi-value text-success">
-        <%= @kpi_active %>
-      </div>
-      <div class="kpi-foot">
-        <i class="fas fa-circle-check text-success me-1"></i>
-        In service
-      </div>
-    </div>
-
-    <div class="kpi-tile">
-      <div class="kpi-label">Maintenance</div>
-      <div class="kpi-value text-warning">
-        <%= @kpi_maintenance %>
-      </div>
-      <div class="kpi-foot">
-        <i class="fas fa-screwdriver-wrench text-warning me-1"></i>
-        Under repair
-      </div>
-    </div>
-
-    <div class="kpi-tile">
-      <div class="kpi-label">Out of Service</div>
-      <div class="kpi-value text-danger">
-        <%= @kpi_out %>
-      </div>
-      <div class="kpi-foot">
-        <i class="fas fa-triangle-exclamation text-danger me-1"></i>
-        Needs attention
-      </div>
-    </div>
-  </div>
-
-  <!-- View Toggle -->
-  <div class="view-toggle mb-4">
-    <div class="btn-group" role="group">
-      <button type="button" class="btn btn-outline-primary active" id="cardViewBtn">
-        <i class="fas fa-grip me-1"></i> Card View
-      </button>
-      <button type="button" class="btn btn-outline-secondary" id="tableViewBtn">
-        <i class="fas fa-list me-1"></i> Table View
-      </button>
-    </div>
-  </div>
-
-  <!-- Filters -->
-  <div class="section-card mb-4">
-    <div class="section-card-header">
-      <h5 class="section-card-title mb-0">
-        <i class="fas fa-filter me-2"></i>Filter & Search
-      </h5>
-    </div>
-    <div class="section-card-body">
       <%= form_with url: vehicles_path, method: :get, local: true, class: "row g-3", data: { turbo_frame: "_top" } do |f| %>
         <div class="col-md-6">
-          <div class="input-group">
-            <span class="input-group-text">
-              <i class="fas fa-search"></i>
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
             </span>
             <%= f.text_field :search, 
                   value: params[:search],
                   placeholder: "Search make, model, license plate...",
-                  class: "form-control",
+                  class: "ptsc-search-input form-control",
                   data: { action: "input->search#submit" } %>
           </div>
         </div>
 
         <div class="col-md-4">
-          <%= f.select :status, 
-                options_for_select([
-                  ["All Statuses", ""],
-                  ["Active", "active"],
-                  ["Maintenance", "maintenance"],
-                  ["Out of Service", "out"],
-                  ["Inactive", "inactive"]
-                ], params[:status]),
-                {},
-                class: "form-select",
-                data: { action: "change->search#submit" } %>
+          <div class="ptsc-select-wrapper">
+            <%= f.select :status, 
+                  options_for_select([
+                    ["All Statuses", ""],
+                    ["Active", "active"],
+                    ["Maintenance", "maintenance"],
+                    ["Out of Service", "out"],
+                    ["Inactive", "inactive"]
+                  ], params[:status]),
+                  {},
+                  class: "ptsc-select form-select",
+                  data: { action: "change->search#submit" } %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
 
-        <div class="col-md-2">
-          <%= f.submit "Apply", class: "btn btn-primary w-100" %>
+        <div class="col-md-2 d-flex gap-2">
+          <%= f.submit "Apply", class: "ptsc-apply-btn w-100" %>
           <% if params[:search] || params[:status] || params[:agency_id] %>
-            <%= link_to "Clear", vehicles_path, class: "btn btn-outline-secondary w-100 mt-2" %>
+            <%= link_to "Clear", vehicles_path, class: "ptsc-clear-btn w-100" %>
           <% end %>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- CARD VIEW -->
+  <!-- VIEW TOGGLE - TT STYLE -->
+  <div class="d-flex justify-content-end mb-4">
+    <div class="ptsc-view-toggle btn-group rounded-pill shadow-sm" role="group">
+      <button type="button" class="ptsc-view-btn active" id="cardViewBtn">
+        <i class="fas fa-grid-2 me-2"></i> Card View
+      </button>
+      <button type="button" class="ptsc-view-btn" id="tableViewBtn">
+        <i class="fas fa-list me-2"></i> Table View
+      </button>
+    </div>
+  </div>
+
+  <!-- CARD VIEW - COMPACT CARDS (NO MILEAGE) -->
   <div id="cardView" class="fleet-cards">
     <div class="row g-4">
       <% @vehicles.each do |vehicle| %>
         <div class="col-xl-3 col-lg-4 col-md-6">
-          <div class="vehicle-card">
-            <!-- Card Header -->
-            <div class="vehicle-card-header">
+          <div class="ptsc-vehicle-card card border-0 shadow-sm rounded-4 h-100">
+            <!-- Card Header with TT Flag Indicator -->
+            <div class="ptsc-card-header">
               <div class="d-flex justify-content-between align-items-center">
-                <div class="fw-bold">
-                  <%= vehicle.registration_number || vehicle.license_plate || "No ID" %>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="tt-mini-stripe">
+                    <span class="strip-red"></span>
+                    <span class="strip-white"></span>
+                    <span class="strip-black"></span>
+                  </span>
+                  <span class="fw-bold ptsc-reg-number">
+                    <%= vehicle.registration_number || vehicle.license_plate || "PTSC-#{vehicle.id}" %>
+                  </span>
                 </div>
                 <div>
                   <% status = vehicle.status.to_s.downcase %>
                   <% case status %>
                   <% when "active" %>
-                    <span class="badge bg-success">Active</span>
+                    <span class="badge bg-success rounded-pill px-3 py-2">Active</span>
                   <% when "maintenance" %>
-                    <span class="badge bg-warning">Maintenance</span>
+                    <span class="badge" style="background: <%= ptsc_yellow %>; color: #000; border-radius: 100px; padding: 0.5rem 1rem;">Maintenance</span>
                   <% when "out", "inactive" %>
-                    <span class="badge bg-danger">Out</span>
+                    <span class="badge bg-danger rounded-pill px-3 py-2">Out of Service</span>
                   <% else %>
-                    <span class="badge bg-secondary"><%= status.titleize %></span>
+                    <span class="badge bg-secondary rounded-pill px-3 py-2"><%= status.titleize %></span>
                   <% end %>
                 </div>
               </div>
             </div>
 
-            <!-- Card Body -->
-            <div class="vehicle-card-body">
-              <!-- Vehicle Image - UNIVERSAL HANDLING -->
-              <div class="vehicle-image-container mb-3">
+            <!-- Card Body - COMPACT -->
+            <div class="card-body p-3">
+              <!-- Vehicle Image - Slightly smaller -->
+              <div class="ptsc-vehicle-image-wrapper mb-3" style="height: 140px;">
                 <%# Check multiple image sources in order of priority %>
                 <% if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo.attached? %>
-                  <%# Active Storage primary_photo %>
-                  <%= image_tag vehicle.primary_photo, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                  <%= image_tag vehicle.primary_photo, class: "ptsc-vehicle-image", alt: "#{vehicle.make} #{vehicle.model}" %>
                 <% elsif vehicle.respond_to?(:gallery_photos) && vehicle.gallery_photos.attached? && vehicle.gallery_photos.first.present? %>
-                  <%# Fallback to first gallery photo %>
-                  <%= image_tag vehicle.gallery_photos.first, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
+                  <%= image_tag vehicle.gallery_photos.first, class: "ptsc-vehicle-image", alt: "#{vehicle.make} #{vehicle.model}" %>
                 <% elsif vehicle.respond_to?(:picture) && vehicle.picture.is_a?(String) && vehicle.picture.present? %>
-                  <%# Legacy picture field (URL string) %>
-                  <% if vehicle.picture.start_with?('http') %>
-                    <%= image_tag vehicle.picture, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
-                  <% else %>
-                    <%# Local file path - check if it's a valid image path %>
-                    <% if File.exist?(Rails.root.join('public', vehicle.picture)) || vehicle.picture.start_with?('/') %>
-                      <%= image_tag vehicle.picture, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
-                    <% else %>
-                      <div class="vehicle-placeholder">
-                        <i class="fas fa-car text-muted"></i>
-                        <span class="text-muted small">No image</span>
-                      </div>
-                    <% end %>
-                  <% end %>
+                  <%= image_tag vehicle.picture, class: "ptsc-vehicle-image", alt: "#{vehicle.make} #{vehicle.model}" %>
                 <% elsif vehicle.respond_to?(:display_image) && vehicle.display_image.present? %>
-                  <%# Use the display_image method from model %>
-                  <% if vehicle.display_image.is_a?(ActiveStorage::Attached::One) && vehicle.display_image.attached? %>
-                    <%= image_tag vehicle.display_image, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
-                  <% else %>
-                    <%= image_tag vehicle.display_image, class: "vehicle-thumbnail", alt: "#{vehicle.make} #{vehicle.model}" %>
-                  <% end %>
+                  <%= image_tag vehicle.display_image, class: "ptsc-vehicle-image", alt: "#{vehicle.make} #{vehicle.model}" %>
                 <% else %>
-                  <%# No image available - show placeholder %>
-                  <div class="vehicle-placeholder">
-                    <i class="fas fa-car text-muted"></i>
-                    <span class="text-muted small">No image</span>
+                  <div class="ptsc-vehicle-placeholder">
+                    <i class="fas fa-bus fa-3x" style="color: <%= ptsc_blue %>; opacity: 0.3;"></i>
+                    <span class="text-muted small mt-2">No image</span>
                   </div>
                 <% end %>
+                
+                <!-- TT Flag Watermark -->
+                <span class="ptsc-image-flag">🇹🇹</span>
               </div>
 
-              <h5 class="vehicle-name">
+              <h5 class="ptsc-vehicle-title fw-bold mb-0" style="font-size: 1.1rem;">
                 <%= vehicle.make %> <%= vehicle.model %>
-                <small class="text-muted d-block">
-                  <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type %>
-                </small>
               </h5>
+              <div class="text-muted small mb-2">
+                <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type || "Bus" %>
+              </div>
 
-              <div class="vehicle-details">
-                <!-- Registration/License Info -->
-                <div class="detail-item">
-                  <i class="fas fa-id-card"></i>
-                  <span>
-                    <% if vehicle.registration_number && vehicle.license_plate %>
-                      Reg: <%= vehicle.registration_number %> • Plate: <%= vehicle.license_plate %>
-                    <% elsif vehicle.registration_number %>
-                      <%= vehicle.registration_number %>
-                    <% else %>
-                      <%= vehicle.license_plate || "No ID" %>
-                    <% end %>
-                  </span>
-                </div>
-                
-                <!-- Agency -->
-                <div class="detail-item">
-                  <i class="fas fa-building"></i>
-                  <span><%= vehicle.agency&.name || "No Agency" %></span>
-                </div>
-                
-                <!-- Service Owner -->
-                <div class="detail-item">
-                  <i class="fas fa-user-tie"></i>
-                  <span><%= vehicle.service_owner || "—" %></span>
-                </div>
-                
-                <!-- Chassis/Serial Number -->
-                <% if vehicle.chassis_number.present? %>
-                  <div class="detail-item">
-                    <i class="fas fa-hashtag"></i>
-                    <span>Chassis: <%= truncate(vehicle.chassis_number, length: 15) %></span>
-                  </div>
-                <% elsif vehicle.serial_number.present? %>
-                  <div class="detail-item">
-                    <i class="fas fa-barcode"></i>
-                    <span>Serial: <%= truncate(vehicle.serial_number, length: 15) %></span>
-                  </div>
-                <% end %>
-                
-                <!-- Last Maintenance -->
+              <!-- ONLY LAST SERVICE - NO MILEAGE -->
+              <div class="ptsc-vehicle-specs mt-2">
                 <% last_maintenance = vehicle.maintenances.order(date: :desc).first if vehicle.respond_to?(:maintenances) %>
-                <div class="detail-item">
-                  <i class="fas fa-calendar"></i>
-                  <span>
-                    Last Service: <%= last_maintenance&.date&.strftime("%d %b %Y") || "No record" %>
-                  </span>
-                </div>
-                
-                <!-- Mileage -->
-                <% if vehicle.mileage.present? %>
-                  <div class="detail-item">
-                    <i class="fas fa-tachometer-alt"></i>
-                    <span><%= number_with_delimiter(vehicle.mileage.to_i) %> miles</span>
+                <div class="spec-item">
+                  <div class="spec-icon">
+                    <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
                   </div>
-                <% end %>
+                  <div class="spec-content">
+                    <span class="spec-label">Last Service</span>
+                    <span class="spec-value"><%= last_maintenance&.date&.strftime("%b %d, %Y") || "No record" %></span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Card Footer -->
-            <div class="vehicle-card-footer">
+            <!-- Card Footer - Compact -->
+            <div class="ptsc-card-footer p-3">
               <div class="d-flex gap-2">
                 <%= link_to vehicle_path(vehicle),
-                      class: "btn btn-sm btn-outline-primary w-100" do %>
-                  <i class="fas fa-eye me-1"></i> View
+                      class: "ptsc-view-link w-100 py-2" do %>
+                  <i class="fas fa-eye me-2"></i> View
                 <% end %>
                 <%= link_to edit_vehicle_path(vehicle), 
-                      class: "btn btn-sm btn-outline-secondary w-100" do %>
-                  <i class="fas fa-edit me-1"></i> Edit
+                      class: "ptsc-edit-link w-100 py-2" do %>
+                  <i class="fas fa-edit me-2"></i> Edit
                 <% end %>
               </div>
             </div>
@@ -285,31 +313,34 @@
     </div>
 
     <% if @vehicles.empty? %>
-      <div class="text-center py-5">
-        <i class="fas fa-car text-muted fs-1 mb-3 opacity-50"></i>
-        <h5 class="text-muted">No vehicles found</h5>
-        <p class="text-muted">Try adjusting your filters or add a new vehicle</p>
-        <%= link_to "Add New Vehicle", new_vehicle_path, class: "btn btn-primary" %>
+      <div class="ptsc-empty-state text-center py-5">
+        <div class="ptsc-empty-icon mb-3">
+          <i class="fas fa-bus fa-4x" style="color: <%= ptsc_blue %>; opacity: 0.2;"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No vehicles found</h5>
+        <p class="text-muted mb-4">Try adjusting your filters or add a new vehicle to the fleet</p>
+        <%= link_to new_vehicle_path, class: "ptsc-primary-btn px-5 py-3" do %>
+          <i class="fas fa-plus-circle me-2"></i> Add New Vehicle
+        <% end %>
       </div>
     <% end %>
   </div>
 
-  <!-- TABLE VIEW (Hidden by default) -->
+  <!-- TABLE VIEW (Hidden by default) - MILEAGE KEPT HERE -->
   <div id="tableView" class="d-none">
-    <div class="card">
+    <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+          <table class="ptsc-table table align-middle mb-0">
+            <thead>
               <tr>
-                <th style="width: 60px;">Image</th>
-                <th>Reg #</th>
-                <th>Vehicle</th>
-                <th>Status</th>
-                <th>Agency</th>
-                <th>Service Owner</th>
-                <th>Mileage</th>
-                <th class="text-end">Actions</th>
+                <th style="width: 80px;"><i class="fas fa-image me-1" style="color: <%= ptsc_blue %>;"></i> Image</th>
+                <th><i class="fas fa-id-card me-1" style="color: <%= ptsc_blue %>;"></i> Registration</th>
+                <th><i class="fas fa-bus me-1" style="color: <%= ptsc_blue %>;"></i> Vehicle</th>
+                <th><i class="fas fa-flag me-1" style="color: <%= ptsc_blue %>;"></i> Status</th>
+                <th><i class="fas fa-calendar me-1" style="color: <%= ptsc_blue %>;"></i> Last Service</th>
+                <th><i class="fas fa-tachometer-alt me-1" style="color: <%= ptsc_blue %>;"></i> Mileage</th>
+                <th class="text-end"><i class="fas fa-tools me-1" style="color: <%= ptsc_blue %>;"></i> Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -317,58 +348,25 @@
                 <tr>
                   <!-- Vehicle Image Column - UNIVERSAL HANDLING -->
                   <td>
-                    <%# Check multiple image sources in order of priority %>
-                    <% if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo.attached? %>
-                      <div class="vehicle-table-thumbnail">
-                        <%= image_tag vehicle.primary_photo, 
-                              class: "vehicle-table-image", 
-                              alt: "#{vehicle.make} #{vehicle.model}" %>
-                        <div class="image-overlay">
-                          <i class="fas fa-search-plus"></i>
+                    <div class="ptsc-table-thumbnail">
+                      <% if vehicle.respond_to?(:primary_photo) && vehicle.primary_photo.attached? %>
+                        <%= image_tag vehicle.primary_photo, class: "ptsc-table-image", alt: "#{vehicle.make} #{vehicle.model}" %>
+                      <% elsif vehicle.respond_to?(:gallery_photos) && vehicle.gallery_photos.attached? && vehicle.gallery_photos.first.present? %>
+                        <%= image_tag vehicle.gallery_photos.first, class: "ptsc-table-image", alt: "#{vehicle.make} #{vehicle.model}" %>
+                      <% elsif vehicle.respond_to?(:picture) && vehicle.picture.is_a?(String) && vehicle.picture.present? %>
+                        <%= image_tag vehicle.picture, class: "ptsc-table-image", alt: "#{vehicle.make} #{vehicle.model}" %>
+                      <% elsif vehicle.respond_to?(:display_image) && vehicle.display_image.present? %>
+                        <%= image_tag vehicle.display_image, class: "ptsc-table-image", alt: "#{vehicle.make} #{vehicle.model}" %>
+                      <% else %>
+                        <div class="ptsc-table-placeholder">
+                          <i class="fas fa-bus" style="color: <%= ptsc_blue %>;"></i>
                         </div>
-                      </div>
-                    <% elsif vehicle.respond_to?(:gallery_photos) && vehicle.gallery_photos.attached? && vehicle.gallery_photos.first.present? %>
-                      <div class="vehicle-table-thumbnail">
-                        <%= image_tag vehicle.gallery_photos.first, 
-                              class: "vehicle-table-image", 
-                              alt: "#{vehicle.make} #{vehicle.model}" %>
-                        <div class="image-overlay">
-                          <i class="fas fa-search-plus"></i>
-                        </div>
-                      </div>
-                    <% elsif vehicle.respond_to?(:picture) && vehicle.picture.is_a?(String) && vehicle.picture.present? %>
-                      <div class="vehicle-table-thumbnail">
-                        <%= image_tag vehicle.picture, 
-                              class: "vehicle-table-image", 
-                              alt: "#{vehicle.make} #{vehicle.model}" %>
-                        <div class="image-overlay">
-                          <i class="fas fa-search-plus"></i>
-                        </div>
-                      </div>
-                    <% elsif vehicle.respond_to?(:display_image) && vehicle.display_image.present? %>
-                      <div class="vehicle-table-thumbnail">
-                        <% if vehicle.display_image.is_a?(ActiveStorage::Attached::One) && vehicle.display_image.attached? %>
-                          <%= image_tag vehicle.display_image, 
-                                class: "vehicle-table-image", 
-                                alt: "#{vehicle.make} #{vehicle.model}" %>
-                        <% else %>
-                          <%= image_tag vehicle.display_image, 
-                                class: "vehicle-table-image", 
-                                alt: "#{vehicle.make} #{vehicle.model}" %>
-                        <% end %>
-                        <div class="image-overlay">
-                          <i class="fas fa-search-plus"></i>
-                        </div>
-                      </div>
-                    <% else %>
-                      <div class="vehicle-table-placeholder">
-                        <i class="fas fa-car text-muted"></i>
-                      </div>
-                    <% end %>
+                      <% end %>
+                    </div>
                   </td>
                   
                   <!-- Registration Number -->
-                  <td class="fw-bold">
+                  <td class="fw-bold" style="color: <%= ptsc_blue %>;">
                     <%= vehicle.registration_number || "—" %>
                     <br>
                     <small class="text-muted"><%= vehicle.license_plate || "—" %></small>
@@ -380,10 +378,7 @@
                       <%= vehicle.make %> <%= vehicle.model %>
                     </div>
                     <small class="text-muted">
-                      <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type || "—" %>
-                      <% if vehicle.chassis_number.present? %>
-                        <br>Chassis: <%= truncate(vehicle.chassis_number, length: 12) %>
-                      <% end %>
+                      <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type || "Bus" %>
                     </small>
                   </td>
                   
@@ -392,51 +387,39 @@
                     <% status = vehicle.status.to_s.downcase %>
                     <% case status %>
                     <% when "active" %>
-                      <span class="badge bg-success">Active</span>
+                      <span class="badge bg-success rounded-pill px-3 py-2">Active</span>
                     <% when "maintenance" %>
-                      <span class="badge bg-warning text-dark">Maintenance</span>
+                      <span class="badge rounded-pill px-3 py-2" style="background: <%= ptsc_yellow %>; color: #000;">Maintenance</span>
                     <% when "out", "inactive" %>
-                      <span class="badge bg-danger">Out</span>
+                      <span class="badge bg-danger rounded-pill px-3 py-2">Out of Service</span>
                     <% else %>
-                      <span class="badge bg-secondary"><%= status.titleize %></span>
+                      <span class="badge bg-secondary rounded-pill px-3 py-2"><%= status.titleize %></span>
                     <% end %>
                   </td>
                   
-                  <!-- Agency -->
+                  <!-- Last Service -->
                   <td>
-                    <span class="badge bg-light text-dark border">
-                      <%= vehicle.agency&.name || "—" %>
-                    </span>
+                    <% last_maintenance = vehicle.maintenances.order(date: :desc).first if vehicle.respond_to?(:maintenances) %>
+                    <%= last_maintenance&.date&.strftime("%b %d, %Y") || "—" %>
                   </td>
                   
-                  <!-- Service Owner -->
+                  <!-- MILEAGE - KEPT IN TABLE VIEW -->
                   <td>
-                    <%= vehicle.service_owner || "—" %>
-                  </td>
-                  
-                  <!-- Mileage -->
-                  <td>
-                    <% if vehicle.mileage.present? %>
-                      <%= number_with_delimiter(vehicle.mileage.to_i) %>
-                    <% else %>
-                      —
-                    <% end %>
+                    <%= vehicle.mileage.present? ? "#{number_with_delimiter(vehicle.mileage.to_i)} km" : "—" %>
                   </td>
                   
                   <!-- Actions -->
                   <td class="text-end">
-                    <div class="btn-group btn-group-sm" role="group">
+                    <div class="d-flex gap-2 justify-content-end">
                       <%= link_to vehicle_path(vehicle),
-                            class: "btn btn-outline-primary d-flex align-items-center gap-1",
-                            title: "View" do %>
+                            class: "ptsc-table-action",
+                            title: "View Details" do %>
                         <i class="fas fa-eye"></i>
-                        <span class="d-none d-md-inline">View</span>
                       <% end %>
                       <%= link_to edit_vehicle_path(vehicle),
-                            class: "btn btn-outline-secondary d-flex align-items-center gap-1",
-                            title: "Edit" do %>
+                            class: "ptsc-table-action",
+                            title: "Edit Vehicle" do %>
                         <i class="fas fa-edit"></i>
-                        <span class="d-none d-md-inline">Edit</span>
                       <% end %>
                     </div>
                   </td>
@@ -449,12 +432,34 @@
     </div>
   </div>
 
-  <!-- Pagination -->
+  <!-- Pagination - TT STYLE -->
   <% if @vehicles.any? %>
-    <div class="mt-4 d-flex justify-content-center">
-      <%= paginate @vehicles %>
+    <div class="mt-5 d-flex justify-content-center">
+      <div class="ptsc-pagination">
+        <%= paginate @vehicles %>
+      </div>
     </div>
   <% end %>
+  
+  <!-- PTSC Fleet Footer -->
+  <div class="ptsc-fleet-footer mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </span>
+        <span class="small text-muted">
+          <i class="fas fa-bus-simple me-1" style="color: <%= ptsc_blue %>;"></i> 
+          Vehicle Registry • <%= Date.today.strftime("%B %d, %Y") %>
+        </span>
+      </div>
+      <span class="tt-footer-emblem">
+        <i class="fas fa-bus me-1"></i> 🇹🇹
+      </span>
+    </div>
+  </div>
 </div>
 
 <!-- JavaScript for View Toggle -->
@@ -471,24 +476,20 @@ document.addEventListener('turbo:load', function() {
   cardViewBtn.addEventListener('click', function() {
     cardView.classList.remove('d-none');
     tableView.classList.add('d-none');
-    cardViewBtn.classList.remove('btn-outline-primary');
-    cardViewBtn.classList.add('btn-primary');
-    tableViewBtn.classList.remove('btn-primary');
-    tableViewBtn.classList.add('btn-outline-secondary');
+    cardViewBtn.classList.add('active');
+    tableViewBtn.classList.remove('active');
   });
 
   // Table View
   tableViewBtn.addEventListener('click', function() {
     cardView.classList.add('d-none');
     tableView.classList.remove('d-none');
-    tableViewBtn.classList.remove('btn-outline-secondary');
-    tableViewBtn.classList.add('btn-primary');
-    cardViewBtn.classList.remove('btn-primary');
-    cardViewBtn.classList.add('btn-outline-primary');
+    tableViewBtn.classList.add('active');
+    cardViewBtn.classList.remove('active');
   });
 
   // Remember user preference
-  const savedView = localStorage.getItem('fleetViewPreference');
+  const savedView = localStorage.getItem('ptscFleetView');
   if (savedView === 'table') {
     tableViewBtn.click();
   } else {
@@ -496,25 +497,20 @@ document.addEventListener('turbo:load', function() {
   }
 
   // Save preference
-  cardViewBtn.addEventListener('click', () => localStorage.setItem('fleetViewPreference', 'card'));
-  tableViewBtn.addEventListener('click', () => localStorage.setItem('fleetViewPreference', 'table'));
+  cardViewBtn.addEventListener('click', () => localStorage.setItem('ptscFleetView', 'card'));
+  tableViewBtn.addEventListener('click', () => localStorage.setItem('ptscFleetView', 'table'));
 });
-</script>
 
-<!-- Add this JavaScript for auto-submit on filter changes -->
-<script>
-// Simple auto-submit for filter form
+// Auto-submit for filter
 document.addEventListener('turbo:load', function() {
   const searchInput = document.querySelector('input[name="search"]');
   const statusSelect = document.querySelector('select[name="status"]');
-  const agencySelect = document.querySelector('select[name="agency_id"]');
   
   if (searchInput) {
     let searchTimeout;
     searchInput.addEventListener('input', function() {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(function() {
-        // Submit the form when user stops typing for 500ms
         const form = searchInput.closest('form');
         if (form) form.submit();
       }, 500);
@@ -527,272 +523,621 @@ document.addEventListener('turbo:load', function() {
       if (form) form.submit();
     });
   }
-  
-  if (agencySelect) {
-    agencySelect.addEventListener('change', function() {
-      const form = agencySelect.closest('form');
-      if (form) form.submit();
-    });
-  }
 });
 </script>
 
 <style>
-/* Fleet Dashboard Styles */
-.fleet-dashboard .kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+/* ============================================================
+   PTSC FLEET MANAGEMENT - TRINIDAD & TOBAGO THEME
+   Compact cards - no mileage
+   ============================================================ */
+
+.ptsc-fleet-dashboard {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.fleet-dashboard .kpi-tile {
-  background: white;
-  border-radius: 8px;
-  padding: 1.25rem;
-  border: 1px solid #e9ecef;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: transform 0.2s, box-shadow 0.2s;
+/* TT Flag Stripe */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.fleet-dashboard .kpi-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+.stripe-red, .flag-red, .strip-red {
+  background-color: #c8102e;
 }
 
-.fleet-dashboard .kpi-label {
-  font-size: 0.875rem;
-  color: #6c757d;
-  text-transform: uppercase;
+.stripe-white, .flag-white, .strip-white {
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stripe-black, .flag-black, .strip-black {
+  background-color: #000000;
+}
+
+/* TT Mini Stripe for cards */
+.tt-mini-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 4px;
+  height: 32px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strip-red, .strip-white, .strip-black {
+  flex: 1;
+  width: 100%;
+}
+
+/* PTSC Logo */
+.ptsc-tt-logo-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+}
+
+.ptsc-tt-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #0033a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb81c;
+}
+
+.ptsc-tt-title {
+  color: #0033a0;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tt-flag-badge {
+  background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
   letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
+  text-transform: uppercase;
 }
 
-.fleet-dashboard .kpi-value {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-  margin-bottom: 0.5rem;
+.text-ptsc-blue {
+  color: #0033a0 !important;
 }
 
-.fleet-dashboard .kpi-foot {
-  font-size: 0.875rem;
-  color: #6c757d;
+/* TT Flag Indicators */
+.tt-flag-indicator {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.tt-dot-red {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #c8102e;
+}
+
+.tt-dot-white {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+.tt-dot-black {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #000000;
+}
+
+.tt-flag-mini {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.flag-red, .flag-white, .flag-black {
+  width: 12px;
+  height: 12px;
+}
+
+/* Buttons */
+.ptsc-primary-btn {
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  color: #0033a0 !important;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 184, 28, 0.2);
+}
+
+.ptsc-primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.3);
+  color: #0033a0 !important;
+  background: linear-gradient(135deg, #ffd700 0%, #ffb81c 100%);
+}
+
+/* KPI Cards with Icon Boxes */
+.ptsc-kpi-card {
+  transition: none;
+  border: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+.ptsc-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ptsc-icon-circle-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bg-ptsc-blue-light {
+  background: rgba(0, 51, 160, 0.08);
+}
+
+/* Filter Card */
+.ptsc-filter-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+}
+
+.ptsc-search-group {
+  position: relative;
   display: flex;
   align-items: center;
 }
 
-/* View Toggle */
-.view-toggle {
-  display: flex;
-  justify-content: flex-end;
+.ptsc-search-icon {
+  position: absolute;
+  left: 16px;
+  z-index: 10;
 }
 
-.view-toggle .btn-group .btn {
-  border-radius: 6px !important;
+.ptsc-search-input {
+  padding-left: 48px !important;
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
 }
 
-.view-toggle .btn-group .btn:first-child {
-  border-top-right-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
+.ptsc-search-input:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
 }
 
-.view-toggle .btn-group .btn:last-child {
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
+.ptsc-select-wrapper {
+  position: relative;
 }
 
-/* Vehicle Cards */
-.vehicle-card {
+.ptsc-select {
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.ptsc-select:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #0033a0;
+  pointer-events: none;
+}
+
+.ptsc-apply-btn {
+  background: #0033a0;
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 100px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  height: 48px;
+}
+
+.ptsc-apply-btn:hover {
+  background: #002070;
+  color: white;
+}
+
+.ptsc-clear-btn {
   background: white;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-  overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
-  height: 100%;
+  color: #6c757d;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 0.6rem 1rem;
+  border-radius: 100px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
 }
 
-.vehicle-card:hover {
+.ptsc-clear-btn:hover {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* View Toggle */
+.ptsc-view-toggle {
+  background: white;
+  border: 1px solid rgba(0, 51, 160, 0.1);
+  padding: 4px;
+}
+
+.ptsc-view-btn {
+  background: transparent;
+  border: none;
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  color: #6c757d;
+  transition: all 0.2s ease;
+}
+
+.ptsc-view-btn.active {
+  background: #0033a0;
+  color: white !important;
+}
+
+.ptsc-view-btn i {
+  margin-right: 0.5rem;
+}
+
+/* Vehicle Cards - COMPACT */
+.ptsc-vehicle-card {
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+}
+
+.ptsc-vehicle-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  box-shadow: 0 12px 24px rgba(0, 51, 160, 0.12) !important;
 }
 
-.vehicle-card-header {
-  padding: 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+.ptsc-card-header {
+  padding: 0.75rem;
+  background: rgba(255, 184, 28, 0.04);
+  border-bottom: 1px solid rgba(0, 51, 160, 0.08);
 }
 
-.vehicle-card-body {
-  padding: 1.25rem;
+.ptsc-reg-number {
+  color: #0033a0;
+  font-size: 0.85rem;
 }
 
-.vehicle-image-container {
-  height: 150px;
-  background: #f8f9fa;
-  border-radius: 6px;
+/* Vehicle Image - Smaller for compact cards */
+.ptsc-vehicle-image-wrapper {
+  height: 140px;
+  background: rgba(255, 184, 28, 0.04);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  margin-bottom: 1rem;
+  position: relative;
 }
 
-.vehicle-thumbnail {
+.ptsc-vehicle-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease;
 }
 
-.vehicle-card:hover .vehicle-thumbnail {
+.ptsc-vehicle-card:hover .ptsc-vehicle-image {
   transform: scale(1.05);
 }
 
-.vehicle-placeholder {
+.ptsc-vehicle-placeholder {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #6c757d;
+  width: 100%;
+  height: 100%;
 }
 
-.vehicle-placeholder i {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+.ptsc-image-flag {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  font-size: 1.2rem;
+  opacity: 0.5;
 }
 
-.vehicle-name {
+/* Vehicle Specs - Compact */
+.ptsc-vehicle-title {
+  color: #0033a0;
   font-size: 1.1rem;
-  margin-bottom: 1rem;
 }
 
-.vehicle-details {
+.ptsc-vehicle-specs {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-top: 0.5rem;
 }
 
-.detail-item {
+.spec-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
-  font-size: 0.875rem;
-  color: #6c757d;
-  line-height: 1.3;
 }
 
-.detail-item i {
-  width: 16px;
-  color: #6c757d;
+.spec-icon {
+  width: 20px;
   flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
 }
 
-.detail-item span {
+.spec-icon i {
+  font-size: 0.9rem;
+}
+
+.spec-content {
   flex: 1;
-  word-break: break-word;
+  display: flex;
+  flex-direction: column;
 }
 
-.vehicle-card-footer {
-  padding: 1rem;
-  border-top: 1px solid #e9ecef;
-  background: #f8f9fa;
+.spec-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #6c757d;
+  letter-spacing: 0.5px;
 }
 
-/* Table View Styles */
-.table-hover tbody tr:hover {
-  background-color: rgba(13, 110, 253, 0.05);
+.spec-value {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #212529;
 }
 
-/* Vehicle Table Thumbnail */
-.vehicle-table-thumbnail {
-  position: relative;
-  width: 50px;
-  height: 50px;
-  border-radius: 4px;
+/* Card Footer - Compact */
+.ptsc-card-footer {
+  padding: 0.75rem;
+  border-top: 1px solid rgba(0, 51, 160, 0.08);
+  background: rgba(255, 184, 28, 0.02);
+}
+
+.ptsc-view-link, .ptsc-edit-link {
+  font-size: 0.8rem;
+  padding: 0.4rem !important;
+}
+
+/* Table Styles (unchanged) */
+.ptsc-table-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
   overflow: hidden;
-  background: #f8f9fa;
 }
 
-.vehicle-table-image {
+.ptsc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ptsc-table thead th {
+  background: rgba(255, 184, 28, 0.04);
+  color: #0033a0;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1rem;
+  border-bottom: 2px solid rgba(0, 51, 160, 0.1);
+}
+
+.ptsc-table tbody td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0, 51, 160, 0.05);
+}
+
+.ptsc-table tbody tr:hover {
+  background: rgba(255, 184, 28, 0.02);
+}
+
+/* Table Thumbnail */
+.ptsc-table-thumbnail {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 184, 28, 0.04);
+  border: 1px solid rgba(0, 51, 160, 0.1);
+}
+
+.ptsc-table-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.image-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
+.ptsc-table-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  background: rgba(255, 184, 28, 0.04);
+}
+
+.tt-agency-badge {
+  background: rgba(0, 51, 160, 0.08);
+  color: #0033a0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 100px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ptsc-table-action {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.ptsc-table-action:hover {
+  background: #0033a0;
   color: white;
-  cursor: pointer;
+  border-color: #0033a0;
 }
 
-.vehicle-table-thumbnail:hover .image-overlay {
-  opacity: 1;
-}
-
-.vehicle-table-placeholder {
-  width: 50px;
-  height: 50px;
-  border-radius: 4px;
-  background: #f8f9fa;
+/* Empty State */
+.ptsc-empty-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 184, 28, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6c757d;
+  margin: 0 auto;
+}
+
+/* Pagination */
+.ptsc-pagination .pagination {
+  gap: 0.5rem;
+}
+
+.ptsc-pagination .page-link {
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  border-radius: 50% !important;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.ptsc-pagination .page-link:hover {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+.ptsc-pagination .page-item.active .page-link {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+/* Footer */
+.ptsc-fleet-footer {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0, 51, 160, 0.1);
+}
+
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
+}
+
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 24px;
+  border-radius: 1px;
+}
+
+.tt-footer-emblem {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
+/* Bootstrap overrides */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 0.7rem;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .fleet-dashboard .kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .ptsc-view-toggle {
+    width: 100%;
   }
   
-  .view-toggle {
-    justify-content: center;
+  .ptsc-view-btn {
+    flex: 1;
+    padding: 0.6rem 0.5rem;
   }
   
-  .section-card-body .row {
-    flex-direction: column;
+  .ptsc-view-btn i {
+    margin-right: 0.25rem;
   }
   
-  .section-card-body .col-md-2 {
-    display: flex;
-    gap: 0.5rem;
-  }
-  
-  /* Make table scrollable on mobile */
-  .table-responsive {
-    overflow-x: auto;
-  }
-  
-  /* Adjust table columns for mobile */
-  .table th:nth-child(2),
-  .table td:nth-child(2) {
-    min-width: 120px;
-  }
-  
-  .table th:nth-child(3),
-  .table td:nth-child(3) {
-    min-width: 150px;
-  }
-  
-  /* Hide some columns on mobile */
-  .table th:nth-child(6),
-  .table td:nth-child(6),
-  .table th:nth-child(7),
-  .table td:nth-child(7) {
+  .ptsc-table thead th:nth-child(5),
+  .ptsc-table tbody td:nth-child(5),
+  .ptsc-table thead th:nth-child(6),
+  .ptsc-table tbody td:nth-child(6) {
     display: none;
   }
 }
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>

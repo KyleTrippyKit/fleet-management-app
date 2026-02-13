@@ -619,25 +619,16 @@ Rails.application.routes.draw do
   get "payment-dashboard/vendor-summary/:vendor", to: "payment_dashboard#vendor_summary",       as: :vendor_payment_summary
 
   # ========================
-  # Agency workflow shortcuts
+  # Agency workflow shortcuts - DELETED - These cause routing errors
+  # The functionality is already available through:
+  # - AgenciesDashboardController#show for agency dashboards
+  # - QuotationsController#received for agency quotation review
+  # - PurchaseOrdersController#awaiting_acceptance for PO acceptance
   # ========================
-  namespace :ptsc do
-    get "rfq_dashboard",    to: "rfq_dashboard#index",              as: :rfq_dashboard
-    get "quotation_review", to: "quotations#review_received",       as: :quotation_review
-    get "po_acceptance",    to: "purchase_orders#acceptance_queue", as: :po_acceptance
-  end
-
-  namespace :ttps do
-    get "rfq_dashboard",    to: "rfq_dashboard#index",              as: :rfq_dashboard
-    get "quotation_review", to: "quotations#review_received",       as: :quotation_review
-    get "po_acceptance",    to: "purchase_orders#acceptance_queue", as: :po_acceptance
-  end
-
-  namespace :ttdf do
-    get "rfq_dashboard",    to: "rfq_dashboard#index",              as: :rfq_dashboard
-    get "quotation_review", to: "quotations#review_received",       as: :quotation_review
-    get "po_acceptance",    to: "purchase_orders#acceptance_queue", as: :po_acceptance
-  end
+  # The following namespace blocks have been removed because they reference controllers that don't exist:
+  # - namespace :ptsc do ... end
+  # - namespace :ttps do ... end
+  # - namespace :ttdf do ... end
 
   # ========================
   # Accounting system

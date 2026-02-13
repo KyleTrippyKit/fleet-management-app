@@ -1,52 +1,165 @@
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="card-title mb-0">Filter RFQs</h5>
-  </div>
-  <div class="card-body">
-    <%= form_with url: sent_rfqs_path, method: :get, local: true, class: "row g-3" do |f| %>
+<%# app/views/rfqs/_filters.html.erb - PTSC FILTERS WITH VEHICLE SEARCH %>
+
+<%
+  # TT Flag colors (passed from parent)
+  ptsc_blue = local_assigns[:ptsc_blue] || "#0033a0"
+  tt_red = local_assigns[:tt_red] || "#c8102e"
+  ptsc_yellow = local_assigns[:ptsc_yellow] || "#ffb81c"
+%>
+
+<!-- FILTER CARD - PTSC STYLE -->
+<div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+        <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
+      </div>
+      <h5 class="fw-bold mb-0">Filter RFQs</h5>
+      <span class="tt-flag-mini ms-2">
+        <span class="flag-red"></span>
+        <span class="flag-white"></span>
+        <span class="flag-black"></span>
+      </span>
+    </div>
+
+    <%= form_with url: sent_rfqs_path, method: :get, local: true, 
+          class: "row g-3 align-items-end", 
+          id: "rfq-filters-form",
+          data: { turbo_frame: "_top" } do |f| %>
+      
+      <!-- SEARCH BAR -->
       <div class="col-md-3">
-        <%= f.label :search, "Search", class: "form-label" %>
-        <%= f.text_field :search, class: "form-control", 
-              value: params[:search],
-              placeholder: "RFQ #, description..." %>
+        <div class="form-group">
+          <%= f.label :search, "Search", class: "form-label small fw-semibold text-muted" %>
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= f.search_field :search, 
+                  value: params[:search],
+                  class: "ptsc-search-input form-control vehicle-search-input",
+                  placeholder: "RFQ #, vehicle, description...",
+                  autocomplete: "off" %>
+          </div>
+        </div>
       </div>
-      
+
+      <!-- STATUS FILTER -->
       <div class="col-md-2">
-        <%= f.label :status, "Status", class: "form-label" %>
-        <%= f.select :status, 
-              Rfq.statuses.keys.map { |s| [s.humanize, s] },
-              { include_blank: "All Statuses", selected: params[:status] },
-              class: "form-control" %>
+        <div class="form-group">
+          <%= f.label :status, "Status", class: "form-label small fw-semibold text-muted" %>
+          <div class="ptsc-select-wrapper">
+            <%= f.select :status, 
+                  options_for_select([
+                    ["All Statuses", ""],
+                    ["Draft", "draft"],
+                    ["Sent", "sent"],
+                    ["Quoted", "quoted"],
+                    ["Accepted", "accepted"],
+                    ["Rejected", "rejected"]
+                  ], params[:status]),
+                  {},
+                  class: "ptsc-select form-select status-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
+        </div>
       </div>
-      
+
+      <!-- FROM DATE -->
       <div class="col-md-2">
-        <%= f.label :vehicle_id, "Vehicle", class: "form-label" %>
-        <%= f.select :vehicle_id, 
-              options_for_select(
-                (vehicles || []).map { |v| [v.license_plate, v.id] },
-                params[:vehicle_id]
-              ),
-              { include_blank: "All Vehicles" },
-              class: "form-control" %>
+        <div class="form-group">
+          <%= f.label :date_from, "From Date", class: "form-label small fw-semibold text-muted" %>
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= f.date_field :date_from, 
+                  value: params[:date_from],
+                  class: "ptsc-search-input form-control date-from" %>
+          </div>
+        </div>
       </div>
-      
+
+      <!-- TO DATE -->
       <div class="col-md-2">
-        <%= f.label :date_from, "From Date", class: "form-label" %>
-        <%= f.date_field :date_from, class: "form-control", value: params[:date_from] %>
+        <div class="form-group">
+          <%= f.label :date_to, "To Date", class: "form-label small fw-semibold text-muted" %>
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= f.date_field :date_to, 
+                  value: params[:date_to],
+                  class: "ptsc-search-input form-control date-to" %>
+          </div>
+        </div>
       </div>
-      
-      <div class="col-md-2">
-        <%= f.label :date_to, "To Date", class: "form-label" %>
-        <%= f.date_field :date_to, class: "form-control", value: params[:date_to] %>
-      </div>
-      
-      <div class="col-md-1 align-self-end">
-        <%= f.submit "Filter", class: "btn btn-primary" %>
-      </div>
-      
-      <div class="col-md-1 align-self-end">
-        <%= link_to "Clear", sent_rfqs_path, class: "btn btn-outline-secondary" %>
+
+      <!-- FILTER BUTTONS - SMALLER -->
+      <div class="col-md-3">
+        <div class="d-flex gap-2">
+          <%= f.submit "Apply", class: "ptsc-apply-btn px-4", style: "height: 42px; font-size: 0.9rem;" %>
+          <%= link_to "Clear", sent_rfqs_path, class: "ptsc-clear-btn px-4", style: "height: 42px; font-size: 0.9rem;" %>
+        </div>
       </div>
     <% end %>
   </div>
 </div>
+
+<!-- JavaScript for auto-submit functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('rfq-filters-form');
+  if (!form) return;
+  
+  let searchTimeout;
+  
+  // Search input with debounce (2 letters minimum)
+  const searchInput = document.querySelector('.vehicle-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      
+      const value = this.value.trim();
+      
+      // Only submit if 2 or more characters
+      if (value.length >= 2) {
+        searchTimeout = setTimeout(() => {
+          form.submit();
+        }, 500);
+      }
+      
+      // If empty, submit after a short delay
+      if (value.length === 0) {
+        searchTimeout = setTimeout(() => {
+          form.submit();
+        }, 300);
+      }
+    });
+  }
+  
+  // Auto-submit on status change
+  const statusSelect = document.querySelector('.status-select');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+  
+  // Auto-submit on date changes
+  const dateFrom = document.querySelector('.date-from');
+  const dateTo = document.querySelector('.date-to');
+  
+  if (dateFrom) {
+    dateFrom.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+  
+  if (dateTo) {
+    dateTo.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+});
+</script>

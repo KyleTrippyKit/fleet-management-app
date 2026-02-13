@@ -1,181 +1,274 @@
-<%# app/views/welcome/index.html.erb %>
-<%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
+<%# app/views/welcome/index.html.erb - UNIFIED WELCOME PORTAL FOR ALL AGENCIES %>
 
-<%# Safety check - show different content if @agency is nil %>
+<%
+  # Agency-specific colors
+  agency_code = @agency&.code.to_s.upcase
+  agency_name = @agency&.name || "Unknown Agency"
+  
+  # Define colors based on agency
+  primary_color = case agency_code
+  when "PTSC"
+    "#0033a0"  # PTSC Blue
+  when "VMCOTT"
+    "#0d6efd"  # Bootstrap Primary Blue
+  when "TTPS"
+    "#c8102e"  # Police Red
+  when "TTDF"
+    "#198754"  # Defence Green
+  else
+    "#6c757d"  # Default Gray
+  end
+  
+  accent_color = case agency_code
+  when "PTSC"
+    "#ffb81c"  # PTSC Yellow
+  when "VMCOTT"
+    "#0a58ca"  # Darker Blue
+  when "TTPS"
+    "#a00d26"  # Darker Red
+  when "TTDF"
+    "#0f5c3a"  # Darker Green
+  else
+    "#5a6268"  # Darker Gray
+  end
+  
+  # TT Flag colors (for all agencies - national pride!)
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
 <% if @agency.present? %>
-  <div class="container welcome-container">
-    <div class="row justify-content-center">
-      <div class="col-lg-10 col-xl-8">
-        <div class="card agency-welcome-card shadow-lg">
-          <div class="card-header header-gradient-<%= @agency.code.downcase %> text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">
-              <% case @agency.code %>
-              <% when "VMCOTT" %>
-                <i class="bi bi-shield-check agency-icon-<%= @agency.code.downcase %> me-2"></i>
-              <% when "TTPS" %>
-                <i class="bi bi-shield agency-icon-<%= @agency.code.downcase %> me-2"></i>
-              <% when "TTDF" %>
-                <i class="bi bi-shield-fill agency-icon-<%= @agency.code.downcase %> me-2"></i>
+  <div class="welcome-container container-fluid py-4 px-4">
+    
+    <!-- HEADER - TT FLAG + AGENCY BRANDING -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-2">
+          <!-- TT Flag Stripe Accent (for all agencies) -->
+          <div class="tt-flag-stripe">
+            <div class="stripe-red"></div>
+            <div class="stripe-white"></div>
+            <div class="stripe-black"></div>
+          </div>
+          <!-- Agency Logo Circle -->
+          <div class="agency-logo-wrapper" style="background: linear-gradient(135deg, <%= accent_color %> 0%, <%= primary_color %> 100%);">
+            <div class="agency-logo" style="background: <%= primary_color %>;">
+              <% case agency_code %>
               <% when "PTSC" %>
-                <i class="bi bi-bus-front agency-icon-<%= @agency.code.downcase %> me-2"></i>
+                <i class="fas fa-bus fa-2x" style="color: <%= accent_color %>;"></i>
+              <% when "VMCOTT" %>
+                <i class="fas fa-shield-alt fa-2x" style="color: <%= accent_color %>;"></i>
+              <% when "TTPS" %>
+                <i class="fas fa-shield fa-2x" style="color: <%= accent_color %>;"></i>
+              <% when "TTDF" %>
+                <i class="fas fa-shield-halved fa-2x" style="color: <%= accent_color %>;"></i>
               <% else %>
-                <i class="bi bi-building agency-icon-default me-2"></i>
+                <i class="fas fa-building fa-2x" style="color: <%= accent_color %>;"></i>
               <% end %>
-              <%= @agency.name %> Portal
-            </h4>
-            <span class="badge badge-<%= @agency.code.downcase %> fs-6 p-2">
-              <i class="bi bi-person-badge me-1"></i>
-              <%= current_user.name || current_user.email %>
+            </div>
+          </div>
+          <div>
+            <div class="d-flex align-items-center gap-2">
+              <h1 class="display-6 fw-bold mb-0 agency-title" style="color: <%= primary_color %>;">Welcome, <%= current_user.name || current_user.email %></h1>
+              <span class="tt-flag-badge">Trinidad & Tobago</span>
+            </div>
+            <div class="d-flex align-items-center gap-3 mt-1">
+              <span class="text-muted"><i class="fas fa-building me-1"></i> <%= agency_name %></span>
+              <span class="vr"></span>
+              <span class="text-muted">
+                <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+              </span>
+              <span class="vr"></span>
+              <span class="fw-medium" style="color: <%= primary_color %>;">
+                <i class="fas fa-user-circle me-1"></i> <%= current_user.role_name %>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mt-3 mt-lg-0">
+        <div class="timecard">
+          <span class="small text-uppercase fw-semibold text-muted">Last login</span>
+          <span class="ms-2 fw-medium"><%= current_user.current_sign_in_at&.strftime("%b %d, %I:%M %p") || "First login" %></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENCY WELCOME CARD -->
+    <div class="welcome-card card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-body p-5 text-center">
+        <!-- Agency Icon -->
+        <div class="agency-icon mb-4">
+          <div class="rounded-circle p-4 d-inline-block" style="background: <%= primary_color %>10;">
+            <% case agency_code %>
+            <% when "PTSC" %>
+              <i class="fas fa-bus fa-5x" style="color: <%= primary_color %>;"></i>
+            <% when "VMCOTT" %>
+              <i class="fas fa-shield-alt fa-5x" style="color: <%= primary_color %>;"></i>
+            <% when "TTPS" %>
+              <i class="fas fa-shield fa-5x" style="color: <%= primary_color %>;"></i>
+            <% when "TTDF" %>
+              <i class="fas fa-shield-halved fa-5x" style="color: <%= primary_color %>;"></i>
+            <% else %>
+              <i class="fas fa-building fa-5x" style="color: <%= primary_color %>;"></i>
+            <% end %>
+          </div>
+        </div>
+        
+        <h1 class="display-5 fw-bold mb-3" style="color: <%= primary_color %>;">
+          <%= agency_name %> Portal
+        </h1>
+        
+        <p class="lead text-muted mb-4 mx-auto" style="max-width: 600px;">
+          <%= @agency.description || "Welcome to the Trinidad & Tobago Fleet Management System" %>
+        </p>
+        
+        <div class="alert d-inline-flex align-items-center gap-2 px-4 py-3 rounded-pill mb-0" style="background: <%= primary_color %>08; border: 1px solid <%= primary_color %>20;">
+          <i class="fas fa-info-circle" style="color: <%= primary_color %>;"></i>
+          <span class="text-muted">
+            <strong>Role:</strong> <%= current_user.role_name %>
+          </span>
+        </div>
+        
+        <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(agency_code) %>
+          <div class="mt-4">
+            <span class="badge rounded-pill px-4 py-3" style="background: <%= primary_color %>15; color: <%= primary_color %>;">
+              <i class="fas fa-spinner fa-pulse me-2"></i>
+              Redirecting to your dashboard in 3 seconds...
             </span>
           </div>
-          
-          <div class="card-body text-center py-5">
-            <div class="mb-5">
-              <div class="agency-logo mb-4">
-                <% case @agency.code %>
-                <% when "VMCOTT" %>
-                  <div class="rounded-circle bg-primary bg-opacity-10 p-4 d-inline-block">
-                    <i class="bi bi-shield-check fa-4x text-primary"></i>
-                  </div>
-                <% when "TTPS" %>
-                  <div class="rounded-circle bg-danger bg-opacity-10 p-4 d-inline-block">
-                    <i class="bi bi-shield fa-4x text-danger"></i>
-                  </div>
-                <% when "TTDF" %>
-                  <div class="rounded-circle bg-success bg-opacity-10 p-4 d-inline-block">
-                    <i class="bi bi-shield-fill fa-4x text-success"></i>
-                  </div>
-                <% when "PTSC" %>
-                  <div class="rounded-circle bg-warning bg-opacity-10 p-4 d-inline-block">
-                    <i class="bi bi-bus-front fa-4x text-warning"></i>
-                  </div>
-                <% else %>
-                  <div class="rounded-circle bg-secondary bg-opacity-10 p-4 d-inline-block">
-                    <i class="bi bi-building fa-4x text-secondary"></i>
-                  </div>
-                <% end %>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- ACTION CARDS GRID -->
+    <div class="row g-4 mb-5">
+      <div class="col-12 col-md-6">
+        <div class="action-card card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <span class="text-uppercase small fw-semibold" style="color: <%= primary_color %>;">Quick Scan</span>
+                <h3 class="fw-bold mb-1 mt-2" style="color: <%= primary_color %>;">Vehicle Scanner</h3>
+                <p class="text-muted">Scan QR Code or RFID tag for instant access</p>
               </div>
-              
-              <h1 class="display-5 fw-bold mb-3">
-                Welcome to <%= @agency.code %> Fleet Management
-              </h1>
-              
-              <p class="lead text-muted mb-4">
-                <%= @agency.description %>
-              </p>
-              
-              <div class="alert alert-info d-inline-block">
-                <i class="bi bi-info-circle me-2"></i>
-                <strong>Logged in as:</strong> <%= current_user.email %>
-                <br>
-                <small>
-                  <strong>Role:</strong> <%= current_user.role_name %>
-                  <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(@agency.code) %>
-                    <br>
-                    <em class="text-warning">You will be redirected to your agency dashboard shortly</em>
-                  <% end %>
-                </small>
+              <div class="icon-circle" style="background: <%= primary_color %>10;">
+                <i class="fas fa-qrcode fa-xl" style="color: <%= primary_color %>;"></i>
               </div>
             </div>
-            
-            <div class="row g-4 mb-5">
-              <div class="col-md-6">
-                <div class="card h-100 border-primary scanner-card">
-                  <div class="card-body text-center d-flex flex-column">
-                    <div class="mb-3">
-                      <i class="bi bi-upc-scan fa-4x text-primary mb-3"></i>
-                      <h3 class="card-title">Quick Scan</h3>
-                      <p class="card-text">Scan vehicle QR Code or RFID tag for instant vehicle access and inspection.</p>
-                    </div>
-                    <%= link_to scan_path, class: "btn btn-primary btn-lg w-100 mt-auto" do %>
-                      <i class="bi bi-camera me-2"></i>Start Scanning
-                    <% end %>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="col-md-6">
-                <div class="card h-100 border-success">
-                  <div class="card-body text-center d-flex flex-column">
-                    <div class="mb-3">
-                      <i class="bi bi-speedometer2 fa-4x text-success mb-3"></i>
-                      <h3 class="card-title">Dashboard</h3>
-                      <p class="card-text">Access the complete fleet management dashboard with all tools and reports.</p>
-                    </div>
-                    <%= link_to dashboard_path, class: "btn btn-success btn-lg w-100 mt-auto" do %>
-                      <i class="bi bi-bar-chart-line me-2"></i>Go to Dashboard
-                    <% end %>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="row g-3">
-              <div class="col-md-4">
-                <div class="card">
-                  <div class="card-body">
-                    <i class="bi bi-car-front fa-2x text-primary mb-2"></i>
-                    <h6>Fleet Overview</h6>
-                    <p class="small text-muted mb-0">View all vehicles</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="col-md-4">
-                <div class="card">
-                  <div class="card-body">
-                    <i class="bi bi-tools fa-2x text-warning mb-2"></i>
-                    <h6>Maintenance</h6>
-                    <p class="small text-muted mb-0">Schedule & track services</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="col-md-4">
-                <div class="card">
-                  <div class="card-body">
-                    <i class="bi bi-clipboard-data fa-2x text-info mb-2"></i>
-                    <h6>Reports</h6>
-                    <p class="small text-muted mb-0">Generate analytics</p>
-                  </div>
-                </div>
-              </div>
+            <div class="mt-auto">
+              <%= link_to scan_path, class: "primary-btn w-100 py-3", style: "background: linear-gradient(135deg, #{accent_color} 0%, #{primary_color} 100%); color: white;" do %>
+                <i class="fas fa-camera me-2"></i> Start Scanning
+              <% end %>
             </div>
           </div>
-          
-          <div class="card-footer text-center text-muted">
-            <div class="row">
-              <div class="col-md-4">
-                <small>
-                  <i class="bi bi-clock me-1"></i>
-                  Last login: <%= current_user.current_sign_in_at&.strftime("%Y-%m-%d %H:%M") || "First login" %>
-                </small>
+        </div>
+      </div>
+      
+      <div class="col-12 col-md-6">
+        <div class="action-card card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <span class="text-uppercase small fw-semibold" style="color: <%= primary_color %>;">Dashboard</span>
+                <h3 class="fw-bold mb-1 mt-2" style="color: <%= primary_color %>;">Fleet Management</h3>
+                <p class="text-muted">Access complete fleet operations dashboard</p>
               </div>
-              <div class="col-md-4">
-                <small>
-                  <i class="bi bi-building me-1"></i>
-                  Agency: <%= @agency.code %>
-                </small>
+              <div class="icon-circle" style="background: <%= primary_color %>10;">
+                <i class="fas fa-chart-pie fa-xl" style="color: <%= primary_color %>;"></i>
               </div>
-              <div class="col-md-4">
-                <small>
-                  <i class="bi bi-shield-check me-1"></i>
-                  Session: Active
-                </small>
-              </div>
+            </div>
+            <div class="mt-auto">
+              <%= link_to dashboard_path, class: "primary-btn w-100 py-3", style: "background: linear-gradient(135deg, #{accent_color} 0%, #{primary_color} 100%); color: white;" do %>
+                <i class="fas fa-chart-line me-2"></i> Go to Dashboard
+              <% end %>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- QUICK LINKS GRID -->
+    <div class="row g-4 mb-5">
+      <div class="col-12 col-md-4">
+        <div class="mini-card card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4 text-center">
+            <div class="mini-icon mb-3" style="background: <%= primary_color %>10;">
+              <i class="fas fa-car fa-2x" style="color: <%= primary_color %>;"></i>
+            </div>
+            <h6 class="fw-bold mb-1" style="color: <%= primary_color %>;">Fleet Overview</h6>
+            <p class="small text-muted mb-0">View all vehicles</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-12 col-md-4">
+        <div class="mini-card card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4 text-center">
+            <div class="mini-icon mb-3" style="background: <%= primary_color %>10;">
+              <i class="fas fa-tools fa-2x" style="color: <%= primary_color %>;"></i>
+            </div>
+            <h6 class="fw-bold mb-1" style="color: <%= primary_color %>;">Maintenance</h6>
+            <p class="small text-muted mb-0">Schedule & track services</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-12 col-md-4">
+        <div class="mini-card card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-body p-4 text-center">
+            <div class="mini-icon mb-3" style="background: <%= primary_color %>10;">
+              <i class="fas fa-chart-bar fa-2x" style="color: <%= primary_color %>;"></i>
+            </div>
+            <h6 class="fw-bold mb-1" style="color: <%= primary_color %>;">Reports</h6>
+            <p class="small text-muted mb-0">Generate analytics</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER - TT FLAG FOR ALL -->
+    <div class="welcome-footer mt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <span class="tt-flag-stripe-small">
+            <span class="stripe-red"></span>
+            <span class="stripe-white"></span>
+            <span class="stripe-black"></span>
+          </span>
+          <span class="small text-muted">
+            <i class="fas fa-clock me-1" style="color: <%= primary_color %>;"></i> 
+            Last login: <%= current_user.current_sign_in_at&.strftime("%Y-%m-%d %H:%M") || "First login" %>
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <span class="small text-muted">
+            <i class="fas fa-building me-1" style="color: <%= primary_color %>;"></i>
+            Agency: <%= agency_code %>
+          </span>
+          <span class="vr d-none d-sm-block"></span>
+          <span class="small text-muted">
+            <i class="fas fa-check-circle me-1" style="color: <%= primary_color %>;"></i>
+            Session: Active
+          </span>
+          <span class="footer-flag">
+            <i class="fas fa-flag me-1"></i> 🇹🇹
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
-  
+
   <%# Auto-redirect for major agencies after 3 seconds %>
-  <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(@agency.code) %>
+  <% if ["VMCOTT", "TTPS", "TTDF", "PTSC"].include?(agency_code) %>
     <script>
       setTimeout(function() {
-        // Use the correct path based on agency
-        <% case @agency.code %>
+        <% case agency_code %>
         <% when "PTSC" %>
           window.location.href = "/ptsc-dashboard";
         <% when "VMCOTT" %>
@@ -185,37 +278,287 @@
         <% when "TTDF" %>
           window.location.href = "/ttdf-dashboard";
         <% else %>
-          window.location.href = "/dashboard";
+          window.location.href = "/main-dashboard";
         <% end %>
       }, 3000);
     </script>
   <% end %>
+
 <% else %>
-  <%# Show error message if agency is nil %>
-  <div class="container mt-5">
-    <div class="card border-danger">
-      <div class="card-header bg-danger text-white">
-        <h4 class="mb-0">
-          <i class="bi bi-exclamation-triangle me-2"></i>
-          Agency Not Found
-        </h4>
-      </div>
+  <!-- NO AGENCY ASSIGNED - NEUTRAL STYLE -->
+  <div class="welcome-container container-fluid py-4 px-4">
+    <div class="error-card card border-0 shadow-sm rounded-4">
       <div class="card-body text-center py-5">
-        <i class="bi bi-building-exclamation text-danger display-1 mb-4"></i>
-        <h3 class="text-danger mb-3">No Agency Assigned</h3>
-        <p class="lead mb-4">
+        <div class="error-icon mb-4" style="background: rgba(200, 16, 46, 0.08);">
+          <i class="fas fa-exclamation-triangle fa-4x" style="color: <%= tt_red %>; opacity: 0.7;"></i>
+        </div>
+        <h1 class="display-5 fw-bold mb-3" style="color: <%= tt_red %>;">Agency Not Found</h1>
+        <p class="lead text-muted mb-4 mx-auto" style="max-width: 500px;">
           Your user account is not associated with any agency.
           Please contact your system administrator to assign you to an agency.
         </p>
-        <div class="d-flex justify-content-center gap-3">
-          <%= link_to "Contact Admin", "mailto:admin@vmcott.gov.tt", class: "btn btn-outline-danger" %>
-          <%= button_to "Sign Out", "/logout", method: :get, class: "btn btn-danger" %>
+        
+        <div class="d-flex justify-content-center gap-3 mt-4">
+          <%= link_to "Contact Admin", "mailto:admin@vmcott.gov.tt", class: "outline-btn px-4 py-3", style: "border-color: #{tt_red}; color: #{tt_red};" do %>
+            <i class="fas fa-envelope me-2"></i> Contact Admin
+          <% end %>
+          <%= button_to "Sign Out", "/logout", method: :get, class: "clear-btn px-4 py-3" do %>
+            <i class="fas fa-sign-out-alt me-2"></i> Sign Out
+          <% end %>
         </div>
       </div>
-      <div class="card-footer text-muted small">
-        <i class="bi bi-info-circle me-1"></i>
-        You need to be assigned to an agency (PTSC, TTPS, TTDF, or VMCOTT) to access the dashboard.
+      <div class="card-footer bg-transparent border-0 pb-4 px-4 text-center">
+        <div class="d-flex align-items-center justify-content-center gap-2">
+          <i class="fas fa-info-circle" style="color: #6c757d;"></i>
+          <span class="small text-muted">
+            You need to be assigned to an agency (PTSC, TTPS, TTDF, or VMCOTT) to access the dashboard.
+          </span>
+        </div>
       </div>
     </div>
   </div>
 <% end %>
+
+<style>
+/* ============================================================
+   UNIFIED WELCOME PORTAL - WORKS FOR ALL AGENCIES
+   ============================================================ */
+
+.welcome-container {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* TT Flag Stripe - Universal */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stripe-red {
+  flex: 1;
+  background-color: #c8102e;
+}
+
+.stripe-white {
+  flex: 1;
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stripe-black {
+  flex: 1;
+  background-color: #000000;
+}
+
+/* Agency Logo - Dynamic colors */
+.agency-logo-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.agency-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tt-flag-badge {
+  background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.timecard {
+  background: white;
+  border-left: 4px solid;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+}
+
+/* Welcome Card */
+.welcome-card {
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  background: white;
+}
+
+.agency-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Action Cards */
+.action-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+}
+
+.action-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12) !important;
+}
+
+/* Mini Cards */
+.mini-card {
+  transition: transform 0.2s ease;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+}
+
+.mini-card:hover {
+  transform: translateY(-2px);
+  background: rgba(0,0,0,0.02);
+}
+
+.mini-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Icon Circle */
+.icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Buttons - Dynamic */
+.primary-btn {
+  border: none;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.outline-btn {
+  background: white;
+  border: 1px solid;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.outline-btn:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+.clear-btn {
+  background: white;
+  color: #6c757d;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 100px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.clear-btn:hover {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* Error Card */
+.error-card {
+  border: 1px solid rgba(200, 16, 46, 0.15) !important;
+  background: white;
+}
+
+.error-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Footer */
+.welcome-footer {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
+}
+
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 24px;
+  border-radius: 1px;
+}
+
+.footer-flag {
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .welcome-footer .d-flex {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .welcome-footer .vr {
+    display: none;
+  }
+}
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+</style>
+
+<%# Comment out external stylesheet %>
+<%# <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>

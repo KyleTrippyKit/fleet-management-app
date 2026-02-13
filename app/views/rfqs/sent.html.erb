@@ -1,294 +1,975 @@
-<%# app/views/rfqs/sent.html.erb %>
-<div class="container mt-4">
-  <h1>Sent RFQs</h1>
-  <p class="text-muted">Requests for Quotation submitted to VMCOTT</p>
+<%# app/views/rfqs/sent.html.erb – PTSC SENT RFQS (TRINIDAD & TOBAGO THEME) %>
+
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
   
-  <%# Stats Widgets %>
-  <%= render 'stats', stats: @stats %>
-  
-  <%# Filter Form %>
-  <%= render 'filters', vehicles: @vehicles, agencies: @agencies %>
-  
-  <%# Bulk Actions %>
-  <%= render 'bulk_actions' if @rfqs.any? %>
-  
-  <% if @rfqs.any? %>
-    <div class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th width="40">
-              <%= check_box_tag 'select_all', '1', false, 
-                    class: 'form-check-input select-all-rfqs',
-                    id: 'select-all-rfqs' %>
-            </th>
-            <th>RFQ #</th>
-            <th>Vehicle</th>
-            <th>Description</th>
-            <th>Sent Date</th>
-            <th>Response Due</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% @rfqs.each do |rfq| %>
-            <tr class="<%= 'table-warning' if rfq.response_overdue? %>">
-              <td>
-                <%= check_box_tag 'rfq_ids[]', rfq.id, false, 
-                      class: 'rfq-checkbox form-check-input',
-                      data: { rfq_id: rfq.id } %>
-              </td>
-              <td>
-                <strong><%= rfq.rfq_number %></strong>
-                <% if rfq.response_overdue? %>
-                  <br><small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Overdue</small>
-                <% end %>
-              </td>
-              <td>
-                <%= rfq.vehicle&.license_plate %>
-                <br>
-                <small class="text-muted">
-                  <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
-                </small>
-              </td>
-              <td>
-                <%= truncate(rfq.description, length: 50) %>
-                <% if rfq.special_instructions.present? %>
-                  <br>
-                  <small class="text-muted">
-                    <i class="bi bi-info-circle"></i> Special instructions
-                  </small>
-                <% end %>
-              </td>
-              <td><%= rfq.request_date.strftime('%b %d, %Y') %></td>
-              <td>
-                <% if rfq.response_due_date.present? %>
-                  <%= rfq.response_due_date.strftime('%b %d, %Y') %>
-                  <% if rfq.response_overdue? %>
-                    <br><small class="text-danger">(<%= (Date.today - rfq.response_due_date).to_i %> days late)</small>
-                  <% end %>
-                <% else %>
-                  <span class="text-muted">Not set</span>
-                <% end %>
-              </td>
-              <td>
-                <span class="badge bg-<%= rfq_status_badge(rfq.status) %>">
-                  <%= rfq.status.humanize %>
-                </span>
-              </td>
-              <td>
-                <div class="btn-group-vertical btn-group-sm">
-                  <%= link_to 'View', rfq_path(rfq), 
-                      class: 'btn btn-outline-primary btn-sm mb-1',
-                      data: { turbo: false } %>
-                  
-                  <%= link_to 'PDF', download_pdf_rfq_path(rfq, format: :pdf), 
-                      class: 'btn btn-outline-info btn-sm mb-1',
-                      target: '_blank' %>
-                  
-                  <% if rfq.draft? %>
-                    <%= link_to 'Edit', edit_rfq_path(rfq), 
-                        class: 'btn btn-outline-warning btn-sm mb-1',
-                        data: { turbo: false } %>
-                    
-                    <%= link_to 'Submit', submit_to_vmcott_rfq_path(rfq), 
-                        method: :post,
-                        data: { 
-                          confirm: 'Submit this RFQ to VMCOTT?',
-                          turbo: false 
-                        },
-                        class: 'btn btn-outline-success btn-sm mb-1' %>
-                  <% end %>
-                  
-                  <%= link_to 'Clone', clone_rfq_path(rfq), 
-                      class: 'btn btn-outline-secondary btn-sm mb-1',
-                      data: { turbo: false } %>
-                </div>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-      
-      <%= paginate @rfqs %>
-      
-      <div class="mt-3">
-        <%= link_to 'Export to PDF', sent_rfqs_path(format: :pdf), 
-              class: 'btn btn-outline-dark',
-              target: '_blank' %>
-        <%= link_to 'Export to CSV', sent_rfqs_path(format: :csv), 
-              class: 'btn btn-outline-dark' %>
+  agency_code = current_user&.agency&.code.to_s.upcase
+%>
+
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="ptsc-sent-rfqs container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC STYLE WITH FLAG -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with SENT RFQ ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-paper-plane fa-2x"></i>
+          </div>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Sent RFQs</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-file-invoice me-1"></i> PTSC → VMCOTT</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+            </span>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-envelope me-1"></i> <%= @rfqs.count %> requests
+            </span>
+          </div>
+        </div>
       </div>
     </div>
-  <% else %>
-    <div class="alert alert-info">
-      <i class="bi bi-inbox"></i> No RFQs sent yet.
-      <%= link_to 'Create your first RFQ', new_agency_rfq_path(current_user.agency), 
-          class: 'alert-link',
-          data: { turbo: false } %>
+    
+    <div class="mt-3 mt-lg-0">
+      <div class="d-flex gap-2">
+        <%= link_to new_agency_rfq_path(current_user.agency), class: "ptsc-primary-btn", data: { turbo: false } do %>
+          <i class="fas fa-plus-circle me-2"></i> New RFQ
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS WIDGETS - PTSC STYLE -->
+  <%= render 'stats', stats: @stats, ptsc_blue: ptsc_blue, ptsc_yellow: ptsc_yellow, tt_red: tt_red %>
+  
+  <!-- FILTER CARD - PTSC STYLE (INTEGRATED) -->
+  <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+          <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
+        </div>
+        <h5 class="fw-bold mb-0">Filter RFQs</h5>
+        <span class="tt-flag-mini ms-2">
+          <span class="flag-red"></span>
+          <span class="flag-white"></span>
+          <span class="flag-black"></span>
+        </span>
+      </div>
+
+      <%= form_with url: sent_rfqs_path, method: :get, local: true, 
+            class: "row g-3 align-items-end", 
+            id: "rfq-filters-form",
+            data: { turbo_frame: "_top" } do |f| %>
+        
+        <!-- SEARCH BAR -->
+        <div class="col-md-3">
+          <div class="form-group">
+            <%= f.label :search, "Search", class: "form-label small fw-semibold text-muted" %>
+            <div class="ptsc-search-group">
+              <span class="ptsc-search-icon">
+                <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
+              </span>
+              <%= f.search_field :search, 
+                    value: params[:search],
+                    class: "ptsc-search-input form-control vehicle-search-input",
+                    placeholder: "RFQ #, vehicle, description...",
+                    autocomplete: "off" %>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATUS FILTER -->
+        <div class="col-md-2">
+          <div class="form-group">
+            <%= f.label :status, "Status", class: "form-label small fw-semibold text-muted" %>
+            <div class="ptsc-select-wrapper">
+              <%= f.select :status, 
+                    options_for_select([
+                      ["All Statuses", ""],
+                      ["Draft", "draft"],
+                      ["Sent", "sent"],
+                      ["Quoted", "quoted"],
+                      ["Accepted", "accepted"],
+                      ["Rejected", "rejected"]
+                    ], params[:status]),
+                    {},
+                    class: "ptsc-select form-select status-select" %>
+              <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- FROM DATE -->
+        <div class="col-md-2">
+          <div class="form-group">
+            <%= f.label :date_from, "From Date", class: "form-label small fw-semibold text-muted" %>
+            <div class="ptsc-search-group">
+              <span class="ptsc-search-icon">
+                <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+              </span>
+              <%= f.date_field :date_from, 
+                    value: params[:date_from],
+                    class: "ptsc-search-input form-control date-from" %>
+            </div>
+          </div>
+        </div>
+
+        <!-- TO DATE -->
+        <div class="col-md-2">
+          <div class="form-group">
+            <%= f.label :date_to, "To Date", class: "form-label small fw-semibold text-muted" %>
+            <div class="ptsc-search-group">
+              <span class="ptsc-search-icon">
+                <i class="fas fa-calendar" style="color: <%= ptsc_blue %>;"></i>
+              </span>
+              <%= f.date_field :date_to, 
+                    value: params[:date_to],
+                    class: "ptsc-search-input form-control date-to" %>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTER BUTTONS - SMALLER -->
+        <div class="col-md-3">
+          <div class="d-flex gap-2">
+            <%= f.submit "Apply", class: "ptsc-apply-btn px-4" %>
+            <%= link_to "Clear", sent_rfqs_path, class: "ptsc-clear-btn px-4" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  
+  <!-- BULK ACTIONS - PTSC STYLE -->
+  <% if @rfqs.any? %>
+    <div class="ptsc-bulk-actions mb-4">
+      <div class="d-flex justify-content-between align-items-center p-3 rounded-4" style="background: rgba(0, 51, 160, 0.03); border: 1px solid rgba(0, 51, 160, 0.08);">
+        <div class="d-flex align-items-center gap-3">
+          <span class="small fw-semibold" style="color: <%= ptsc_blue %>;"><i class="fas fa-check-square me-2"></i>Bulk Actions</span>
+          <div class="d-flex gap-2">
+            <button id="bulk-submit-btn" class="ptsc-outline-btn-sm" disabled>
+              <i class="fas fa-paper-plane me-2"></i> Submit Selected <span class="selected-count">(0)</span>
+            </button>
+            <button id="bulk-export-btn" class="ptsc-outline-btn-sm" disabled>
+              <i class="fas fa-file-export me-2"></i> Export Selected <span class="selected-count">(0)</span>
+            </button>
+          </div>
+        </div>
+        <div>
+          <span class="tt-flag-indicator">
+            <span class="tt-dot-red"></span>
+            <span class="tt-dot-white"></span>
+            <span class="tt-dot-black"></span>
+          </span>
+        </div>
+      </div>
     </div>
   <% end %>
+  
+  <!-- RFQ TABLE -->
+  <% if @rfqs.any? %>
+    <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="ptsc-table table align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width: 40px;">
+                  <%= check_box_tag 'select_all', '1', false, 
+                        class: 'form-check-input select-all-rfqs',
+                        id: 'select-all-rfqs' %>
+                </th>
+                <th><i class="fas fa-hashtag me-1" style="color: <%= ptsc_blue %>;"></i> RFQ #</th>
+                <th><i class="fas fa-bus me-1" style="color: <%= ptsc_blue %>;"></i> Vehicle</th>
+                <th><i class="fas fa-align-left me-1" style="color: <%= ptsc_blue %>;"></i> Description</th>
+                <th><i class="fas fa-calendar me-1" style="color: <%= ptsc_blue %>;"></i> Sent Date</th>
+                <th><i class="fas fa-clock me-1" style="color: <%= ptsc_blue %>;"></i> Response Due</th>
+                <th><i class="fas fa-flag me-1" style="color: <%= ptsc_blue %>;"></i> Status</th>
+                <th class="text-end"><i class="fas fa-tools me-1" style="color: <%= ptsc_blue %>;"></i> Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @rfqs.each do |rfq| %>
+                <% is_overdue = rfq.response_overdue? %>
+                <tr class="<%= 'ptsc-overdue-row' if is_overdue %>">
+                  <td>
+                    <%= check_box_tag 'rfq_ids[]', rfq.id, false, 
+                          class: 'rfq-checkbox form-check-input',
+                          data: { rfq_id: rfq.id } %>
+                  </td>
+                  <td>
+                    <div class="fw-semibold" style="color: <%= ptsc_blue %>;">
+                      <%= rfq.rfq_number %>
+                    </div>
+                    <% if is_overdue %>
+                      <span class="badge bg-danger rounded-pill mt-1 px-2 py-1" style="font-size: 0.7rem;">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Overdue
+                      </span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div class="fw-medium">
+                      <%= rfq.vehicle&.license_plate || "—" %>
+                    </div>
+                    <div class="small text-muted">
+                      <%= rfq.vehicle&.make %> <%= rfq.vehicle&.model %>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="small">
+                      <%= truncate(rfq.description, length: 50) %>
+                    </div>
+                    <% if rfq.special_instructions.present? %>
+                      <span class="small text-muted">
+                        <i class="fas fa-info-circle me-1" style="color: <%= ptsc_blue %>;"></i> Special instructions
+                      </span>
+                    <% end %>
+                  </td>
+                  <td><%= rfq.request_date.strftime('%b %d, %Y') %></td>
+                  <td>
+                    <% if rfq.response_due_date.present? %>
+                      <div class="fw-medium"><%= rfq.response_due_date.strftime('%b %d, %Y') %></div>
+                      <% if is_overdue %>
+                        <span class="small text-danger">
+                          (<%= (Date.today - rfq.response_due_date).to_i %> days late)
+                        </span>
+                      <% end %>
+                    <% else %>
+                      <span class="text-muted">Not set</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% status_color = case rfq.status
+                      when 'draft' then '#6c757d'
+                      when 'sent' then ptsc_blue
+                      when 'quoted' then ptsc_yellow
+                      when 'accepted' then '#198754'
+                      when 'rejected' then tt_red
+                      else '#6c757d'
+                      end
+                    %>
+                    <span class="badge rounded-pill px-3 py-1" style="background: <%= status_color %>; color: white;">
+                      <%= rfq.status.humanize %>
+                    </span>
+                  </td>
+                  <td class="text-end">
+                    <div class="d-flex gap-2 justify-content-end">
+                      <%= link_to rfq_path(rfq), 
+                            class: "ptsc-table-action",
+                            title: "View RFQ",
+                            data: { turbo: false } do %>
+                        <i class="fas fa-eye"></i>
+                      <% end %>
+                      
+                      <%= link_to download_pdf_rfq_path(rfq, format: :pdf), 
+                            class: "ptsc-table-action",
+                            title: "Download PDF",
+                            target: '_blank' do %>
+                        <i class="fas fa-file-pdf"></i>
+                      <% end %>
+                      
+                      <% if rfq.draft? %>
+                        <%= link_to edit_rfq_path(rfq), 
+                              class: "ptsc-table-action",
+                              title: "Edit RFQ",
+                              data: { turbo: false } do %>
+                          <i class="fas fa-edit"></i>
+                        <% end %>
+                        
+                        <%= button_to submit_to_vmcott_rfq_path(rfq), 
+                              method: :post,
+                              class: "ptsc-table-action",
+                              title: "Submit to VMCOTT",
+                              data: { turbo_confirm: "Submit this RFQ to VMCOTT?" },
+                              form: { class: "d-inline" } do %>
+                          <i class="fas fa-paper-plane"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <!-- PAGINATION -->
+    <div class="mt-4 d-flex justify-content-between align-items-center">
+      <div>
+        <%= paginate @rfqs %>
+      </div>
+      <div class="d-flex gap-2">
+        <%= link_to sent_rfqs_path(format: :pdf), 
+              class: "ptsc-outline-btn-sm",
+              target: '_blank' do %>
+          <i class="fas fa-file-pdf me-2"></i> Export PDF
+        <% end %>
+        <%= link_to sent_rfqs_path(format: :csv), 
+              class: "ptsc-outline-btn-sm" do %>
+          <i class="fas fa-file-csv me-2"></i> Export CSV
+        <% end %>
+      </div>
+    </div>
+    
+  <% else %>
+    <!-- EMPTY STATE - PTSC STYLE -->
+    <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
+      <div class="card-body text-center py-5">
+        <div class="ptsc-empty-icon mb-4">
+          <i class="fas fa-inbox fa-4x" style="color: <%= ptsc_blue %>; opacity: 0.3;"></i>
+        </div>
+        <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No RFQs Sent</h5>
+        <p class="text-muted mb-4">You haven't submitted any RFQs to VMCOTT yet.</p>
+        
+        <%= link_to new_agency_rfq_path(current_user.agency), 
+              class: "ptsc-primary-btn px-5 py-3",
+              data: { turbo: false } do %>
+          <i class="fas fa-plus-circle me-2"></i> Create Your First RFQ
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  
+  <!-- PTSC RFQ Footer -->
+  <div class="ptsc-sent-footer mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </span>
+        <span class="small text-muted">
+          <i class="fas fa-paper-plane me-1" style="color: <%= ptsc_blue %>;"></i> 
+          PTSC Procurement • <%= Date.today.strftime("%B %d, %Y") %>
+        </span>
+      </div>
+      <span class="tt-footer-emblem">
+        <i class="fas fa-paper-plane me-1"></i> 🇹🇹
+      </span>
+    </div>
+  </div>
 </div>
 
-<%# CRITICAL CSS FIX - Add this to fix button interaction %>
 <style>
-  /* Fix table cell positioning */
-  .table td {
-    position: relative;
-    overflow: visible !important;
+/* ============================================================
+   PTSC SENT RFQS - TRINIDAD & TOBAGO THEME
+   ============================================================ */
+
+.ptsc-sent-rfqs {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* TT Flag Stripe */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stripe-red { background-color: #c8102e; }
+.stripe-white { 
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+.stripe-black { background-color: #000000; }
+
+/* TT Flag Indicators */
+.tt-flag-indicator {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.tt-dot-red {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #c8102e;
+}
+
+.tt-dot-white {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+.tt-dot-black {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #000000;
+}
+
+.tt-flag-mini {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.flag-red, .flag-white, .flag-black {
+  width: 12px;
+  height: 12px;
+}
+
+.flag-red { background-color: #c8102e; }
+.flag-white { 
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+.flag-black { background-color: #000000; }
+
+/* PTSC Logo */
+.ptsc-tt-logo-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+}
+
+.ptsc-tt-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #0033a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb81c;
+}
+
+.ptsc-tt-title {
+  color: #0033a0;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tt-flag-badge {
+  background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.text-ptsc-blue {
+  color: #0033a0 !important;
+}
+
+/* Buttons */
+.ptsc-primary-btn {
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  color: #0033a0 !important;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 184, 28, 0.2);
+}
+
+.ptsc-primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.3);
+  color: #0033a0 !important;
+  background: linear-gradient(135deg, #ffd700 0%, #ffb81c 100%);
+}
+
+.ptsc-outline-btn-sm {
+  background: white;
+  color: #0033a0 !important;
+  border: 1px solid rgba(0, 51, 160, 0.2);
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.ptsc-outline-btn-sm:hover:not(:disabled) {
+  background: rgba(0, 51, 160, 0.04);
+  border-color: #0033a0;
+  color: #0033a0 !important;
+}
+
+.ptsc-outline-btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Filter Card */
+.ptsc-filter-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+}
+
+.ptsc-icon-circle-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bg-ptsc-blue-light {
+  background: rgba(0, 51, 160, 0.08);
+}
+
+/* Form Elements */
+.ptsc-search-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ptsc-search-icon {
+  position: absolute;
+  left: 16px;
+  z-index: 10;
+}
+
+.ptsc-search-input {
+  padding-left: 48px !important;
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+}
+
+.ptsc-search-input:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.ptsc-select-wrapper {
+  position: relative;
+}
+
+.ptsc-select {
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.ptsc-select:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #0033a0;
+  pointer-events: none;
+}
+
+.ptsc-apply-btn {
+  background: #0033a0;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.2rem !important;
+  border-radius: 100px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  height: 42px !important;
+  font-size: 0.9rem !important;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ptsc-apply-btn:hover {
+  background: #002070;
+  color: white;
+}
+
+.ptsc-clear-btn {
+  background: white;
+  color: #6c757d;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 0.5rem 1.2rem !important;
+  border-radius: 100px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px !important;
+  font-size: 0.9rem !important;
+  white-space: nowrap;
+}
+
+.ptsc-clear-btn:hover {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* Table Styles */
+.ptsc-table-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+  overflow: hidden;
+}
+
+.ptsc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ptsc-table thead th {
+  background: rgba(255, 184, 28, 0.04);
+  color: #0033a0;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1rem;
+  border-bottom: 2px solid rgba(0, 51, 160, 0.1);
+}
+
+.ptsc-table tbody td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0, 51, 160, 0.05);
+}
+
+.ptsc-table tbody tr:hover {
+  background: rgba(255, 184, 28, 0.02);
+}
+
+.ptsc-overdue-row {
+  background-color: rgba(200, 16, 46, 0.03);
+  border-left: 3px solid #c8102e;
+}
+
+/* Table Action Buttons */
+.ptsc-table-action {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.ptsc-table-action:hover {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 51, 160, 0.2);
+}
+
+/* Bulk Actions */
+.ptsc-bulk-actions {
+  position: relative;
+  z-index: 100;
+}
+
+/* Empty State */
+.ptsc-empty-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 184, 28, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Footer */
+.ptsc-sent-footer {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0, 51, 160, 0.1);
+}
+
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
+}
+
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 24px;
+  border-radius: 1px;
+}
+
+.tt-footer-emblem {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
+/* Fix table cell positioning */
+.table td {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* Remove any potential overlays */
+.table td:last-child::before,
+.table td:last-child::after {
+  display: none !important;
+}
+
+/* Ensure table cells don't clip buttons */
+.table-responsive {
+  overflow: visible !important;
+}
+
+/* Pagination */
+.pagination {
+  gap: 0.25rem;
+}
+
+.page-link {
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  border-radius: 50% !important;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.page-link:hover {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+.page-item.active .page-link {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+/* Form elements */
+.form-check-input:checked {
+  background-color: #0033a0;
+  border-color: #0033a0;
+}
+
+.form-label {
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ptsc-table thead th:nth-child(4),
+  .ptsc-table tbody td:nth-child(4) {
+    display: none;
   }
   
-  /* Make buttons properly clickable */
-  .table td .btn {
-    position: relative !important;
-    z-index: 100 !important;
-    pointer-events: auto !important;
-    display: inline-block !important;
-    vertical-align: middle !important;
+  .d-flex.gap-2 {
+    flex-wrap: wrap;
   }
   
-  /* Remove any potential overlays */
-  .table td:last-child::before,
-  .table td:last-child::after {
-    display: none !important;
+  .ptsc-apply-btn, .ptsc-clear-btn {
+    width: 100%;
   }
-  
-  /* Ensure table cells don't clip buttons */
-  .table-responsive {
-    overflow: visible !important;
-  }
-  
-  /* Fix hover states */
-  .btn-outline-primary:hover {
-    background-color: #0d6efd !important;
-    border-color: #0d6efd !important;
-    color: white !important;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  }
-  
-  .btn-outline-warning:hover {
-    background-color: #ffc107 !important;
-    border-color: #ffc107 !important;
-    color: black !important;
-  }
-  
-  .btn-outline-success:hover {
-    background-color: #198754 !important;
-    border-color: #198754 !important;
-    color: white !important;
-  }
-  
-  /* Bulk actions styling */
-  .bulk-actions-bar {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-    padding: 1rem;
-    margin-bottom: 1rem;
-  }
-  
-  /* Overdue row styling */
-  .table-warning {
-    background-color: rgba(255, 193, 7, 0.1) !important;
-  }
+}
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>
 
-<%# JavaScript for bulk actions and filters %>
+<!-- JavaScript for bulk actions and filters -->
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // Fix all buttons in table
-    const buttons = document.querySelectorAll('.table .btn');
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('rfq-filters-form');
+  if (!form) return;
+  
+  let searchTimeout;
+  
+  // Search input with debounce (2 letters minimum)
+  const searchInput = document.querySelector('.vehicle-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimeout);
+      
+      const value = this.value.trim();
+      
+      // Only submit if 2 or more characters
+      if (value.length >= 2) {
+        searchTimeout = setTimeout(() => {
+          form.submit();
+        }, 500);
+      }
+      
+      // If empty, submit after a short delay
+      if (value.length === 0) {
+        searchTimeout = setTimeout(() => {
+          form.submit();
+        }, 300);
+      }
+    });
+  }
+  
+  // Auto-submit on status change
+  const statusSelect = document.querySelector('.status-select');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+  
+  // Auto-submit on date changes
+  const dateFrom = document.querySelector('.date-from');
+  const dateTo = document.querySelector('.date-to');
+  
+  if (dateFrom) {
+    dateFrom.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+  
+  if (dateTo) {
+    dateTo.addEventListener('change', function() {
+      form.submit();
+    });
+  }
+  
+  // Ensure all table action buttons are clickable
+  const tableActions = document.querySelectorAll('.ptsc-table-action');
+  
+  tableActions.forEach((btn) => {
+    // Force styles to ensure clickability
+    btn.style.cssText = `
+      position: relative !important;
+      z-index: 10000 !important;
+      pointer-events: auto !important;
+      cursor: pointer !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      display: inline-flex !important;
+    `;
     
-    buttons.forEach((btn) => {
-      // Remove any inline styles that might disable the button
-      btn.style.cssText = `
-        position: relative !important;
-        z-index: 1000 !important;
-        pointer-events: auto !important;
-        cursor: pointer !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      `;
-      
-      // Force remove disabled attribute
-      btn.removeAttribute('disabled');
-      
-      // Add visual feedback on hover
-      btn.addEventListener('mouseenter', function() {
-        this.style.boxShadow = '0 0 10px rgba(0,0,0,0.3)';
-        this.style.transform = 'scale(1.05)';
-      });
-      
-      btn.addEventListener('mouseleave', function() {
-        this.style.boxShadow = '';
-        this.style.transform = '';
+    // Remove any disabled attributes
+    btn.removeAttribute('disabled');
+  });
+  
+  // Bulk actions functionality
+  const selectAllCheckbox = document.getElementById('select-all-rfqs');
+  const rfqCheckboxes = document.querySelectorAll('.rfq-checkbox');
+  const bulkSubmitBtn = document.getElementById('bulk-submit-btn');
+  const bulkExportBtn = document.getElementById('bulk-export-btn');
+  const selectedCountSpans = document.querySelectorAll('.selected-count');
+  
+  if (selectAllCheckbox) {
+    // Select all functionality
+    selectAllCheckbox.addEventListener('change', function() {
+      rfqCheckboxes.forEach(cb => cb.checked = this.checked);
+      updateBulkButtons();
+    });
+    
+    // Individual checkbox changes
+    rfqCheckboxes.forEach(cb => {
+      cb.addEventListener('change', function() {
+        // Update select all checkbox state
+        const allChecked = Array.from(rfqCheckboxes).every(cb => cb.checked);
+        const someChecked = Array.from(rfqCheckboxes).some(cb => cb.checked);
+        
+        selectAllCheckbox.checked = allChecked;
+        selectAllCheckbox.indeterminate = someChecked && !allChecked;
+        
+        updateBulkButtons();
       });
     });
     
-    // Bulk actions functionality
-    const selectAllCheckbox = document.getElementById('select-all-rfqs');
-    const rfqCheckboxes = document.querySelectorAll('.rfq-checkbox');
-    const bulkSubmitBtn = document.getElementById('bulk-submit-btn');
-    const bulkExportBtn = document.getElementById('bulk-export-btn');
-    
-    if (selectAllCheckbox) {
-      // Select all functionality
-      selectAllCheckbox.addEventListener('change', function() {
-        rfqCheckboxes.forEach(cb => cb.checked = this.checked);
-        updateBulkButtons();
-      });
+    // Update bulk buttons state
+    function updateBulkButtons() {
+      const checkedCount = document.querySelectorAll('.rfq-checkbox:checked').length;
+      const hasChecked = checkedCount > 0;
       
-      // Individual checkbox changes
-      rfqCheckboxes.forEach(cb => {
-        cb.addEventListener('change', function() {
-          // Update select all checkbox state
-          const allChecked = Array.from(rfqCheckboxes).every(cb => cb.checked);
-          const someChecked = Array.from(rfqCheckboxes).some(cb => cb.checked);
-          
-          selectAllCheckbox.checked = allChecked;
-          selectAllCheckbox.indeterminate = someChecked && !allChecked;
-          
-          updateBulkButtons();
-        });
-      });
-      
-      // Update bulk buttons state
-      function updateBulkButtons() {
-        const checkedCount = document.querySelectorAll('.rfq-checkbox:checked').length;
-        const hasChecked = checkedCount > 0;
-        
-        if (bulkSubmitBtn) {
-          bulkSubmitBtn.disabled = !hasChecked;
-          bulkSubmitBtn.textContent = `Submit Selected (${checkedCount})`;
-        }
-        
-        if (bulkExportBtn) {
-          bulkExportBtn.disabled = !hasChecked;
-          bulkExportBtn.textContent = `Export Selected (${checkedCount})`;
-        }
+      // Update button states
+      if (bulkSubmitBtn) {
+        bulkSubmitBtn.disabled = !hasChecked;
       }
       
-      // Initialize
-      updateBulkButtons();
+      if (bulkExportBtn) {
+        bulkExportBtn.disabled = !hasChecked;
+      }
+      
+      // Update count displays
+      selectedCountSpans.forEach(span => {
+        span.textContent = `(${checkedCount})`;
+      });
     }
     
-    // Date range picker
-    const dateRangeInput = document.querySelector('.date-range-picker');
-    if (dateRangeInput) {
-      // You can initialize a date range picker library here
-      // Example with vanilla JavaScript:
-      dateRangeInput.addEventListener('focus', function() {
-        this.type = 'date';
-      });
-      
-      dateRangeInput.addEventListener('blur', function() {
-        if (!this.value) {
-          this.type = 'text';
-          this.placeholder = 'YYYY-MM-DD - YYYY-MM-DD';
-        }
-      });
-    }
-  });
+    // Initialize
+    updateBulkButtons();
+  }
+});
 </script>

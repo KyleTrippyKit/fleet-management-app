@@ -1,210 +1,279 @@
-<%# app/views/alerts/index.html.erb %>
-<div class="container-fluid py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h1 class="h2 mb-0">Alerts Management</h1>
-      <p class="text-muted mb-0">Agency-side alerts (Driver/Fleet → Maintenance/Admin → Finance → RFQ)</p>
-    </div>
+<%# app/views/alerts/index.html.erb – PTSC ALERTS MANAGEMENT (TRINIDAD & TOBAGO THEME) %>
 
-    <div class="d-flex gap-2">
-      <%= link_to new_alert_path, class: "btn btn-primary" do %>
-        <i class="bi bi-plus-circle me-2"></i>New Alert
-      <% end %>
+<%
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
+  
+  stats = (@summary_stats || {}).with_indifferent_access
+%>
+
+<!-- Font Awesome 6 (Free) - Matching other pages -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="ptsc-alerts-dashboard container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC STYLE WITH FLAG (MATCHES FLEET MANAGEMENT) -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with ALERT ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-bell fa-2x"></i>
+          </div>
+        </div>
+        <div>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Alerts Management</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-route me-1"></i> Agency-side alerts</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
+            </span>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-bell me-1"></i> <%= stats[:total].to_i %> total
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="mt-3 mt-lg-0">
+      <div class="d-flex gap-2">
+        <%= link_to new_alert_path, class: "ptsc-primary-btn" do %>
+          <i class="fas fa-plus-circle me-2"></i> New Alert
+        <% end %>
+      </div>
     </div>
   </div>
 
-  <% stats = (@summary_stats || {}).with_indifferent_access %>
-
-  <!-- Stats Cards -->
-  <div class="row mb-4">
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-      <div class="card border-start border-primary border-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+  <!-- KPI GRID - TT FLAG COLORS WITH ICON BOXES (MATCHES FLEET MANAGEMENT) -->
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-              <h6 class="text-muted mb-1">Total</h6>
-              <h4 class="mb-0"><%= stats[:total].to_i %></h4>
+              <span class="text-muted text-uppercase small fw-semibold">Total Alerts</span>
+              <div class="display-5 fw-bold"><%= stats[:total].to_i %></div>
             </div>
-            <div class="avatar-sm">
-              <span class="avatar-title bg-primary rounded-circle">
-                <i class="bi bi-bell fs-4"></i>
-              </span>
+            <div class="ptsc-icon-circle bg-ptsc-blue-light">
+              <i class="fas fa-bell fa-xl text-ptsc-blue"></i>
             </div>
           </div>
-          <div class="mt-2 small text-muted">
+          <div class="d-flex align-items-center text-muted small">
+            <i class="fas fa-chart-pie me-1"></i> 
             <span class="me-2">Open: <strong><%= stats[:open].to_i %></strong></span>
             <span class="me-2">Ack: <strong><%= stats[:acknowledged].to_i %></strong></span>
             <span>Resolved: <strong><%= stats[:resolved].to_i %></strong></span>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-      <div class="card border-start border-danger border-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-muted mb-1">Open</h6>
-              <h4 class="mb-0"><%= stats[:open].to_i %></h4>
-            </div>
-            <div class="avatar-sm">
-              <span class="avatar-title bg-danger rounded-circle">
-                <i class="bi bi-exclamation-triangle fs-4"></i>
-              </span>
-            </div>
-          </div>
-          <div class="mt-2 small text-muted">
-            Awaiting Finance/RFQ: <strong><%= stats[:awaiting_procurement].to_i %></strong>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
-      <div class="card border-start border-warning border-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-              <h6 class="text-muted mb-1">Critical</h6>
-              <h4 class="mb-0"><%= stats[:critical].to_i %></h4>
+              <span class="text-muted text-uppercase small fw-semibold">Open</span>
+              <div class="display-5 fw-bold text-danger"><%= stats[:open].to_i %></div>
             </div>
-            <div class="avatar-sm">
-              <span class="avatar-title bg-warning rounded-circle">
-                <i class="bi bi-exclamation-octagon fs-4"></i>
-              </span>
+            <div class="ptsc-icon-circle bg-danger bg-opacity-10">
+              <i class="fas fa-exclamation-triangle fa-xl text-danger"></i>
             </div>
           </div>
-          <div class="mt-2 small text-muted">
-            Severity: <strong>critical</strong>
+          <div class="d-flex align-items-center text-danger small">
+            <i class="fas fa-clock me-1"></i> Awaiting Finance/RFQ: <strong class="ms-1"><%= stats[:awaiting_procurement].to_i %></strong>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="col-md-3 col-sm-6">
-      <div class="card border-start border-info border-4">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-              <h6 class="text-muted mb-1">Needs Attention</h6>
-              <h4 class="mb-0"><%= stats[:needs_attention].to_i %></h4>
+              <span class="text-muted text-uppercase small fw-semibold">Critical</span>
+              <div class="display-5 fw-bold" style="color: <%= ptsc_yellow %>;"><%= stats[:critical].to_i %></div>
             </div>
-            <div class="avatar-sm">
-              <span class="avatar-title bg-info rounded-circle">
-                <i class="bi bi-eye fs-4"></i>
-              </span>
+            <div class="ptsc-icon-circle bg-warning bg-opacity-10">
+              <i class="fas fa-exclamation-octagon fa-xl text-warning"></i>
             </div>
           </div>
-          <div class="mt-2 small text-muted">
-            Critical or urgent items
+          <div class="d-flex align-items-center text-warning small">
+            <i class="fas fa-exclamation me-1"></i> Severity: <strong class="ms-1">critical</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="ptsc-kpi-card card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Needs Attention</span>
+              <div class="display-5 fw-bold text-info"><%= stats[:needs_attention].to_i %></div>
+            </div>
+            <div class="ptsc-icon-circle bg-info bg-opacity-10">
+              <i class="fas fa-eye fa-xl text-info"></i>
+            </div>
+          </div>
+          <div class="d-flex align-items-center text-info small">
+            <i class="fas fa-exclamation-circle me-1"></i> Critical or urgent items
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Quick Links -->
+  <!-- QUICK LINKS - PTSC STYLE -->
   <div class="d-flex flex-wrap gap-2 mb-4">
     <% if respond_to?(:needs_attention_alerts_path) %>
-      <%= link_to needs_attention_alerts_path, class: "btn btn-warning" do %>
-        <i class="bi bi-exclamation-triangle me-2"></i>Needs Attention (<%= stats[:needs_attention].to_i %>)
+      <%= link_to needs_attention_alerts_path, class: "ptsc-outline-btn" do %>
+        <i class="fas fa-exclamation-triangle me-2" style="color: <%= ptsc_yellow %>;"></i> Needs Attention (<%= stats[:needs_attention].to_i %>)
       <% end %>
     <% end %>
 
     <% if respond_to?(:recent_alerts_path) %>
-      <%= link_to recent_alerts_path, class: "btn btn-info" do %>
-        <i class="bi bi-clock-history me-2"></i>Recent Alerts
+      <%= link_to recent_alerts_path, class: "ptsc-outline-btn" do %>
+        <i class="fas fa-clock me-2" style="color: <%= ptsc_blue %>;"></i> Recent Alerts
       <% end %>
     <% end %>
 
     <% if respond_to?(:summary_alerts_path) %>
-      <%= link_to summary_alerts_path, class: "btn btn-secondary" do %>
-        <i class="bi bi-bar-chart me-2"></i>Summary
+      <%= link_to summary_alerts_path, class: "ptsc-outline-btn" do %>
+        <i class="fas fa-chart-bar me-2" style="color: <%= ptsc_blue %>;"></i> Summary
       <% end %>
     <% end %>
   </div>
 
-  <!-- Filters -->
-  <div class="card mb-4">
-    <div class="card-body">
-      <%= form_with url: alerts_path, method: :get, local: true, class: "row g-3 align-items-end" do |f| %>
+  <!-- FILTER SECTION - MATCHES FLEET MANAGEMENT -->
+  <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="ptsc-icon-circle-sm bg-ptsc-blue-light">
+          <i class="fas fa-filter fa-lg text-ptsc-blue"></i>
+        </div>
+        <h5 class="fw-bold mb-0">Filter Alerts</h5>
+        <span class="tt-flag-mini ms-2">
+          <span class="flag-red"></span>
+          <span class="flag-white"></span>
+          <span class="flag-black"></span>
+        </span>
+      </div>
+      
+      <%= form_with url: alerts_path, method: :get, local: true, class: "row g-3" do |f| %>
         <div class="col-lg-3 col-md-6">
-          <%= label_tag :q, "Search", class: "form-label text-muted" %>
-          <%= text_field_tag :q, params[:q], class: "form-control", placeholder: "Title / description / location..." %>
+          <div class="ptsc-search-group">
+            <span class="ptsc-search-icon">
+              <i class="fas fa-search" style="color: <%= ptsc_blue %>;"></i>
+            </span>
+            <%= text_field_tag :q, params[:q], 
+                  class: "ptsc-search-input form-control", 
+                  placeholder: "Search title, description..." %>
+          </div>
         </div>
 
         <div class="col-lg-2 col-md-6">
-          <%= label_tag :status, "Status", class: "form-label text-muted" %>
-          <%= select_tag :status,
-                options_for_select(Alert.statuses.keys.map { |s| [s.to_s.humanize, s] }, params[:status]),
-                include_blank: "All",
-                class: "form-select" %>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :status,
+                  options_for_select(Alert.statuses.keys.map { |s| [s.to_s.humanize, s] }, params[:status]),
+                  include_blank: "All Statuses",
+                  class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
 
         <div class="col-lg-2 col-md-6">
-          <%= label_tag :severity, "Severity", class: "form-label text-muted" %>
-          <%= select_tag :severity,
-                options_for_select(Alert.severities.keys.map { |s| [s.to_s.gsub('_', ' ').humanize, s] }, params[:severity]),
-                include_blank: "All",
-                class: "form-select" %>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :severity,
+                  options_for_select(Alert.severities.keys.map { |s| [s.to_s.gsub('_', ' ').humanize, s] }, params[:severity]),
+                  include_blank: "All Severities",
+                  class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
 
         <div class="col-lg-2 col-md-6">
-          <%= label_tag :priority, "Priority", class: "form-label text-muted" %>
-          <%= select_tag :priority,
-                options_for_select(Alert.priorities.keys.map { |p| [p.to_s.gsub('_', ' ').humanize, p] }, params[:priority]),
-                include_blank: "All",
-                class: "form-select" %>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :priority,
+                  options_for_select(Alert.priorities.keys.map { |p| [p.to_s.gsub('_', ' ').humanize, p] }, params[:priority]),
+                  include_blank: "All Priorities",
+                  class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
 
         <div class="col-lg-2 col-md-6">
-          <%= label_tag :alert_type, "Type", class: "form-label text-muted" %>
-          <%= select_tag :alert_type,
-                options_for_select(Alert.alert_types.keys.map { |t| [t.to_s.humanize, t] }, params[:alert_type]),
-                include_blank: "All",
-                class: "form-select" %>
+          <div class="ptsc-select-wrapper">
+            <%= select_tag :alert_type,
+                  options_for_select(Alert.alert_types.keys.map { |t| [t.to_s.humanize, t] }, params[:alert_type]),
+                  include_blank: "All Types",
+                  class: "ptsc-select form-select" %>
+            <i class="fas fa-chevron-down select-arrow"></i>
+          </div>
         </div>
 
         <div class="col-lg-1 col-md-6 d-flex gap-2">
-          <%= f.submit "Filter", class: "btn btn-primary w-100" %>
+          <%= f.submit "Filter", class: "ptsc-apply-btn w-100" %>
         </div>
 
         <div class="col-12">
           <div class="d-flex flex-wrap gap-2">
-            <%= link_to "Clear", alerts_path, class: "btn btn-outline-secondary" %>
-            <% if respond_to?(:export_alerts_path) %>
-              <%= link_to "Export CSV", export_alerts_path(request.query_parameters), class: "btn btn-outline-info" %>
-            <% end %>
+            <%= link_to "Clear Filters", alerts_path, class: "ptsc-clear-btn" %>
           </div>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- Alerts Table -->
-  <div class="card">
-    <div class="card-body">
+  <!-- ALERTS TABLE - PTSC STYLE -->
+  <div class="ptsc-table-card card border-0 shadow-sm rounded-4">
+    <div class="card-body p-0">
       <% if @alerts.present? && @alerts.any? %>
         <div class="table-responsive">
-          <table class="table table-hover align-middle">
+          <table class="ptsc-table table align-middle mb-0">
             <thead>
               <tr>
-                <th width="40">
+                <th style="width: 40px;">
                   <input type="checkbox" id="select-all" class="form-check-input">
                 </th>
-                <th>Alert</th>
-                <th>Type</th>
-                <th>Vehicle</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th class="text-end">Actions</th>
+                <th><i class="fas fa-bell me-1" style="color: <%= ptsc_blue %>;"></i> Alert</th>
+                <th><i class="fas fa-tag me-1" style="color: <%= ptsc_blue %>;"></i> Type</th>
+                <th><i class="fas fa-bus me-1" style="color: <%= ptsc_blue %>;"></i> Vehicle</th>
+                <th><i class="fas fa-flag me-1" style="color: <%= ptsc_blue %>;"></i> Status</th>
+                <th><i class="fas fa-calendar me-1" style="color: <%= ptsc_blue %>;"></i> Created</th>
+                <th class="text-end"><i class="fas fa-tools me-1" style="color: <%= ptsc_blue %>;"></i> Actions</th>
               </tr>
             </thead>
             <tbody>
               <% @alerts.each do |alert| %>
                 <% is_critical_active = (alert.respond_to?(:critical?) && alert.critical?) && (alert.respond_to?(:active?) && alert.active?) %>
-                <tr class="<%= 'table-danger' if is_critical_active %>">
+                <tr class="<%= 'ptsc-critical-row' if is_critical_active %>">
                   <td>
                     <%= check_box_tag "alert_ids[]", alert.id, false, class: "alert-checkbox form-check-input" %>
                   </td>
@@ -214,16 +283,16 @@
                       <span class="me-2 fs-5"><%= alert.short_display %></span>
                       <div class="flex-grow-1">
                         <div class="fw-semibold">
-                          <%= link_to alert.title, alert_path(alert), class: "text-decoration-none" %>
+                          <%= link_to alert.title, alert_path(alert), class: "text-decoration-none", style: "color: #{ptsc_blue};" %>
                         </div>
                         <div class="text-muted small">
                           <% if alert.description.present? %>
                             <%= truncate(alert.description, length: 110) %>
                           <% else %>
-                            <span>No description</span>
+                            <span class="text-muted">No description</span>
                           <% end %>
                           <% if alert.location.present? %>
-                            <span class="ms-2">• <i class="bi bi-geo-alt"></i> <%= alert.location %></span>
+                            <span class="ms-2"><i class="fas fa-map-pin" style="color: <%= ptsc_blue %>; opacity: 0.6;"></i> <%= alert.location %></span>
                           <% end %>
                         </div>
                       </div>
@@ -231,69 +300,90 @@
                   </td>
 
                   <td>
-                    <span class="badge bg-secondary"><%= alert.humanized_alert_type %></span>
+                    <span class="tt-alert-type-badge">
+                      <%= alert.humanized_alert_type %>
+                    </span>
                   </td>
 
                   <td>
                     <% if alert.vehicle.present? %>
-                      <%= link_to(alert.vehicle.license_plate, vehicle_path(alert.vehicle), class: "text-decoration-none") %>
+                      <%= link_to(alert.vehicle.license_plate, vehicle_path(alert.vehicle), class: "text-decoration-none", style: "color: #{ptsc_blue}; font-weight: 500;") %>
                       <div class="text-muted small">
                         <%= [alert.vehicle.make, alert.vehicle.model].compact.join(" ") %>
                       </div>
                     <% else %>
-                      <span class="text-muted">N/A</span>
+                      <span class="text-muted">—</span>
                     <% end %>
                   </td>
 
                   <td>
-                    <% badge =
-                      case alert.status.to_s
+                    <%
+                      badge_color = case alert.status.to_s
                       when "active", "open" then "danger"
                       when "resolved", "closed" then "success"
                       when "awaiting_procurement" then "info"
                       else "warning"
                       end
+                      
+                      severity_color = case alert.severity.to_s
+                      when "critical", "high" then tt_red
+                      when "medium" then ptsc_yellow
+                      else "#6c757d"
+                      end
+                      
+                      priority_color = case alert.priority.to_s
+                      when "urgent", "high" then tt_red
+                      when "medium" then ptsc_yellow
+                      else "#6c757d"
+                      end
                     %>
-                    <span class="badge bg-<%= badge %>"><%= alert.humanized_status %></span>
+                    <span class="badge bg-<%= badge_color %> rounded-pill px-3 py-1"><%= alert.humanized_status %></span>
 
-                    <div class="mt-1">
-                      <span class="badge bg-<%= alert.severity_color %> me-1"><%= alert.humanized_severity %></span>
-                      <span class="badge bg-<%= alert.priority_color %>"><%= alert.humanized_priority %></span>
+                    <div class="mt-1 d-flex gap-1">
+                      <span class="badge" style="background: <%= severity_color %>; color: white; border-radius: 100px; padding: 0.25rem 0.75rem;">
+                        <%= alert.humanized_severity %>
+                      </span>
+                      <span class="badge" style="background: <%= priority_color %>; color: white; border-radius: 100px; padding: 0.25rem 0.75rem;">
+                        <%= alert.humanized_priority %>
+                      </span>
                     </div>
                   </td>
 
                   <td>
-                    <div class="small text-muted"><%= time_ago_in_words(alert.created_at) %> ago</div>
-                    <div class="small text-muted"><%= alert.created_at.strftime("%b %d, %Y %I:%M %p") %></div>
+                    <div class="small fw-medium"><%= time_ago_in_words(alert.created_at) %> ago</div>
+                    <div class="small text-muted"><%= alert.created_at.strftime("%b %d, %Y") %></div>
                   </td>
 
                   <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to alert_path(alert), class: "btn btn-outline-primary", title: "View" do %>
-                        <i class="bi bi-eye"></i>
+                    <div class="d-flex gap-2 justify-content-end">
+                      <%= link_to alert_path(alert),
+                            class: "ptsc-table-action",
+                            title: "View Details" do %>
+                        <i class="fas fa-eye"></i>
                       <% end %>
 
-                      <%= link_to edit_alert_path(alert), class: "btn btn-outline-secondary", title: "Edit" do %>
-                        <i class="bi bi-pencil"></i>
+                      <%= link_to edit_alert_path(alert),
+                            class: "ptsc-table-action",
+                            title: "Edit Alert" do %>
+                        <i class="fas fa-edit"></i>
                       <% end %>
 
-                      <%# ✅ ONLY Fleet Manager (and Admin) can acknowledge %>
                       <% if alert.can_acknowledge? && respond_to?(:acknowledge_alert_path) && (current_user&.fleet_manager? || current_user&.admin?) %>
                         <%= button_to acknowledge_alert_path(alert),
                               method: :post,
-                              class: "btn btn-outline-warning",
+                              class: "ptsc-table-action",
                               title: "Acknowledge",
                               form: { class: "d-inline" },
                               data: { turbo_confirm: "Acknowledge this alert?" } do %>
-                          <i class="bi bi-check-circle"></i>
+                          <i class="fas fa-check-circle"></i>
                         <% end %>
                       <% end %>
 
                       <% if alert.can_resolve? && (respond_to?(:resolve_form_alert_path)) %>
                         <%= link_to resolve_form_alert_path(alert),
-                              class: "btn btn-outline-success",
+                              class: "ptsc-table-action",
                               title: "Resolve" do %>
-                          <i class="bi bi-check2-all"></i>
+                          <i class="fas fa-check-double"></i>
                         <% end %>
                       <% end %>
 
@@ -301,11 +391,11 @@
                         <% if current_user&.fleet_manager? || current_user&.supervisor? || current_user&.maintenance_supervisor? || current_user&.admin? %>
                           <%= button_to escalate_alert_path(alert),
                                 method: :post,
-                                class: "btn btn-outline-danger",
+                                class: "ptsc-table-action",
                                 title: "Send to Finance",
                                 form: { class: "d-inline" },
                                 data: { turbo_confirm: "Send this alert to Finance for RFQ?" } do %>
-                            <i class="bi bi-arrow-up-right"></i>
+                            <i class="fas fa-arrow-up"></i>
                           <% end %>
                         <% end %>
                       <% end %>
@@ -317,26 +407,25 @@
           </table>
         </div>
 
-        <!-- Bulk Actions -->
+        <!-- Bulk Actions - PTSC STYLE -->
         <% if respond_to?(:bulk_action_alerts_path) %>
           <%= form_with url: bulk_action_alerts_path, method: :post, id: "bulk-action-form" do %>
-            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+            <div class="d-flex justify-content-between align-items-center p-4 flex-wrap gap-2">
               <div class="d-flex align-items-center gap-2">
-                <select id="bulk-action-select" name="bulk_action" class="form-select form-select-sm" style="width: auto;">
-                  <option value="">Bulk Actions</option>
-
-                  <%# ✅ only Fleet Manager (and Admin) can bulk acknowledge %>
-                  <% if current_user&.fleet_manager? || current_user&.admin? %>
-                    <option value="acknowledge">Acknowledge Selected</option>
-                  <% end %>
-
-                  <option value="resolve">Resolve Selected</option>
-
-                  <% if current_user&.admin? %>
-                    <option value="delete">Delete Selected</option>
-                  <% end %>
-                </select>
-                <button type="button" id="apply-bulk-action" class="btn btn-sm btn-outline-primary">Apply</button>
+                <div class="ptsc-select-wrapper" style="min-width: 200px;">
+                  <select id="bulk-action-select" name="bulk_action" class="ptsc-select form-select form-select-sm">
+                    <option value="">Bulk Actions</option>
+                    <% if current_user&.fleet_manager? || current_user&.admin? %>
+                      <option value="acknowledge">Acknowledge Selected</option>
+                    <% end %>
+                    <option value="resolve">Resolve Selected</option>
+                    <% if current_user&.admin? %>
+                      <option value="delete">Delete Selected</option>
+                    <% end %>
+                  </select>
+                  <i class="fas fa-chevron-down select-arrow"></i>
+                </div>
+                <button type="button" id="apply-bulk-action" class="ptsc-apply-btn" style="height: 38px;">Apply</button>
               </div>
 
               <div>
@@ -345,23 +434,48 @@
             </div>
           <% end %>
         <% else %>
-          <div class="mt-3">
+          <div class="p-4">
             <%= paginate @alerts if respond_to?(:paginate) %>
           </div>
         <% end %>
 
       <% else %>
         <div class="text-center py-5">
-          <i class="bi bi-check-circle-fill text-success fs-1"></i>
-          <h4 class="mt-3">No Alerts Found</h4>
-          <p class="text-muted">All alerts are cleared or no alerts match your filters.</p>
-          <%= link_to "Create New Alert", new_alert_path, class: "btn btn-primary mt-2" %>
+          <div class="ptsc-empty-icon mb-3">
+            <i class="fas fa-bell fa-4x" style="color: <%= ptsc_blue %>; opacity: 0.2;"></i>
+          </div>
+          <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Alerts Found</h5>
+          <p class="text-muted mb-4">All alerts are cleared or no alerts match your filters.</p>
+          <%= link_to new_alert_path, class: "ptsc-primary-btn px-5 py-3" do %>
+            <i class="fas fa-plus-circle me-2"></i> Create New Alert
+          <% end %>
         </div>
       <% end %>
     </div>
   </div>
+  
+  <!-- PTSC Alerts Footer -->
+  <div class="ptsc-alerts-footer mt-5">
+    <div class="d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <span class="tt-flag-stripe-small">
+          <span class="stripe-red"></span>
+          <span class="stripe-white"></span>
+          <span class="stripe-black"></span>
+        </span>
+        <span class="small text-muted">
+          <i class="fas fa-bell me-1" style="color: <%= ptsc_blue %>;"></i> 
+          PTSC Alerts • <%= Date.today.strftime("%B %d, %Y") %>
+        </span>
+      </div>
+      <span class="tt-footer-emblem">
+        <i class="fas fa-bell me-1"></i> 🇹🇹
+      </span>
+    </div>
+  </div>
 </div>
 
+<!-- JavaScript for Bulk Actions (unchanged) -->
 <script>
 (function () {
   const ready = (fn) => {
@@ -419,3 +533,446 @@
   });
 })();
 </script>
+
+<style>
+/* ============================================================
+   PTSC ALERTS MANAGEMENT - TRINIDAD & TOBAGO THEME
+   Matches Fleet Management and PTSC Dashboard styling
+   ============================================================ */
+
+.ptsc-alerts-dashboard {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* TT Flag Stripe */
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  height: 56px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stripe-red, .flag-red {
+  background-color: #c8102e;
+}
+
+.stripe-white, .flag-white {
+  background-color: #ffffff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.stripe-black, .flag-black {
+  background-color: #000000;
+}
+
+/* TT Flag Indicators */
+.tt-flag-indicator {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.tt-dot-red {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #c8102e;
+}
+
+.tt-dot-white {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+.tt-dot-black {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #000000;
+}
+
+.tt-flag-mini {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.flag-red, .flag-white, .flag-black {
+  width: 12px;
+  height: 12px;
+}
+
+/* PTSC Logo */
+.ptsc-tt-logo-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
+}
+
+.ptsc-tt-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #0033a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb81c;
+}
+
+.ptsc-tt-title {
+  color: #0033a0;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.tt-flag-badge {
+  background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.text-ptsc-blue {
+  color: #0033a0 !important;
+}
+
+/* Buttons */
+.ptsc-primary-btn {
+  background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+  color: #0033a0 !important;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 184, 28, 0.2);
+}
+
+.ptsc-primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(255, 184, 28, 0.3);
+  color: #0033a0 !important;
+  background: linear-gradient(135deg, #ffd700 0%, #ffb81c 100%);
+}
+
+.ptsc-outline-btn {
+  background: white;
+  color: #0033a0 !important;
+  border: 1px solid rgba(0, 51, 160, 0.2);
+  padding: 0.5rem 1.2rem;
+  border-radius: 100px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.ptsc-outline-btn:hover {
+  background: rgba(0, 51, 160, 0.04);
+  border-color: #0033a0;
+  color: #0033a0 !important;
+}
+
+/* KPI Cards with Icon Boxes */
+.ptsc-kpi-card {
+  transition: none;
+  border: 1px solid rgba(0, 0, 0, 0.03) !important;
+}
+
+.ptsc-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ptsc-icon-circle-sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bg-ptsc-blue-light {
+  background: rgba(0, 51, 160, 0.08);
+}
+
+/* Filter Card */
+.ptsc-filter-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+}
+
+.ptsc-search-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ptsc-search-icon {
+  position: absolute;
+  left: 16px;
+  z-index: 10;
+}
+
+.ptsc-search-input {
+  padding-left: 48px !important;
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+}
+
+.ptsc-search-input:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.ptsc-select-wrapper {
+  position: relative;
+}
+
+.ptsc-select {
+  border-radius: 100px !important;
+  border: 1px solid rgba(0, 51, 160, 0.15) !important;
+  height: 48px;
+  padding-right: 40px;
+  appearance: none;
+}
+
+.ptsc-select:focus {
+  border-color: #0033a0 !important;
+  box-shadow: 0 0 0 3px rgba(0, 51, 160, 0.1) !important;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #0033a0;
+  pointer-events: none;
+}
+
+.ptsc-apply-btn {
+  background: #0033a0;
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 100px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  height: 48px;
+}
+
+.ptsc-apply-btn:hover {
+  background: #002070;
+  color: white;
+}
+
+.ptsc-clear-btn {
+  background: white;
+  color: #6c757d;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+}
+
+.ptsc-clear-btn:hover {
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
+/* Table Styles */
+.ptsc-table-card {
+  border: 1px solid rgba(0, 51, 160, 0.08) !important;
+  overflow: hidden;
+}
+
+.ptsc-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ptsc-table thead th {
+  background: rgba(255, 184, 28, 0.04);
+  color: #0033a0;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1rem;
+  border-bottom: 2px solid rgba(0, 51, 160, 0.1);
+}
+
+.ptsc-table tbody td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(0, 51, 160, 0.05);
+}
+
+.ptsc-table tbody tr:hover {
+  background: rgba(255, 184, 28, 0.02);
+}
+
+.ptsc-critical-row {
+  background-color: rgba(200, 16, 46, 0.03);
+  border-left: 3px solid #c8102e;
+}
+
+/* Alert Type Badge */
+.tt-alert-type-badge {
+  background: rgba(0, 51, 160, 0.08);
+  color: #0033a0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 100px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Table Action Buttons */
+.ptsc-table-action {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.ptsc-table-action:hover {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+/* Empty State */
+.ptsc-empty-icon {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(255, 184, 28, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+/* Footer */
+.ptsc-alerts-footer {
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0, 51, 160, 0.1);
+}
+
+.tt-flag-stripe-small {
+  display: flex;
+  gap: 2px;
+}
+
+.tt-flag-stripe-small .stripe-red,
+.tt-flag-stripe-small .stripe-white,
+.tt-flag-stripe-small .stripe-black {
+  width: 4px;
+  height: 24px;
+  border-radius: 1px;
+}
+
+.tt-footer-emblem {
+  font-size: 1.2rem;
+  opacity: 0.7;
+}
+
+/* Bootstrap overrides */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.form-check-input:checked {
+  background-color: #0033a0;
+  border-color: #0033a0;
+}
+
+/* Pagination */
+.pagination {
+  gap: 0.25rem;
+}
+
+.page-link {
+  border: 1px solid rgba(0, 51, 160, 0.15);
+  color: #0033a0;
+  border-radius: 50% !important;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.page-link:hover {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+.page-item.active .page-link {
+  background: #0033a0;
+  color: white;
+  border-color: #0033a0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ptsc-table thead th:nth-child(3),
+  .ptsc-table tbody td:nth-child(3) {
+    display: none;
+  }
+}
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+</style>

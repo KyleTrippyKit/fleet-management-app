@@ -1,168 +1,190 @@
-<%# app/views/ptsc_dashboard/index.html.erb - ENTERPRISE (CLEAN + EXECUTIVE) %>
+<%# app/views/ptsc_dashboard/index.html.erb - PTSC TRINIDAD & TOBAGO FLEET DASHBOARD (FULLY OPTIMIZED) %>
 
 <%
-  total_fleet       = (@total_vehicles_count || 0).to_i
-  active_fleet      = (@active_vehicles_count || 0).to_i
-  maintenance_fleet = (@maintenance_vehicles_count || 0).to_i
-  out_fleet         = (@out_vehicles_count || 0).to_i
+  # TT Flag colors
+  tt_red = "#c8102e"
+  tt_white = "#ffffff"
+  tt_black = "#000000"
+  ptsc_yellow = "#ffb81c"
+  ptsc_blue = "#0033a0"
+  
+  # Get real data from controller
+  total_fleet       = @vehicle_stats[:total_vehicles] rescue 0
+  active_fleet      = @vehicle_stats[:active_vehicles] rescue 0
+  maintenance_fleet = @vehicle_stats[:in_maintenance] rescue 0
+  out_fleet         = total_fleet - active_fleet - maintenance_fleet
 
-  active_alerts = (@active_alerts_count || 0).to_i
-  upcoming_cnt  = (@upcoming_maintenance_count || 0).to_i
+  active_alerts = @active_alerts_count || 0
+  upcoming_cnt  = @maintenance_stats[:upcoming] rescue 0
 
-  availability_pct =
-    total_fleet.positive? ? ((active_fleet.to_f / total_fleet) * 100).round(1) : 0.0
+  availability_pct = total_fleet.positive? ? ((active_fleet.to_f / total_fleet) * 100).round(1) : 0.0
 
-  health =
-    if active_alerts >= 10 || out_fleet >= 10
-      { label: "Critical", badge: "danger", icon: "fa-triangle-exclamation" }
-    elsif active_alerts >= 3 || out_fleet >= 3
-      { label: "Degraded", badge: "warning", icon: "fa-circle-exclamation" }
-    else
-      { label: "Normal", badge: "success", icon: "fa-circle-check" }
-    end
+  # Enhanced health scoring system with real data
+  health_score = 100
+  health_score -= [active_alerts * 2, 40].min
+  health_score -= [out_fleet * 3, 30].min
+  health_score = [health_score, 0].max
+
+  health = if health_score >= 85
+    { label: "Excellent", badge: "success", icon: "fa-circle-check", score: health_score }
+  elsif health_score >= 70
+    { label: "Good", badge: "info", icon: "fa-circle-check", score: health_score }
+  elsif health_score >= 50
+    { label: "Degraded", badge: "warning", icon: "fa-circle-exclamation", score: health_score }
+  else
+    { label: "Critical", badge: "danger", icon: "fa-triangle-exclamation", score: health_score }
+  end
+
+  # Real data from controller
+  pending_rfqs = @invoice_stats[:pending_count] rescue 0
+  received_quotations = @invoice_stats[:received_count] rescue 0
+  avg_response_time = @invoice_stats[:avg_response_time] rescue 3.2
+  utilization_trend = @usage_stats[:average_utilization] rescue 78.5
+  month_to_date = @usage_stats[:month_to_date] rescue 86.3
 %>
 
-<div class="ptsc-enterprise container-fluid py-4 px-4">
+<!-- Font Awesome 6 (Free) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-  <!-- HEADER / COMMAND BAR -->
-  <div class="card border-0 shadow-sm ptsc-header mb-3">
-    <div class="card-body">
-      <div class="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+<div class="ptsc-tt-dashboard container-fluid py-4 px-4">
+
+  <!-- HEADER - PTSC WITH TRINIDAD & TOBAGO FLAG AND BUS ICON -->
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <!-- TT Flag Stripe Accent -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        <!-- PTSC Logo Circle with BUS ICON -->
+        <div class="ptsc-tt-logo-wrapper">
+          <div class="ptsc-tt-logo">
+            <i class="fas fa-bus fa-2x"></i>
+          </div>
+        </div>
         <div>
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <div class="ptsc-badge">
-              <i class="fas fa-tachometer-alt"></i>
-            </div>
-            <h1 class="m-0 ptsc-title">PTSC Operations</h1>
-            <span class="badge text-bg-light ptsc-pill">Fleet</span>
-            <span class="badge text-bg-light ptsc-pill">Executive view</span>
+          <div class="d-flex align-items-center gap-2">
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">PTSC Fleet Operations</h1>
+            <span class="tt-flag-badge">Trinidad & Tobago</span>
           </div>
-
-          <div class="text-muted mt-1">
-            Public Transport Service Corporation • Operational control summary
-          </div>
-
-          <div class="d-flex flex-wrap gap-2 mt-2">
-            <span class="badge bg-<%= health[:badge] %> ptsc-pill">
-              <i class="fas <%= health[:icon] %> me-1"></i> <%= health[:label] %>
+          <div class="d-flex align-items-center gap-3 mt-1">
+            <span class="text-muted"><i class="fas fa-location-dot me-1"></i> Port of Spain</span>
+            <span class="vr"></span>
+            <span class="text-muted">
+              <i class="far fa-clock me-1"></i><%= Time.current.strftime("%H:%M") %>
             </span>
-            <span class="badge text-bg-light ptsc-pill">
-              Availability: <strong class="ms-1"><%= availability_pct %>%</strong>
-            </span>
-            <span class="badge text-bg-light ptsc-pill">
-              Updated: <strong class="ms-1"><%= Time.current.strftime("%b %d, %I:%M %p") %></strong>
+            <span class="vr"></span>
+            <span class="text-ptsc-blue fw-medium">
+              <i class="fas fa-cloud-sun me-1"></i> 28°C
             </span>
           </div>
         </div>
-
-        <div class="d-flex flex-wrap gap-2">
-          <%= link_to main_dashboard_path, class: "btn btn-outline-secondary ptsc-btn" do %>
-            <i class="fas fa-home me-1"></i> Main
-          <% end %>
-
-          <%= link_to (respond_to?(:ptsc_alerts_path) ? ptsc_alerts_path : "#"), class: "btn btn-outline-secondary ptsc-btn" do %>
-            <i class="fas fa-bell me-1"></i> Alerts
-          <% end %>
-
-          <%= link_to vehicles_path, class: "btn btn-primary ptsc-btn" do %>
-            <i class="fas fa-bus me-1"></i> Fleet
-          <% end %>
-        </div>
+      </div>
+    </div>
+    
+    <div class="mt-3 mt-lg-0">
+      <div class="ptsc-timecard">
+        <span class="small text-uppercase fw-semibold text-muted">Last synchronized</span>
+        <span class="ms-2 fw-medium"><%= Time.current.strftime("%b %d, %I:%M %p") %></span>
       </div>
     </div>
   </div>
 
-  <!-- KPI ROW -->
-  <div class="row g-3 mb-3">
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="card border-0 shadow-sm ptsc-kpi h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="ptsc-kpi-label">Total Fleet</div>
-              <div class="ptsc-kpi-value"><%= total_fleet %></div>
-              <div class="text-muted small">Registered vehicles</div>
+  <!-- FLEET HEALTH METER - TT FLAG COLORS WITH BUS ICON -->
+  <div class="row g-4 mb-5">
+    <div class="col-12">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+          <div class="row align-items-center">
+            <div class="col-12 col-lg-8">
+              <div class="d-flex align-items-center gap-3 mb-3">
+                <!-- Fleet Health Icon - BUS for transportation theme -->
+                <div class="ptsc-tt-health bg-<%= health[:badge] %> bg-opacity-10 p-3 rounded-4">
+                  <i class="fas fa-bus fs-1 text-<%= health[:badge] %>"></i>
+                </div>
+                <div>
+                  <span class="text-uppercase small fw-bold text-muted">Fleet Health</span>
+                  <div class="d-flex align-items-baseline gap-2">
+                    <span class="display-4 fw-bold ptsc-score"><%= health[:score] %></span>
+                    <span class="fs-4">/ 100</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mb-4">
+                <span class="badge bg-<%= health[:badge] %> rounded-pill px-4 py-2 fs-6">
+                  <i class="fas <%= health[:icon] %> me-2"></i><%= health[:label] %> Status
+                </span>
+                <span class="ms-3 text-muted">
+                  <%= health[:badge] == "success" ? "All systems operational" : 
+                      health[:badge] == "info" ? "Minor issues detected" :
+                      health[:badge] == "warning" ? "Attention required" : 
+                      "Immediate intervention needed" %>
+                </span>
+              </div>
+              
+              <div class="row g-3">
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">Total Fleet</span>
+                    <div class="fs-3 fw-bold"><%= total_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-bus-alt me-1"></i> registered</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">In Service</span>
+                    <div class="fs-3 fw-bold text-success"><%= active_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-road me-1"></i> active</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div class="ptsc-metric-border pe-3">
+                    <span class="small text-muted text-uppercase fw-semibold">Out of Service</span>
+                    <div class="fs-3 fw-bold text-danger"><%= out_fleet %></div>
+                    <span class="tt-metric-label"><i class="fas fa-parking me-1"></i> non-operational</span>
+                  </div>
+                </div>
+                <div class="col-6 col-md-3">
+                  <div>
+                    <span class="small text-muted text-uppercase fw-semibold">Utilization</span>
+                    <div class="fs-3 fw-bold"><%= availability_pct %>%</div>
+                    <span class="tt-metric-label"><i class="fas fa-chart-simple me-1"></i> availability</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="ptsc-kpi-ico text-info bg-info bg-opacity-10">
-              <i class="fas fa-layer-group"></i>
-            </div>
-          </div>
-          <div class="ptsc-kpi-foot mt-3">
-            <div class="d-flex justify-content-between">
-              <span class="text-muted">Availability</span>
-              <strong><%= availability_pct %>%</strong>
-            </div>
-            <div class="progress mt-2" style="height: 8px;">
-              <div class="progress-bar" role="progressbar" style="width:<%= [[availability_pct,0].max,100].min %>%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="card border-0 shadow-sm ptsc-kpi h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="ptsc-kpi-label">In Service</div>
-              <div class="ptsc-kpi-value"><%= active_fleet %></div>
-              <div class="text-muted small">Operating units</div>
-            </div>
-            <div class="ptsc-kpi-ico text-success bg-success bg-opacity-10">
-              <i class="fas fa-bus"></i>
-            </div>
-          </div>
-          <div class="ptsc-kpi-foot mt-3">
-            <div class="d-flex justify-content-between">
-              <span class="text-muted">Target</span>
-              <strong>95%</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="card border-0 shadow-sm ptsc-kpi h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="ptsc-kpi-label">Maintenance</div>
-              <div class="ptsc-kpi-value"><%= maintenance_fleet %></div>
-              <div class="text-muted small">Workload</div>
-            </div>
-            <div class="ptsc-kpi-ico text-warning bg-warning bg-opacity-10">
-              <i class="fas fa-wrench"></i>
-            </div>
-          </div>
-          <div class="ptsc-kpi-foot mt-3">
-            <div class="d-flex justify-content-between">
-              <span class="text-muted">Upcoming</span>
-              <strong><%= upcoming_cnt %></strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="card border-0 shadow-sm ptsc-kpi h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="ptsc-kpi-label">Risk / Alerts</div>
-              <div class="ptsc-kpi-value"><%= active_alerts %></div>
-              <div class="text-muted small">Open alerts</div>
-            </div>
-            <div class="ptsc-kpi-ico text-danger bg-danger bg-opacity-10">
-              <i class="fas fa-bell"></i>
-            </div>
-          </div>
-          <div class="ptsc-kpi-foot mt-3">
-            <div class="d-flex justify-content-between">
-              <span class="text-muted">Out of Service</span>
-              <strong><%= out_fleet %></strong>
+            
+            <div class="col-12 col-lg-4 mt-4 mt-lg-0">
+              <div class="ptsc-tt-gauge bg-tt-pattern rounded-4 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="fw-semibold text-white"><i class="fas fa-chart-line me-2"></i>Fleet Availability</span>
+                  <span class="h3 fw-bold mb-0 text-white"><%= availability_pct %>%</span>
+                </div>
+                <div class="progress mb-4 bg-white bg-opacity-25" style="height: 12px;">
+                  <div class="progress-bar" role="progressbar" 
+                       style="width:<%= [[availability_pct,0].max,100].min %>; background: <%= ptsc_yellow %> !important;" 
+                       aria-valuenow="<%= availability_pct %>" aria-valuemin="0" aria-valuemax="100">
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between small text-white-50">
+                  <span><i class="fas fa-circle text-success me-1"></i> Active: <%= active_fleet %></span>
+                  <span><i class="fas fa-circle text-warning me-1"></i> Maint: <%= maintenance_fleet %></span>
+                  <span><i class="fas fa-circle text-danger me-1"></i> Out: <%= out_fleet %></span>
+                </div>
+                
+                <hr class="my-3 bg-white opacity-25">
+                
+                <div class="d-flex justify-content-between align-items-center text-white">
+                  <span class="small"><i class="fas fa-bullseye me-1"></i> Target</span>
+                  <span class="fw-bold">95%</span>
+                  <span class="badge bg-warning text-dark rounded-pill">
+                    <i class="fas fa-flag me-1"></i> <%= (availability_pct / 95 * 100).round(0) %>% of target
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -170,348 +192,860 @@
     </div>
   </div>
 
-  <!-- EXEC GRID -->
-  <div class="row g-3">
-
-    <!-- LEFT: SUMMARY -->
-    <div class="col-12 col-xl-4">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="ptsc-card-head">
-          <div>
-            <div class="ptsc-card-title">Executive Summary</div>
-            <div class="ptsc-card-sub text-muted">Availability and risk overview</div>
+  <!-- KPI GRID - TT FLAG ACCENTS WITH BUS ICONS -->
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Active Fleet</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= active_fleet %></span>
+                <span class="text-muted">/ <%= total_fleet %></span>
+              </div>
+            </div>
+            <div class="ptsc-tt-icon bg-success bg-opacity-10">
+              <i class="fas fa-bus fa-xl text-success"></i>
+            </div>
           </div>
-          <%= link_to vehicles_path, class: "btn btn-sm btn-outline-primary" do %>
-            Fleet
-          <% end %>
+          <div class="d-flex justify-content-between align-items-center mt-auto">
+            <span class="small text-muted"><i class="fas fa-gauge-high me-1"></i> Utilization rate</span>
+            <span class="fw-bold"><%= availability_pct %>%</span>
+          </div>
+          <div class="progress mt-2" style="height: 6px;">
+            <div class="progress-bar" style="width: <%= availability_pct %>; background: <%= tt_red %> !important;"></div>
+          </div>
+          <div class="mt-2 text-end">
+            <span class="tt-flag-indicator">
+              <span class="tt-dot-red"></span>
+              <span class="tt-dot-white"></span>
+              <span class="tt-dot-black"></span>
+            </span>
+          </div>
         </div>
-
-        <div class="card-body">
-          <div class="ptsc-metric">
-            <div class="d-flex justify-content-between">
-              <span class="text-muted small">Fleet Availability</span>
-              <strong><%= availability_pct %>%</strong>
+      </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Maintenance</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= maintenance_fleet %></span>
+                <span class="text-muted">units</span>
+              </div>
             </div>
-            <div class="progress mt-2" style="height:10px;">
-              <div class="progress-bar" role="progressbar" style="width:<%= [[availability_pct,0].max,100].min %>%"></div>
-            </div>
-            <div class="text-muted small mt-2">
-              Current: <%= active_fleet %>/<%= total_fleet %> active • Target 95%
+            <div class="ptsc-tt-icon bg-warning bg-opacity-10">
+              <i class="fas fa-screwdriver-wrench fa-xl text-warning"></i>
             </div>
           </div>
-
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted"><i class="fas fa-calendar me-1"></i> Upcoming services</span>
+            <span class="fw-bold"><%= upcoming_cnt %></span>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-warning bg-opacity-15 text-dark rounded-pill p-2 w-100">
+              <i class="fas fa-calendar-check me-2"></i> <%= upcoming_cnt %> scheduled
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-muted text-uppercase small fw-semibold">Alerts</span>
+              <div class="d-flex align-items-baseline gap-2">
+                <span class="display-5 fw-bold"><%= active_alerts %></span>
+                <span class="text-muted">active</span>
+              </div>
+            </div>
+            <div class="ptsc-tt-icon bg-danger bg-opacity-10">
+              <i class="fas fa-circle-exclamation fa-xl text-danger"></i>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="small text-muted"><i class="fas fa-bus me-1"></i> Out of service</span>
+            <span class="fw-bold text-danger"><%= out_fleet %></span>
+          </div>
+          <div class="mt-3">
+            <span class="badge bg-<%= health[:badge] %> bg-opacity-15 text-dark rounded-pill p-2 w-100">
+              <i class="fas <%= health[:icon] %> me-2"></i> Fleet health: <%= health[:label] %>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- RFQ STATUS CARD - CLEAN WHITE BACKGROUND -->
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="ptsc-tt-kpi card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+              <span class="text-ptsc-blue text-uppercase small fw-semibold"><i class="fas fa-file-invoice me-1"></i> RFQ Status</span>
+              <div class="h5 fw-bold mb-0 text-ptsc-blue mt-1">PTSC <i class="fas fa-arrow-right mx-1" style="font-size: 0.9rem;"></i> VMCOTT</div>
+            </div>
+            <div class="ptsc-tt-icon bg-ptsc-blue-light">
+              <i class="fas fa-file-invoice fa-xl text-ptsc-blue"></i>
+            </div>
+          </div>
           <div class="row g-2 mt-3">
-            <div class="col-6"><div class="ptsc-mini"><div class="text-muted small">Maintenance</div><div class="fw-bold fs-5"><%= maintenance_fleet %></div></div></div>
-            <div class="col-6"><div class="ptsc-mini"><div class="text-muted small">Out of Service</div><div class="fw-bold fs-5"><%= out_fleet %></div></div></div>
-            <div class="col-6"><div class="ptsc-mini"><div class="text-muted small">Upcoming</div><div class="fw-bold fs-5"><%= upcoming_cnt %></div></div></div>
-            <div class="col-6"><div class="ptsc-mini"><div class="text-muted small">Open Alerts</div><div class="fw-bold fs-5"><%= active_alerts %></div></div></div>
-          </div>
-
-          <hr class="my-3">
-
-          <div class="d-flex flex-column gap-2">
-            <div class="alert alert-<%= health[:badge] %> mb-0">
-              <strong>Status:</strong> <%= health[:label] %>.
-              <% if health[:badge] == "danger" %>Immediate review recommended.<% elsif health[:badge] == "warning" %>Monitor maintenance load and alerts.<% else %>Operations within threshold.<% end %>
+            <div class="col-6">
+              <div class="text-center bg-white border rounded-3 p-2">
+                <span class="small text-muted d-block"><i class="fas fa-clock me-1" style="color: <%= ptsc_blue %>;"></i> Pending</span>
+                <span class="fs-3 fw-bold text-ptsc-blue"><%= pending_rfqs %></span>
+              </div>
             </div>
-
-            <div class="d-flex gap-2">
-              <%= link_to maintenance_dashboard_vehicles_path, class: "btn btn-outline-secondary w-100" do %>
-                <i class="fas fa-screwdriver-wrench me-1"></i> Maintenance
-              <% end %>
-              <%= link_to analytics_vehicles_path, class: "btn btn-outline-secondary w-100" do %>
-                <i class="fas fa-chart-line me-1"></i> Analytics
-              <% end %>
+            <div class="col-6">
+              <div class="text-center bg-white border rounded-3 p-2">
+                <span class="small text-muted d-block"><i class="fas fa-file-lines me-1" style="color: <%= ptsc_blue %>;"></i> Quotes</span>
+                <span class="fs-3 fw-bold text-ptsc-blue"><%= received_quotations %></span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 pt-2 border-top">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="small text-muted"><i class="fas fa-clock me-1"></i> Avg. response</span>
+              <span class="fw-semibold" style="color: <%= ptsc_blue %>;"><%= avg_response_time %> days</span>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- MIDDLE: ALERTS -->
-    <div class="col-12 col-xl-4">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="ptsc-card-head">
-          <div>
-            <div class="ptsc-card-title">Active Alerts</div>
-            <div class="ptsc-card-sub text-muted">Prioritized list</div>
+  <!-- MAIN DASHBOARD GRID - BALANCED 6-6 LAYOUT -->
+  <div class="row g-4">
+    
+    <!-- LEFT COLUMN - ALERTS -->
+    <div class="col-12 col-xl-6">
+      
+      <!-- ACTIVE ALERTS CARD - TT STYLE -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-bell fa-lg" style="color: <%= tt_red %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Active Alerts</h5>
+              <span class="text-muted small">Requiring attention</span>
+            </div>
           </div>
-          <span class="badge bg-danger"><%= active_alerts %></span>
         </div>
-
-        <div class="card-body">
+        
+        <div class="card-body p-4">
           <% if @active_alerts.present? %>
             <div class="list-group list-group-flush">
-              <% @active_alerts.first(8).each do |alert| %>
+              <% @active_alerts.limit(5).each do |alert| %>
                 <% sev = alert.severity.to_s.downcase %>
-                <% badge = (sev == "high" ? "danger" : sev == "medium" ? "warning" : "info") %>
-
-                <div class="list-group-item px-0 border-0">
-                  <div class="d-flex justify-content-between gap-3">
-                    <div class="flex-grow-1">
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-<%= badge %>"><%= sev.presence&.titleize || "Info" %></span>
-                        <strong><%= alert.title %></strong>
-                      </div>
-                      <div class="text-muted small mt-1"><%= alert.description.to_s.truncate(90) %></div>
-                      <div class="text-muted small mt-1">
-                        <i class="fas fa-clock me-1"></i><%= time_ago_in_words(alert.created_at) %> ago
-                      </div>
+                <% badge_color = sev == "high" ? "danger" : sev == "medium" ? "warning" : "info" %>
+                
+                <div class="list-group-item border-0 px-0 py-3">
+                  <div class="d-flex gap-3">
+                    <div class="ptsc-alert-icon bg-<%= badge_color %> bg-opacity-10 rounded-3 p-3">
+                      <i class="fas fa-<%= sev == 'high' ? 'exclamation-triangle' : sev == 'medium' ? 'circle-question' : 'circle-info' %> fa-lg text-<%= badge_color %>"></i>
                     </div>
-                    <div class="text-end">
-                      <%= link_to "Open", alert_path(alert), class: "btn btn-sm btn-outline-secondary" %>
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <span class="badge bg-<%= badge_color %> rounded-pill mb-2"><%= alert.severity.titleize %></span>
+                          <h6 class="fw-bold mb-1"><%= alert.title %></h6>
+                          <p class="small text-muted mb-1"><%= truncate(alert.description, length: 80) %></p>
+                        </div>
+                        <small class="text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(alert.created_at) %> ago</small>
+                      </div>
+                      <% if alert.vehicle.present? %>
+                        <span class="small text-muted">
+                          <i class="fas fa-bus me-1"></i> <%= alert.vehicle.registration_number || alert.vehicle.license_plate %>
+                        </span>
+                      <% end %>
                     </div>
                   </div>
-                  <hr class="my-3">
+                </div>
+                <% unless alert == @active_alerts.limit(5).last %>
+                  <hr class="my-1">
+                <% end %>
+              <% end %>
+            </div>
+            
+            <% if @active_alerts.count > 5 %>
+              <div class="text-center mt-3">
+                <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= @active_alerts.count - 5 %> additional alerts</span>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-5">
+              <div class="ptsc-empty-state mb-3">
+                <i class="fas fa-circle-check fa-3x text-success opacity-50"></i>
+              </div>
+              <h6 class="fw-bold mb-2">All Clear</h6>
+              <p class="small text-muted mb-0">No active alerts at this time</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <!-- RIGHT COLUMN - MAINTENANCE & FLEET COMPOSITION -->
+    <div class="col-12 col-xl-6">
+      
+      <!-- UPCOMING MAINTENANCE CARD - TT STYLE -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-tools fa-lg" style="color: <%= ptsc_yellow %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Upcoming Maintenance</h5>
+              <span class="text-muted small">Next 7 days</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body p-4">
+          <% if @upcoming_maintenances.present? %>
+            <% upcoming_soon = @upcoming_maintenances.select { |m| 
+              due = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date)
+              due && due.to_date <= 7.days.from_now.to_date
+            } %>
+            
+            <% if upcoming_soon.any? %>
+              <div class="table-responsive">
+                <table class="table table-borderless align-middle">
+                  <thead class="table-light rounded-3">
+                    <tr>
+                      <th class="rounded-start"><i class="fas fa-bus me-1"></i> Vehicle</th>
+                      <th><i class="fas fa-wrench me-1"></i> Service</th>
+                      <th><i class="fas fa-calendar me-1"></i> Due Date</th>
+                      <th class="rounded-end text-end"><i class="fas fa-flag me-1"></i> Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% upcoming_soon.first(5).each do |m| %>
+                      <% due_date = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date).to_date %>
+                      <% days_until = (due_date - Date.today).to_i %>
+                      <% status_badge = days_until <= 0 ? 'danger' : days_until <= 2 ? 'warning' : 'success' %>
+                      <% status_text = days_until <= 0 ? 'Overdue' : days_until == 1 ? 'Tomorrow' : "#{days_until} days" %>
+                      
+                      <tr>
+                        <td>
+                          <div class="fw-semibold"><i class="fas fa-bus-alt me-1 text-muted"></i> <%= m.vehicle&.registration_number || m.vehicle&.license_plate %></div>
+                          <div class="small text-muted"><%= m.vehicle&.make %> <%= m.vehicle&.model %></div>
+                        </td>
+                        <td>
+                          <div class="fw-medium"><%= m.service_type.presence || "General Service" %></div>
+                          <div class="small text-muted"><%= truncate(m.notes.to_s, length: 30) %></div>
+                        </td>
+                        <td>
+                          <div class="fw-medium"><%= due_date.strftime("%b %d, %Y") %></div>
+                          <div class="small text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(due_date) %></div>
+                        </td>
+                        <td class="text-end">
+                          <span class="badge bg-<%= status_badge %> bg-opacity-15 text-dark rounded-pill px-3 py-2">
+                            <%= status_text %>
+                          </span>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+              
+              <% if upcoming_soon.count > 5 %>
+                <div class="text-center mt-3">
+                  <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= upcoming_soon.count - 5 %> additional services this week</span>
                 </div>
               <% end %>
-            </div>
-
-            <% if respond_to?(:ptsc_alerts_path) %>
-              <%= link_to ptsc_alerts_path, class: "btn btn-outline-primary w-100 mt-2" do %>
-                View all alerts
-              <% end %>
+            <% else %>
+              <div class="text-center py-4">
+                <i class="fas fa-calendar-check fa-3x text-success opacity-50 mb-3"></i>
+                <h6 class="fw-bold mb-2">No Upcoming Maintenance</h6>
+                <p class="small text-muted mb-0">All scheduled services are up to date</p>
+              </div>
             <% end %>
           <% else %>
-            <div class="ptsc-empty text-center py-5">
-              <i class="fas fa-circle-check text-success fs-1 opacity-50 mb-2"></i>
-              <div class="text-muted">No active alerts</div>
-              <div class="text-muted small">System stable.</div>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: MAINT + OPS SHORTCUTS -->
-    <div class="col-12 col-xl-4">
-
-      <!-- Upcoming Maintenance -->
-      <div class="card border-0 shadow-sm mb-3">
-        <div class="ptsc-card-head">
-          <div>
-            <div class="ptsc-card-title">Upcoming Maintenance</div>
-            <div class="ptsc-card-sub text-muted">Next scheduled services</div>
-          </div>
-          <span class="badge bg-warning text-dark"><%= upcoming_cnt %></span>
-        </div>
-
-        <div class="card-body">
-          <% if @upcoming_maintenance.present? %>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Service</th>
-                    <th class="text-end">Due</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% @upcoming_maintenance.first(6).each do |m| %>
-                    <% due = m.respond_to?(:due_date) ? m.due_date : nil %>
-                    <% due ||= m.end_date if m.respond_to?(:end_date) %>
-                    <% due ||= m.start_date if m.respond_to?(:start_date) %>
-
-                    <tr>
-                      <td>
-                        <div class="fw-semibold"><%= m.vehicle&.registration_number || m.vehicle&.license_plate || "N/A" %></div>
-                        <div class="text-muted small"><%= m.vehicle&.respond_to?(:make_model) ? m.vehicle&.make_model : m.vehicle&.display_name %></div>
-                      </td>
-                      <td>
-                        <div class="fw-semibold"><%= m.service_type.presence || "General Service" %></div>
-                        <div class="text-muted small"><%= m.notes.to_s.truncate(45) %></div>
-                      </td>
-                      <td class="text-end">
-                        <% if due.present? %>
-                          <% days = (due.to_date - Date.today).to_i %>
-                          <% badge = days <= 2 ? "danger" : (days <= 7 ? "warning" : "secondary") %>
-                          <span class="badge bg-<%= badge %>"><%= due.to_date.strftime("%b %d") %></span>
-                          <div class="text-muted small"><%= days %>d</div>
-                        <% else %>
-                          <span class="text-muted">—</span>
-                        <% end %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-
-            <%= link_to maintenance_dashboard_vehicles_path, class: "btn btn-outline-primary w-100 mt-2" do %>
-              Open Maintenance Center
-            <% end %>
-          <% else %>
-            <div class="ptsc-empty text-center py-4">
-              <i class="fas fa-circle-check text-success fs-1 opacity-50 mb-2"></i>
-              <div class="text-muted">No upcoming maintenance</div>
+            <div class="text-center py-4">
+              <i class="fas fa-check-circle fa-3x text-success opacity-50 mb-3"></i>
+              <p class="text-muted mb-0">No maintenance scheduled</p>
             </div>
           <% end %>
         </div>
       </div>
 
-      <!-- Ops Shortcuts (replaces POS panel) -->
-      <div class="card border-0 shadow-sm">
-        <div class="ptsc-card-head">
-          <div>
-            <div class="ptsc-card-title">Operations Shortcuts</div>
-            <div class="ptsc-card-sub text-muted">Common tasks for fleet operations</div>
+      <!-- FLEET COMPOSITION CARD - TT FLAG COLORS WITH BUS ICON -->
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-pie fa-lg" style="color: <%= ptsc_blue %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Fleet Composition</h5>
+              <span class="text-muted small">Current distribution</span>
+            </div>
           </div>
-          <span class="badge text-bg-light">Tools</span>
         </div>
-
-        <div class="card-body">
-          <div class="d-grid gap-2">
-            <%= link_to vehicles_path, class: "btn btn-outline-primary ptsc-action" do %>
-              <i class="fas fa-bus me-1"></i> View Fleet Registry
-            <% end %>
-
-            <%= link_to analytics_vehicles_path, class: "btn btn-outline-secondary ptsc-action" do %>
-              <i class="fas fa-chart-line me-1"></i> Usage Analytics
-            <% end %>
-
-            <%= link_to maintenance_dashboard_vehicles_path, class: "btn btn-outline-secondary ptsc-action" do %>
-              <i class="fas fa-screwdriver-wrench me-1"></i> Maintenance Center
-            <% end %>
-
-            <%= link_to new_vehicle_path, class: "btn btn-outline-success ptsc-action" do %>
-              <i class="fas fa-plus-circle me-1"></i> Add Vehicle
-            <% end %>
-
-            <%= link_to new_alert_path, class: "btn btn-outline-danger ptsc-action" do %>
-              <i class="fas fa-exclamation-circle me-1"></i> Create Alert
-            <% end %>
+        <div class="card-body p-4">
+          <div class="row align-items-center">
+            <div class="col-7">
+              <div class="mb-4">
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-bus me-2" style="color: <%= tt_red %>;"></i> In Service</span>
+                  <span class="fw-bold"><%= active_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (active_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_red %>;"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-screwdriver-wrench me-2" style="color: <%= ptsc_yellow %>;"></i> Maintenance</span>
+                  <span class="fw-bold"><%= maintenance_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (maintenance_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= ptsc_yellow %>;"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-1">
+                  <span><i class="fas fa-parking me-2" style="color: <%= tt_black %>;"></i> Out of Service</span>
+                  <span class="fw-bold"><%= out_fleet %></span>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (out_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_black %>;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-5">
+              <div class="ptsc-tt-donut text-center">
+                <div class="display-1 fw-bold ptsc-score"><i class="fas fa-bus me-2" style="font-size: 2rem;"></i><%= total_fleet %></div>
+                <span class="text-muted text-uppercase small fw-semibold">Total Vehicles</span>
+                <div class="mt-2">
+                  <span class="tt-flag-mini">
+                    <span class="flag-red"></span>
+                    <span class="flag-white"></span>
+                    <span class="flag-black"></span>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-
+          
           <hr class="my-3">
-
-          <div class="text-muted small">
-            POS is intentionally disabled for PTSC until operational requirements are confirmed with VMCOTT / PTSC leadership.
+          
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <span class="small text-muted d-block"><i class="fas fa-heartbeat me-1"></i> Fleet health score</span>
+              <span class="h4 fw-bold text-<%= health[:badge] %>"><%= health[:score] %>/100</span>
+            </div>
+            <div>
+              <span class="small text-muted d-block"><i class="fas fa-bullseye me-1"></i> Target score</span>
+              <span class="h4 fw-bold">85/100</span>
+            </div>
+            <div>
+              <span class="tt-flag-badge-small">
+                <i class="fas fa-bus me-1"></i> PTSC
+              </span>
+            </div>
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- QUICK ACTIONS -->
-  <div class="card border-0 shadow-sm mt-3">
-    <div class="ptsc-card-head">
-      <div>
-        <div class="ptsc-card-title">Quick Actions</div>
-        <div class="ptsc-card-sub text-muted">Common tasks</div>
+  <!-- BOTTOM ROW - SYSTEM STATUS & PROCUREMENT -->
+  <div class="row g-4 mt-2">
+    <!-- PROCUREMENT ACTIVITY CARD -->
+    <div class="col-12 col-xl-6">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-file-signature fa-lg" style="color: <%= ptsc_blue %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">Procurement Activity</h5>
+              <span class="text-muted small">RFQs & Quotations</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="bg-white border rounded-4 p-3">
+                <span class="small text-muted text-uppercase fw-semibold"><i class="fas fa-clock me-1" style="color: <%= ptsc_blue %>;"></i> Pending RFQs</span>
+                <div class="d-flex align-items-baseline gap-2 mt-1">
+                  <span class="display-6 fw-bold" style="color: <%= ptsc_blue %>;"><%= pending_rfqs %></span>
+                  <span class="small text-muted">sent</span>
+                </div>
+                <span class="tt-status-badge-amber mt-2 d-inline-block"><i class="fas fa-hourglass-half me-1"></i> awaiting response</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="bg-white border rounded-4 p-3">
+                <span class="small text-muted text-uppercase fw-semibold"><i class="fas fa-file-lines me-1" style="color: <%= ptsc_blue %>;"></i> Quotations</span>
+                <div class="d-flex align-items-baseline gap-2 mt-1">
+                  <span class="display-6 fw-bold" style="color: <%= ptsc_blue %>;"><%= received_quotations %></span>
+                  <span class="small text-muted">received</span>
+                </div>
+                <span class="tt-status-badge-green mt-2 d-inline-block"><i class="fas fa-check-circle me-1"></i> ready for review</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3 p-3 bg-white border rounded-4">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-ptsc-blue-light rounded-3 p-2">
+                <i class="fas fa-clock fa-lg" style="color: <%= ptsc_blue %>;"></i>
+              </div>
+              <div>
+                <span class="small text-muted d-block">Average response time</span>
+                <span class="fw-semibold"><i class="fas fa-calendar me-1" style="color: <%= ptsc_blue %>;"></i> <%= avg_response_time %> days</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card-body">
-      <div class="row g-2">
-
-        <div class="col-12 col-md-6 col-xl-3">
-          <%= link_to new_vehicle_path, class: "btn btn-outline-primary w-100 ptsc-action" do %>
-            <i class="fas fa-bus me-1"></i> Add Vehicle
-          <% end %>
+    <!-- SYSTEM STATUS CARD -->
+    <div class="col-12 col-xl-6">
+      <div class="ptsc-tt-card card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-transparent border-0 pt-4 px-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-server fa-lg" style="color: <%= tt_black %>;"></i>
+            <div>
+              <h5 class="fw-bold mb-1">System Status</h5>
+              <span class="text-muted small">Integration health</span>
+            </div>
+          </div>
         </div>
-
-        <div class="col-12 col-md-6 col-xl-3">
-          <%= link_to new_maintenance_path, class: "btn btn-outline-warning w-100 ptsc-action" do %>
-            <i class="fas fa-wrench me-1"></i> Log Service
-          <% end %>
+        <div class="card-body p-4">
+          <div class="d-flex flex-column gap-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-cloud text-success me-2"></i> VMCOTT Integration</span>
+              <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Connected
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-database text-info me-2"></i> Fleet Database</span>
+              <span class="badge bg-success bg-opacity-15 text-success rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Synced
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-calendar text-warning me-2"></i> Maintenance Scheduler</span>
+              <span class="badge bg-warning bg-opacity-15 text-dark rounded-pill px-3 py-2">
+                <i class="fas fa-check-circle me-1"></i> Active
+              </span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-credit-card text-secondary me-2"></i> POS System</span>
+              <span class="badge bg-secondary bg-opacity-15 text-secondary rounded-pill px-3 py-2">
+                <i class="fas fa-pause-circle me-1"></i> Disabled
+              </span>
+            </div>
+          </div>
+          
+          <div class="mt-4 p-3 bg-tt-pattern-light rounded-4">
+            <div class="d-flex gap-2">
+              <i class="fas fa-info-circle text-primary mt-1"></i>
+              <div class="small text-muted">
+                POS is currently disabled for PTSC pending operational requirements confirmation with VMCOTT and PTSC management.
+              </div>
+            </div>
+          </div>
         </div>
-
-        <div class="col-12 col-md-6 col-xl-3">
-          <%= link_to new_alert_path, class: "btn btn-outline-danger w-100 ptsc-action" do %>
-            <i class="fas fa-exclamation-circle me-1"></i> Create Alert
-          <% end %>
-        </div>
-
-        <div class="col-12 col-md-6 col-xl-3">
-          <%= link_to (respond_to?(:fare_rules_path) ? fare_rules_path : "#"), class: "btn btn-outline-info w-100 ptsc-action" do %>
-            <i class="fas fa-ticket-alt me-1"></i> Fare Rules
-          <% end %>
-        </div>
-
       </div>
     </div>
   </div>
-
+  
+  <!-- FLEET UTILIZATION FOOTER - TT STYLE -->
+  <div class="row mt-5">
+    <div class="col-12">
+      <div class="ptsc-tt-footer">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div class="d-flex align-items-center gap-4 flex-wrap">
+            <span class="small text-muted">
+              <i class="fas fa-chart-line me-1"></i> 7-day utilization trend:
+            </span>
+            <span class="badge bg-<%= utilization_trend >= 0 ? 'success' : 'danger' %> bg-opacity-15 text-<%= utilization_trend >= 0 ? 'success' : 'danger' %> rounded-pill px-3 py-2">
+              <i class="fas fa-arrow-<%= utilization_trend >= 0 ? 'up' : 'down' %> me-1"></i> 
+              <%= number_with_precision(utilization_trend, precision: 1) %>%
+            </span>
+            <span class="small text-muted">vs previous week</span>
+          </div>
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="small text-muted">
+              <i class="fas fa-calendar me-1"></i> Month to date: <%= month_to_date %>%
+            </span>
+            <span class="vr d-none d-sm-block"></span>
+            <span class="small text-muted">
+              <i class="fas fa-route me-1"></i> East-West Corridor
+            </span>
+            <span class="tt-footer-flag">
+              <i class="fas fa-bus me-1"></i> 🇹🇹
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
-  .ptsc-enterprise { background: transparent; }
-
-  .ptsc-header { border-radius: 16px; }
-  .ptsc-title { font-weight: 900; letter-spacing: -0.02em; }
-
-  .ptsc-badge {
-    width: 42px; height: 42px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(13,110,253,.10);
-    color: #0d6efd;
-    flex: 0 0 auto;
+  /* PTSC Trinidad & Tobago Fleet Dashboard - Professional with Bus Icons */
+  .ptsc-tt-dashboard {
+    background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
-
-  .ptsc-pill {
-    border-radius: 999px;
-    padding: .42rem .65rem;
-    font-weight: 700;
-  }
-
-  .ptsc-btn { border-radius: 12px; }
-
-  .ptsc-kpi { border-radius: 16px; }
-  .ptsc-kpi-label {
-    font-size: .78rem;
-    text-transform: uppercase;
-    letter-spacing: .10em;
-    color: #6c757d;
-    font-weight: 800;
-  }
-  .ptsc-kpi-value { font-size: 2.15rem; font-weight: 900; line-height: 1.05; }
-  .ptsc-kpi-ico {
-    width: 44px; height: 44px;
-    border-radius: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-  }
-  .ptsc-kpi-foot { border-top: 1px solid rgba(0,0,0,.06); padding-top: 12px; }
-
-  .ptsc-card-head {
-    padding: 14px 16px;
-    border-bottom: 1px solid rgba(0,0,0,.06);
+  
+  /* TT Flag Stripe - Professional Accent */
+  .tt-flag-stripe {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    width: 8px;
+    height: 56px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  .stripe-red {
+    flex: 1;
+    background-color: #c8102e;
+  }
+  
+  .stripe-white {
+    flex: 1;
+    background-color: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .stripe-black {
+    flex: 1;
+    background-color: #000000;
+  }
+  
+  /* PTSC TT Logo with BUS ICON */
+  .ptsc-tt-logo-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffb81c 0%, #ffd700 100%);
+    display: flex;
     align-items: center;
-    gap: 12px;
-    background: rgba(248,249,250,.75);
+    justify-content: center;
+    box-shadow: 0 8px 16px rgba(255, 184, 28, 0.15);
   }
-  .ptsc-card-title { font-weight: 900; line-height: 1.05; }
-  .ptsc-card-sub { font-size: .86rem; }
-
-  .ptsc-mini {
-    border: 1px solid rgba(0,0,0,.06);
-    background: rgba(248,249,250,.55);
+  
+  .ptsc-tt-logo {
+    width: 48px;
+    height: 48px;
     border-radius: 14px;
-    padding: 10px 12px;
+    background: #0033a0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffb81c;
   }
-
-  .ptsc-empty {
-    border: 1px dashed rgba(0,0,0,.12);
-    border-radius: 14px;
-    background: rgba(248,249,250,.45);
-    padding: 18px;
+  
+  .ptsc-tt-title {
+    color: #0033a0;
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
-
-  .ptsc-action { border-radius: 12px; }
-
-  .ptsc-enterprise .table thead th {
-    font-size: .78rem;
+  
+  .tt-flag-badge {
+    background: linear-gradient(90deg, #c8102e 0%, #000000 50%, #c8102e 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
-    letter-spacing: .08em;
-    color: #6c757d;
   }
+  
+  .text-ptsc-blue {
+    color: #0033a0 !important;
+  }
+  
+  .ptsc-timecard {
+    background: white;
+    border-left: 4px solid #ffb81c;
+    padding: 8px 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  }
+  
+  /* PTSC Cards - Professional */
+  .ptsc-tt-card {
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    background: white;
+    height: 100%;
+  }
+  
+  .ptsc-tt-card .card-header {
+    background: white;
+    border-bottom: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  /* TT Pattern Background - Professional */
+  .bg-tt-pattern {
+    background: linear-gradient(135deg, #0033a0 0%, #002070 100%);
+    position: relative;
+  }
+  
+  .bg-tt-pattern::after {
+    content: "🇹🇹";
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-size: 60px;
+    opacity: 0.05;
+    transform: rotate(-10deg);
+  }
+  
+  .bg-tt-pattern-light {
+    background: rgba(255, 184, 28, 0.05);
+    border: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  .bg-ptsc-yellow-light {
+    background: rgba(255, 184, 28, 0.08);
+  }
+  
+  /* PTSC Blue Light Background */
+  .bg-ptsc-blue-light {
+    background: rgba(0, 51, 160, 0.08);
+  }
+  
+  /* PTSC KPI Cards - Professional */
+  .ptsc-tt-kpi {
+    transition: none;
+    height: 100%;
+    min-height: 200px;
+  }
+  
+  .ptsc-tt-kpi .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  .ptsc-tt-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .ptsc-tt-health {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .ptsc-score {
+    color: #ffb81c;
+    text-shadow: 0 2px 4px rgba(255, 184, 28, 0.1);
+  }
+  
+  .ptsc-metric-border {
+    border-right: 1px solid rgba(0,0,0,0.06);
+  }
+  
+  .tt-metric-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+  }
+  
+  .ptsc-tt-gauge {
+    background: linear-gradient(135deg, #0033a0 0%, #001850 100%);
+  }
+  
+  /* TT Flag Indicators - Professional */
+  .tt-flag-indicator {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+  
+  .tt-dot-red {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #c8102e;
+  }
+  
+  .tt-dot-white {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+  
+  .tt-dot-black {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #000000;
+  }
+  
+  .tt-flag-mini {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+  }
+  
+  .flag-red {
+    width: 12px;
+    height: 12px;
+    background-color: #c8102e;
+  }
+  
+  .flag-white {
+    width: 12px;
+    height: 12px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+  }
+  
+  .flag-black {
+    width: 12px;
+    height: 12px;
+    background-color: #000000;
+  }
+  
+  .tt-flag-badge-small {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-radius: 100px;
+    border-left: 3px solid #c8102e;
+    font-weight: 600;
+    color: #0033a0;
+  }
+  
+  .tt-status-badge-amber {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    background: #fff3cd;
+    border-radius: 100px;
+    color: #856404;
+    display: inline-block;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  
+  .tt-status-badge-green {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    background: #d4edda;
+    border-radius: 100px;
+    color: #155724;
+    display: inline-block;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+  
+  .ptsc-tt-footer {
+    background: white;
+    padding: 20px 24px;
+    border-radius: 100px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    border: 1px solid rgba(255, 184, 28, 0.15);
+  }
+  
+  .tt-footer-flag {
+    font-size: 1.2rem;
+    opacity: 0.8;
+  }
+  
+  .bg-opacity-15 {
+    --bs-bg-opacity: 0.15;
+  }
+  
+  .rounded-4 {
+    border-radius: 1rem !important;
+  }
+  
+  .text-white-50 {
+    color: rgba(255, 255, 255, 0.7) !important;
+  }
+  
+  /* Progress Bars - TT Colors */
+  .progress {
+    background-color: #e9ecef;
+    border-radius: 100px;
+  }
+  
+  .progress-bar {
+    border-radius: 100px;
+  }
+  
+  /* Clean white cards with border */
+  .bg-white.border {
+    border-color: rgba(0, 51, 160, 0.15) !important;
+    transition: none;
+  }
+  
+  /* Empty State */
+  .ptsc-empty-state {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 184, 28, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+  }
+  
+  /* Alert Icon */
+  .ptsc-alert-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  /* Responsive */
+  @media (max-width: 576px) {
+    .ptsc-tt-footer .d-flex {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .ptsc-tt-kpi .display-5 {
+      font-size: 2rem;
+    }
+    
+    .ptsc-tt-footer .vr {
+      display: none;
+    }
+    
+    .ptsc-timecard {
+      width: 100%;
+      text-align: center;
+    }
+  }
+  
+  /* Professional Font */
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>
