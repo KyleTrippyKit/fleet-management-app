@@ -181,7 +181,7 @@ users_data = [
   { email: "admin@vmcott.gov.tt", password: "password123", name: "VMCOTT Administrator", role: "admin", agency_code: "VMCOTT", employee_id: "VMCOTT-AD001" },
   { email: "finance@vmcott.gov.tt", password: "password123", name: "Finance Manager", role: "finance", agency_code: "VMCOTT", employee_id: "VMCOTT-FM001" },
   { email: "test@vmcott.gov.tt", password: "test123", name: "VMCOTT Test User", role: "fleet_manager", agency_code: "VMCOTT", employee_id: "VMCOTT-TU001" },
-  { email: "scanner1@example.com", password: "Password123!", name: "VMCOTT SCANNER", role: "scanner", agency_code: "VMCOTT", employee_id: "VMCOTT-SU001"},
+  { email: "scanner1@example.com", password: "Password123!", name: "VMCOTT SCANNER", role: "vmcott_scanner", agency_code: "VMCOTT", employee_id: "VMCOTT-SU001"},
   # ========== TTPS USERS ==========
   { email: "admin@ttps.gov.tt", password: "password123", name: "TTPS Administrator", role: "admin", agency_code: "TTPS", employee_id: "TTPS-AD001" },
   { email: "fleet@ttps.gov.tt", password: "password123", name: "TTPS Fleet Supervisor", role: "supervisor", agency_code: "TTPS", employee_id: "TTPS-FS001" },

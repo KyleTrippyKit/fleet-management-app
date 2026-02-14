@@ -33,25 +33,30 @@ class User < ApplicationRecord
   ROLE_SUPERVISOR = 'supervisor'
   ROLE_FINANCE = 'finance'
   ROLE_ADMIN = 'admin'
-  ROLE_SCANNER = 'scanner'
   ROLE_FLEET_MANAGER = 'fleet_manager'
   ROLE_MAINTENANCE_SUPERVISOR = 'maintenance_supervisor'
   ROLE_MAINTENANCE = 'maintenance'
   ROLE_DRIVER = 'driver'
   ROLE_VMCOTT_STAFF = 'vmcott_staff'
+  ROLE_VMCOTT_SCANNER = 'vmcott_scanner'
 
-  ROLES = [
+  NON_VMCOTT_ROLES = [
     ROLE_CLERK,
     ROLE_SUPERVISOR,
     ROLE_FINANCE,
     ROLE_ADMIN,
-    ROLE_SCANNER,
     ROLE_FLEET_MANAGER,
     ROLE_MAINTENANCE_SUPERVISOR,
     ROLE_MAINTENANCE,
-    ROLE_DRIVER,
-    ROLE_VMCOTT_STAFF
+    ROLE_DRIVER
   ].freeze
+
+  VMCOTT_ROLES = [
+    ROLE_VMCOTT_STAFF,
+    ROLE_VMCOTT_SCANNER
+  ].freeze
+
+  ROLES = (NON_VMCOTT_ROLES + VMCOTT_ROLES).freeze
 
   
   # Role query methods
@@ -82,7 +87,8 @@ class User < ApplicationRecord
       maintenance_supervisor: ROLE_MAINTENANCE_SUPERVISOR,
       maintenance: ROLE_MAINTENANCE,
       driver: ROLE_DRIVER,
-      vmcott_staff: ROLE_VMCOTT_STAFF
+      vmcott_staff: ROLE_VMCOTT_STAFF,
+      vmcott_scanner: ROLE_VMCOTT_SCANNER
     }
   end
 
@@ -126,7 +132,7 @@ class User < ApplicationRecord
   end
 
   def scanner_role?
-    self[:role] == ROLE_SCANNER
+    [ROLE_VMCOTT_SCANNER, 'scanner'].include?(self[:role])
   end
 
   def fleet_manager?
