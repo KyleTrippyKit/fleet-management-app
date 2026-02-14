@@ -14,7 +14,7 @@ class WelcomeController < ApplicationController
   def index
     log_welcome_access
 
-    ✅ Scanner/Inspector users should ALWAYS go to their home screens
+    # ✅ Scanner/Inspector users should ALWAYS go to their home screens
     if current_user&.scanner_role?
       redirect_to scanner_home_path
       return
@@ -50,6 +50,11 @@ class WelcomeController < ApplicationController
       return
     end
 
+    if current_user&.inspector_role?
+      redirect_to inspector_home_path
+      return
+    end
+
     if @agency.present?
       redirect_to agency_dashboard_path
     else
@@ -57,10 +62,6 @@ class WelcomeController < ApplicationController
     end
   end
 
-  if current_user&.inspector_role?
-      redirect_to inspector_home_path
-      return
-    end
 
   # Page for users without agency assignment
   def no_agency_assigned
