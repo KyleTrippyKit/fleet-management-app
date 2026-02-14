@@ -58,6 +58,7 @@ Rails.application.routes.draw do
   get 'logout', to: 'welcome#logout', as: 'logout_confirmation'
   get 'scan', to: 'welcome#scan', as: 'scan'
   get 'scanner-home', to: 'scanner_home#index', as: 'scanner_home'
+  post 'vehicle-lookup', to: 'vehicles#lookup', as: 'vehicle_lookup'
   get 'dashboard', to: 'welcome#dashboard', as: 'dashboard'
   get 'debug_agency', to: 'welcome#debug_agency'
   get 'no-agency-assigned', to: 'welcome#no_agency_assigned', as: 'no_agency_assigned'
@@ -70,7 +71,7 @@ Rails.application.routes.draw do
       end
     end
   end
-  
+
   # ========================
   # Agency-specific routes
   # ========================
