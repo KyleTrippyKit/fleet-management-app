@@ -34,9 +34,25 @@ class User < ApplicationRecord
   ROLE_FINANCE = 'finance'
   ROLE_ADMIN = 'admin'
   ROLE_SCANNER = 'scanner'
+  ROLE_FLEET_MANAGER = 'fleet_manager'
+  ROLE_MAINTENANCE_SUPERVISOR = 'maintenance_supervisor'
+  ROLE_MAINTENANCE = 'maintenance'
+  ROLE_DRIVER = 'driver'
+  ROLE_VMCOTT_STAFF = 'vmcott_staff'
 
-  # Define valid roles
-  ROLES = [ROLE_CLERK, ROLE_SUPERVISOR, ROLE_FINANCE, ROLE_ADMIN, ROLE_SCANNER].freeze
+  ROLES = [
+    ROLE_CLERK,
+    ROLE_SUPERVISOR,
+    ROLE_FINANCE,
+    ROLE_ADMIN,
+    ROLE_SCANNER,
+    ROLE_FLEET_MANAGER,
+    ROLE_MAINTENANCE_SUPERVISOR,
+    ROLE_MAINTENANCE,
+    ROLE_DRIVER,
+    ROLE_VMCOTT_STAFF
+  ].freeze
+
   
   # Role query methods
   def clerk?
@@ -112,7 +128,7 @@ class User < ApplicationRecord
   def scanner_role?
     self[:role] == ROLE_SCANNER
   end
-  
+
   def fleet_manager?
     self[:role] == ROLE_FLEET_MANAGER || manager? || admin? || supervisor?
   end
