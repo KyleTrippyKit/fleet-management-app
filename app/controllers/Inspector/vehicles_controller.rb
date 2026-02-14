@@ -30,6 +30,11 @@ module Inspector
 
     def show
       @inspection_items = CHECK_ITEMS
+
+        respond_to do |format|
+        format.html
+        format.turbo_stream { render :show, formats: [:html] }
+      end
     end
 
     private
