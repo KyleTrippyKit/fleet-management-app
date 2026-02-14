@@ -57,10 +57,20 @@ Rails.application.routes.draw do
   # ========================
   get 'logout', to: 'welcome#logout', as: 'logout_confirmation'
   get 'scan', to: 'welcome#scan', as: 'scan'
+  get 'scanner-home', to: 'scanner_home#index', as: 'scanner_home'
   get 'dashboard', to: 'welcome#dashboard', as: 'dashboard'
   get 'debug_agency', to: 'welcome#debug_agency'
   get 'no-agency-assigned', to: 'welcome#no_agency_assigned', as: 'no_agency_assigned'
 
+  namespace :scanner do
+    resources :vehicles, only: [:show] do
+      member do
+        post :check_in_compound
+        post :check_out_compound
+      end
+    end
+  end
+  
   # ========================
   # Agency-specific routes
   # ========================
