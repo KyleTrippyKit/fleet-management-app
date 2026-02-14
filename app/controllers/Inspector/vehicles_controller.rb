@@ -16,7 +16,7 @@ module Inspector
       scope = current_user&.admin? || current_user&.inspector_role? ? Vehicle.all : Vehicle.where(agency_id: current_user.agency_id)
 
       vehicle = scope.find_by(
-        "upper(regexp_replace(license_plate, '[^A-Za-z0-9]', '', 'g')) = ?",
+        "upper(replace(license_plate, '-', '')) = ?",
         plate
       )
 
