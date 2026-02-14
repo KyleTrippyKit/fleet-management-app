@@ -14,16 +14,15 @@ class WelcomeController < ApplicationController
   def index
     log_welcome_access
 
-    # ✅ Scanner users should ALWAYS go to the scanner home screen
+    ✅ Scanner/Inspector users should ALWAYS go to their home screens
     if current_user&.scanner_role?
       redirect_to scanner_home_path
       return
     end
 
     # If user has a specific agency dashboard, redirect there
-    if should_redirect_to_agency_dashboard?
-      Rails.logger.info "Redirecting #{@agency.code} user to agency dashboard"
-      redirect_to agency_dashboard_path
+    if current_user&.inspector_role?
+      redirect_to inspector_home_path
       return
     end
 
@@ -45,7 +44,7 @@ class WelcomeController < ApplicationController
   def dashboard
     log_dashboard_redirect
 
-    # ✅ Scanner users should NEVER be routed to dashboards
+     # ✅ Scanner/Inspector users should NEVER be routed to dashboards
     if current_user&.scanner_role?
       redirect_to scanner_home_path
       return
@@ -57,6 +56,11 @@ class WelcomeController < ApplicationController
       redirect_to main_dashboard_path
     end
   end
+
+  if current_user&.inspector_role?
+      redirect_to inspector_home_path
+      return
+    end
 
   # Page for users without agency assignment
   def no_agency_assigned
@@ -137,7 +141,7 @@ class WelcomeController < ApplicationController
 
   # Check if user should be redirected to a specific agency dashboard
   def should_redirect_to_agency_dashboard?
-    return false if current_user&.scanner_role?
+    return false if current_user&.scanner_role? || current_user&.inspector_role?
     @agency.present? && agency_has_specific_dashboard?(@agency.code)
   end
 

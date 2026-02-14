@@ -1,0 +1,73 @@
+<div class="container py-4" style="max-width: 720px;">
+  <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded bg-light">
+    <div class="small">
+      <div class="fw-semibold">Logged in as</div>
+      <div><%= current_user&.email %> <span class="badge bg-secondary ms-1"><%= current_user&.role %></span></div>
+    </div>
+    <%= button_to "Logout", destroy_user_session_path, method: :delete, class: "btn btn-outline-danger" %>
+  </div>
+
+  <h1 class="mb-3">Inspector Vehicle Lookup</h1>
+
+  <div class="card p-3 mb-3 shadow-sm">
+    <h4>Scan QR Code</h4>
+    <p class="text-muted">Scan a QR that contains a license plate.</p>
+    <button id="start-scan" class="btn btn-primary" type="button">Scan QR Code</button>
+    <button id="stop-scan" class="btn btn-outline-secondary" type="button" style="display:none;">Stop</button>
+    <div id="scanner" class="mt-3" style="display:none;">
+      <video id="qr-video" playsinline style="width:100%; border:1px solid #ddd; border-radius:12px;"></video>
+      <small id="scan-status" class="text-muted">Idle</small>
+    </div>
+  </div>
+
+  <div class="card p-3 shadow-sm">
+    <h4>Enter License Plate</h4>
+    <%= form_with url: inspector_vehicle_lookup_path, method: :post, local: true, id: "plate-form" do |f| %>
+      <%= f.text_field :license_plate, class: "form-control text-uppercase mb-3", placeholder: "e.g. PDL1234", id: "plate-input" %>
+      <%= f.submit "Start Inspection", class: "btn btn-success w-100" %>
+    <% end %>
+  </div>
+</div>
+
+<script type="module">
+  import QrScanner from "https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js";
+  const startBtn = document.getElementById("start-scan");
+  const stopBtn = document.getElementById("stop-scan");
+  const scannerEl = document.getElementById("scanner");
+  const videoEl = document.getElementById("qr-video");
+  const statusEl = document.getElementById("scan-status");
+  const plateInput = document.getElementById("plate-input");
+  const plateForm = document.getElementById("plate-form");
+  let qrScanner = null;
+
+  function normalizePlate(raw) { return (raw || "").toString().trim().toUpperCase().replace(/\s+/g, ""); }
+
+  startBtn.addEventListener("click", async () => {
+    startBtn.disabled = true;
+    stopBtn.style.display = "inline-block";
+    scannerEl.style.display = "block";
+    statusEl.textContent = "Scanning...";
+
+    qrScanner = new QrScanner(videoEl, async (result) => {
+      const plate = normalizePlate(result?.data);
+      if (!plate) return;
+      plateInput.value = plate;
+      await qrScanner.stop();
+      plateForm.submit();
+    }, { returnDetailedScanResult: true });
+
+    try { await qrScanner.start(); } catch (_) {
+      statusEl.textContent = "Camera access failed";
+    }
+  });
+
+  stopBtn.addEventListener("click", async () => {
+    if (qrScanner) await qrScanner.stop();
+    startBtn.disabled = false;
+    stopBtn.style.display = "none";
+    scannerEl.style.display = "none";
+    statusEl.textContent = "Idle";
+  });
+
+  plateInput.addEventListener("input", () => { plateInput.value = normalizePlate(plateInput.value); });
+</script>

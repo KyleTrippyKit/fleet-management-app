@@ -1,0 +1,47 @@
+<div class="container py-4" style="max-width: 980px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Vehicle Inspection</h2>
+    <%= link_to "Back", inspector_home_path, class: "btn btn-outline-secondary" %>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-md-3"><strong>License:</strong> <%= @vehicle.license_plate %></div>
+        <div class="col-md-3"><strong>Make/Model:</strong> <%= @vehicle.make %> <%= @vehicle.model %></div>
+        <div class="col-md-2"><strong>Year:</strong> <%= @vehicle.year_of_manufacture %></div>
+        <div class="col-md-4"><strong>Agency:</strong> <%= @vehicle.agency&.name %></div>
+      </div>
+    </div>
+  </div>
+
+  <%= form_with url: inspector_inspections_path, method: :post, local: true do |f| %>
+    <%= hidden_field_tag :vehicle_id, @vehicle.id %>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Inspection Checklist</div>
+      <div class="card-body">
+        <% @inspection_items.each_with_index do |item, idx| %>
+          <div class="border rounded p-2 mb-2">
+            <div class="fw-semibold mb-1"><%= idx + 1 %>. <%= item %></div>
+            <% ["Good", "Fair", "Needs Attention"].each do |status| %>
+              <div class="form-check form-check-inline">
+                <%= radio_button_tag "checks[#{item}]", status, false, id: "#{item.parameterize}-#{status.parameterize}", required: true, class: "form-check-input" %>
+                <%= label_tag "#{item.parameterize}-#{status.parameterize}", status, class: "form-check-label" %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Notes (Optional)</div>
+      <div class="card-body">
+        <%= text_area_tag :notes, nil, class: "form-control", rows: 4, placeholder: "Optional notes..." %>
+      </div>
+    </div>
+
+    <%= f.submit "Submit Inspection", class: "btn btn-primary w-100" %>
+  <% end %>
+</div>

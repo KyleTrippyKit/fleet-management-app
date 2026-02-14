@@ -58,13 +58,16 @@ Rails.application.routes.draw do
   get 'logout', to: 'welcome#logout', as: 'logout_confirmation'
   get 'scan', to: 'welcome#scan', as: 'scan'
   get 'scanner-home', to: 'scanner_home#index', as: 'scanner_home'
+  get 'inspector-home', to: 'inspector/home#index', as: 'inspector_home'
   post 'vehicle-lookup', to: 'vehicles#lookup', as: 'vehicle_lookup'
   get 'dashboard', to: 'welcome#dashboard', as: 'dashboard'
   get 'debug_agency', to: 'welcome#debug_agency'
   get 'no-agency-assigned', to: 'welcome#no_agency_assigned', as: 'no_agency_assigned'
 
   namespace :scanner do
-    resources :vehicles, only: [:show] do
+    resourcedef inspector_role?
+    [ROLE_VMCOTT_INSPECTOR, 'inspector'].include?(self[:role])
+  ends :vehicles, only: [:show] do
       member do
         post :check_in_compound
         post :check_out_compound
@@ -72,6 +75,16 @@ Rails.application.routes.draw do
     end
   end
 
+  namespace :inspector do
+    post 'vehicle-lookup', to: 'vehicles#lookup', as: 'vehicle_lookup'
+    resources :vehicles, only: [:show]
+    resources :inspections, only: [:create] do
+      collection do
+        get :submitted
+      end
+    end
+  end
+  
   # ========================
   # Agency-specific routes
   # ========================

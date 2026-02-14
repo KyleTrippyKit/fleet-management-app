@@ -67,6 +67,12 @@ def after_sign_in_path_for(resource)
     return scanner_home_path
   end
 
+  # ✅ Inspector users ALWAYS go to inspector home
+  if user.respond_to?(:inspector_role?) && user.inspector_role?
+    Rails.logger.info "Inspector user detected -> redirecting to inspector_home_path"
+    return inspector_home_path
+  end
+  
   # Respect stored location for non-scanner users (e.g., they tried to open a page before login)
   stored = stored_location_for(user)
   if stored.present?

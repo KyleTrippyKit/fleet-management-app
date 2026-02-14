@@ -39,6 +39,7 @@ class User < ApplicationRecord
   ROLE_DRIVER = 'driver'
   ROLE_VMCOTT_STAFF = 'vmcott_staff'
   ROLE_VMCOTT_SCANNER = 'vmcott_scanner'
+  ROLE_VMCOTT_INSPECTOR = 'vmcott_inspector'
 
   NON_VMCOTT_ROLES = [
     ROLE_CLERK,
@@ -53,7 +54,8 @@ class User < ApplicationRecord
 
   VMCOTT_ROLES = [
     ROLE_VMCOTT_STAFF,
-    ROLE_VMCOTT_SCANNER
+    ROLE_VMCOTT_SCANNER,
+    ROLE_VMCOTT_INSPECTOR
   ].freeze
 
   ROLES = (NON_VMCOTT_ROLES + VMCOTT_ROLES).freeze
@@ -88,7 +90,8 @@ class User < ApplicationRecord
       maintenance: ROLE_MAINTENANCE,
       driver: ROLE_DRIVER,
       vmcott_staff: ROLE_VMCOTT_STAFF,
-      vmcott_scanner: ROLE_VMCOTT_SCANNER
+      vmcott_scanner: ROLE_VMCOTT_SCANNER,
+      vmcott_inspector: ROLE_VMCOTT_INSPECTOR
     }
   end
 
@@ -135,6 +138,10 @@ class User < ApplicationRecord
     [ROLE_VMCOTT_SCANNER, 'scanner'].include?(self[:role])
   end
 
+  def inspector_role?
+    [ROLE_VMCOTT_INSPECTOR, 'inspector'].include?(self[:role])
+  end
+  
   def fleet_manager?
     self[:role] == ROLE_FLEET_MANAGER || manager? || admin? || supervisor?
   end
