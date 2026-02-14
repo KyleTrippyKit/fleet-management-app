@@ -88,7 +88,7 @@ class InvoicesController < ApplicationController
       @invoice.vendor  ||= @invoice.purchase_order&.vendor
     end
 
-    # default vendor for VMCOTT users (as you had)
+    # default vendor for VMCOTT users
     @invoice.vendor = "VMCOTT" if current_user.agency&.code == "VMCOTT" && @invoice.vendor.blank?
   end
 
@@ -103,7 +103,7 @@ class InvoicesController < ApplicationController
     @invoice.invoice_number ||= generate_invoice_number
 
     if @invoice.save
-      # Optional: initial payment via Transaction (your original behavior)
+      # Optional: initial payment via Transaction
       create_initial_payment_if_present(@invoice)
 
       log_activity(
@@ -174,7 +174,6 @@ class InvoicesController < ApplicationController
   # ========================
   # ✅ APPROVE → POST TO LEDGER
   # ========================
-  # ✅ APPROVE → POST TO LEDGER
   def approve
     authorize @invoice
 
@@ -185,7 +184,6 @@ class InvoicesController < ApplicationController
     Rails.logger.warn("[Invoice Approve Failed] invoice_id=#{@invoice&.id} user_id=#{current_user.id} error=#{e.class}: #{e.message}")
     redirect_to @invoice, alert: e.message
   end
-
 
   # ========================
   # POST /invoices/:id/mark_as_reviewed
@@ -222,10 +220,10 @@ class InvoicesController < ApplicationController
     authorize @invoice
 
     if @invoice.pending? || @invoice.overdue? || @invoice.approved? || @invoice.partially_paid?
-      # IMPORTANT FIX: your model method signature is mark_as_disputed(user=nil)
+      # mark as disputed
       @invoice.mark_as_disputed(current_user)
 
-      # If you want to keep "reason", store it safely (notes is a column you already have)
+      # Store dispute reason if provided
       if params[:reason].present?
         @invoice.update(notes: [@invoice.notes, "DISPUTE REASON: #{params[:reason]}"].compact.join("\n"))
       end
@@ -243,7 +241,6 @@ class InvoicesController < ApplicationController
     authorize @invoice
 
     if @invoice.overdue?
-      # This requires your model to implement it. If not, we fail gracefully.
       if @invoice.respond_to?(:mark_as_aging_reviewed)
         @invoice.mark_as_aging_reviewed(current_user)
         redirect_to @invoice, notice: "Invoice aging reviewed."
@@ -399,8 +396,6 @@ class InvoicesController < ApplicationController
 
   # ========================
   # POST /invoices/:id/record_payment
-  # IMPORTANT FIX: do NOT call @invoice.record_payment unless it exists.
-  # We safely record via Transaction (and optionally PaymentHistory if present).
   # ========================
   def record_payment
     authorize @invoice
@@ -414,7 +409,7 @@ class InvoicesController < ApplicationController
     return redirect_to(@invoice, alert: "Payment exceeds invoice balance.") if amount > @invoice.balance_due
 
     ActiveRecord::Base.transaction do
-      # Prefer Transaction since your controller already supports it
+      # Create Transaction record
       tx = @invoice.transactions.create!(
         amount: amount,
         payment_method: payment_method,
@@ -424,7 +419,7 @@ class InvoicesController < ApplicationController
         status: "completed"
       )
 
-      # If you also want a PaymentHistory entry and that model exists:
+      # Create PaymentHistory if that model exists
       if defined?(PaymentHistory)
         @invoice.payment_histories.create!(
           amount: amount,
@@ -513,20 +508,38 @@ class InvoicesController < ApplicationController
     invoices = invoices.where(category: params[:category]) if params[:category].present?
     invoices = invoices.where(vehicle_id: params[:vehicle_id]) if params[:vehicle_id].present?
 
+    # Source filter
+    if params[:source].present?
+      invoices = case params[:source]
+                 when "vmcott"
+                   invoices.where(vendor: "VMCOTT").where(purchase_order_id: nil)
+                 when "rfq"
+                   invoices.where.not(purchase_order_id: nil)
+                 when "direct"
+                   invoices.where.not(vendor: "VMCOTT").where(purchase_order_id: nil)
+                 else
+                   invoices
+                 end
+    end
+
     if params[:date_from].present?
-      invoices = invoices.where("invoice_date >= ?", Date.parse(params[:date_from]))
+      from_date = safe_parse_date(params[:date_from])
+      invoices = invoices.where("invoice_date >= ?", from_date) if from_date
     end
 
     if params[:date_to].present?
-      invoices = invoices.where("invoice_date <= ?", Date.parse(params[:date_to]))
+      to_date = safe_parse_date(params[:date_to])
+      invoices = invoices.where("invoice_date <= ?", to_date) if to_date
     end
 
     if params[:due_date_from].present?
-      invoices = invoices.where("due_date >= ?", Date.parse(params[:due_date_from]))
+      due_from_date = safe_parse_date(params[:due_date_from])
+      invoices = invoices.where("due_date >= ?", due_from_date) if due_from_date
     end
 
     if params[:due_date_to].present?
-      invoices = invoices.where("due_date <= ?", Date.parse(params[:due_date_to]))
+      due_to_date = safe_parse_date(params[:due_date_to])
+      invoices = invoices.where("due_date <= ?", due_to_date) if due_to_date
     end
 
     if params[:min_amount].present?
@@ -559,11 +572,23 @@ class InvoicesController < ApplicationController
         .left_joins(:transactions, :payment_histories)
         .where(transactions: { id: nil }, payment_histories: { id: nil })
     when "recently_synced"
-      invoices.recently_synced
+      if invoices.respond_to?(:recently_synced)
+        invoices.recently_synced
+      else
+        invoices
+      end
     when "sync_stale"
-      invoices.sync_stale
+      if invoices.respond_to?(:sync_stale)
+        invoices.sync_stale
+      else
+        invoices
+      end
     when "sync_failed"
-      invoices.sync_failed
+      if invoices.respond_to?(:sync_failed)
+        invoices.sync_failed
+      else
+        invoices
+      end
     else
       invoices
     end
@@ -583,10 +608,18 @@ class InvoicesController < ApplicationController
     end
   end
 
+  def safe_parse_date(raw_date)
+    Date.parse(raw_date)
+  rescue ArgumentError, TypeError
+    nil
+  end
+
   # ------------------------
   # Stats / Reports
   # ------------------------
   def calculate_stats(base_scope)
+    aging_stats = calculate_aging_overdue_stats(base_scope)
+
     {
       total: base_scope.count,
       pending: base_scope.pending_scope.count,
@@ -604,7 +637,32 @@ class InvoicesController < ApplicationController
       from_vmcott: base_scope.where(vendor: "VMCOTT").count,
       from_rfq: base_scope.where.not(purchase_order_id: nil).count,
 
-      aging_30: base_scope.days_30_aging.count
+      aging_30: aging_stats[:over_30_count],
+      aging_over_30_amount: aging_stats[:over_30_amount],
+      aging_bands: aging_stats[:bands]
+    }
+  end
+
+  def calculate_aging_overdue_stats(base_scope)
+    overdue_scope = base_scope.overdue_scope
+    today = Date.current
+
+    bands = {
+      under_30: overdue_scope.where("due_date >= ? AND due_date < ?", today - 30.days, today),
+      days_30_59: overdue_scope.where("due_date >= ? AND due_date < ?", today - 60.days, today - 30.days),
+      days_60_89: overdue_scope.where("due_date >= ? AND due_date < ?", today - 90.days, today - 60.days),
+      over_90: overdue_scope.where("due_date < ?", today - 90.days)
+    }
+
+    {
+      over_30_count: bands[:days_30_59].count + bands[:days_60_89].count + bands[:over_90].count,
+      over_30_amount: bands[:days_30_59].sum(:amount) + bands[:days_60_89].sum(:amount) + bands[:over_90].sum(:amount),
+      bands: {
+        under_30: { count: bands[:under_30].count, amount: bands[:under_30].sum(:amount) },
+        days_30_59: { count: bands[:days_30_59].count, amount: bands[:days_30_59].sum(:amount) },
+        days_60_89: { count: bands[:days_60_89].count, amount: bands[:days_60_89].sum(:amount) },
+        over_90: { count: bands[:over_90].count, amount: bands[:over_90].sum(:amount) }
+      }
     }
   end
 
@@ -687,7 +745,6 @@ class InvoicesController < ApplicationController
 
   # ------------------------
   # Strong Params
-  # NOTE: only permit what actually exists / you actually use
   # ------------------------
   def invoice_params
     params.require(:invoice).permit(
