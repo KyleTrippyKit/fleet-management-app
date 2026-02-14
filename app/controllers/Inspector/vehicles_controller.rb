@@ -44,8 +44,20 @@ module Inspector
     end
     
     def set_vehicle
-      @vehicle = Vehicle.includes(:agency).find(params[:id])
+      scope =
+        if current_user.admin? || current_user.inspector_role?
+          Vehicle
+        else
+          Vehicle.where(agency_id: current_user.agency_id)
+        end
+
+      @vehicle = scope.includes(:agency).find_by(id: params[:id])
+
+      return if @vehicle
+
+      redirect_to inspector_home_path, alert: "Vehicle not found."
     end
+
 
     def require_inspector_role!
       return if current_user&.inspector_role? || current_user&.admin?
