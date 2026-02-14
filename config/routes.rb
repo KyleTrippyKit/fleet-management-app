@@ -65,9 +65,7 @@ Rails.application.routes.draw do
   get 'no-agency-assigned', to: 'welcome#no_agency_assigned', as: 'no_agency_assigned'
 
   namespace :scanner do
-    resourcedef inspector_role?
-    [ROLE_VMCOTT_INSPECTOR, 'inspector'].include?(self[:role])
-  ends :vehicles, only: [:show] do
+    resources :vehicles, only: [:show] do
       member do
         post :check_in_compound
         post :check_out_compound
@@ -84,7 +82,7 @@ Rails.application.routes.draw do
       end
     end
   end
-  
+
   # ========================
   # Agency-specific routes
   # ========================
