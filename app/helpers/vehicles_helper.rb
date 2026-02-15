@@ -1,55 +1,138 @@
 module VehiclesHelper
-  # Main method - simplified and fixed
+  # ------------------------------------------------------------
+  # ✅ UPDATED: Main vehicle image method with agency placeholders
+  # ------------------------------------------------------------
   def vehicle_image(vehicle, variant: :medium, **html_options)
+    # Don't show images for VMCOTT vehicles
+    if vehicle.is_vmcott_vehicle?
+      return content_tag(:div, class: "vmcott-placeholder bg-light p-3 text-center rounded") do
+        content_tag(:span, "No image available", class: "text-muted") + 
+        content_tag(:small, "(VMCOTT)", class: "text-muted d-block")
+      end
+    end
+    
+    # Check for uploaded images in priority order
     if vehicle.primary_photo.attached?
       variant_size = case variant
         when :thumb then [300, 200]
         when :medium then [600, 400]
         when :large then [1200, 800]
-        when :original then nil         # Keep original size
+        when :original then nil
         else [600, 400]
       end
       
       begin
-        image_tag(vehicle.primary_photo.variant(resize_to_limit: variant_size), **html_options)
+        return image_tag(vehicle.primary_photo.variant(resize_to_limit: variant_size), **html_options)
       rescue => e
         Rails.logger.error "Active Storage error: #{e.message}"
-        vehicle_placeholder_image(vehicle, html_options)
+        return agency_placeholder_image(vehicle, html_options)
       end
+    elsif vehicle.gallery_photos.attached? && vehicle.gallery_photos.any?
+      return image_tag(vehicle.gallery_photos.first, **html_options)
+    elsif vehicle.picture.present? && vehicle.picture.is_a?(String)
+      return image_tag(vehicle.picture, **html_options)
+    end
+    
+    # Fall back to agency placeholder
+    agency_placeholder_image(vehicle, html_options)
+  end
+  
+  # ✅ NEW: Agency-specific placeholder image
+  def agency_placeholder_image(vehicle, html_options = {})
+    return nil if vehicle.is_vmcott_vehicle?
+    
+    image_name = case vehicle.agency&.code
+    when 'PTSC'
+      'ptsc_bus.jpg'
+    when 'TTPS'
+      'ttps_police_vehicle.jpg'
+    when 'TTDF'
+      'ttdf_military_vehicle.jpg'
     else
-      vehicle_placeholder_image(vehicle, html_options)
+      # Fall back to make-based placeholder if agency not found
+      make_based_placeholder(vehicle)
+    end
+    
+    # Try multiple paths
+    begin
+      image_tag("placeholders/#{image_name}", html_options)
+    rescue Sprockets::Rails::Helper::AssetNotFound
+      # Try direct path (production)
+      image_tag("/placeholders/#{image_name}", html_options.merge(
+        onerror: "this.onerror=null; this.src='/placeholders/default.png';"
+      ))
+    rescue
+      # Ultimate fallback
+      image_tag("/placeholders/default.png", html_options)
     end
   end
   
-  # Fixed: Accepts html_options as a regular parameter, not keyword args
-  def vehicle_placeholder_image(vehicle, html_options = {})
-    # Determine image name
-    image_name = case vehicle.make.to_s.downcase
-                 when 'ford' then 'Ford.webp'
-                 when 'higer' then 'Higer.jpg'
-                 when 'isuzu' then 'Isuzu.jpg'
-                 when 'nissan' then 'Nissan.webp'
-                 when 'suzuki' then 'Suzuki.jpg'
-                 when 'toyota'
-                   vehicle.model.to_s.downcase == 'hilux' ? 'Toyota.jpeg' : 'toyota.jpg'
-                 else
-                   'default.png'
-                 end
-    
-    # Try multiple paths for Render compatibility
-    begin
-      # Try asset pipeline first (development)
-      image_tag("placeholders/#{image_name}", html_options)
-    rescue Sprockets::Rails::Helper::AssetNotFound
-      # Try direct path (production/Render)
-      image_tag("/placeholders/#{image_name}", html_options.merge(
-        onerror: "this.onerror=null; this.style.display='none';"
-      ))
+  # Make-based placeholder (original logic)
+  def make_based_placeholder(vehicle)
+    case vehicle.make.to_s.downcase
+    when 'ford' then 'Ford.webp'
+    when 'higer' then 'Higer.jpg'
+    when 'isuzu' then 'Isuzu.jpg'
+    when 'nissan' then 'Nissan.webp'
+    when 'suzuki' then 'Suzuki.jpg'
+    when 'toyota'
+      vehicle.model.to_s.downcase == 'hilux' ? 'Toyota.jpeg' : 'toyota.jpg'
+    else
+      'default.png'
     end
+  end
+  
+  # ✅ NEW: Check if vehicle should display image
+  def should_display_vehicle_image?(vehicle)
+    !vehicle.is_vmcott_vehicle?
+  end
+  
+  # ✅ NEW: Get image source URL (for background images, etc.)
+  def vehicle_image_url(vehicle, variant: :medium)
+    return nil if vehicle.is_vmcott_vehicle?
+    
+    if vehicle.primary_photo.attached?
+      begin
+        variant_size = case variant
+          when :thumb then [150, 100]
+          when :medium then [400, 300]
+          when :large then [800, 600]
+          else [400, 300]
+        end
+        return url_for(vehicle.primary_photo.variant(resize_to_limit: variant_size))
+      rescue => e
+        Rails.logger.error "Active Storage error: #{e.message}"
+      end
+    end
+    
+    agency_placeholder_url(vehicle)
+  end
+  
+  # ✅ NEW: Agency placeholder URL
+  def agency_placeholder_url(vehicle)
+    return nil if vehicle.is_vmcott_vehicle?
+    
+    image_name = case vehicle.agency&.code
+    when 'PTSC' then 'ptsc_bus.jpg'
+    when 'TTPS' then 'ttps_police_vehicle.jpg'
+    when 'TTDF' then 'ttdf_military_vehicle.jpg'
+    else make_based_placeholder(vehicle)
+    end
+    
+    begin
+      asset_path("placeholders/#{image_name}")
+    rescue
+      "/placeholders/#{image_name}"
+    end
+  end
+  
+  # Original placeholder method (kept for backward compatibility)
+  def vehicle_placeholder_image(vehicle, html_options = {})
+    agency_placeholder_image(vehicle, html_options)
   end
   
   # URL version for places where you need just the URL
-  def vehicle_image_url(vehicle, variant: :medium)
+  def vehicle_image_url_legacy(vehicle, variant: :medium)
     if vehicle.primary_photo.attached?
       begin
         variant_size = case variant
@@ -61,26 +144,16 @@ module VehiclesHelper
         vehicle.primary_photo.variant(resize_to_limit: variant_size)
       rescue => e
         Rails.logger.error "Active Storage error: #{e.message}"
-        vehicle_placeholder_url(vehicle)
+        vehicle_placeholder_url_legacy(vehicle)
       end
     else
-      vehicle_placeholder_url(vehicle)
+      vehicle_placeholder_url_legacy(vehicle)
     end
   end
   
-  # Placeholder URL
-  def vehicle_placeholder_url(vehicle)
-    image_name = case vehicle.make.to_s.downcase
-                 when 'ford' then 'Ford.webp'
-                 when 'higer' then 'Higer.jpg'
-                 when 'isuzu' then 'Isuzu.jpg'
-                 when 'nissan' then 'Nissan.webp'
-                 when 'suzuki' then 'Suzuki.jpg'
-                 when 'toyota'
-                   vehicle.model.to_s.downcase == 'hilux' ? 'Toyota.jpeg' : 'toyota.jpg'
-                 else
-                   'default.png'
-                 end
+  # Placeholder URL (legacy)
+  def vehicle_placeholder_url_legacy(vehicle)
+    image_name = make_based_placeholder(vehicle)
     
     # Try asset path first, fall back to direct path
     begin
@@ -92,7 +165,9 @@ module VehiclesHelper
   
   # Check if vehicle has uploaded photo
   def has_uploaded_photo?(vehicle)
-    vehicle.primary_photo.attached?
+    vehicle.primary_photo.attached? || 
+    (vehicle.gallery_photos.attached? && vehicle.gallery_photos.any?) ||
+    vehicle.picture.present?
   end
   
   # Gallery photo helpers
@@ -127,13 +202,17 @@ module VehiclesHelper
   
   # Photo upload info text
   def photo_upload_info(vehicle)
-    if has_uploaded_photo?(vehicle)
+    if vehicle.is_vmcott_vehicle?
+      content_tag(:small, class: "text-muted") do
+        "No images for VMCOTT vehicles"
+      end
+    elsif has_uploaded_photo?(vehicle)
       content_tag(:small, class: "text-success") do
         "✓ Custom photo uploaded"
       end
     else
       content_tag(:small, class: "text-muted") do
-        "Using default placeholder based on vehicle make"
+        "Using #{vehicle.agency&.code || 'default'} placeholder"
       end
     end
   end
@@ -165,7 +244,7 @@ module VehiclesHelper
   end
 
   # =====================================================
-  # MAINTENANCE HELPER METHODS - ADDED
+  # MAINTENANCE HELPER METHODS
   # =====================================================
   
   # Safe date formatting
@@ -246,6 +325,38 @@ module VehiclesHelper
               class: "progress-bar bg-success", 
               style: "width: #{((active.to_f / total) * 100).round(1)}%",
               title: "#{active} active"))
+    end
+  end
+  
+  # =====================================================
+  # ✅ NEW: Agency-specific helpers
+  # =====================================================
+  
+  # Get placeholder info text
+  def placeholder_info_text(vehicle)
+    return "VMCOTT vehicles do not display images" if vehicle.is_vmcott_vehicle?
+    
+    if has_uploaded_photo?(vehicle)
+      "Custom image"
+    else
+      case vehicle.agency&.code
+      when 'PTSC' then "Default PTSC Trinidad bus image"
+      when 'TTPS' then "Default TTPS police vehicle image"
+      when 'TTDF' then "Default TTDF military vehicle image"
+      else "Default placeholder"
+      end
+    end
+  end
+  
+  # Image attribution (for placeholders)
+  def image_attribution(vehicle)
+    return nil if vehicle.is_vmcott_vehicle? || has_uploaded_photo?(vehicle)
+    
+    case vehicle.agency&.code
+    when 'PTSC' then "PTSC Trinidad Bus"
+    when 'TTPS' then "TTPS Police Vehicle"
+    when 'TTDF' then "TTDF Military Vehicle"
+    else nil
     end
   end
 end

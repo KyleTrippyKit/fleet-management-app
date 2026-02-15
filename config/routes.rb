@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION (WITH VENDOR RFQ/QUOTATION + FIXES)
+# config/routes.rb - COMPLETE REVISED VERSION (WITH AGENCY FILTERING FIX)
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
@@ -65,11 +65,18 @@ Rails.application.routes.draw do
   get "no-agency-assigned", to: "welcome#no_agency_assigned", as: :no_agency_assigned
 
   # ========================
-  # Agency-specific
+  # Agency-specific routes - CRITICAL FOR FILTERING
   # ========================
-  get "agency/:id/vehicles",    to: "vehicles#index",                 as: :agency_vehicles
-  get "agency/:id/analytics",   to: "vehicles#analytics",             as: :agency_analytics
-  get "agency/:id/maintenance", to: "vehicles#maintenance_dashboard", as: :agency_maintenance
+  resources :agencies, only: [:index, :show] do
+    member do
+      get :vehicles, to: 'vehicles#index'  # This creates agency_vehicles_path
+    end
+  end
+  
+  # Alternative explicit routes (more reliable)
+  get "agencies/:id/vehicles",    to: "vehicles#index", as: :agency_vehicles
+  get "agencies/:id/analytics",   to: "vehicles#analytics", as: :agency_analytics
+  get "agencies/:id/maintenance", to: "vehicles#maintenance_dashboard", as: :agency_maintenance
 
   # ========================
   # Vehicle Catalog Entries
@@ -288,14 +295,6 @@ Rails.application.routes.draw do
           post :reject
         end
       end
-
-      # OPTIONAL (only if you have this controller)
-      # resources :vendor_rfq_responses, only: [:create, :update, :destroy] do
-      #   member do
-      #     post :mark_awarded
-      #     post :mark_rejected
-      #   end
-      # end
     end
   end
 
@@ -617,18 +616,6 @@ Rails.application.routes.draw do
   get "payment-dashboard/bulk-payment",           to: "payment_dashboard#bulk_payment",         as: :bulk_payment_interface
   post "payment-dashboard/process-bulk",          to: "payment_dashboard#process_bulk_payment", as: :process_bulk_payment
   get "payment-dashboard/vendor-summary/:vendor", to: "payment_dashboard#vendor_summary",       as: :vendor_payment_summary
-
-  # ========================
-  # Agency workflow shortcuts - DELETED - These cause routing errors
-  # The functionality is already available through:
-  # - AgenciesDashboardController#show for agency dashboards
-  # - QuotationsController#received for agency quotation review
-  # - PurchaseOrdersController#awaiting_acceptance for PO acceptance
-  # ========================
-  # The following namespace blocks have been removed because they reference controllers that don't exist:
-  # - namespace :ptsc do ... end
-  # - namespace :ttps do ... end
-  # - namespace :ttdf do ... end
 
   # ========================
   # Accounting system

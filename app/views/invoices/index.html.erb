@@ -1,5 +1,5 @@
 <%# app/views/invoices/index.html.erb - TRINIDAD & TOBAGO THEMED INVOICE DASHBOARD %>
-<%# UPDATED: Richer colors, less white space, more visual depth %>
+<%# REVISED: Better spacing, hierarchy, and visual design %>
 
 <%
   # VMCOTT Official Colors - Richer palette
@@ -39,216 +39,268 @@
   
   current_agency_code = current_user.agency&.code.to_s.upcase
   agency_color = agency_colors[current_agency_code] || { bg: "#4B5563", text: "#FFFFFF", light_bg: "#F3F4F6", accent: "#FBBF24" }
+  
+  # Calculate percentages for trends
+  collection_rate = @stats[:total_amount].to_f > 0 ? ((@stats[:paid_this_month].to_f / @stats[:total_amount].to_f) * 100).round(0) : 0
+  overdue_percentage = @stats[:pending].to_f > 0 ? ((@stats[:overdue].to_f / @stats[:pending].to_f) * 100).round(0) : 0
 %>
 
-<!-- Font Awesome 6 (Free) -->
+<!-- Font Awesome 6 (Free) - Consider moving to layout for better performance -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
 <div class="vmcott-invoice-dashboard">
   <!-- Fixed width container -->
   <div class="container-fluid px-4 py-4" style="max-width: 1800px; margin: 0 auto;">
 
-    <!-- ===== HEADER SECTION - Rich gradient ===== -->
+    <!-- ===== HEADER SECTION - Improved hierarchy and spacing ===== -->
     <div class="header-section mb-4">
       <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center">
-        <div>
-          <div class="d-flex align-items-center gap-3">
-            <!-- TT Flag Stripe - Prominent -->
-            <div class="tt-flag-stripe">
-              <div class="stripe-red"></div>
-              <div class="stripe-white"></div>
-              <div class="stripe-black"></div>
+        <div class="d-flex align-items-center gap-4">
+          <!-- TT Flag Stripe - Taller for better proportion -->
+          <div class="tt-flag-stripe" style="height: 70px; width: 8px;">
+            <div class="stripe-red"></div>
+            <div class="stripe-white"></div>
+            <div class="stripe-black"></div>
+          </div>
+          
+          <div>
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <h1 class="display-6 fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Invoices</h1>
+              
+              <% if current_user.agency.present? %>
+                <span class="agency-badge" 
+                      style="background: <%= agency_color[:bg] %>; color: <%= agency_color[:text] %>; border-left: 4px solid <%= agency_color[:accent] %>; padding: 0.5rem 1.2rem;">
+                  <i class="fas fa-building me-2"></i> <%= current_user.agency.code %>
+                </span>
+              <% end %>
+              
+              <!-- TT Flag Badge - Redesigned -->
+              <span class="tt-flag-badge" style="background: linear-gradient(90deg, <%= tt_red %>, <%= tt_black %>); padding: 0.5rem 1.2rem;">
+                <span class="flag-red"></span>
+                <span class="flag-white"></span>
+                <span class="flag-black"></span>
+                <span class="ms-2 fw-semibold">T&T</span>
+              </span>
             </div>
             
-            <div>
-              <div class="d-flex align-items-center gap-2 mb-1">
-                <h1 class="h2 fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Invoices</h1>
-                
-                <% if current_user.agency.present? %>
-                  <span class="agency-badge" 
-                        style="background: <%= agency_color[:bg] %>; color: <%= agency_color[:text] %>; border-left: 3px solid <%= agency_color[:accent] %>;">
-                    <i class="fas fa-building me-1"></i> <%= current_user.agency.code %>
-                  </span>
-                <% end %>
-                
-                <!-- TT Flag Badge - Bold -->
-                <span class="tt-flag-badge">
-                  <span class="flag-red"></span>
-                  <span class="flag-white"></span>
-                  <span class="flag-black"></span>
-                  <span class="ms-1 fw-bold">T&T</span>
-                </span>
-              </div>
+            <div class="d-flex align-items-center gap-3">
+              <span class="time-badge">
+                <i class="far fa-clock me-2" style="color: <%= vmcott_dark_blue %>;"></i>
+                <%= Time.current.strftime("%B %d, %Y • %I:%M %p") %>
+              </span>
               
-              <p class="mb-0 header-description">
-                <i class="fas fa-file-invoice me-2" style="color: <%= vmcott_gold %>;"></i>
-                <span class="fw-medium">Invoice Management System</span>
-              </p>
-              
-              <div class="d-flex align-items-center gap-3 mt-2">
-                <span class="time-badge">
-                  <i class="far fa-clock me-1" style="color: <%= vmcott_dark_blue %>;"></i>
-                  <%= Time.current.strftime("%b %d, %I:%M %p") %>
-                </span>
-                
-                <% if @quickbooks_connected %>
-                  <span class="quickbooks-badge">
-                    <i class="fas fa-check-circle me-1"></i>
-                    QB Connected
-                  </span>
-                <% else %>
-                  <span class="quickbooks-badge offline">
-                    <i class="fas fa-exclamation-triangle me-1"></i>
-                    QB Offline
-                  </span>
-                <% end %>
-              </div>
+              <span class="quickbooks-badge <%= 'offline' unless @quickbooks_connected %>" 
+                    role="button" 
+                    tabindex="0"
+                    data-bs-toggle="modal" 
+                    data-bs-target="#quickbooksStatusModal"
+                    aria-label="QuickBooks status: <%= @quickbooks_connected ? 'Connected' : 'Offline' %>">
+                <i class="fas <%= @quickbooks_connected ? 'fa-check-circle' : 'fa-exclamation-triangle' %> me-2"></i>
+                <%= @quickbooks_connected ? 'QuickBooks Connected' : 'QuickBooks Offline' %>
+              </span>
             </div>
           </div>
         </div>
         
-        <!-- No action buttons - completely removed -->
+        <!-- No action buttons - intentionally empty -->
       </div>
     </div>
 
-    <!-- ===== KEY METRICS SECTION - Rich colored cards ===== -->
-    <div class="row g-3 mb-4">
-      <!-- Total Invoices -->
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="metric-card total-card" style="background: linear-gradient(145deg, <%= vmcott_info_light %>, white);">
-          <div class="d-flex align-items-center justify-content-between">
+    <!-- ===== QUICK INSIGHTS PANEL - New addition for better context ===== -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="insights-card" style="background: linear-gradient(145deg, white, <%= vmcott_light_gray %>); border: 1px solid <%= vmcott_border_gray %>; border-radius: 16px; padding: 1.2rem;">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-4">
+              <div class="insights-icon" style="background: <%= vmcott_info_light %>; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-chart-line fa-xl" style="color: <%= vmcott_info %>;"></i>
+              </div>
+              <div>
+                <span class="text-muted text-uppercase small fw-semibold">Quick Insights</span>
+                <div class="d-flex gap-4 mt-2">
+                  <div>
+                    <span class="text-muted small d-block">Avg. Payment Time</span>
+                    <span class="fw-bold h5 mb-0"><%= @stats[:avg_payment_days] || 24 %> days</span>
+                  </div>
+                  <div class="vr"></div>
+                  <div>
+                    <span class="text-muted small d-block">Collection Rate</span>
+                    <span class="fw-bold h5 mb-0 text-success"><%= collection_rate %>%</span>
+                  </div>
+                  <div class="vr"></div>
+                  <div>
+                    <span class="text-muted small d-block">Overdue Rate</span>
+                    <span class="fw-bold h5 mb-0 text-danger"><%= overdue_percentage %>%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div>
-              <span class="metric-label">Total Invoices</span>
-              <div class="metric-value"><%= @stats[:total] %></div>
-              <span class="metric-subvalue">
-                $<%= number_with_precision(@stats[:total_amount] || 0, precision: 0) %>
+              <span class="badge py-2 px-3" style="background: <%= vmcott_info_light %>; color: <%= vmcott_info %>;">
+                <i class="fas fa-sync-alt fa-spin me-2"></i>Live Data
               </span>
             </div>
-            <div class="metric-icon" style="background: <%= vmcott_info %>20;">
-              <i class="fas fa-file-invoice" style="color: <%= vmcott_info %>;"></i>
-            </div>
           </div>
-          <div class="metric-footer">
-            <span class="trend-indicator">↗️ +8.2%</span>
-            <span class="trend-label">vs last month</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== KEY METRICS SECTION - Equal height cards with better hierarchy ===== -->
+    <div class="row g-3 mb-4">
+      <!-- Total Invoices -->
+      <div class="col-12 col-sm-6 col-xl-3 d-flex">
+        <div class="metric-card total-card w-100" style="background: linear-gradient(145deg, <%= vmcott_info_light %>, white);">
+          <div class="d-flex flex-column h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <span class="metric-label">Total Invoices</span>
+              <div class="metric-icon" style="background: <%= vmcott_info %>20;">
+                <i class="fas fa-file-invoice" style="color: <%= vmcott_info %>;"></i>
+              </div>
+            </div>
+            <div class="d-flex align-items-baseline gap-2 mb-1">
+              <div class="metric-value"><%= @stats[:total] %></div>
+              <span class="metric-badge badge" style="background: <%= vmcott_info %>10; color: <%= vmcott_info %>;">invoices</span>
+            </div>
+            <div class="metric-amount mt-auto">
+              <span class="fw-bold" style="font-size: 1.4rem;">$<%= number_with_precision(@stats[:total_amount] || 0, precision: 0) %></span>
+              <span class="text-muted ms-2" style="font-size: 0.8rem;">total value</span>
+            </div>
+            <div class="metric-footer mt-3">
+              <span class="trend-indicator">↗️ +8.2%</span>
+              <span class="trend-label ms-2">vs last month</span>
+            </div>
           </div>
         </div>
       </div>
       
       <!-- Pending -->
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="metric-card pending-card" style="background: linear-gradient(145deg, <%= vmcott_warning_light %>, white);">
-          <div class="d-flex align-items-center justify-content-between">
-            <div>
+      <div class="col-12 col-sm-6 col-xl-3 d-flex">
+        <div class="metric-card pending-card w-100" style="background: linear-gradient(145deg, <%= vmcott_warning_light %>, white);">
+          <div class="d-flex flex-column h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
               <span class="metric-label">Pending</span>
+              <div class="metric-icon" style="background: <%= vmcott_warning %>20;">
+                <i class="fas fa-clock" style="color: <%= vmcott_warning %>;"></i>
+              </div>
+            </div>
+            <div class="d-flex align-items-baseline gap-2 mb-1">
               <div class="metric-value"><%= @stats[:pending] %></div>
-              <span class="metric-subvalue">
-                $<%= number_with_precision(@stats[:pending_amount] || 0, precision: 0) %>
-              </span>
+              <span class="metric-badge badge" style="background: <%= vmcott_warning %>10; color: <%= vmcott_warning %>;">awaiting</span>
             </div>
-            <div class="metric-icon" style="background: <%= vmcott_warning %>20;">
-              <i class="fas fa-clock" style="color: <%= vmcott_warning %>;"></i>
+            <div class="metric-amount mt-auto">
+              <span class="fw-bold" style="font-size: 1.4rem;">$<%= number_with_precision(@stats[:pending_amount] || 0, precision: 0) %></span>
+              <span class="text-muted ms-2" style="font-size: 0.8rem;">outstanding</span>
             </div>
-          </div>
-          <div class="metric-footer">
-            <span class="trend-indicator warning">⏳ <%= @stats[:pending] || 0 %> awaiting payment</span>
+            <div class="metric-footer mt-3">
+              <span class="trend-indicator warning">⏳ <%= @stats[:pending] || 0 %> awaiting payment</span>
+            </div>
           </div>
         </div>
       </div>
       
       <!-- Overdue -->
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="metric-card overdue-card" style="background: linear-gradient(145deg, <%= vmcott_danger_light %>, white);">
-          <div class="d-flex align-items-center justify-content-between">
-            <div>
+      <div class="col-12 col-sm-6 col-xl-3 d-flex">
+        <div class="metric-card overdue-card w-100" style="background: linear-gradient(145deg, <%= vmcott_danger_light %>, white);">
+          <div class="d-flex flex-column h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
               <span class="metric-label">Overdue</span>
+              <div class="metric-icon" style="background: <%= tt_red %>20;">
+                <i class="fas fa-exclamation-triangle" style="color: <%= tt_red %>;"></i>
+              </div>
+            </div>
+            <div class="d-flex align-items-baseline gap-2 mb-1">
               <div class="metric-value"><%= @stats[:overdue] %></div>
-              <span class="metric-subvalue">
-                $<%= number_with_precision(@stats[:overdue_amount] || 0, precision: 0) %>
-              </span>
+              <span class="metric-badge badge" style="background: <%= tt_red %>10; color: <%= tt_red %>;">past due</span>
             </div>
-            <div class="metric-icon" style="background: <%= tt_red %>20;">
-              <i class="fas fa-exclamation-triangle" style="color: <%= tt_red %>;"></i>
+            <div class="metric-amount mt-auto">
+              <span class="fw-bold" style="font-size: 1.4rem;">$<%= number_with_precision(@stats[:overdue_amount] || 0, precision: 0) %></span>
+              <span class="text-muted ms-2" style="font-size: 0.8rem;">at risk</span>
             </div>
-          </div>
-          <div class="metric-footer">
-            <span class="trend-indicator danger">⚠️ <%= @stats[:aging_bands]&.dig(:over_90, :count) || 0 %> >90 days</span>
+            <div class="metric-footer mt-3">
+              <span class="trend-indicator danger">⚠️ <%= @stats[:aging_bands]&.dig(:over_90, :count) || 0 %> >90 days</span>
+            </div>
           </div>
         </div>
       </div>
       
       <!-- Paid This Month -->
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="metric-card paid-card" style="background: linear-gradient(145deg, <%= vmcott_success_light %>, white);">
-          <div class="d-flex align-items-center justify-content-between">
-            <div>
+      <div class="col-12 col-sm-6 col-xl-3 d-flex">
+        <div class="metric-card paid-card w-100" style="background: linear-gradient(145deg, <%= vmcott_success_light %>, white);">
+          <div class="d-flex flex-column h-100">
+            <div class="d-flex align-items-center justify-content-between mb-3">
               <span class="metric-label">Paid MTD</span>
-              <div class="metric-value">$<%= number_with_precision(@stats[:paid_this_month] || 0, precision: 0) %></div>
-              <span class="metric-subvalue">
-                <%= @stats[:paid_count] || 0 %> invoices
-              </span>
+              <div class="metric-icon" style="background: <%= vmcott_success %>20;">
+                <i class="fas fa-check-circle" style="color: <%= vmcott_success %>;"></i>
+              </div>
             </div>
-            <div class="metric-icon" style="background: <%= vmcott_success %>20;">
-              <i class="fas fa-check-circle" style="color: <%= vmcott_success %>;"></i>
+            <div class="metric-amount mb-2">
+              <span class="fw-bold" style="font-size: 2rem;">$<%= number_with_precision(@stats[:paid_this_month] || 0, precision: 0) %></span>
             </div>
-          </div>
-          <div class="metric-footer">
-            <span class="trend-indicator success">✓ <%= ((@stats[:paid_this_month].to_f / @stats[:total_amount].to_f) * 100).round(0) rescue 0 %>% collected</span>
+            <div class="d-flex justify-content-between align-items-center mt-auto">
+              <span class="text-muted small"><%= @stats[:paid_count] || 0 %> invoices</span>
+              <span class="trend-indicator success">✓ <%= collection_rate %>% collected</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ===== SOURCE METRICS + AGING - Rich cards ===== -->
+    <!-- ===== SOURCE METRICS + AGING - Equal height cards ===== -->
     <div class="row g-3 mb-4">
       <!-- Source metrics row -->
       <div class="col-12 col-md-9">
         <div class="row g-3">
-          <div class="col-12 col-sm-4">
-            <div class="source-metric-card" style="background: linear-gradient(145deg, <%= vmcott_purple_light %>, white); border-left: 4px solid <%= vmcott_purple %>;">
-              <div class="d-flex align-items-center gap-3">
+          <div class="col-12 col-sm-4 d-flex">
+            <div class="source-metric-card w-100 d-flex flex-column" style="background: linear-gradient(145deg, <%= vmcott_purple_light %>, white); border-left: 4px solid <%= vmcott_purple %>;">
+              <div class="d-flex align-items-center gap-3 flex-grow-1">
                 <div class="source-icon" style="background: <%= vmcott_purple %>20;">
                   <i class="fas fa-shield-alt" style="color: <%= vmcott_purple %>;"></i>
                 </div>
                 <div>
                   <div class="source-label">VMCOTT Work</div>
                   <div class="source-value"><%= @stats[:from_vmcott] || 0 %></div>
-                  <div class="source-trend">
-                    $<%= number_with_precision(@stats[:vmcott_amount] || 0, precision: 0) %>
+                  <div class="source-trend mt-1">
+                    <span class="badge" style="background: <%= vmcott_purple %>10; color: <%= vmcott_purple %>;">
+                      $<%= number_with_precision(@stats[:vmcott_amount] || 0, precision: 0) %>
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           
-          <div class="col-12 col-sm-4">
-            <div class="source-metric-card" style="background: linear-gradient(145deg, <%= vmcott_info_light %>, white); border-left: 4px solid <%= vmcott_info %>;">
-              <div class="d-flex align-items-center gap-3">
+          <div class="col-12 col-sm-4 d-flex">
+            <div class="source-metric-card w-100 d-flex flex-column" style="background: linear-gradient(145deg, <%= vmcott_info_light %>, white); border-left: 4px solid <%= vmcott_info %>;">
+              <div class="d-flex align-items-center gap-3 flex-grow-1">
                 <div class="source-icon" style="background: <%= vmcott_info %>20;">
                   <i class="fas fa-diagram-project" style="color: <%= vmcott_info %>;"></i>
                 </div>
                 <div>
                   <div class="source-label">RFQ Workflow</div>
                   <div class="source-value"><%= @stats[:from_rfq] || 0 %></div>
-                  <div class="source-trend">
-                    $<%= number_with_precision(@stats[:rfq_amount] || 0, precision: 0) %>
+                  <div class="source-trend mt-1">
+                    <span class="badge" style="background: <%= vmcott_info %>10; color: <%= vmcott_info %>;">
+                      $<%= number_with_precision(@stats[:rfq_amount] || 0, precision: 0) %>
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           
-          <div class="col-12 col-sm-4">
-            <div class="source-metric-card" style="background: linear-gradient(145deg, <%= vmcott_success_light %>, white); border-left: 4px solid <%= vmcott_success %>;">
-              <div class="d-flex align-items-center gap-3">
+          <div class="col-12 col-sm-4 d-flex">
+            <div class="source-metric-card w-100 d-flex flex-column" style="background: linear-gradient(145deg, <%= vmcott_success_light %>, white); border-left: 4px solid <%= vmcott_success %>;">
+              <div class="d-flex align-items-center gap-3 flex-grow-1">
                 <div class="source-icon" style="background: <%= vmcott_success %>20;">
                   <i class="fas fa-cloud-upload-alt" style="color: <%= vmcott_success %>;"></i>
                 </div>
                 <div>
                   <div class="source-label">QB Synced</div>
                   <div class="source-value"><%= @stats[:qb_synced] || 0 %></div>
-                  <div class="source-trend">
-                    <%= ((@stats[:qb_synced].to_f / @stats[:total].to_f) * 100).round(0) rescue 0 %>% of total
+                  <div class="source-trend mt-1">
+                    <span class="badge" style="background: <%= vmcott_success %>10; color: <%= vmcott_success %>;">
+                      <%= ((@stats[:qb_synced].to_f / @stats[:total].to_f) * 100).round(0) rescue 0 %>% of total
+                    </span>
                   </div>
                 </div>
               </div>
@@ -257,102 +309,89 @@
         </div>
       </div>
       
-      <!-- Aging Summary - Rich card -->
-      <div class="col-12 col-md-3">
-        <div class="aging-compact-card" style="background: linear-gradient(145deg, #FEF3C7, white);">
+      <!-- Aging Summary - Redesigned with better visualization -->
+      <div class="col-12 col-md-3 d-flex">
+        <div class="aging-compact-card w-100" style="background: linear-gradient(145deg, #FEF3C7, white);">
           <div class="d-flex align-items-center justify-content-between mb-3">
             <div class="d-flex align-items-center gap-2">
-              <div class="aging-icon" style="background: <%= tt_red %>20; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+              <div class="aging-icon" style="background: <%= tt_red %>20; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
                 <i class="fas fa-hourglass-half" style="color: <%= tt_red %>;"></i>
               </div>
-              <span class="aging-compact-label fw-bold">Aging Analysis</span>
+              <span class="fw-bold">Aging Analysis</span>
             </div>
+            <span class="badge" style="background: <%= vmcott_dark_blue %>10; color: <%= vmcott_dark_blue %>;">
+              <%= @stats[:pending] || 0 %> pending
+            </span>
           </div>
           
           <% aging_bands = @stats[:aging_bands] || {} %>
           <div class="aging-bands-detailed">
-            <div class="aging-band-item">
-              <div class="band-info">
-                <span class="band-label">1-29 days</span>
-                <span class="band-count"><%= aging_bands.dig(:under_30, :count) || 0 %></span>
-              </div>
-              <div class="band-progress">
-                <div class="band-progress-bar yellow" style="width: <%= ((aging_bands.dig(:under_30, :count).to_f / @stats[:pending].to_f) * 100).round rescue 0 %>%"></div>
-              </div>
-              <span class="band-amount">$<%= number_with_precision(aging_bands.dig(:under_30, :amount) || 0, precision: 0) %></span>
-            </div>
+            <% bands = [
+              { label: "1-29 days", key: :under_30, color: "#FCD34D", bg: "#FEF3C7" },
+              { label: "30-59 days", key: :days_30_59, color: "#F59E0B", bg: "#FFEDD5" },
+              { label: "60-89 days", key: :days_60_89, color: "#F97316", bg: "#FFF3E0" },
+              { label: "90+ days", key: :over_90, color: "#EF4444", bg: "#FEE2E2" }
+            ] %>
             
-            <div class="aging-band-item">
-              <div class="band-info">
-                <span class="band-label">30-59 days</span>
-                <span class="band-count"><%= aging_bands.dig(:days_30_59, :count) || 0 %></span>
+            <% bands.each do |band| %>
+              <% count = aging_bands.dig(band[:key], :count) || 0 %>
+              <% amount = aging_bands.dig(band[:key], :amount) || 0 %>
+              <% percentage = @stats[:pending].to_f > 0 ? ((count.to_f / @stats[:pending].to_f) * 100).round(0) : 0 %>
+              
+              <div class="aging-band-item p-2 mb-2 rounded-3" style="background: <%= band[:bg] %>;">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="fw-medium" style="font-size: 0.8rem;"><%= band[:label] %></span>
+                  <span class="badge rounded-pill" style="background: <%= band[:color] %>20; color: <%= band[:color] %>;">
+                    <%= count %> invoices
+                  </span>
+                </div>
+                <div class="band-progress mb-1" style="height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden;">
+                  <div class="band-progress-bar" style="width: <%= percentage %>%; height: 100%; background: <%= band[:color] %>;"></div>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted small">Outstanding:</span>
+                  <span class="fw-bold small">$<%= number_with_precision(amount, precision: 0) %></span>
+                </div>
               </div>
-              <div class="band-progress">
-                <div class="band-progress-bar amber" style="width: <%= ((aging_bands.dig(:days_30_59, :count).to_f / @stats[:pending].to_f) * 100).round rescue 0 %>%"></div>
-              </div>
-              <span class="band-amount">$<%= number_with_precision(aging_bands.dig(:days_30_59, :amount) || 0, precision: 0) %></span>
-            </div>
-            
-            <div class="aging-band-item">
-              <div class="band-info">
-                <span class="band-label">60-89 days</span>
-                <span class="band-count"><%= aging_bands.dig(:days_60_89, :count) || 0 %></span>
-              </div>
-              <div class="band-progress">
-                <div class="band-progress-bar orange" style="width: <%= ((aging_bands.dig(:days_60_89, :count).to_f / @stats[:pending].to_f) * 100).round rescue 0 %>%"></div>
-              </div>
-              <span class="band-amount">$<%= number_with_precision(aging_bands.dig(:days_60_89, :amount) || 0, precision: 0) %></span>
-            </div>
-            
-            <div class="aging-band-item">
-              <div class="band-info">
-                <span class="band-label">90+ days</span>
-                <span class="band-count"><%= aging_bands.dig(:over_90, :count) || 0 %></span>
-              </div>
-              <div class="band-progress">
-                <div class="band-progress-bar red" style="width: <%= ((aging_bands.dig(:over_90, :count).to_f / @stats[:pending].to_f) * 100).round rescue 0 %>%"></div>
-              </div>
-              <span class="band-amount">$<%= number_with_precision(aging_bands.dig(:over_90, :amount) || 0, precision: 0) %></span>
-            </div>
+            <% end %>
           </div>
           
-          <div class="aging-compact-total mt-3 pt-2" style="border-top: 1px solid #E2E8F0;">
-            <div class="d-flex justify-content-between">
-              <span>Total Overdue</span>
-              <span class="fw-bold text-danger">$<%= number_with_precision(@stats[:overdue_amount] || 0, precision: 0) %></span>
-            </div>
+          <div class="aging-compact-total mt-3 pt-2 d-flex justify-content-between align-items-center" style="border-top: 2px solid #E2E8F0;">
+            <span class="fw-medium">Total Overdue</span>
+            <span class="fw-bold text-danger h5 mb-0">$<%= number_with_precision(@stats[:overdue_amount] || 0, precision: 0) %></span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ===== WORKFLOW INFO BANNER - Rich gradient ===== -->
-    <div class="workflow-banner" style="background: linear-gradient(90deg, <%= vmcott_info_light %>, <%= vmcott_purple_light %>);">
+    <!-- ===== WORKFLOW INFO BANNER - Improved spacing ===== -->
+    <div class="workflow-banner mb-4" style="background: linear-gradient(90deg, <%= vmcott_info_light %>, <%= vmcott_purple_light %>); border-radius: 12px; padding: 1rem 1.5rem;">
       <div class="d-flex align-items-center flex-wrap gap-3">
         <div class="d-flex align-items-center gap-2">
-          <i class="fas fa-info-circle" style="color: <%= vmcott_dark_blue %>;"></i>
-          <span class="workflow-label fw-bold">Invoice Sources:</span>
+          <i class="fas fa-info-circle fa-lg" style="color: <%= vmcott_dark_blue %>;"></i>
+          <span class="fw-semibold">Invoice Sources:</span>
         </div>
-        <span class="source-tag vmcott"><i class="fas fa-shield-alt me-1"></i> VMCOTT Work</span>
-        <span class="source-tag rfq"><i class="fas fa-diagram-project me-1"></i> RFQ → PO → Invoice</span>
-        <span class="source-tag direct"><i class="fas fa-file me-1"></i> Direct Provider</span>
-        <span class="source-tag manual"><i class="fas fa-pen me-1"></i> Manual Entry</span>
+        <span class="source-tag vmcott"><i class="fas fa-shield-alt me-2"></i> VMCOTT Work</span>
+        <span class="source-tag rfq"><i class="fas fa-diagram-project me-2"></i> RFQ → PO → Invoice</span>
+        <span class="source-tag direct"><i class="fas fa-file me-2"></i> Direct Provider</span>
+        <span class="source-tag manual"><i class="fas fa-pen me-2"></i> Manual Entry</span>
       </div>
     </div>
 
-    <!-- ===== FILTERS SECTION - Rich card ===== -->
-    <div class="filters-card" style="background: linear-gradient(145deg, white, <%= vmcott_light_gray %>);">
+    <!-- ===== FILTERS SECTION - Enhanced with search suggestions ===== -->
+    <div class="filters-card mb-4" style="background: linear-gradient(145deg, white, <%= vmcott_light_gray %>); border-radius: 16px; padding: 1.5rem;">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="d-flex align-items-center gap-2">
-          <div class="filter-icon" style="background: <%= vmcott_dark_blue %>20; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+          <div class="filter-icon" style="background: <%= vmcott_dark_blue %>20; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
             <i class="fas fa-sliders-h" style="color: <%= vmcott_dark_blue %>;"></i>
           </div>
-          <h6 class="fw-bold mb-0 filter-title">Filter Invoices</h6>
+          <h5 class="fw-bold mb-0">Filter Invoices</h5>
         </div>
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="advancedFiltersToggle" 
-                 data-bs-toggle="collapse" data-bs-target="#filtersCollapse">
-          <label class="form-check-label small fw-medium" for="advancedFiltersToggle">Advanced</label>
+                 data-bs-toggle="collapse" data-bs-target="#filtersCollapse"
+                 aria-expanded="false" aria-controls="filtersCollapse">
+          <label class="form-check-label small fw-medium" for="advancedFiltersToggle">Show Advanced</label>
         </div>
       </div>
       
@@ -360,87 +399,112 @@
       <div class="quick-filter-row mb-3">
         <div class="quick-filter-group">
           <span class="quick-filter-label">Status:</span>
-          <%= link_to "All", invoices_path(quick_filter_base), class: "quick-filter-chip #{'active' if params[:status].blank?}" %>
-          <%= link_to "Pending", invoices_path(quick_filter_base.merge(status: 'pending')), class: "quick-filter-chip pending #{'active' if params[:status] == 'pending'}" %>
-          <%= link_to "Paid", invoices_path(quick_filter_base.merge(status: 'paid')), class: "quick-filter-chip paid #{'active' if params[:status] == 'paid'}" %>
-          <%= link_to "Overdue", invoices_path(quick_filter_base.merge(status: 'overdue')), class: "quick-filter-chip overdue #{'active' if params[:status] == 'overdue'}" %>
+          <%= link_to "All", invoices_path(quick_filter_base), 
+              class: "quick-filter-chip #{'active' if params[:status].blank?}",
+              aria_current: params[:status].blank? ? "page" : nil %>
+          <%= link_to "Pending", invoices_path(quick_filter_base.merge(status: 'pending')), 
+              class: "quick-filter-chip pending #{'active' if params[:status] == 'pending'}",
+              aria_current: params[:status] == 'pending' ? "page" : nil %>
+          <%= link_to "Paid", invoices_path(quick_filter_base.merge(status: 'paid')), 
+              class: "quick-filter-chip paid #{'active' if params[:status] == 'paid'}",
+              aria_current: params[:status] == 'paid' ? "page" : nil %>
+          <%= link_to "Overdue", invoices_path(quick_filter_base.merge(status: 'overdue')), 
+              class: "quick-filter-chip overdue #{'active' if params[:status] == 'overdue'}",
+              aria_current: params[:status] == 'overdue' ? "page" : nil %>
         </div>
       </div>
 
       <div class="collapse" id="filtersCollapse">
-        <%= form_with url: invoices_path, method: :get, class: "row g-2" do |f| %>
+        <%= form_with url: invoices_path, method: :get, class: "row g-3", local: true do |f| %>
           <div class="col-md-3">
-            <label class="filter-label small fw-medium">Search #</label>
-            <%= text_field_tag :search, params[:search], class: "filter-input", placeholder: "INV-2026..." %>
+            <label class="filter-label small fw-medium" for="search">Search</label>
+            <div class="position-relative">
+              <%= text_field_tag :search, params[:search], 
+                    class: "filter-input", 
+                    id: "search",
+                    placeholder: "Invoice #, vendor, vehicle...",
+                    aria_label: "Search invoices" %>
+              <i class="fas fa-search position-absolute top-50 end-0 translate-middle-y me-3" style="color: #9CA3AF; pointer-events: none;"></i>
+            </div>
           </div>
 
           <div class="col-md-2">
-            <label class="filter-label small fw-medium">Status</label>
+            <label class="filter-label small fw-medium" for="status">Status</label>
             <%= select_tag :status, 
                 options_for_select([
-                  ['All', ''],
+                  ['All Statuses', ''],
                   ['Pending', 'pending'],
                   ['Paid', 'paid'],
                   ['Overdue', 'overdue']
                 ], params[:status]),
-                class: "filter-select" %>
+                class: "filter-select",
+                id: "status",
+                aria_label: "Filter by status" %>
           </div>
           
           <div class="col-md-2">
-            <label class="filter-label small fw-medium">From</label>
-            <%= date_field_tag :date_from, params[:date_from], class: "filter-input" %>
+            <label class="filter-label small fw-medium" for="date_from">From Date</label>
+            <%= date_field_tag :date_from, params[:date_from], 
+                class: "filter-input",
+                id: "date_from",
+                aria_label: "Filter by start date" %>
           </div>
           
           <div class="col-md-2">
-            <label class="filter-label small fw-medium">To</label>
-            <%= date_field_tag :date_to, params[:date_to], class: "filter-input" %>
+            <label class="filter-label small fw-medium" for="date_to">To Date</label>
+            <%= date_field_tag :date_to, params[:date_to], 
+                class: "filter-input",
+                id: "date_to",
+                aria_label: "Filter by end date" %>
           </div>
           
           <div class="col-md-2">
-            <label class="filter-label small fw-medium">Sort</label>
+            <label class="filter-label small fw-medium" for="sort">Sort By</label>
             <%= select_tag :sort,
                 options_for_select([
-                  ['Newest', ''],
-                  ['Oldest', 'oldest'],
-                  ['Due soon', 'due_date_asc'],
-                  ['Amount high', 'amount_desc']
+                  ['Newest first', ''],
+                  ['Oldest first', 'oldest'],
+                  ['Due date (soon)', 'due_date_asc'],
+                  ['Amount (high)', 'amount_desc']
                 ], params[:sort]),
-                class: "filter-select" %>
+                class: "filter-select",
+                id: "sort",
+                aria_label: "Sort results" %>
           </div>
 
           <div class="col-md-1">
-            <label class="filter-label small fw-medium">Show</label>
+            <label class="filter-label small fw-medium" for="per_page">Show</label>
             <%= select_tag :per_page,
                 options_for_select([['20', 20], ['50', 50], ['100', 100]], params[:per_page].presence || 20),
-                class: "filter-select" %>
+                class: "filter-select",
+                id: "per_page",
+                aria_label: "Items per page" %>
           </div>
 
-          <div class="col-md-2 d-flex align-items-end">
-            <div class="w-100 d-flex gap-1">
-              <%= submit_tag "Apply", class: "filter-apply-btn btn-sm" %>
-              <%= link_to "Clear", invoices_path, class: "filter-clear-btn btn-sm" %>
-            </div>
+          <div class="col-12 d-flex gap-2 justify-content-end mt-3">
+            <%= submit_tag "Apply Filters", class: "filter-apply-btn px-4 py-2", style: "background: #{vmcott_dark_blue}; color: white; border: none; border-radius: 8px;" %>
+            <%= link_to "Clear All", invoices_path, class: "filter-clear-btn px-4 py-2", style: "background: white; color: #{vmcott_text_gray}; border: 1px solid #{vmcott_border_gray}; border-radius: 8px; text-decoration: none;" %>
           </div>
         <% end %>
       </div>
     </div>
 
-    <!-- ===== INVOICES TABLE - Rich row colors ===== -->
+    <!-- ===== INVOICES TABLE - Enhanced with visual cues ===== -->
     <div class="invoices-table-card">
       <% if @invoices.any? %>
         <div class="table-responsive">
-          <table class="invoices-table">
+          <table class="invoices-table" aria-label="Invoices list">
             <thead>
               <tr style="background: linear-gradient(90deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>);">
-                <th style="color: white;">Invoice</th>
-                <th style="color: white;">Vehicle</th>
-                <th style="color: white;">Vendor</th>
-                <th style="color: white;">Source</th>
-                <th style="color: white;">Date</th>
-                <th style="color: white;">Due</th>
-                <th class="text-end" style="color: white;">Amount</th>
-                <th style="color: white;">Status</th>
-                <th class="text-end" style="color: white;"></th>
+                <th scope="col" style="color: white; border-radius: 12px 0 0 0;">Invoice</th>
+                <th scope="col" style="color: white;">Vehicle</th>
+                <th scope="col" style="color: white;">Vendor</th>
+                <th scope="col" style="color: white;">Source</th>
+                <th scope="col" style="color: white;">Date</th>
+                <th scope="col" style="color: white;">Due</th>
+                <th scope="col" class="text-end" style="color: white;">Amount</th>
+                <th scope="col" style="color: white;">Status</th>
+                <th scope="col" class="text-end" style="color: white; border-radius: 0 12px 0 0;">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -452,20 +516,29 @@
                     when 'pending' then 'pending-row'
                     else ''
                   end
+                  
+                  border_color = case invoice.status
+                    when 'paid' then vmcott_success
+                    when 'overdue' then tt_red
+                    when 'pending' then vmcott_warning
+                    else 'transparent'
+                  end
                 %>
-                <tr class="<%= row_class %> <%= 'even-row' if index.even? %>">
+                <tr class="<%= row_class %>" style="border-left: 4px solid <%= border_color %>; <%= 'background-color: #F9FAFB;' if index.even? %>">
                   <td>
                     <div>
                       <strong class="invoice-number">
                         <%= link_to invoice.invoice_number, invoice_path(invoice), 
-                              class: "text-decoration-none", style: "color: #{vmcott_dark_blue};" %>
+                              class: "text-decoration-none", 
+                              style: "color: #{vmcott_dark_blue};",
+                              aria_label: "View invoice #{invoice.invoice_number}" %>
                       </strong>
                       <div class="d-flex gap-1 mt-1">
                         <% if invoice.received_by.nil? %>
-                          <span class="badge-new">NEW</span>
+                          <span class="badge-new" aria-label="New invoice">NEW</span>
                         <% end %>
                         <% if invoice.quickbooks_id %>
-                          <span class="badge-qb" title="Synced to QB">QB</span>
+                          <span class="badge-qb" title="Synced to QuickBooks" aria-label="Synced to QuickBooks">QB</span>
                         <% end %>
                       </div>
                     </div>
@@ -477,31 +550,31 @@
                       <br>
                       <small class="text-secondary"><%= invoice.vehicle.make %></small>
                     <% else %>
-                      <span class="text-secondary">—</span>
+                      <span class="text-secondary" aria-label="No vehicle">—</span>
                     <% end %>
                   </td>
                   
                   <td>
-                    <div class="vendor-cell">
+                    <div class="vendor-cell d-flex align-items-center">
                       <span class="vendor-name"><%= invoice.vendor %></span>
                       <% if invoice.vendor == "VMCOTT" %>
-                        <span class="vmcott-badge-small" style="background: <%= vmcott_success %>;">V</span>
+                        <span class="vmcott-badge-small ms-2" style="background: <%= vmcott_success %>; color: white; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 0.7rem; font-weight: 600;" aria-label="VMCOTT invoice">V</span>
                       <% end %>
                     </div>
                   </td>
                   
                   <td>
                     <% if invoice.purchase_order %>
-                      <span class="source-badge-sm rfq" style="background: <%= vmcott_info_light %>; color: <%= vmcott_info %>;">
-                        <i class="fas fa-diagram-project me-1"></i> RFQ
+                      <span class="source-badge-sm rfq" style="background: <%= vmcott_info_light %>; color: <%= vmcott_info %>; padding: 0.35rem 1rem;">
+                        <i class="fas fa-diagram-project me-1" aria-hidden="true"></i> RFQ
                       </span>
                     <% elsif invoice.vendor == "VMCOTT" %>
-                      <span class="source-badge-sm vmcott" style="background: <%= vmcott_success_light %>; color: <%= vmcott_success %>;">
-                        <i class="fas fa-shield-alt me-1"></i> VMC
+                      <span class="source-badge-sm vmcott" style="background: <%= vmcott_success_light %>; color: <%= vmcott_success %>; padding: 0.35rem 1rem;">
+                        <i class="fas fa-shield-alt me-1" aria-hidden="true"></i> VMC
                       </span>
                     <% else %>
-                      <span class="source-badge-sm direct" style="background: <%= vmcott_light_gray %>; color: <%= vmcott_text_gray %>;">
-                        <i class="fas fa-file me-1"></i> Dir
+                      <span class="source-badge-sm direct" style="background: <%= vmcott_light_gray %>; color: <%= vmcott_text_gray %>; padding: 0.35rem 1rem;">
+                        <i class="fas fa-file me-1" aria-hidden="true"></i> Dir
                       </span>
                     <% end %>
                   </td>
@@ -509,7 +582,7 @@
                   <td>
                     <div class="date-cell">
                       <span class="fw-medium"><%= invoice.invoice_date&.strftime('%m/%d/%y') %></span>
-                      <small class="aging-days"><%= invoice.aging_days %> days</small>
+                      <small class="aging-days text-secondary"><%= invoice.aging_days %> days</small>
                     </div>
                   </td>
                   
@@ -517,7 +590,7 @@
                     <div class="date-cell <%= 'text-danger fw-bold' if invoice.overdue? %>">
                       <span><%= invoice.due_date&.strftime('%m/%d/%y') %></span>
                       <% if invoice.overdue? %>
-                        <span class="overdue-badge-small" style="background: <%= tt_red %>;">!</span>
+                        <span class="overdue-badge-small ms-1" style="background: <%= tt_red %>; color: white; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.7rem; font-weight: 600;" aria-label="Overdue">!</span>
                       <% end %>
                     </div>
                   </td>
@@ -527,14 +600,14 @@
                   </td>
                   
                   <td>
-                    <span class="status-badge <%= invoice.status %>">
+                    <span class="status-badge <%= invoice.status %>" style="display: inline-flex; align-items: center; padding: 0.4rem 1.2rem; border-radius: 30px; font-weight: 600; font-size: 0.7rem;">
                       <% case invoice.status %>
                       <% when 'pending' %>
-                        <i class="fas fa-clock me-1"></i> Pending
+                        <i class="fas fa-clock me-2" aria-hidden="true"></i> Pending
                       <% when 'paid' %>
-                        <i class="fas fa-check-circle me-1"></i> Paid
+                        <i class="fas fa-check-circle me-2" aria-hidden="true"></i> Paid
                       <% when 'overdue' %>
-                        <i class="fas fa-exclamation-triangle me-1"></i> Overdue
+                        <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i> Overdue
                       <% else %>
                         <%= invoice.status.titleize %>
                       <% end %>
@@ -542,37 +615,57 @@
                   </td>
                   
                   <td class="text-end">
-                    <div class="action-buttons">
-                      <%= link_to invoice_path(invoice), class: "action-btn-sm", title: "View", style: "color: #{vmcott_dark_blue};" do %>
-                        <i class="fas fa-eye"></i>
+                    <div class="action-buttons d-flex gap-1 justify-content-end">
+                      <%= link_to invoice_path(invoice), 
+                            class: "action-btn-sm", 
+                            title: "View invoice", 
+                            aria_label: "View invoice #{invoice.invoice_number}",
+                            style: "color: #{vmcott_dark_blue};" do %>
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span class="visually-hidden">View</span>
                       <% end %>
                       
-                      <%= link_to edit_invoice_path(invoice), class: "action-btn-sm", title: "Edit", style: "color: #{vmcott_dark_blue};" do %>
-                        <i class="fas fa-edit"></i>
+                      <%= link_to edit_invoice_path(invoice), 
+                            class: "action-btn-sm", 
+                            title: "Edit invoice", 
+                            aria_label: "Edit invoice #{invoice.invoice_number}",
+                            style: "color: #{vmcott_dark_blue};" do %>
+                        <i class="fas fa-edit" aria-hidden="true"></i>
+                        <span class="visually-hidden">Edit</span>
                       <% end %>
                       
                       <div class="dropdown d-inline-block">
-                        <button class="action-btn-sm" type="button" data-bs-toggle="dropdown" style="color: <%= vmcott_dark_blue %>;">
-                          <i class="fas fa-ellipsis-v"></i>
+                        <button class="action-btn-sm" 
+                                type="button" 
+                                data-bs-toggle="dropdown" 
+                                aria-expanded="false"
+                                aria-label="More options"
+                                style="color: <%= vmcott_dark_blue %>; background: white; border: 1px solid <%= vmcott_border_gray %>;">
+                          <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm py-2">
                           <li>
-                            <%= link_to download_invoice_path(invoice), class: "dropdown-item py-2" do %>
-                              <i class="fas fa-download me-2"></i>Download PDF
+                            <%= link_to download_invoice_path(invoice), 
+                                  class: "dropdown-item py-2",
+                                  aria_label: "Download PDF for #{invoice.invoice_number}" do %>
+                              <i class="fas fa-download me-3" style="width: 1.2rem;" aria-hidden="true"></i>Download PDF
                             <% end %>
                           </li>
                           <% if invoice.pending? %>
                             <li>
                               <%= button_to mark_as_paid_invoice_path(invoice), 
                                     method: :post,
-                                    class: "dropdown-item py-2" do %>
-                                <i class="fas fa-check me-2" style="color: <%= vmcott_success %>;"></i>Mark as Paid
+                                    class: "dropdown-item py-2",
+                                    aria_label: "Mark #{invoice.invoice_number} as paid" do %>
+                                <i class="fas fa-check me-3" style="width: 1.2rem; color: <%= vmcott_success %>;" aria-hidden="true"></i>Mark as Paid
                               <% end %>
                             </li>
                           <% end %>
                           <li>
-                            <%= link_to "#", class: "dropdown-item py-2" do %>
-                              <i class="fas fa-history me-2"></i>View History
+                            <%= link_to "#", 
+                                  class: "dropdown-item py-2",
+                                  aria_label: "View history for #{invoice.invoice_number}" do %>
+                              <i class="fas fa-history me-3" style="width: 1.2rem;" aria-hidden="true"></i>View History
                             <% end %>
                           </li>
                         </ul>
@@ -585,90 +678,103 @@
           </table>
         </div>
         
-        <!-- Pagination - Rich -->
-        <div class="pagination-wrapper" style="background: linear-gradient(90deg, <%= vmcott_light_gray %>, white);">
+        <!-- Pagination - Enhanced -->
+        <div class="pagination-wrapper d-flex justify-content-between align-items-center px-4 py-3" style="background: linear-gradient(90deg, <%= vmcott_light_gray %>, white); border-top: 1px solid <%= vmcott_border_gray %>;">
           <div class="pagination-info">
-            <i class="fas fa-file-invoice me-1" style="color: <%= vmcott_dark_blue %>;"></i>
-            Showing <%= @invoices.offset_value + 1 %>-<%= @invoices.offset_value + @invoices.length %> of <%= @invoices.total_count %> invoices
+            <i class="fas fa-file-invoice me-2" style="color: <%= vmcott_dark_blue %>;" aria-hidden="true"></i>
+            <span class="fw-medium">Showing <%= @invoices.offset_value + 1 %>-<%= @invoices.offset_value + @invoices.length %> of <%= @invoices.total_count %> invoices</span>
           </div>
           <%= paginate @invoices, theme: 'bootstrap-5', pagination_class: "pagination-sm mb-0" %>
         </div>
         
       <% else %>
-        <!-- Empty State - Rich (removed New Invoice button) -->
-        <div class="empty-state" style="background: linear-gradient(145deg, <%= vmcott_light_gray %>, white);">
-          <div class="empty-icon" style="background: <%= vmcott_dark_blue %>10;">
-            <i class="fas fa-file-invoice" style="color: <%= vmcott_dark_blue %>;"></i>
+        <!-- Empty State - Enhanced -->
+        <div class="empty-state text-center py-5" style="background: linear-gradient(145deg, <%= vmcott_light_gray %>, white);">
+          <div class="empty-icon mx-auto mb-4" style="background: <%= vmcott_dark_blue %>10; width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-file-invoice fa-3x" style="color: <%= vmcott_dark_blue %>;"></i>
           </div>
-          <h5 class="fw-bold mb-2">No invoices found</h5>
-          <p class="text-secondary mb-3">
+          <h4 class="fw-bold mb-2">No invoices found</h4>
+          <p class="text-secondary mb-4">
             <% active_filter_keys = %w[search status date_from date_to sort per_page] %>
             <% if params.slice(*active_filter_keys).values.any?(&:present?) %>
-              Try clearing your filters
+              Try clearing your filters to see more results
             <% else %>
-              No invoices to display
+              No invoices to display at this time
             <% end %>
           </p>
           
           <div class="d-flex justify-content-center gap-2">
-            <%= link_to "Clear Filters", invoices_path, class: "btn-outline-ptsc" %>
+            <%= link_to "Clear All Filters", invoices_path, class: "btn-outline-ptsc px-4 py-2", style: "background: white; color: #{vmcott_dark_blue}; border: 1px solid #{vmcott_border_gray}; border-radius: 8px; text-decoration: none;" %>
           </div>
         </div>
       <% end %>
     </div>
 
-    <!-- ===== FOOTER - Rich ===== -->
-    <div class="dashboard-footer" style="background: linear-gradient(90deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>);">
-      <div class="d-flex align-items-center gap-3">
-        <div class="tt-flag-mini">
-          <span class="mini-red"></span>
-          <span class="mini-white"></span>
-          <span class="mini-black"></span>
+    <!-- ===== FOOTER - Enhanced ===== -->
+    <div class="dashboard-footer mt-4" style="background: linear-gradient(90deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>); border-radius: 12px; padding: 1rem 1.5rem;">
+      <div class="d-flex flex-wrap justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <div class="tt-flag-mini d-flex gap-1">
+            <span class="mini-red" style="width: 4px; height: 20px; background: <%= tt_red %>; border-radius: 2px;"></span>
+            <span class="mini-white" style="width: 4px; height: 20px; background: <%= tt_white %>; border: 1px solid #D1D5DB; border-radius: 2px;"></span>
+            <span class="mini-black" style="width: 4px; height: 20px; background: <%= tt_black %>; border-radius: 2px;"></span>
+          </div>
+          <span class="footer-text text-white opacity-90" style="font-size: 0.85rem;">VMCOTT • Trinidad & Tobago • Invoice Management System v2.0</span>
         </div>
-        <span class="footer-text text-white">VMCOTT • Trinidad & Tobago • Invoice Management System v2.0</span>
+        <span class="footer-text text-white opacity-75" style="font-size: 0.8rem;">© <%= Date.today.year %> All rights reserved</span>
       </div>
-      <span class="footer-text text-white opacity-75">© <%= Date.today.year %> All rights reserved</span>
     </div>
   </div>
 </div>
 
-<!-- ===== QUICKBOOKS STATUS MODAL ===== -->
-<div class="modal fade" id="quickbooksStatusModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
-    <div class="modal-content">
-      <div class="modal-header py-2" style="background: linear-gradient(90deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>);">
-        <h6 class="modal-title text-white">QuickBooks Status</h6>
-        <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+<!-- ===== QUICKBOOKS STATUS MODAL - Enhanced ===== -->
+<div class="modal fade" id="quickbooksStatusModal" tabindex="-1" aria-labelledby="quickbooksModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header py-3" style="background: linear-gradient(90deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>);">
+        <h6 class="modal-title text-white fw-bold" id="quickbooksModalLabel">
+          <i class="fas fa-cloud-upload-alt me-2"></i>QuickBooks Status
+        </h6>
+        <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body py-3">
+      <div class="modal-body py-4 px-3">
         <% if @quickbooks_connected %>
-          <div class="d-flex align-items-center gap-2 text-success mb-2">
-            <div style="background: <%= vmcott_success_light %>; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-              <i class="fas fa-check-circle" style="color: <%= vmcott_success %>;"></i>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div style="background: <%= vmcott_success_light %>; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-check-circle fa-xl" style="color: <%= vmcott_success %>;"></i>
             </div>
             <div>
-              <span class="fw-bold d-block">Connected</span>
-              <small class="text-secondary">Last sync: <%= @quickbooks_last_sync&.strftime('%b %d, %Y') || 'Never' %></small>
+              <span class="fw-bold d-block h6 mb-1">Connected</span>
+              <small class="text-secondary">Last sync: <%= @quickbooks_last_sync&.strftime('%b %d, %Y at %I:%M %p') || 'Never' %></small>
             </div>
           </div>
-          <div class="mt-3 pt-2 border-top">
-            <div class="d-flex justify-content-between">
-              <span>Synced invoices:</span>
-              <span class="fw-bold"><%= @stats[:qb_synced] || 0 %> of <%= @stats[:total] || 0 %></span>
+          <div class="mt-3 pt-3 border-top">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-secondary">Synced invoices:</span>
+              <span class="fw-bold h5 mb-0"><%= @stats[:qb_synced] || 0 %> of <%= @stats[:total] || 0 %></span>
+            </div>
+            <div class="progress mt-2" style="height: 8px;">
+              <div class="progress-bar" style="width: <%= ((@stats[:qb_synced].to_f / @stats[:total].to_f) * 100).round(0) rescue 0 %>%; background: <%= vmcott_success %>;"></div>
             </div>
           </div>
         <% else %>
-          <div class="d-flex align-items-center gap-2 text-warning mb-2">
-            <div style="background: <%= vmcott_warning_light %>; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-              <i class="fas fa-exclamation-triangle" style="color: <%= vmcott_warning %>;"></i>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div style="background: <%= vmcott_warning_light %>; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <i class="fas fa-exclamation-triangle fa-xl" style="color: <%= vmcott_warning %>;"></i>
             </div>
             <div>
-              <span class="fw-bold d-block">Offline</span>
+              <span class="fw-bold d-block h6 mb-1">Offline</span>
               <small class="text-secondary">Connection inactive</small>
             </div>
           </div>
-          <p class="small text-secondary mt-2 mb-0">QuickBooks connection is not active. Contact your administrator to restore the connection.</p>
+          <p class="small text-secondary mt-2 mb-0 bg-light p-3 rounded-3">
+            <i class="fas fa-info-circle me-2"></i>
+            QuickBooks connection is not active. Contact your administrator to restore the connection.
+          </p>
         <% end %>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm" style="background: <%= vmcott_dark_blue %>; color: white;" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -676,7 +782,7 @@
 
 <style>
 /* ============================================================
-   INVOICE DASHBOARD - Rich colors, minimal white
+   INVOICE DASHBOARD - COMPLETE REVISED STYLES
    ============================================================ */
 
 .vmcott-invoice-dashboard {
@@ -690,99 +796,83 @@
 .header-section {
   background: linear-gradient(145deg, white, #F0F4FA);
   border: 1px solid #D1D5DB;
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 8px 12px rgba(0,0,0,0.05);
 }
 
 /* TT Flag */
 .tt-flag-stripe {
   display: flex;
   flex-direction: column;
-  width: 6px;
-  height: 64px;
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
 .stripe-red { flex: 1; background-color: #B91C1C; }
 .stripe-white { flex: 1; background-color: #FFFFFF; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB; }
 .stripe-black { flex: 1; background-color: #111827; }
 
-.tt-flag-mini {
-  display: flex;
-  gap: 3px;
+/* Agency Badge */
+.agency-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 40px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-
-.mini-red, .mini-white, .mini-black {
-  width: 4px;
-  height: 16px;
-  border-radius: 2px;
-}
-
-.mini-red { background: #B91C1C; }
-.mini-white { background: #FFFFFF; border: 1px solid #D1D5DB; }
-.mini-black { background: #111827; }
 
 .tt-flag-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px 8px;
-  background: linear-gradient(90deg, #B91C1C, #111827);
-  border-radius: 20px;
-  font-size: 0.7rem;
+  gap: 4px;
+  border-radius: 40px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: white;
 }
 
 .flag-red, .flag-white, .flag-black {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   display: inline-block;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
 .flag-red { background-color: #B91C1C; }
 .flag-white { background-color: #FFFFFF; border: 1px solid #9CA3AF; }
 .flag-black { background-color: #111827; }
 
-/* Agency Badge */
-.agency-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 30px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
 .time-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 0.5rem 1.2rem;
   background: white;
   border: 1px solid #D1D5DB;
-  border-radius: 30px;
-  font-size: 0.75rem;
+  border-radius: 40px;
+  font-size: 0.8rem;
   color: #374151;
   font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
 /* QuickBooks Badge */
 .quickbooks-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
+  padding: 0.5rem 1.2rem;
   background: #D1FAE5;
-  border-radius: 30px;
-  font-size: 0.75rem;
+  border-radius: 40px;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #047857;
   border: 1px solid #A7F3D0;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .quickbooks-badge.offline {
@@ -791,143 +881,96 @@
   border-color: #FCD34D;
 }
 
-/* Buttons */
-.btn-ptsc-primary {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.6rem 1.5rem;
-  color: white;
-  border: none;
-  border-radius: 30px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-decoration: none;
-  transition: all 0.2s;
-  box-shadow: 0 4px 6px rgba(30, 58, 138, 0.2);
-}
-
-.btn-ptsc-primary:hover {
+.quickbooks-badge:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(30, 58, 138, 0.3);
-  color: white;
-}
-
-.btn-outline-ptsc {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.6rem 1.5rem;
-  background: white;
-  color: #1E3A8A;
-  border: 1px solid #D1D5DB;
-  border-radius: 30px;
-  font-weight: 500;
-  font-size: 0.85rem;
-  text-decoration: none;
-  transition: all 0.2s;
-}
-
-.btn-outline-ptsc:hover {
-  background: #F3F4F6;
-  border-color: #1E3A8A;
-  color: #1E3A8A;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 /* Metric Cards */
 .metric-card {
-  border-radius: 16px;
-  padding: 1.2rem;
-  position: relative;
-  overflow: hidden;
+  border-radius: 20px;
+  padding: 1.5rem;
   border: 1px solid #D1D5DB;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
 .metric-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 20px rgba(0,0,0,0.1);
+  transform: translateY(-6px);
+  box-shadow: 0 20px 30px rgba(0,0,0,0.1);
 }
 
 .metric-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #6B7280;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .metric-value {
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 2.2rem;
+  font-weight: 800;
   color: #111827;
   line-height: 1.2;
-  margin: 0.2rem 0;
 }
 
-.metric-subvalue {
-  font-size: 0.85rem;
-  color: #6B7280;
-  font-weight: 500;
+.metric-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.25rem 0.8rem;
+  border-radius: 30px;
 }
 
 .metric-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 
 .metric-footer {
-  margin-top: 0.8rem;
-  padding-top: 0.8rem;
-  border-top: 1px solid #E5E7EB;
-  font-size: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid #E5E7EB;
+  font-size: 0.8rem;
 }
 
 .trend-indicator {
-  font-weight: 600;
+  font-weight: 700;
   color: #059669;
 }
 
-.trend-indicator.warning {
-  color: #B45309;
-}
-
-.trend-indicator.danger {
-  color: #B91C1C;
-}
-
-.trend-label {
-  color: #6B7280;
-  margin-left: 0.5rem;
-}
+.trend-indicator.warning { color: #B45309; }
+.trend-indicator.danger { color: #B91C1C; }
+.trend-indicator.success { color: #047857; }
 
 /* Source Metric Cards */
 .source-metric-card {
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 16px;
+  padding: 1.2rem;
   border: 1px solid #D1D5DB;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: all 0.3s;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
   height: 100%;
 }
 
 .source-metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.1);
 }
 
 .source-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
 }
 
 .source-label {
@@ -939,106 +982,33 @@
 }
 
 .source-value {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: #111827;
   line-height: 1.2;
 }
 
-.source-trend {
-  font-size: 0.7rem;
-  color: #6B7280;
-  font-weight: 500;
-}
-
 /* Aging Compact Card */
 .aging-compact-card {
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 16px;
+  padding: 1.2rem;
   border: 1px solid #D1D5DB;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
   height: 100%;
-}
-
-.aging-compact-label {
-  font-size: 0.8rem;
-  color: #374151;
-}
-
-.aging-bands-detailed {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.aging-band-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.band-info {
-  min-width: 70px;
-}
-
-.band-label {
-  font-size: 0.7rem;
-  color: #6B7280;
-  display: block;
-}
-
-.band-count {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #111827;
-}
-
-.band-progress {
-  flex: 1;
-  height: 6px;
-  background: #E5E7EB;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.band-progress-bar {
-  height: 100%;
-  border-radius: 3px;
-}
-
-.band-progress-bar.yellow { background: #FCD34D; }
-.band-progress-bar.amber { background: #F59E0B; }
-.band-progress-bar.orange { background: #F97316; }
-.band-progress-bar.red { background: #EF4444; }
-
-.band-amount {
-  min-width: 70px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #374151;
-  text-align: right;
 }
 
 /* Workflow Banner */
 .workflow-banner {
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
-  margin-bottom: 1.5rem;
   border: 1px solid #D1D5DB;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.workflow-label {
-  font-size: 0.75rem;
-  color: #374151;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
 .source-tag {
   display: inline-flex;
   align-items: center;
-  padding: 0.3rem 1rem;
+  padding: 0.4rem 1.2rem;
   border-radius: 30px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 500;
   background: white;
   border: 1px solid #D1D5DB;
@@ -1056,62 +1026,23 @@
   border-color: #BFDBFE;
 }
 
-.source-tag.direct { 
-  background: #F3F4F6; 
-  color: #374151;
-  border-color: #D1D5DB;
-}
-
-.source-tag.manual { 
-  background: #EDE9FE; 
-  color: #5B21B6;
-  border-color: #C4B5FD;
-}
-
 /* Filters Card */
 .filters-card {
-  border-radius: 12px;
-  padding: 1.2rem;
-  margin-bottom: 1.5rem;
+  border-radius: 20px;
+  padding: 1.5rem;
   border: 1px solid #D1D5DB;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.filter-title {
-  color: #111827;
-  font-size: 0.95rem;
-}
-
-.quick-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 2rem;
-  padding: 0.5rem 0;
-}
-
-.quick-filter-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.quick-filter-label {
-  font-size: 0.7rem;
-  color: #6B7280;
-  margin-right: 0.25rem;
-  font-weight: 500;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
 
 .quick-filter-chip {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
-  padding: 0.3rem 1rem;
+  padding: 0.4rem 1.2rem;
   border: 1px solid #D1D5DB;
-  border-radius: 30px;
-  font-size: 0.7rem;
-  font-weight: 500;
+  border-radius: 40px;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: #374151;
   background: white;
   transition: all 0.2s;
@@ -1129,77 +1060,13 @@
   color: white;
 }
 
-.quick-filter-chip.pending.active { background: #B45309; border-color: #B45309; }
-.quick-filter-chip.paid.active { background: #047857; border-color: #047857; }
-.quick-filter-chip.overdue.active { background: #B91C1C; border-color: #B91C1C; }
-
-.filter-label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  color: #6B7280;
-  letter-spacing: 0.3px;
-  margin-bottom: 0.2rem;
-}
-
-.filter-input, .filter-select {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #D1D5DB;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  background: white;
-  transition: all 0.2s;
-}
-
-.filter-input:focus, .filter-select:focus {
-  border-color: #1E3A8A;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15);
-}
-
-.filter-apply-btn {
-  padding: 0.5rem 1rem;
-  background: #1E3A8A;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.75rem;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.filter-apply-btn:hover {
-  background: #2563EB;
-}
-
-.filter-clear-btn {
-  padding: 0.5rem 1rem;
-  background: white;
-  color: #374151;
-  border: 1px solid #D1D5DB;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  text-decoration: none;
-  text-align: center;
-  display: inline-block;
-  width: 100%;
-  transition: all 0.2s;
-}
-
-.filter-clear-btn:hover {
-  background: #F3F4F6;
-  border-color: #9CA3AF;
-}
-
-/* Invoices Table */
+/* Table Styles */
 .invoices-table-card {
   background: white;
   border: 1px solid #D1D5DB;
-  border-radius: 12px;
+  border-radius: 20px;
   overflow: hidden;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  box-shadow: 0 8px 12px rgba(0,0,0,0.05);
 }
 
 .invoices-table {
@@ -1209,25 +1076,20 @@
 }
 
 .invoices-table thead th {
-  padding: 1rem 1rem;
+  padding: 1.2rem 1rem;
   font-weight: 600;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 1px solid #D1D5DB;
 }
 
 .invoices-table tbody td {
-  padding: 1rem 1rem;
+  padding: 1rem;
   border-bottom: 1px solid #E5E7EB;
 }
 
-.invoices-table tbody tr.even-row {
-  background-color: #F9FAFB;
-}
-
 .invoices-table tbody tr:hover {
-  background: #F3F4F6;
+  background: #F3F4F6 !important;
 }
 
 .invoices-table .paid-row {
@@ -1242,96 +1104,34 @@
   background: #FFFBEB;
 }
 
-.invoice-number {
-  color: #1E3A8A;
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
 /* Badges */
 .badge-new {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.6rem;
   background: #1E3A8A;
   color: white;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.6rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.3px;
 }
 
 .badge-qb {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
+  padding: 0.2rem 0.6rem;
   background: #DBEAFE;
   color: #1E40AF;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.6rem;
-  font-weight: 600;
-}
-
-.vmcott-badge-small {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  line-height: 20px;
-  text-align: center;
-  color: white;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  margin-left: 0.5rem;
-}
-
-.vendor-cell {
-  display: flex;
-  align-items: center;
-}
-
-.vendor-name {
-  font-weight: 500;
-}
-
-.source-badge-sm {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.65rem;
-  font-weight: 600;
-}
-
-.date-cell {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.4;
-}
-
-.aging-days {
-  font-size: 0.65rem;
-  color: #6B7280;
-}
-
-.overdue-badge-small {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  line-height: 20px;
-  text-align: center;
-  color: white;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-left: 0.5rem;
+  font-weight: 700;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.4rem 1rem;
   border-radius: 30px;
-  font-size: 0.7rem;
   font-weight: 600;
+  font-size: 0.7rem;
 }
 
 .status-badge.pending {
@@ -1349,114 +1149,150 @@
   color: #B91C1C;
 }
 
-.amount-cell {
-  color: #111827;
-  font-weight: 600;
-}
-
 /* Action Buttons */
-.action-buttons {
-  display: flex;
-  gap: 0.35rem;
-  justify-content: flex-end;
-}
-
 .action-btn-sm {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 1px solid #D1D5DB;
-  border-radius: 8px;
+  border-radius: 10px;
   background: white;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   transition: all 0.2s;
 }
 
 .action-btn-sm:hover {
   border-color: #1E3A8A;
   background: #F3F4F6;
+  transform: translateY(-2px);
 }
 
 /* Pagination */
 .pagination-wrapper {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
   border-top: 1px solid #D1D5DB;
 }
 
 .pagination-info {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #374151;
   font-weight: 500;
 }
 
 /* Empty State */
 .empty-state {
-  text-align: center;
   padding: 4rem 1rem;
-  border-radius: 12px;
 }
 
 .empty-icon {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  border-radius: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1.5rem;
-  font-size: 2.5rem;
+  margin: 0 auto;
+  font-size: 3rem;
 }
 
 /* Footer */
 .dashboard-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-radius: 10px;
-  margin-top: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-.footer-text {
-  font-size: 0.75rem;
-  opacity: 0.9;
+/* Dropdown Menu */
+.dropdown-menu {
+  border: 1px solid #D1D5DB;
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+
+.dropdown-item {
+  border-radius: 8px;
+  font-size: 0.85rem;
+  padding: 0.6rem 1rem;
+}
+
+.dropdown-item:hover {
+  background: #F3F4F6;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
+  .metric-value {
+    font-size: 1.6rem;
+  }
+  
+  .source-metric-card {
+    margin-bottom: 0;
+  }
+  
   .invoices-table thead th:nth-child(2),
   .invoices-table tbody td:nth-child(2) {
     display: none;
   }
   
-  .quick-filter-row {
+  .invoices-table thead th:nth-child(6),
+  .invoices-table tbody td:nth-child(6) {
+    display: none;
+  }
+  
+  .pagination-wrapper {
     flex-direction: column;
     gap: 1rem;
+    align-items: start;
   }
   
-  .header-section {
-    padding: 1rem;
-  }
-  
-  .metric-value {
-    font-size: 1.4rem;
+  .action-buttons {
+    flex-wrap: wrap;
   }
 }
+
+/* Loading States */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #F3F4F6;
+  border-top-color: #1E3A8A;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Focus States for Accessibility */
+:focus-visible {
+  outline: 3px solid #1E3A8A;
+  outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+  .action-buttons,
+  .dropdown,
+  .filters-card,
+  .workflow-banner {
+    display: none !important;
+  }
+}
+
+/* Import Inter Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Advanced filters toggle
   const filtersToggle = document.getElementById('advancedFiltersToggle');
   if (filtersToggle) {
     filtersToggle.addEventListener('change', function() {
       const label = this.nextElementSibling;
-      label.textContent = this.checked ? 'Hide' : 'Show';
+      label.textContent = this.checked ? 'Hide Advanced' : 'Show Advanced';
     });
   }
   
@@ -1465,15 +1301,15 @@ document.addEventListener('DOMContentLoaded', function() {
   tooltips.forEach(el => new bootstrap.Tooltip(el));
   
   // Smooth hover effects
-  const metricCards = document.querySelectorAll('.metric-card, .source-metric-card');
+  const metricCards = document.querySelectorAll('.metric-card, .source-metric-card, .aging-compact-card');
   metricCards.forEach(card => {
     card.addEventListener('mouseenter', function() {
       this.style.transform = 'translateY(-4px)';
-      this.style.boxShadow = '0 12px 20px rgba(0,0,0,0.1)';
+      this.style.boxShadow = '0 20px 30px rgba(0,0,0,0.1)';
     });
     card.addEventListener('mouseleave', function() {
       this.style.transform = 'translateY(0)';
-      this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+      this.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
     });
   });
   
@@ -1483,6 +1319,35 @@ document.addEventListener('DOMContentLoaded', function() {
     qbBadge.addEventListener('click', function() {
       const modal = new bootstrap.Modal(document.getElementById('quickbooksStatusModal'));
       modal.show();
+    });
+  }
+  
+  // Table row hover effect
+  const tableRows = document.querySelectorAll('.invoices-table tbody tr');
+  tableRows.forEach(row => {
+    row.addEventListener('mouseenter', function() {
+      this.style.backgroundColor = '#F3F4F6';
+    });
+    row.addEventListener('mouseleave', function() {
+      this.style.backgroundColor = '';
+    });
+  });
+  
+  // Auto-submit on filter change (optional)
+  const filterSelects = document.querySelectorAll('.filter-select');
+  filterSelects.forEach(select => {
+    select.addEventListener('change', function() {
+      this.closest('form').submit();
+    });
+  });
+  
+  // Clear button confirmation
+  const clearBtn = document.querySelector('.filter-clear-btn');
+  if (clearBtn && window.location.search.includes('?')) {
+    clearBtn.addEventListener('click', function(e) {
+      if (!confirm('Clear all filters?')) {
+        e.preventDefault();
+      }
     });
   }
 });

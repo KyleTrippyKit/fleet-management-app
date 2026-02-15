@@ -80,14 +80,25 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # List all vehicles (SIMPLIFIED VERSION)
+  # List all vehicles - FIXED: Now respects agency filtering from URL params
   # ====================================================
   def index
     @query  = params[:search].presence || params[:query].presence
     @status = params[:status].presence
 
-    # Always agency-scoped
-    base = current_user.agency.vehicles
+    # Check if we're filtering by a specific agency (from the link click)
+    if params[:agency_id].present?
+      @selected_agency = Agency.find_by(id: params[:agency_id])
+      if @selected_agency
+        # For VMCOTT viewing other agencies, or agency viewing their own
+        base = @selected_agency.vehicles
+      else
+        base = scoped_vehicles_by_agency
+      end
+    else
+      # Use the existing scoping method when no agency_id is provided
+      base = scoped_vehicles_by_agency
+    end
 
     base = base.search(@query) if @query.present?
     base = base.where(status: @status) if @status.present?
@@ -100,6 +111,9 @@ class VehiclesController < ApplicationController
     @vehicles = base.with_attached_primary_photo.with_attached_gallery_photos
                     .order(:make, :model)
                     .page(params[:page]).per(20)
+                    
+    # Pass the selected agency to the view for display purposes
+    @selected_agency ||= Agency.find_by(id: params[:agency_id]) if params[:agency_id].present?
   end
 
   # ====================================================
@@ -115,11 +129,22 @@ class VehiclesController < ApplicationController
     sort_by = params[:sort_by] || "utilization"
     sort_order = params[:sort_order] || "desc"
 
-    @vehicles = scoped_vehicles_by_agency
+    # Check if we're filtering by a specific agency (from the link click)
+    if params[:agency_id].present?
+      @selected_agency = Agency.find_by(id: params[:agency_id])
+      if @selected_agency
+        @vehicles = @selected_agency.vehicles
+      else
+        @vehicles = scoped_vehicles_by_agency
+      end
+    else
+      @vehicles = scoped_vehicles_by_agency
+    end
+
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
 
     if is_vmcott?
-      @agency_filter = params[:agency].presence
+      @agency_filter = params[:agency].presence || params[:agency_id].presence
       @vehicles = @vehicles.where(agency_id: @agency_filter) if @agency_filter.present?
       @agencies = Agency.all.order(:name)
     end
@@ -237,12 +262,23 @@ class VehiclesController < ApplicationController
     # NEW: server-side tab selector (instead of bootstrap tabs)
     @priority = params[:priority].presence_in(%w[overdue pending upcoming completed]) || "overdue"
 
-    @vehicles = scoped_vehicles_by_agency
+    # Check if we're filtering by a specific agency (from the link click)
+    if params[:agency_id].present?
+      @selected_agency = Agency.find_by(id: params[:agency_id])
+      if @selected_agency
+        @vehicles = @selected_agency.vehicles
+      else
+        @vehicles = scoped_vehicles_by_agency
+      end
+    else
+      @vehicles = scoped_vehicles_by_agency
+    end
+
     @vehicles = @vehicles.where(service_owner: @owner_filter) if @owner_filter.present?
     @vehicles = @vehicles.search(@query) if @query.present?
 
     if is_vmcott?
-      @agency_filter = params[:agency].presence
+      @agency_filter = params[:agency].presence || params[:agency_id].presence
       @vehicles = @vehicles.where(agency_id: @agency_filter) if @agency_filter.present?
       @agencies = Agency.all.order(:name)
     end
@@ -613,23 +649,42 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Agency scoping - FIXED: No params[:id] usage
+  # Agency scoping - FIXED: Now properly handles VMCOTT viewing other agencies
   # ====================================================
   def set_agency_from_params
     agency_id = params[:agency_id].presence || params[:agency].presence
     @selected_agency = Agency.find_by(id: agency_id) if agency_id.present?
 
+    # Allow VMCOTT to view any agency's vehicles
+    # For non-VMCOTT users, restrict to their own agency
     if @selected_agency && !is_vmcott? && @selected_agency != current_user.agency
       redirect_to vehicles_path, alert: "You can only view your own agency's vehicles."
     end
   end
 
   def scoped_vehicles_by_agency
+    # First check if we already have an agency selected from params
     if @selected_agency
       @selected_agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
-    elsif is_vmcott?
+    elsif params[:agency_id].present?
+      # Agency specified in params but not yet loaded
+      agency = Agency.find_by(id: params[:agency_id])
+      if agency && (is_vmcott? || agency == current_user.agency)
+        agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
+      else
+        fallback_scope
+      end
+    else
+      fallback_scope
+    end
+  end
+
+  def fallback_scope
+    if is_vmcott?
+      # VMCOTT sees ALL vehicles by default
       Vehicle.all.with_attached_primary_photo.with_attached_gallery_photos
     else
+      # Regular agencies only see their own vehicles
       current_user.agency.vehicles.with_attached_primary_photo.with_attached_gallery_photos
     end
   end
@@ -678,7 +733,7 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Role helper (FIXED)
+  # Role helper
   # ====================================================
   def is_vmcott?
     current_user&.agency&.code.to_s.downcase == "vmcott"

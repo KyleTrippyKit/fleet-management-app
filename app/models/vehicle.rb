@@ -242,7 +242,7 @@ class Vehicle < ApplicationRecord
   }
 
   # ------------------------------------------------------------
-  # Image helpers (Asset Pipeline + ActiveStorage)
+  # ✅ UPDATED: Image helpers with agency-specific placeholders
   # ------------------------------------------------------------
   def asset_image_path
     # Map makes to your placeholder images
@@ -260,6 +260,21 @@ class Vehicle < ApplicationRecord
     when 'Toyota'
       model == 'Hilux' ? 'placeholders/Toyota.jpeg' : 'placeholders/toyota.jpg'
     else
+      agency_specific_placeholder_path
+    end
+  end
+  
+  def agency_specific_placeholder_path
+    return 'placeholders/default.png' unless agency
+    
+    case agency.code
+    when 'PTSC'
+      'placeholders/ptsc_bus.jpg'
+    when 'TTPS'
+      'placeholders/ttps_police_vehicle.jpg'
+    when 'TTDF'
+      'placeholders/ttdf_military_vehicle.jpg'
+    else
       'placeholders/default.png'
     end
   end
@@ -268,11 +283,42 @@ class Vehicle < ApplicationRecord
     ActionController::Base.helpers.asset_path(asset_image_path)
   end
 
+  # ✅ NEW: Main display method that handles all cases
   def display_image
-    if primary_photo.attached?
-      primary_photo
+    # Return nil for VMCOTT - they can't put in vehicles
+    return nil if agency&.code == 'VMCOTT'
+    
+    # If there's an uploaded primary photo, use it
+    return primary_photo if primary_photo.attached?
+    
+    # If there are gallery photos, use the first one
+    return gallery_photos.first if gallery_photos.attached? && gallery_photos.any?
+    
+    # Legacy picture field (string URL)
+    return picture if picture.present? && picture.is_a?(String)
+    
+    # Otherwise, return agency-specific placeholder
+    agency_specific_placeholder_path
+  end
+  
+  # ✅ NEW: Check if vehicle should display any image
+  def should_display_image?
+    agency&.code != 'VMCOTT'
+  end
+  
+  # ✅ NEW: Get placeholder info for UI
+  def placeholder_info
+    return { display: false, message: 'VMCOTT vehicles not displayed' } if agency&.code == 'VMCOTT'
+    
+    if primary_photo.attached? || gallery_photos.attached? || picture.present?
+      { display: true, type: 'uploaded' }
     else
-      primary_image_url
+      { 
+        display: true, 
+        type: 'placeholder',
+        path: agency_specific_placeholder_path,
+        agency_code: agency&.code
+      }
     end
   end
 
