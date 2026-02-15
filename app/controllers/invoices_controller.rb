@@ -297,7 +297,7 @@ class InvoicesController < ApplicationController
   # GET /invoices/reports
   # ========================
   def reports
-    authorize Invoice
+    authorize Invoice, :reports?
 
     @start_date = params[:start_date]&.to_date || 30.days.ago.to_date
     @end_date   = params[:end_date]&.to_date || Date.current
@@ -318,34 +318,36 @@ class InvoicesController < ApplicationController
   end
 
   # ========================
-  # GET /invoices/aging_report
+  # GET /invoices/aging_report - FIXED
   # ========================
   def aging_report
-    authorize Invoice
+    authorize Invoice, :aging_report?
 
-    @invoices = policy_scope(Invoice).overdue_scope.includes(:vehicle)
+    base_invoices = policy_scope(Invoice).includes(:vehicle)
 
     @aging_buckets = {
-      current:  @invoices.current_aging,
-      days_30:  @invoices.days_30_aging,
-      days_60:  @invoices.days_60_aging,
-      over_90:  @invoices.over_90_aging
+      current:  base_invoices.current_aging,
+      days_30:  base_invoices.days_30_aging,
+      days_60:  base_invoices.days_60_aging,
+      over_90:  base_invoices.over_90_aging
     }
 
-    @total_outstanding = @invoices.sum(:amount)
-    @total_overdue     = @invoices.overdue_scope.sum(:amount)
-    @total_current     = @invoices.current_aging.sum(:amount)
-    @total_30_60       = @invoices.days_30_aging.sum(:amount) + @invoices.days_60_aging.sum(:amount)
-    @total_over_90     = @invoices.over_90_aging.sum(:amount)
+    @invoices = base_invoices.overdue_scope
 
-    @vendor_aging = @invoices.group(:vendor).sum(:amount).sort_by { |_, amt| -amt }.first(10)
+    @total_outstanding = base_invoices.sum(:amount)
+    @total_overdue     = @invoices.sum(:amount)
+    @total_current     = @aging_buckets[:current].sum(:amount)
+    @total_30_60       = @aging_buckets[:days_30].sum(:amount) + @aging_buckets[:days_60].sum(:amount)
+    @total_over_90     = @aging_buckets[:over_90].sum(:amount)
+
+    @vendor_aging = base_invoices.group(:vendor).sum(:amount).sort_by { |_, amt| -amt }.first(10)
   end
 
   # ========================
   # POST /invoices/:id/create_transaction
   # ========================
   def create_transaction
-    authorize @invoice
+    authorize @invoice, :create_transaction?
 
     tx = @invoice.transactions.new(transaction_params)
     tx.user = current_user
@@ -375,7 +377,7 @@ class InvoicesController < ApplicationController
   # (Stub / safe implementation — keep if routes reference it)
   # ========================
   def create_pos_transaction
-    authorize @invoice
+    authorize @invoice, :create_pos_transaction?
 
     unless @invoice.respond_to?(:pos_transaction) && @invoice.respond_to?(:pos_transaction_id)
       return redirect_to @invoice, alert: "POS integration not available."
@@ -398,7 +400,7 @@ class InvoicesController < ApplicationController
   # POST /invoices/:id/record_payment
   # ========================
   def record_payment
-    authorize @invoice
+    authorize @invoice, :record_payment?
 
     amount = params[:amount].to_f
     payment_method = params[:payment_method].presence || "cash"
@@ -451,7 +453,7 @@ class InvoicesController < ApplicationController
   # POST /invoices/:id/sync_to_quickbooks
   # ========================
   def sync_to_quickbooks
-    authorize @invoice
+    authorize @invoice, :sync_to_quickbooks?
 
     unless @invoice.respond_to?(:sync_to_quickbooks)
       return redirect_to @invoice, alert: "QuickBooks sync not implemented on Invoice model."

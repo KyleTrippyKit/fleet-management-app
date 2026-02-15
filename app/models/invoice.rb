@@ -84,28 +84,28 @@ class Invoice < ApplicationRecord
   }, default: "net_30"
 
   # ==========================================================
-  # SCOPES (combined from both versions)
+  # SCOPES - FIXED with explicit table references
   # ==========================================================
   scope :overdue_scope, -> {
-    where("due_date < ? AND status IN (?)",
+    where("#{table_name}.due_date < ? AND #{table_name}.status IN (?)",
           Date.current, %w[draft pending reviewed approved partially_paid])
   }
 
-  scope :pending_scope, -> { where(status: %w[draft pending]) }
-  scope :paid_scope, -> { where(status: "paid") }
-  scope :approved_scope, -> { where(status: "approved") }
-  scope :disputed_scope, -> { where(status: "disputed") }
-  scope :reviewed_scope, -> { where(status: "reviewed") }
+  scope :pending_scope, -> { where("#{table_name}.status IN (?)", %w[draft pending]) }
+  scope :paid_scope, -> { where("#{table_name}.status = ?", "paid") }
+  scope :approved_scope, -> { where("#{table_name}.status = ?", "approved") }
+  scope :disputed_scope, -> { where("#{table_name}.status = ?", "disputed") }
+  scope :reviewed_scope, -> { where("#{table_name}.status = ?", "reviewed") }
 
-  scope :this_month, -> { where(invoice_date: Time.current.beginning_of_month..Time.current.end_of_month) }
-  scope :this_week, -> { where(invoice_date: Time.current.beginning_of_week..Time.current.end_of_week) }
-  scope :today, -> { where(invoice_date: Date.current) }
+  scope :this_month, -> { where("#{table_name}.invoice_date BETWEEN ? AND ?", Time.current.beginning_of_month, Time.current.end_of_month) }
+  scope :this_week, -> { where("#{table_name}.invoice_date BETWEEN ? AND ?", Time.current.beginning_of_week, Time.current.end_of_week) }
+  scope :today, -> { where("#{table_name}.invoice_date = ?", Date.current) }
 
-  scope :current_aging, -> { where(aging_bucket: "current") }
-  scope :days_30_aging, -> { where(aging_bucket: "30_days") }
-  scope :days_60_aging, -> { where(aging_bucket: "60_days") }
-  scope :over_90_aging, -> { where(aging_bucket: "over_90_days") }
-  scope :by_aging_bucket, ->(bucket) { where(aging_bucket: bucket) }
+  scope :current_aging, -> { where("#{table_name}.aging_bucket = ?", "current") }
+  scope :days_30_aging, -> { where("#{table_name}.aging_bucket = ?", "30_days") }
+  scope :days_60_aging, -> { where("#{table_name}.aging_bucket = ?", "60_days") }
+  scope :over_90_aging, -> { where("#{table_name}.aging_bucket = ?", "over_90_days") }
+  scope :by_aging_bucket, ->(bucket) { where("#{table_name}.aging_bucket = ?", bucket) }
 
   scope :for_agency, ->(agency) {
     joins(:vehicle).where(vehicles: { agency_id: agency.id })
@@ -115,37 +115,37 @@ class Invoice < ApplicationRecord
     joins(:vehicle).where(vehicles: { service_owner: service_owner }) 
   }
 
-  scope :with_quickbooks, -> { where.not(quickbooks_id: nil) }
-  scope :without_quickbooks, -> { where(quickbooks_id: nil) }
-  scope :with_purchase_order, -> { where.not(purchase_order_id: nil) }
-  scope :with_pos_payment, -> { where.not(pos_transaction_id: nil) }
+  scope :with_quickbooks, -> { where.not("#{table_name}.quickbooks_id" => nil) }
+  scope :without_quickbooks, -> { where("#{table_name}.quickbooks_id" => nil) }
+  scope :with_purchase_order, -> { where.not("#{table_name}.purchase_order_id" => nil) }
+  scope :with_pos_payment, -> { where.not("#{table_name}.pos_transaction_id" => nil) }
 
   scope :has_transactions, -> { joins(:transactions).distinct }
   scope :has_payment_history, -> { joins(:payment_histories).distinct }
   scope :has_ledger_entries, -> { joins(:ledger_entries).distinct }
 
-  scope :recently_synced, ->(hours = 24) { where.not(last_sync_at: nil).where("last_sync_at > ?", hours.hours.ago) }
-  scope :sync_stale, -> { where.not(last_sync_at: nil).where("last_sync_at < ?", 7.days.ago) }
-  scope :sync_successful, -> { where(sync_status: "success") }
-  scope :sync_failed, -> { where(sync_status: %w[failed error]) }
+  scope :recently_synced, ->(hours = 24) { where.not("#{table_name}.last_sync_at" => nil).where("#{table_name}.last_sync_at > ?", hours.hours.ago) }
+  scope :sync_stale, -> { where.not("#{table_name}.last_sync_at" => nil).where("#{table_name}.last_sync_at < ?", 7.days.ago) }
+  scope :sync_successful, -> { where("#{table_name}.sync_status = ?", "success") }
+  scope :sync_failed, -> { where("#{table_name}.sync_status IN (?)", %w[failed error]) }
 
-  scope :reviewed_by_user, -> { where.not(reviewed_by_id: nil) }
-  scope :unreviewed, -> { where(reviewed_by_id: nil) }
+  scope :reviewed_by_user, -> { where.not("#{table_name}.reviewed_by_id" => nil) }
+  scope :unreviewed, -> { where("#{table_name}.reviewed_by_id" => nil) }
 
-  scope :fully_paid, -> { where(status: "paid") }
-  scope :partially_paid_scope, -> { where(status: "partially_paid") }
-  scope :unpaid, -> { where(status: %w[draft pending overdue approved]) }
+  scope :fully_paid, -> { where("#{table_name}.status = ?", "paid") }
+  scope :partially_paid_scope, -> { where("#{table_name}.status = ?", "partially_paid") }
+  scope :unpaid, -> { where("#{table_name}.status IN (?)", %w[draft pending overdue approved]) }
 
   scope :eligible_for_bulk_payment, -> {
-    where(status: %w[pending overdue partially_paid approved]).where("amount <= ?", 100_000)
+    where("#{table_name}.status IN (?) AND #{table_name}.amount <= ?", %w[pending overdue partially_paid approved], 100_000)
   }
 
-  scope :by_vendor, ->(vendor) { where(vendor: vendor) }
-  scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) }
-  scope :with_supplier, -> { where.not(supplier_id: nil) }
+  scope :by_vendor, ->(vendor) { where("#{table_name}.vendor = ?", vendor) }
+  scope :by_supplier, ->(supplier_id) { where("#{table_name}.supplier_id = ?", supplier_id) }
+  scope :with_supplier, -> { where.not("#{table_name}.supplier_id" => nil) }
 
-  scope :high_priority, -> { where(priority: %w[high critical]) }
-  scope :critical_priority, -> { where(priority: "critical") }
+  scope :high_priority, -> { where("#{table_name}.priority IN (?)", %w[high critical]) }
+  scope :critical_priority, -> { where("#{table_name}.priority = ?", "critical") }
 
   # ==========================================================
   # SEARCH

@@ -1,0 +1,217 @@
+<%# app/views/invoices/aging_report.html.erb - AGING REPORT %>
+<%
+  # VMCOTT Official Colors
+  vmcott_dark_blue = "#1E3A8A"
+  vmcott_medium_blue = "#2563EB"
+  vmcott_success = "#047857"
+  vmcott_warning = "#B45309"
+  vmcott_danger = "#B91C1C"
+  vmcott_light_gray = "#F3F4F6"
+  vmcott_border_gray = "#D1D5DB"
+  
+  # TT Flag colors
+  tt_red = "#B91C1C"
+  tt_white = "#FFFFFF"
+  tt_black = "#111827"
+%>
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+<div class="aging-report-container container-fluid py-4 px-4" style="max-width: 1800px; margin: 0 auto;">
+  
+  <!-- Header -->
+  <div class="header-section mb-4" style="background: linear-gradient(145deg, white, #F0F4FA); border-radius: 20px; padding: 1.5rem; border: 1px solid <%= vmcott_border_gray %>;">
+    <div class="d-flex align-items-center gap-4">
+      <div class="tt-flag-stripe" style="height: 60px; width: 8px;">
+        <div style="flex: 1; background: <%= tt_red %>;"></div>
+        <div style="flex: 1; background: <%= tt_white %>; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB;"></div>
+        <div style="flex: 1; background: <%= tt_black %>;"></div>
+      </div>
+      <div>
+        <h1 class="display-6 fw-bold mb-2" style="color: <%= vmcott_dark_blue %>;">Aging Report</h1>
+        <div class="d-flex align-items-center gap-3">
+          <span style="background: <%= vmcott_light_gray %>; padding: 0.5rem 1.2rem; border-radius: 40px;">
+            <i class="far fa-calendar me-2"></i><%= Date.current.strftime("%B %d, %Y") %>
+          </span>
+          <span class="badge" style="background: <%= vmcott_dark_blue %>10; color: <%= vmcott_dark_blue %>; padding: 0.5rem 1.2rem;">
+            <i class="fas fa-file-invoice me-2"></i><%= number_with_delimiter(@invoices.count) %> Overdue Invoices
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="summary-card p-4" style="background: linear-gradient(145deg, #FEF3C7, white); border-radius: 16px; border-left: 4px solid <%= vmcott_warning %>;">
+        <div class="small text-uppercase text-muted mb-2">Current (0-29 days)</div>
+        <div class="h3 fw-bold mb-1">$<%= number_with_precision(@total_current || 0, precision: 0) %></div>
+        <div class="text-muted small"><%= @aging_buckets[:current]&.count || 0 %> invoices</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card p-4" style="background: linear-gradient(145deg, #FFEDD5, white); border-radius: 16px; border-left: 4px solid #F97316;">
+        <div class="small text-uppercase text-muted mb-2">30-59 Days</div>
+        <div class="h3 fw-bold mb-1">$<%= number_with_precision(@total_30_60 || 0, precision: 0) %></div>
+        <div class="text-muted small"><%= @aging_buckets[:days_30]&.count || 0 %> invoices</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card p-4" style="background: linear-gradient(145deg, #FEE2E2, white); border-radius: 16px; border-left: 4px solid #EF4444;">
+        <div class="small text-uppercase text-muted mb-2">60-89 Days</div>
+        <div class="h3 fw-bold mb-1">$<%= number_with_precision(@total_30_60 || 0, precision: 0) %></div>
+        <div class="text-muted small"><%= @aging_buckets[:days_60]&.count || 0 %> invoices</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="summary-card p-4" style="background: linear-gradient(145deg, #FEE2E2, #FEF2F2); border-radius: 16px; border-left: 4px solid <%= tt_red %>;">
+        <div class="small text-uppercase text-muted mb-2">90+ Days</div>
+        <div class="h3 fw-bold mb-1">$<%= number_with_precision(@total_over_90 || 0, precision: 0) %></div>
+        <div class="text-muted small"><%= @aging_buckets[:over_90]&.count || 0 %> invoices</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Totals Row -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="totals-card p-4" style="background: linear-gradient(145deg, <%= vmcott_dark_blue %>, <%= vmcott_medium_blue %>); border-radius: 16px; color: white;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <span class="opacity-75 d-block mb-1">Total Outstanding</span>
+            <span class="display-6 fw-bold">$<%= number_with_precision(@total_outstanding || 0, precision: 0) %></span>
+          </div>
+          <div>
+            <span class="opacity-75 d-block mb-1">Total Overdue</span>
+            <span class="display-6 fw-bold">$<%= number_with_precision(@total_overdue || 0, precision: 0) %></span>
+          </div>
+          <div>
+            <span class="opacity-75 d-block mb-1">Overdue %</span>
+            <span class="display-6 fw-bold">
+              <%= @total_outstanding.to_f > 0 ? ((@total_overdue.to_f / @total_outstanding.to_f) * 100).round(0) : 0 %>%
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vendor Aging Table -->
+  <div class="vendor-aging-card mb-4" style="background: white; border-radius: 16px; border: 1px solid <%= vmcott_border_gray %>; overflow: hidden;">
+    <div class="card-header p-4" style="background: linear-gradient(90deg, <%= vmcott_light_gray %>, white);">
+      <h5 class="fw-bold mb-0"><i class="fas fa-building me-2" style="color: <%= vmcott_dark_blue %>;"></i>Top Vendors by Outstanding Amount</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead style="background: <%= vmcott_light_gray %>;">
+          <tr>
+            <th class="px-4 py-3">Vendor</th>
+            <th class="px-4 py-3 text-end">Outstanding Amount</th>
+            <th class="px-4 py-3 text-end">% of Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (@vendor_aging || []).each do |vendor, amount| %>
+            <tr>
+              <td class="px-4 py-3 fw-medium"><%= vendor %></td>
+              <td class="px-4 py-3 text-end fw-bold">$<%= number_with_precision(amount, precision: 0) %></td>
+              <td class="px-4 py-3 text-end">
+                <%= @total_outstanding.to_f > 0 ? ((amount.to_f / @total_outstanding.to_f) * 100).round(1) : 0 %>%
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Overdue Invoices Table -->
+  <div class="invoices-table-card" style="background: white; border-radius: 16px; border: 1px solid <%= vmcott_border_gray %>; overflow: hidden;">
+    <div class="card-header p-4 d-flex justify-content-between align-items-center" style="background: linear-gradient(90deg, <%= vmcott_light_gray %>, white);">
+      <h5 class="fw-bold mb-0"><i class="fas fa-clock me-2" style="color: <%= tt_red %>;"></i>Overdue Invoices</h5>
+      <div>
+        <%= link_to invoices_path(status: 'overdue'), class: "btn btn-sm", style: "background: #{vmcott_dark_blue}; color: white; border-radius: 8px; padding: 0.5rem 1rem; text-decoration: none;" do %>
+          <i class="fas fa-arrow-right me-2"></i>View All
+        <% end %>
+      </div>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead style="background: <%= vmcott_light_gray %>;">
+          <tr>
+            <th class="px-4 py-3">Invoice #</th>
+            <th class="px-4 py-3">Vendor</th>
+            <th class="px-4 py-3">Vehicle</th>
+            <th class="px-4 py-3">Date</th>
+            <th class="px-4 py-3">Due Date</th>
+            <th class="px-4 py-3">Days Overdue</th>
+            <th class="px-4 py-3 text-end">Amount</th>
+            <th class="px-4 py-3 text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @invoices.limit(50).each do |invoice| %>
+            <tr>
+              <td class="px-4 py-3">
+                <%= link_to invoice.invoice_number, invoice_path(invoice), class: "fw-bold text-decoration-none", style: "color: #{vmcott_dark_blue};" %>
+              </td>
+              <td class="px-4 py-3"><%= invoice.vendor %></td>
+              <td class="px-4 py-3"><%= invoice.vehicle&.license_plate || "—" %></td>
+              <td class="px-4 py-3"><%= invoice.invoice_date&.strftime("%m/%d/%y") %></td>
+              <td class="px-4 py-3"><%= invoice.due_date&.strftime("%m/%d/%y") %></td>
+              <td class="px-4 py-3">
+                <span class="badge" style="background: <%= invoice.days_overdue > 60 ? tt_red : (invoice.days_overdue > 30 ? '#F97316' : '#F59E0B') %>; color: white;">
+                  <%= invoice.days_overdue %> days
+                </span>
+              </td>
+              <td class="px-4 py-3 text-end fw-bold">$<%= number_with_precision(invoice.amount, precision: 0) %></td>
+              <td class="px-4 py-3 text-end">
+                <%= link_to invoice_path(invoice), class: "btn btn-sm", style: "color: #{vmcott_dark_blue};" do %>
+                  <i class="fas fa-eye"></i>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    
+    <% if @invoices.count > 50 %>
+      <div class="p-4 text-center border-top">
+        <%= link_to invoices_path(status: 'overdue'), class: "btn", style: "background: #{vmcott_light_gray}; color: #{vmcott_dark_blue};" do %>
+          View all <%= @invoices.count %> overdue invoices <i class="fas fa-arrow-right ms-2"></i>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+.aging-report-container {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+.summary-card {
+  transition: all 0.3s ease;
+  height: 100%;
+  border: 1px solid #E5E7EB;
+}
+.summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+}
+.tt-flag-stripe {
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+@media (max-width: 768px) {
+  .summary-card { margin-bottom: 1rem; }
+  .totals-card .display-6 { font-size: 1.5rem; }
+}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+</style>
