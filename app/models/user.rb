@@ -138,11 +138,11 @@ class User < ApplicationRecord
   end
 
   def scanner_role?
-    [ROLE_VMCOTT_SCANNER, 'scanner'].include?(self[:role])
+    [ROLE_VMCOTT_SCANNER, ROLE_VMCOTT_SUPERVISOR, 'scanner'].include?(self[:role])
   end
 
   def inspector_role?
-    [ROLE_VMCOTT_INSPECTOR, 'inspector'].include?(self[:role])
+    [ROLE_VMCOTT_SCANNER, ROLE_VMCOTT_SUPERVISOR, 'scanner'].include?(self[:role])
   end
   
   def fleet_manager?
