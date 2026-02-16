@@ -757,7 +757,7 @@ class QuotationsController < ApplicationController
       # ✅ Let model save and trigger its own callbacks (including before_validation :recalculate_amount_from_children)
       if @quotation.save
         case params[:commit]
-        when 'Submit Quotation', 'SUBMIT QUOTATION'
+        when 'submit', 'Submit Quotation', 'SUBMIT QUOTATION'
           if @quotation.send_to_vendor!
             notify_agency_of_quotation
             # ✅ FIX 1: Turbo-compatible redirect
@@ -771,7 +771,7 @@ class QuotationsController < ApplicationController
           else
             redirect_to @quotation, alert: 'Unable to send quotation.'
           end
-        when 'Save as Draft', 'SAVE AS DRAFT'
+        when 'draft', 'Save as Draft', 'SAVE AS DRAFT'
           @quotation.draft!
           # ✅ FIX 1: Turbo-compatible redirect
           respond_to do |format|
@@ -886,14 +886,14 @@ class QuotationsController < ApplicationController
         @quotation.recalculate_amount!
         
         case params[:commit]
-        when 'Submit Quotation', 'SUBMIT QUOTATION'
+        when 'submit', 'Submit Quotation', 'SUBMIT QUOTATION'
           if @quotation.send_to_vendor!
             notify_agency_of_quotation
             notice = 'Quotation updated and sent to vendor.'
           else
             notice = 'Quotation updated but could not be sent.'
           end
-        when 'Save as Draft', 'SAVE AS DRAFT'
+        when 'draft', 'Save as Draft', 'SAVE AS DRAFT'
           @quotation.draft!
           notice = 'Quotation saved as draft.'
         else
