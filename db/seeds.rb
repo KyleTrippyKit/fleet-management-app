@@ -180,6 +180,7 @@ users_data = [
   # ========== VMCOTT USERS ==========
   { email: "admin@vmcott.gov.tt", password: "password123", name: "VMCOTT Administrator", role: "admin", agency_code: "VMCOTT", employee_id: "VMCOTT-AD001" },
   { email: "finance@vmcott.gov.tt", password: "password123", name: "Finance Manager", role: "finance", agency_code: "VMCOTT", employee_id: "VMCOTT-FM001" },
+  { email: "supervisor@vmcott.gov.tt", password: "password123", name: "VMCOTT Supervisor", role: "vmcott_supervisor", agency_code: "VMCOTT", employee_id: "VMCOTT-SV001" },
   { email: "test@vmcott.gov.tt", password: "test123", name: "VMCOTT Test User", role: "fleet_manager", agency_code: "VMCOTT", employee_id: "VMCOTT-TU001" },
   { email: "scanner1@example.com", password: "Password123!", name: "VMCOTT SCANNER", role: "vmcott_scanner", agency_code: "VMCOTT", employee_id: "VMCOTT-SU001"},
   { email: "inspector1@example.com", password: "Password123!", name: "VMCOTT INSPECTOR", role: "vmcott_inspector", agency_code: "VMCOTT", employee_id: "VMCOTT-IN001"},
