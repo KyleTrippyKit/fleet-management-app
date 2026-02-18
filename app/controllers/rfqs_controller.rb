@@ -173,11 +173,18 @@ class RfqsController < ApplicationController
     end
   end
 
-  # DELETE /rfqs/:id
+  # DELETE /rfqs/:id - STRICTLY PROTECTED
   def destroy
     check_delete_permission
+    # Double-check even after the permission check
+    unless @rfq.draft?
+      redirect_to @rfq, alert: "Only draft RFQs can be deleted." and return
+    end
+    
     @rfq.destroy
     redirect_to rfqs_url, notice: "RFQ was successfully deleted."
+  rescue => e
+    redirect_to rfqs_url, alert: "Failed to delete RFQ: #{e.message}"
   end
 
   # GET /rfqs/:id/clone

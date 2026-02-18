@@ -8,6 +8,7 @@
     - Removed inline `def rfq_status_badge` from the view (views shouldn’t define methods)
       → replaced with a local mapping hash for badge classes
     - Improved empty state + spacing
+    - ✅ DELETE BUTTON NOW ONLY SHOWS FOR DRAFT RFQs (server-side also protected)
    ===================================================================== %>
 
 <% content_for :head do %>
@@ -377,7 +378,7 @@
                         <% end %>
                       </div>
 
-                      <!-- KEBAB -->
+                      <!-- KEBAB - WITH STRICTER DELETE LOGIC -->
                       <div class="dropdown d-inline-block">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle kebab-btn"
                                 type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -397,21 +398,24 @@
 
                           <% if rfq.submitted? && current_user.agency&.code == "VMCOTT" %>
                             <li>
-                              <%= link_to "Acknowledge Receipt",
-                                    acknowledge_receipt_rfq_path(rfq),
+                              <%= button_to acknowledge_receipt_rfq_path(rfq),
                                     method: :post,
                                     class: "dropdown-item",
-                                    data: { turbo_confirm: "Acknowledge receipt for RFQ #{rfq.rfq_number}?" } %>
+                                    form: { class: "d-inline" },
+                                    data: { turbo_confirm: "Acknowledge receipt for RFQ #{rfq.rfq_number}?" } do %>
+                                <i class="bi bi-check-circle me-2"></i> Acknowledge Receipt
+                              <% end %>
                             </li>
                           <% end %>
 
+                          <%# ONLY SHOW DELETE FOR DRAFT RFQs - NEVER FOR SUBMITTED ONES %>
                           <% if rfq.draft? %>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                              <%= link_to rfq_path(rfq),
+                              <%= button_to rfq_path(rfq),
                                     method: :delete,
                                     class: "dropdown-item text-danger",
-                                    data: { turbo_confirm: "Delete this RFQ? This cannot be undone." } do %>
+                                    form: { data: { turbo_confirm: "Delete this RFQ? This cannot be undone." } } do %>
                                 <i class="bi bi-trash me-2"></i> Delete
                               <% end %>
                             </li>

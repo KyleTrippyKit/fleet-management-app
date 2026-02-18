@@ -58,8 +58,23 @@ class VehiclesController < ApplicationController
     term = params[:q].presence || params[:term].presence || params[:query].presence
     term = term.to_s.strip
 
-    rel = scoped_vehicles_by_agency
-    rel = rel.search(term) if term.present?
+    # For VMCOTT, search ALL vehicles across all agencies
+    if is_vmcott?
+      rel = Vehicle.includes(:agency).all
+    else
+      rel = scoped_vehicles_by_agency
+    end
+    
+    if term.present?
+      rel = rel.where(
+        "vehicles.license_plate ILIKE :q OR 
+         vehicles.make ILIKE :q OR 
+         vehicles.model ILIKE :q OR
+         vehicles.registration_number ILIKE :q",
+        q: "%#{term}%"
+      )
+    end
+    
     rel = rel.order(updated_at: :desc).limit(25)
 
     render json: rel.map { |v|
@@ -70,6 +85,8 @@ class VehiclesController < ApplicationController
         registration_number: v.registration_number,
         make: v.make,
         model: v.model,
+        year_of_manufacture: v.year_of_manufacture,
+        vehicle_type: v.vehicle_type,
         agency_id: v.agency_id,
         agency_code: v.agency&.code
       }

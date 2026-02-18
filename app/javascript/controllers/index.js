@@ -18,4 +18,7 @@ application.register("fleet-index", FleetIndexController)
 import AlertSearchController from "./alert_search_controller"
 application.register("alert-search", AlertSearchController)
 
+import QuotationVehicleSearchController from "./quotation_vehicle_search_controller"
+application.register("quotation-vehicle-search", QuotationVehicleSearchController)
+
 console.log("✅ Controllers registered:", window.Stimulus?.router?.modules?.map(m => m.identifier))

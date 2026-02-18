@@ -9,17 +9,19 @@
 <% is_admin   = !!current_user&.admin? %>
 
 <%# ============================================================
-    ROLE-BASED NAVIGATION LOGIC
-    Regular users see only their specific role
-    Admins see all roles for their agency type
+    VMCOTT ROLE DEFINITIONS
    ============================================================ %>
+<% is_vmcott_admin           = is_admin && agency_code == "VMCOTT" %>
+<% is_vmcott_staff           = user_role == 'vmcott_staff' %>
+<% is_vmcott_finance         = user_role == 'finance' && agency_code == "VMCOTT" %>
+<% is_vmcott_workshop_manager = user_role == 'workshop_manager' %>
+<% is_vmcott_inventory_clerk  = user_role == 'inventory_clerk' %>
 
 <%# Regular users see only their specific role %>
 <% is_fleet_manager          = user_role == 'fleet_manager' %>
 <% is_maintenance_supervisor = user_role == 'maintenance_supervisor' || user_role == 'maintenance' %>
 <% is_financial_officer      = user_role == 'finance' %>
 <% is_driver                 = user_role == 'driver' %>
-<% is_vmcott_staff           = user_role == 'vmcott_staff' %>
 <% is_supervisor             = user_role == 'supervisor' %>
 
 <%# Admins see all roles for their agency type %>
@@ -30,11 +32,13 @@
     <% is_maintenance_supervisor = true %>
     <% is_financial_officer = true %>
   <% when 'VMCOTT' %>
-    <%# VMCOTT gets ALL roles since they manage ALL agencies' vehicles %>
+    <%# VMCOTT Admin gets EVERYTHING %>
     <% is_fleet_manager = true %>
     <% is_maintenance_supervisor = true %>
     <% is_financial_officer = true %>
     <% is_vmcott_staff = true %>
+    <% is_vmcott_workshop_manager = true %>
+    <% is_vmcott_inventory_clerk = true %>
   <% else %>
     <% is_fleet_manager = true %>
     <% is_maintenance_supervisor = true %>
@@ -103,7 +107,7 @@
                       <i class="bi bi-graph-up me-2"></i> Fleet Analytics
                     <% end %>
                   </li>
-                <% elsif agency_code == "VMCOTT" %>
+                <% elsif agency_code == "VMCOTT" && (is_admin || is_vmcott_staff || is_vmcott_workshop_manager) %>
                   <li>
                     <%= link_to vehicles_path, class: "dropdown-item" do %>
                       <i class="bi bi-truck-flatbed me-2"></i> All Fleets
@@ -166,8 +170,8 @@
                   <% end %>
                 </li>
 
-                <%# Add Maintenance option - ONLY visible to VMCOTT users %>
-                <% if can_write_maintenance %>
+                <%# Add Maintenance option - ONLY visible to VMCOTT users with write access %>
+                <% if can_write_maintenance && (is_admin || is_vmcott_workshop_manager || is_vmcott_staff) %>
                   <li><hr class="dropdown-divider"></li>
                   <li class="dropdown-section">WORKSHOP</li>
                   <li>
@@ -181,8 +185,8 @@
             </div>
           <% end %>
 
-          <!-- ================= Finance ================= -->
-          <% if is_financial_officer || is_vmcott_staff %>
+          <!-- ================= PROCUREMENT (Agencies only) ================= -->
+          <% if is_financial_officer && agency_code.present? && agency_code != "VMCOTT" %>
             <div class="dropdown nav-dd">
               <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
                       type="button"
@@ -190,97 +194,86 @@
                       aria-expanded="false"
                       data-bs-boundary="viewport"
                       data-bs-display="static">
-                <i class="bi bi-cash-stack me-1"></i> Finance
+                <i class="bi bi-cart me-1"></i> Procurement
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float">
+                <li class="dropdown-section">RFQs</li>
+                
+                <% if agency.present? && respond_to?(:new_agency_rfq_path) %>
+                  <li>
+                    <%= link_to new_agency_rfq_path(agency), class: "dropdown-item" do %>
+                      <i class="bi bi-file-earmark-plus me-2"></i> New RFQ (to VMCOTT)
+                    <% end %>
+                  </li>
+                <% else %>
+                  <li>
+                    <span class="dropdown-item disabled-item">
+                      <i class="bi bi-file-earmark-plus me-2"></i> New RFQ (Unavailable)
+                    </span>
+                  </li>
+                <% end %>
+
+                <li>
+                  <%= link_to sent_rfqs_path, class: "dropdown-item" do %>
+                    <i class="bi bi-send me-2"></i> Sent RFQs
+                  <% end %>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="dropdown-section">QUOTATIONS</li>
+                <li>
+                  <%= link_to received_quotations_path, class: "dropdown-item" do %>
+                    <i class="bi bi-inbox me-2"></i> Quotations Inbox
+                  <% end %>
+                </li>
+
+                <% if agency_code == "PTSC" && respond_to?(:ptsc_quotation_review_path) %>
+                  <li>
+                    <%= link_to ptsc_quotation_review_path, class: "dropdown-item" do %>
+                      <i class="bi bi-ui-checks me-2"></i> Quotation Review
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <% if agency_code == "PTSC" && respond_to?(:ptsc_po_acceptance_path) %>
+                  <li>
+                    <%= link_to ptsc_po_acceptance_path, class: "dropdown-item" do %>
+                      <i class="bi bi-clipboard-check me-2"></i> PO Acceptance Queue
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="dropdown-section">ORDERS</li>
+                <li>
+                  <%= link_to purchase_orders_path, class: "dropdown-item" do %>
+                    <i class="bi bi-bag-check me-2"></i> Purchase Orders
+                  <% end %>
+                </li>
+              </ul>
+            </div>
+          <% end %>
+
+          <!-- ================= WORKFLOW (VMCOTT Internal) ================= -->
+          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_staff || is_vmcott_workshop_manager || is_vmcott_inventory_clerk) %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-gear-wide-connected me-1"></i> Workflow
               </button>
 
               <ul class="dropdown-menu dropdown-menu-float dropdown-scroll">
-
-                <%# ------------------------------------------------------------------
-                    AGENCY-SIDE (PTSC/TTPS/TTDF)
-                    NOTE: POS has been removed for PTSC at navigation level.
-                    We do not show any POS items for agency-side users.
-                    ------------------------------------------------------------------ %>
-                <% if agency_code.present? && agency_code != "VMCOTT" %>
-
-                  <li class="dropdown-section">PROCUREMENT</li>
-
-                  <% if agency.present? && respond_to?(:new_agency_rfq_path) %>
-                    <li>
-                      <%= link_to new_agency_rfq_path(agency), class: "dropdown-item" do %>
-                        <i class="bi bi-file-earmark-plus me-2"></i> New RFQ (to VMCOTT)
-                      <% end %>
-                    </li>
-                  <% else %>
-                    <li>
-                      <span class="dropdown-item disabled-item">
-                        <i class="bi bi-file-earmark-plus me-2"></i> New RFQ (Unavailable)
-                      </span>
-                    </li>
-                  <% end %>
-
-                  <li>
-                    <%= link_to sent_rfqs_path, class: "dropdown-item" do %>
-                      <i class="bi bi-send me-2"></i> Sent RFQs
-                    <% end %>
-                  </li>
-
-                  <li><hr class="dropdown-divider"></li>
-
-                  <li class="dropdown-section">INBOX</li>
-                  <li>
-                    <%= link_to received_quotations_path, class: "dropdown-item" do %>
-                      <i class="bi bi-inbox me-2"></i> Quotations Inbox
-                    <% end %>
-                  </li>
-
-                  <% if agency_code == "PTSC" && respond_to?(:ptsc_quotation_review_path) %>
-                    <li>
-                      <%= link_to ptsc_quotation_review_path, class: "dropdown-item" do %>
-                        <i class="bi bi-ui-checks me-2"></i> Quotation Review
-                      <% end %>
-                    </li>
-                  <% end %>
-
-                  <% if agency_code == "PTSC" && respond_to?(:ptsc_po_acceptance_path) %>
-                    <li>
-                      <%= link_to ptsc_po_acceptance_path, class: "dropdown-item" do %>
-                        <i class="bi bi-clipboard-check me-2"></i> PO Acceptance Queue
-                      <% end %>
-                    </li>
-                  <% end %>
-
-                  <li><hr class="dropdown-divider"></li>
-
-                  <li class="dropdown-section">PURCHASE ORDERS</li>
-                  <li>
-                    <%= link_to purchase_orders_path, class: "dropdown-item" do %>
-                      <i class="bi bi-bag-check me-2"></i> Purchase Orders
-                    <% end %>
-                  </li>
-
-                  <li><hr class="dropdown-divider"></li>
-
-                  <li class="dropdown-section">BILLING</li>
-                  <li>
-                    <%= link_to invoices_path, class: "dropdown-item" do %>
-                      <i class="bi bi-receipt me-2"></i> Invoices
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
-                      <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
-                    <% end %>
-                  </li>
-
-                <%# ------------------------------------------------------------------
-                    VMCOTT-SIDE
-                    VMCOTT internal workflow remains available, including Internal POS.
-                    This is NOT exposed to PTSC/TTPS/TTDF because the above branch handles them.
-                    ------------------------------------------------------------------ %>
-                <% elsif agency_code == "VMCOTT" %>
-
-                  <li class="dropdown-section">WORKFLOW</li>
-
+                
+                <%# RFQ Processing - Admin, Staff, Workshop Manager %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
+                  <li class="dropdown-section">RFQ PROCESSING</li>
                   <li>
                     <%= link_to vmcott_rfq_inbox_path, class: "dropdown-item" do %>
                       <i class="bi bi-inbox me-2"></i> RFQ Inbox
@@ -292,30 +285,34 @@
                       <i class="bi bi-clipboard-data me-2"></i> Quotation Workspace
                     <% end %>
                   </li>
+                <% end %>
 
+                <%# Workshop Operations - Admin, Workshop Manager only %>
+                <% if is_admin || is_vmcott_workshop_manager %>
                   <li><hr class="dropdown-divider"></li>
-
                   <li class="dropdown-section">WORKSHOP OPS</li>
-
                   <li>
                     <%= link_to active_work_vmcott_internal_pos_path, class: "dropdown-item" do %>
                       <i class="bi bi-play-circle me-2"></i> Internal POS — Active Work
                     <% end %>
                   </li>
+                <% end %>
 
+                <%# Orders - Admin, Staff, Workshop Manager %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
                   <li><hr class="dropdown-divider"></li>
-
-                  <li class="dropdown-section">PURCHASE ORDERS</li>
+                  <li class="dropdown-section">ORDERS</li>
                   <li>
                     <%= link_to purchase_orders_path, class: "dropdown-item" do %>
                       <i class="bi bi-bag-check me-2"></i> Purchase Orders
                     <% end %>
                   </li>
+                <% end %>
 
+                <%# Inventory - Admin, Inventory Clerk, Staff %>
+                <% if is_admin || is_vmcott_inventory_clerk || is_vmcott_staff %>
                   <li><hr class="dropdown-divider"></li>
-
                   <li class="dropdown-section">INVENTORY</li>
-
                   <li>
                     <%= link_to vmcott_inventory_dashboard_path, class: "dropdown-item" do %>
                       <i class="bi bi-box-seam me-2"></i> Inventory Dashboard
@@ -333,31 +330,35 @@
                       <i class="bi bi-building me-2"></i> Suppliers
                     <% end %>
                   </li>
-
-                  <li><hr class="dropdown-divider"></li>
-
-                  <li class="dropdown-section">BILLING</li>
-
-                  <li>
-                    <%= link_to invoices_path, class: "dropdown-item" do %>
-                      <i class="bi bi-receipt me-2"></i> Invoices
-                    <% end %>
-                  </li>
-
-                  <li>
-                    <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
-                      <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
-                    <% end %>
-                  </li>
-
-                <% else %>
-                  <li class="dropdown-section">BILLING</li>
-                  <li>
-                    <%= link_to invoices_path, class: "dropdown-item" do %>
-                      <i class="bi bi-receipt me-2"></i> Invoices
-                    <% end %>
-                  </li>
                 <% end %>
+              </ul>
+            </div>
+          <% end %>
+
+          <!-- ================= FINANCE (VMCOTT Finance only) ================= -->
+          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_finance) %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-cash-stack me-1"></i> Finance
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float">
+                <li class="dropdown-section">BILLING</li>
+                <li>
+                  <%= link_to invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-receipt me-2"></i> Invoices
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
+                  <% end %>
+                </li>
 
                 <li><hr class="dropdown-divider"></li>
 
@@ -367,13 +368,52 @@
                     <i class="bi bi-cash-stack me-2"></i> Payment Dashboard
                   <% end %>
                 </li>
-
                 <li>
                   <%= link_to financial_dashboard_path, class: "dropdown-item" do %>
                     <i class="bi bi-graph-up me-2"></i> Financial Dashboard
                   <% end %>
                 </li>
+              </ul>
+            </div>
 
+          <!-- ================= FINANCE (Agencies) ================= -->
+          <% elsif is_financial_officer && agency_code.present? && agency_code != "VMCOTT" %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-cash-stack me-1"></i> Finance
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float">
+                <li class="dropdown-section">BILLING</li>
+                <li>
+                  <%= link_to invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-receipt me-2"></i> Invoices
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
+                  <% end %>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="dropdown-section">DASHBOARDS</li>
+                <li>
+                  <%= link_to payment_dashboard_path, class: "dropdown-item" do %>
+                    <i class="bi bi-cash-stack me-2"></i> Payment Dashboard
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to financial_dashboard_path, class: "dropdown-item" do %>
+                    <i class="bi bi-graph-up me-2"></i> Financial Dashboard
+                  <% end %>
+                </li>
               </ul>
             </div>
           <% end %>
@@ -441,35 +481,29 @@
 
 <style>
   /* =========================================================
-     NAV SURFACE (BLUE GRADIENT)
-     - Kept inside the partial as you requested.
-     - Ensures first nav item is always readable (contrast-safe).
-     - Uses !important sparingly but decisively for critical contrast.
+     NAV SURFACE (BLUE GRADIENT) - KEPT AS IS
      ========================================================= */
 
   .nav-card {
     border-radius: 16px;
     position: relative;
-    z-index: 1040; /* sits above most cards/tables */
-    overflow: visible !important; /* Allow dropdowns to overflow */
+    z-index: 1040;
+    overflow: visible !important;
     background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
   }
 
-  /* Ensure content spacing stays compact but readable */
   .nav-card .card-body {
     border-radius: 16px;
-    overflow: visible !important; /* Allow dropdowns to overflow */
+    overflow: visible !important;
     position: relative !important;
   }
 
-  /* Make ALL button text readable on the blue surface */
   .nav-card .btn,
   .nav-card .btn:focus,
   .nav-card .btn:active {
     color: #ffffff !important;
   }
 
-  /* Small "agency code" pill on right, purely informational */
   .nav-agency-pill {
     border-radius: 999px;
     padding: 0.48rem 0.75rem;
@@ -480,14 +514,12 @@
     color: rgba(255,255,255,0.92);
   }
 
-  /* Slightly stronger outline / pill feel so buttons don't get lost */
   .nav-card .nav-pill {
     border-width: 1px;
     letter-spacing: 0.01em;
     box-shadow: 0 1px 0 rgba(255,255,255,0.10) inset;
   }
 
-  /* Outline primary pills */
   .nav-card .btn-outline-primary {
     border-color: rgba(255, 255, 255, 0.60) !important;
     background: rgba(255,255,255,0.06) !important;
@@ -504,7 +536,6 @@
     box-shadow: 0 0 0 0.22rem rgba(255,255,255,0.28) !important;
   }
 
-  /* Active Dashboard button (white pill on blue) */
   .nav-card .btn-primary,
   .nav-card .nav-active {
     background: #ffffff !important;
@@ -522,7 +553,6 @@
     color: #0d47a1 !important;
   }
 
-  /* Logout button on blue surface */
   .nav-card .btn-outline-danger {
     border-color: rgba(255, 255, 255, 0.65) !important;
     background: rgba(255,255,255,0.04) !important;
@@ -541,44 +571,36 @@
   }
 
   /* =========================================================
-     DROPDOWN POSITIONING FIX - OVERRIDING GLOBAL STYLES
+     DROPDOWN POSITIONING FIX
      ========================================================= */
 
-  /* Override the global static positioning */
   .nav-card .dropdown,
   .nav-card .nav-dd {
-    position: relative !important; /* Critical for proper dropdown positioning */
+    position: relative !important;
   }
 
   .dropdown-menu-float {
     position: absolute !important;
     z-index: 9999 !important;
-    
-    /* Position below the button */
     top: 100% !important;
     left: 0 !important;
     margin-top: 0.5rem !important;
-    
     min-width: 260px;
     padding: 0.5rem;
-
     border: none;
     border-radius: 14px;
-
     background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
     box-shadow:
       0 14px 34px rgba(13, 71, 161, 0.45),
       0 3px 8px rgba(0, 0, 0, 0.2);
   }
 
-  /* Ensure dropdowns near the right edge don't go off-screen */
   .nav-card .dropdown:last-child .dropdown-menu-float,
   .nav-card .dropdown:nth-last-child(2) .dropdown-menu-float {
     left: auto !important;
     right: 0 !important;
   }
 
-  /* Center dropdowns on mobile */
   @media (max-width: 768px) {
     .dropdown-menu-float {
       left: 50% !important;
@@ -588,14 +610,12 @@
     }
   }
 
-  /* Scroll for tall menus (Finance) */
   .dropdown-scroll {
     max-height: 78vh;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
 
-  /* Optional: nicer scrollbar */
   .dropdown-scroll::-webkit-scrollbar { width: 10px; }
   .dropdown-scroll::-webkit-scrollbar-thumb {
     background: rgba(255,255,255,0.22);
@@ -607,7 +627,6 @@
     border-radius: 10px;
   }
 
-  /* Section headers inside dropdown */
   .dropdown-section {
     padding: 0.45rem 0.75rem;
     font-size: 0.72rem;
@@ -618,7 +637,6 @@
     user-select: none;
   }
 
-  /* Dropdown items */
   .dropdown-menu-float .dropdown-item {
     color: #ffffff !important;
     font-weight: 600;
@@ -648,13 +666,11 @@
     opacity: 0.95;
   }
 
-  /* Dividers that match the blue theme */
   .dropdown-menu-float .dropdown-divider {
     border-top: 1px solid rgba(255, 255, 255, 0.22);
     margin: 0.35rem 0.25rem;
   }
 
-  /* Disabled-looking items (read-only) */
   .disabled-item {
     opacity: 0.70;
     cursor: not-allowed;
@@ -662,13 +678,9 @@
     background: rgba(0,0,0,0.10);
   }
 
-  /* =========================================================
-     MOBILE / SMALL WIDTH QUALITY OF LIFE
-     ========================================================= */
-
   @media (max-width: 576px) {
     .nav-card .card-body { padding: 0.75rem !important; }
     .nav-card .btn { padding: 0.45rem 0.75rem !important; }
-    .nav-agency-pill { display: none; } /* keep it clean on tiny screens */
+    .nav-agency-pill { display: none; }
   }
 </style>

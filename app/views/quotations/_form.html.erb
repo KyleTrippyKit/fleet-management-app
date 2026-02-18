@@ -90,32 +90,90 @@
             </div>
           </div>
           
+          <!-- VEHICLE SEARCH SECTION - REPLACED DROPDOWN WITH SEARCH -->
           <div class="col-md-4">
-            <div class="form-group mb-3">
+            <div class="form-group mb-3 position-relative">
               <%= f.label :vehicle_id, "VEHICLE DETAILS", class: 'form-label gov-label' %>
-              <% if @quotation.vehicle.present? %>
+              
+              <% if @quotation.vehicle.present? && !@quotation.sent? %>
+                <!-- Already selected vehicle - show with option to change -->
+                <div class="gov-input-display d-flex justify-content-between align-items-center" style="background: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
+                  <div>
+                    <strong><%= @quotation.vehicle.license_plate %></strong> | 
+                    <%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %>
+                    <br><small class="text-muted">
+                      <i class="fas fa-building me-1"></i> <%= @quotation.vehicle.agency&.code %>
+                      <% if @quotation.vehicle.year_of_manufacture.present? %>
+                        • <%= @quotation.vehicle.year_of_manufacture %>
+                      <% end %>
+                    </small>
+                  </div>
+                  <button type="button" 
+                          class="btn btn-sm btn-outline-danger change-vehicle-btn"
+                          data-action="click->quotation-vehicle-search#clearVehicle"
+                          style="border-radius: 20px;">
+                    <i class="bi bi-x"></i> Change
+                  </button>
+                </div>
+                <%= f.hidden_field :vehicle_id, value: @quotation.vehicle.id, data: { quotation_vehicle_search_target: "vehicleHidden" } %>
+                
+              <% elsif @quotation.sent? && @quotation.vehicle.present? %>
+                <!-- Sent quotation - display only, no search -->
                 <div class="gov-input-display" style="background: #e9ecef; padding: 10px; border-radius: 4px; border-left: 4px solid #28a745;">
                   <strong><%= @quotation.vehicle.license_plate %></strong> | 
                   <%= @quotation.vehicle.make %> <%= @quotation.vehicle.model %>
                   <br><small class="text-muted">
+                    <i class="fas fa-building me-1"></i> <%= @quotation.vehicle.agency&.code %>
                     <% if @quotation.vehicle.year_of_manufacture.present? %>
-                      <%= @quotation.vehicle.year_of_manufacture %> • 
+                      • <%= @quotation.vehicle.year_of_manufacture %>
                     <% end %>
-                    <%= @quotation.vehicle.vehicle_type || 'Vehicle' %>
                   </small>
                 </div>
+                <%= f.hidden_field :vehicle_id, value: @quotation.vehicle.id %>
               <% else %>
-                <%= f.collection_select :vehicle_id, @vehicles, :id, :license_plate_with_details, 
-                      { include_blank: 'Select Vehicle' }, 
-                      class: 'form-select gov-select',
-                      disabled: @quotation.sent? %>
+                <!-- Wrap everything in a div with the controller -->
+                <div data-controller="quotation-vehicle-search">
+                  <!-- Vehicle search input -->
+                  <input type="text"
+                        class="form-control gov-input"
+                        placeholder="Search by license plate, make, or model..."
+                        autocomplete="off"
+                        data-quotation-vehicle-search-target="vehicleInput"
+                        data-action="input->quotation-vehicle-search#vehicleInput"
+                        data-search-url="<%= search_vehicles_path(format: :json) %>">
+
+                  <%= f.hidden_field :vehicle_id, data: { quotation_vehicle_search_target: "vehicleHidden" } %>
+
+                  <!-- Dropdown results -->
+                  <div class="list-group position-absolute w-100 shadow"
+                      style="z-index: 1055; display:none; max-height: 250px; overflow-y: auto;"
+                      data-quotation-vehicle-search-target="vehicleResults">
+                    <div data-quotation-vehicle-search-target="vehicleList"></div>
+                  </div>
+
+                  <!-- Selected chip (hidden until selection) -->
+                  <div class="mt-2" style="display:none;" data-quotation-vehicle-search-target="vehicleSelected">
+                    <div class="alert alert-info py-2 mb-0 d-flex justify-content-between align-items-center">
+                      <div>
+                        <i class="bi bi-car-front me-2"></i>
+                        <span data-quotation-vehicle-search-target="vehicleSelectedText"></span>
+                      </div>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger"
+                              data-action="click->quotation-vehicle-search#clearVehicle">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               <% end %>
               <small class="form-text text-muted">
                 <i class="fas fa-car"></i> RFQ Reference: <%= @rfq&.vehicle&.license_plate || 'Not specified' %>
+                <br>
+                <i class="fas fa-building"></i> Search across <strong>ALL agencies</strong>
               </small>
             </div>
-          </div>
-          
+          </div>         
           <div class="col-md-4">
             <div class="form-group mb-3">
               <label class="form-label gov-label">
