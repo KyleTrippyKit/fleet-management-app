@@ -1,4 +1,5 @@
 <%# app/views/purchase_orders/index.html.erb %>
+<%# REDESIGNED: Clear separation between Agency and VMCOTT views %>
 
 <%# ======================================================== %>
 <%# HELPER METHODS - DEFINED FIRST FOR PROPER SCOPE          %>
@@ -46,6 +47,49 @@
 
   def format_currency(amount)
     number_to_currency(amount, unit: 'TTD ', precision: 2)
+  end
+
+  # Helper to determine if current user is VMCOTT
+  def is_vmcott?
+    current_user.agency&.code.to_s.upcase == 'VMCOTT'
+  end
+
+  # Helper to get status description
+  def status_description(status)
+    case status.to_s
+    when 'draft' then 'Not yet submitted'
+    when 'pending_approval' then 'Awaiting supervisor approval'
+    when 'approved' then 'Ready for ordering or payment'
+    when 'ordered' then 'Sent to VMCOTT for processing'
+    when 'received' then 'Goods/services received'
+    when 'cancelled' then 'Order cancelled'
+    when 'paid' then 'Payment completed'
+    else ''
+    end
+  end
+
+  # Helper to get next step
+  def next_step(status, is_vmcott_user)
+    if is_vmcott_user
+      case status.to_s
+      when 'ordered' then 'Review items and accept/reject'
+      when 'pending_acceptance' then 'Accept or reject line items'
+      when 'partially_accepted' then 'Review remaining items'
+      when 'fully_accepted' then 'Create work order'
+      when 'work_in_progress' then 'Track work progress'
+      else ''
+      end
+    else
+      case status.to_s
+      when 'draft' then 'Submit for approval'
+      when 'pending_approval' then 'Wait for approval'
+      when 'approved' then 'Mark as ordered or pay'
+      when 'ordered' then 'Wait for VMCOTT to process'
+      when 'received' then 'Confirm receipt'
+      when 'paid' then 'View invoice'
+      else ''
+      end
+    end
   end
 %>
 
@@ -107,40 +151,102 @@
       .action-group {
         display: flex !important;
         flex-wrap: nowrap !important;
-        gap: 2px !important;
+        gap: 4px !important;
         justify-content: flex-end !important;
         align-items: center !important;
       }
       
-      .action-group .btn-sm,
-      .action-group .btn-group-sm .btn {
-        padding: 4px 8px !important;
-        font-size: 0.75rem !important;
-        line-height: 1 !important;
-        min-width: 32px !important;
-        white-space: nowrap !important;
-        border-radius: 4px !important;
+      .action-btn {
+        width: 36px !important;
+        height: 36px !important;
+        border: 1px solid #D1D5DB !important;
+        border-radius: 6px !important;
+        background: white !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-decoration: none !important;
+        font-size: 1rem !important;
+        transition: all 0.2s ease !important;
+        color: #1E3A8A !important;
+        cursor: pointer !important;
+        position: relative !important;
+        z-index: 1000 !important;
+        pointer-events: auto !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02) !important;
       }
-      
-      .action-group .btn-sm i,
-      .action-group .btn-group-sm .btn i {
-        margin-right: 0 !important;
-        font-size: 0.85rem !important;
+
+      .action-btn:hover {
+        border-color: #1E3A8A !important;
+        background: #F3F4F6 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(0,51,160,0.15) !important;
       }
-      
-      /* Hide text labels on all action buttons by default */
-      .action-group .btn-label {
+
+      .action-btn.primary {
+        background: #1E3A8A !important;
+        border-color: #1E3A8A !important;
+        color: white !important;
+      }
+
+      .action-btn.primary:hover {
+        background: #2563EB !important;
+        border-color: #2563EB !important;
+      }
+
+      .action-btn.success {
+        background: #047857 !important;
+        border-color: #047857 !important;
+        color: white !important;
+      }
+
+      .action-btn.success:hover {
+        background: #10B981 !important;
+        border-color: #10B981 !important;
+      }
+
+      .action-btn.warning {
+        background: #B45309 !important;
+        border-color: #B45309 !important;
+        color: white !important;
+      }
+
+      .action-btn.warning:hover {
+        background: #F59E0B !important;
+        border-color: #F59E0B !important;
+      }
+
+      .action-btn.danger {
+        background: #B91C1C !important;
+        border-color: #B91C1C !important;
+        color: white !important;
+      }
+
+      .action-btn.danger:hover {
+        background: #EF4444 !important;
+        border-color: #EF4444 !important;
+      }
+
+      .action-btn.vmcott {
+        background: #5B21B6 !important;
+        border-color: #5B21B6 !important;
+        color: white !important;
+      }
+
+      .action-btn.vmcott:hover {
+        background: #7C3AED !important;
+        border-color: #7C3AED !important;
+      }
+
+      .action-btn .btn-label {
         display: none !important;
       }
-      
-      /* Tooltip on hover for better UX */
-      .action-group .btn-sm,
-      .action-group .btn-group-sm .btn {
-        position: relative !important;
-      }
-      
-      .action-group .btn-sm:hover:after,
-      .action-group .btn-group-sm .btn:hover:after {
+
+      .action-btn[title]:hover:after {
         content: attr(title);
         position: absolute;
         bottom: 100%;
@@ -148,29 +254,24 @@
         transform: translateX(-50%);
         background: rgba(0,0,0,0.85);
         color: white;
-        padding: 6px 10px;
+        padding: 4px 8px;
         border-radius: 4px;
-        font-size: 0.7rem;
-        font-weight: 500;
+        font-size: 0.75rem;
         white-space: nowrap;
         z-index: 10000;
         pointer-events: none;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         letter-spacing: 0.3px;
         border: 1px solid rgba(255,255,255,0.1);
+        font-weight: 500;
       }
       
-      /* Special handling for button groups */
-      .action-group .btn-group {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        gap: 2px !important;
-      }
-      
-      .action-group .btn-group .btn {
-        border-radius: 4px !important;
-        margin-left: 0 !important;
+      /* Forms inside action group */
+      .action-group form {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: inline-flex !important;
       }
       
       .action-badge {
@@ -197,16 +298,252 @@
         font-size: 0.85rem;
       }
       
+      /* Header styles */
+      .header-section {
+        background: linear-gradient(145deg, white, #F0F4FA);
+        border: 1px solid #D1D5DB;
+        border-radius: 20px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 12px rgba(0,0,0,0.05);
+      }
+
+      .tt-flag-stripe {
+        display: flex;
+        flex-direction: column;
+        width: 8px;
+        height: 56px;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      .stripe-red { flex: 1; background-color: #B91C1C; }
+      .stripe-white { flex: 1; background-color: #FFFFFF; border-top: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB; }
+      .stripe-black { flex: 1; background-color: #111827; }
+
+      .agency-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 40px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        background: white;
+        border: 1px solid #E5E7EB;
+        padding: 0.5rem 1.2rem;
+      }
+
+      .tt-flag-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 40px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: white;
+        background: linear-gradient(90deg, #B91C1C, #111827);
+        padding: 0.5rem 1.2rem;
+      }
+
+      .flag-red, .flag-white, .flag-black {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        border-radius: 3px;
+      }
+
+      .flag-red { background-color: #B91C1C; }
+      .flag-white { background-color: #FFFFFF; border: 1px solid #9CA3AF; }
+      .flag-black { background-color: #111827; }
+
+      .time-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 1.2rem;
+        background: white;
+        border: 1px solid #D1D5DB;
+        border-radius: 40px;
+        font-size: 0.8rem;
+        color: #374151;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      }
+
+      .role-banner {
+        background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+        color: white;
+        border-radius: 16px;
+        padding: 1.2rem 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+      }
+
+      .role-banner.vmcott {
+        background: linear-gradient(135deg, #5B21B6 0%, #7C3AED 100%);
+      }
+
+      /* IMPROVED QUICK FILTER STYLES - ENHANCED BOX */
+      .quick-filter-wrapper {
+        background: white;
+        border-radius: 20px;
+        padding: 1.75rem 2rem;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+        margin-bottom: 2rem;
+      }
+      
+      .quick-filter-label {
+        display: block;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #1E3A8A;
+        margin-bottom: 1.25rem;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        border-bottom: 2px solid #E5E7EB;
+        padding-bottom: 0.75rem;
+      }
+      
+      .quick-filter-label i {
+        color: #5B21B6;
+        margin-right: 0.75rem;
+      }
+      
+      .quick-filter-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        background: transparent;
+        border-radius: 0;
+        padding: 0;
+        border: none;
+      }
+      
+      .quick-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        padding: 0.75rem 2rem;
+        border-radius: 100px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #4B5563;
+        background: #F9FAFB;
+        transition: all 0.2s ease;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        min-width: 140px;
+        justify-content: center;
+      }
+
+      .quick-filter-btn i {
+        margin-right: 0.75rem;
+        font-size: 1rem;
+      }
+
+      .quick-filter-btn:hover {
+        background: #F3F4F6;
+        color: #1E3A8A;
+        border-color: #D1D5DB;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+      }
+
+      .quick-filter-btn.active {
+        background: #1E3A8A;
+        color: white;
+        border-color: #1E3A8A;
+        box-shadow: 0 8px 16px rgba(30,58,138,0.25);
+      }
+
+      .quick-filter-btn.vmcott.active {
+        background: #5B21B6;
+        border-color: #5B21B6;
+        box-shadow: 0 8px 16px rgba(91,33,182,0.25);
+      }
+      
+      .quick-filter-btn.vmcott:hover {
+        color: #5B21B6;
+        border-color: #5B21B6;
+      }
+      
+      .quick-filter-btn.vmcott.active:hover {
+        color: white;
+      }
+
+      .dashboard-footer {
+        background: linear-gradient(90deg, #1E3A8A, #2563EB);
+        border-radius: 12px;
+        padding: 1rem 1.5rem;
+        margin-top: 2rem;
+        color: white;
+      }
+
+      .tt-flag-mini {
+        display: flex;
+        gap: 2px;
+      }
+
+      .mini-red {
+        width: 4px;
+        height: 20px;
+        background: #B91C1C;
+        border-radius: 2px;
+      }
+
+      .mini-white {
+        width: 4px;
+        height: 20px;
+        background: #FFFFFF;
+        border: 1px solid #D1D5DB;
+        border-radius: 2px;
+      }
+
+      .mini-black {
+        width: 4px;
+        height: 20px;
+        background: #111827;
+        border-radius: 2px;
+      }
+
+      /* Status badge styles */
+      .status-badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 100px;
+        text-transform: capitalize;
+      }
+
+      .status-badge.draft { background: #6B7280; color: white; }
+      .status-badge.pending_approval { background: #F59E0B; color: white; }
+      .status-badge.approved { background: #10B981; color: white; }
+      .status-badge.ordered { background: #3B82F6; color: white; }
+      .status-badge.received { background: #8B5CF6; color: white; }
+      .status-badge.paid { background: #059669; color: white; }
+      .status-badge.cancelled { background: #EF4444; color: white; }
+      .status-badge.rejected { background: #B91C1C; color: white; }
+
+      .acceptance-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        border-radius: 4px;
+      }
+
+      .acceptance-badge.pending_acceptance { background: #FEF3C7; color: #92400E; border-left: 3px solid #F59E0B; }
+      .acceptance-badge.partially_accepted { background: #DBEAFE; color: #1E40AF; border-left: 3px solid #3B82F6; }
+      .acceptance-badge.fully_accepted { background: #D1FAE5; color: #065F46; border-left: 3px solid #10B981; }
+      .acceptance-badge.fully_rejected { background: #FEE2E2; color: #991B1B; border-left: 3px solid #EF4444; }
+      .acceptance-badge.partially_rejected { background: #FEE2E2; color: #991B1B; border-left: 3px solid #EF4444; }
+
       /* Tablet view - slightly smaller buttons */
       @media (max-width: 1400px) {
         .action-group {
-          gap: 1px !important;
-        }
-        
-        .action-group .btn-sm,
-        .action-group .btn-group-sm .btn {
-          padding: 4px 6px !important;
-          min-width: 30px !important;
+          gap: 3px !important;
         }
       }
       
@@ -220,6 +557,20 @@
       
       [title] {
         cursor: help;
+      }
+      
+      /* Table improvements */
+      .table td {
+        vertical-align: middle;
+        padding: 1rem 0.75rem;
+      }
+      
+      .table th {
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #6B7280;
       }
     </style>
     <script>
@@ -280,152 +631,289 @@
     </script>
 <% end %>
 
-<div class="container-fluid py-4 purchase-orders-container" data-controller="purchase-orders">
-  <div class="row mb-4">
-    <div class="col">
-      <h1 class="h3 mb-0">
-        <i class="fas fa-file-invoice-dollar me-2"></i>
-        Purchase Orders
-      </h1>
-      <p class="text-muted">Manage purchase orders across all agencies</p>
+<div class="container-fluid py-4 purchase-orders-page">
+  
+  <!-- ===== HEADER SECTION ===== -->
+  <div class="header-section mb-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center">
+      <div class="d-flex align-items-center gap-4">
+        <!-- TT Flag Stripe -->
+        <div class="tt-flag-stripe">
+          <div class="stripe-red"></div>
+          <div class="stripe-white"></div>
+          <div class="stripe-black"></div>
+        </div>
+        
+        <div>
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <h1 class="display-6 fw-bold mb-0" style="color: #1E3A8A;">Purchase Orders</h1>
+            
+            <% if current_user.agency.present? %>
+              <span class="agency-badge" style="background: <%= 
+                case current_user.agency.code
+                when 'PTSC' then '#2563EB'
+                when 'TTPS' then '#B91C1C'
+                when 'TTDF' then '#047857'
+                when 'VMCOTT' then '#5B21B6'
+                else '#6B7280'
+                end %>; color: white; border-left: 4px solid <%= 
+                case current_user.agency.code
+                when 'PTSC' then '#FBBF24'
+                when 'TTPS' then '#FCD34D'
+                when 'TTDF' then '#FBBF24'
+                when 'VMCOTT' then '#B45309'
+                else '#FBBF24'
+                end %>;">
+                <i class="fas fa-building me-2"></i> <%= current_user.agency.code %>
+              </span>
+            <% end %>
+            
+            <!-- TT Flag Badge -->
+            <span class="tt-flag-badge">
+              <span class="flag-red"></span>
+              <span class="flag-white"></span>
+              <span class="flag-black"></span>
+              <span class="ms-2 fw-semibold">T&T</span>
+            </span>
+          </div>
+          
+          <div class="d-flex align-items-center gap-3">
+            <span class="time-badge">
+              <i class="far fa-clock me-2" style="color: #1E3A8A;"></i>
+              <%= Time.current.strftime("%B %d, %Y • %I:%M %p") %>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="col-auto">
-      <%= link_to new_purchase_order_path, class: 'btn btn-primary', data: { turbo: false } do %>
-        <i class="fas fa-plus-circle me-2"></i> 
-        <span class="btn-label">Create New PO</span>
+  </div>
+
+  <!-- ===== ROLE BANNER ===== -->
+  <div class="role-banner <%= 'vmcott' if is_vmcott? %>">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="bg-white bg-opacity-20 rounded-3 p-2">
+          <i class="fas <%= is_vmcott? ? 'fa-tools' : 'fa-building' %> fa-2x"></i>
+        </div>
+        <div>
+          <h4 class="mb-0 fw-bold">
+            <%= is_vmcott? ? 'VMCOTT - Service Provider' : "#{current_user.agency&.code} - Agency" %>
+          </h4>
+          <p class="mb-0 small opacity-75">
+            <%= is_vmcott? ? 'You receive and process purchase orders from agencies' : 'You create and manage purchase orders sent to VMCOTT' %>
+          </p>
+        </div>
+      </div>
+      <div>
+        <span class="badge bg-white text-dark py-2 px-3 rounded-pill">
+          <i class="fas fa-info-circle me-2"></i>
+          <%= is_vmcott? ? 'Awaiting acceptance: ' + (@purchase_orders.where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance').count.to_s) : "#{@purchase_orders.total_count} total orders" %>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HEADER WITH ACTIONS ===== -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div></div>
+    <div class="d-flex gap-2">
+      <% if !is_vmcott? %>
+        <%= link_to new_purchase_order_path, class: 'btn btn-primary', style: 'background: #1E3A8A; border: none; border-radius: 100px; padding: 0.6rem 1.5rem; font-weight: 600;', data: { turbo: false } do %>
+          <i class="fas fa-plus-circle me-2"></i> New Purchase Order
+        <% end %>
       <% end %>
-      <%= link_to reports_purchase_orders_path, class: 'btn btn-outline-secondary ms-2', data: { turbo: false } do %>
-        <i class="fas fa-chart-pie me-2"></i> 
-        <span class="btn-label">Reports & Analytics</span>
-      <% end %>
-      <%= link_to needs_payment_purchase_orders_path, class: 'btn btn-warning ms-2', data: { turbo: false } do %>
-        <i class="fas fa-exclamation-triangle me-2"></i> 
-        <span class="btn-label">Awaiting Payment</span>
-        <% if @purchase_orders.needs_payment.count > 0 %>
-          <span class="badge bg-dark ms-1"><%= @purchase_orders.needs_payment.count %></span>
+      
+      <% if !is_vmcott? %>
+        <%= link_to reports_purchase_orders_path, class: 'btn btn-outline-secondary', style: 'border-radius: 100px; padding: 0.6rem 1.5rem; font-weight: 600;', data: { turbo: false } do %>
+          <i class="fas fa-chart-pie me-2"></i> Reports
         <% end %>
       <% end %>
     </div>
   </div>
 
-  <!-- Quick Stats -->
-  <div class="row mb-4">
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-primary text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-uppercase mb-0">Total POs</h6>
-              <h3 class="mb-0"><%= @purchase_orders.total_count %></h3>
-            </div>
-            <i class="fas fa-file-invoice fa-2x opacity-50"></i>
+  <!-- ===== QUICK STATS ===== -->
+  <div class="row g-3 mb-4">
+    <% if is_vmcott? %>
+      <!-- VMCOTT Stats -->
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-primary text-white">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Awaiting Review</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'ordered').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">New orders to process</p>
           </div>
         </div>
       </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-warning text-dark">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Pending Acceptance</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Need item review</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #5B21B6, #7C3AED); color: white;">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Ready for Work</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', vmcott_status: 'pending_internal_work').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Create work orders</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-success text-white">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Completed</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'paid').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Paid and delivered</p>
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <!-- Agency Stats -->
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-secondary text-white">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Drafts</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'draft').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Not yet submitted</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-warning text-dark">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Awaiting Approval</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'pending_approval').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Supervisor review</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-primary text-white">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">With VMCOTT</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'ordered').count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Being processed</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm bg-success text-white">
+          <div class="card-body">
+            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Completed</h6>
+            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: ['received', 'paid']).count %></h2>
+            <p class="mb-0 small" style="opacity: 0.8;">Received/paid</p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- ===== QUICK FILTERS - ENHANCED BOX WITH SPACING ===== -->
+  <div class="quick-filter-wrapper">
+    <div class="quick-filter-label">
+      <i class="fas fa-filter"></i> Quick Filters
     </div>
-    
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-warning text-dark">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-uppercase mb-0">Needs Payment</h6>
-              <h3 class="mb-0"><%= @purchase_orders.needs_payment.count %></h3>
-            </div>
-            <i class="fas fa-credit-card fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-success text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-uppercase mb-0">Total Value</h6>
-              <h3 class="mb-0">TTD <%= number_to_currency(@purchase_orders.sum(:amount), unit: '') %></h3>
-            </div>
-            <i class="fas fa-money-bill-wave fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-md-3">
-      <div class="card border-0 shadow-sm bg-info text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="text-uppercase mb-0">🇹🇹 Card Payments</h6>
-              <h3 class="mb-0"><%= @purchase_orders.trinidad_card_payments.count %></h3>
-            </div>
-            <i class="fas fa-flag fa-2x opacity-50"></i>
-          </div>
-        </div>
-      </div>
+    <div class="quick-filter-group">
+      <%= link_to purchase_orders_path, class: "quick-filter-btn #{'active' if params[:status].blank? && params[:vendor].blank?}" do %>
+        <i class="fas fa-list-ul"></i> All POs
+      <% end %>
+      
+      <% if is_vmcott? %>
+        <%= link_to purchase_orders_path(vendor: 'VMCOTT', status: 'ordered'), class: "quick-filter-btn vmcott #{'active' if params[:status] == 'ordered' && params[:vendor] == 'VMCOTT'}" do %>
+          <i class="fas fa-inbox"></i> Awaiting Review
+        <% end %>
+        <%= link_to purchase_orders_path(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance'), class: "quick-filter-btn vmcott #{'active' if params[:acceptance_status] == 'pending_acceptance'}" do %>
+          <i class="fas fa-clipboard-check"></i> Pending Acceptance
+        <% end %>
+        <%= link_to purchase_orders_path(vendor: 'VMCOTT', vmcott_status: 'pending_internal_work'), class: "quick-filter-btn vmcott #{'active' if params[:vmcott_status] == 'pending_internal_work'}" do %>
+          <i class="fas fa-tools"></i> Ready for Work
+        <% end %>
+        <%= link_to purchase_orders_path(vendor: 'VMCOTT', status: 'paid'), class: "quick-filter-btn vmcott #{'active' if params[:status] == 'paid' && params[:vendor] == 'VMCOTT'}" do %>
+          <i class="fas fa-check-circle"></i> Completed
+        <% end %>
+      <% else %>
+        <%= link_to purchase_orders_path(status: 'draft'), class: "quick-filter-btn #{'active' if params[:status] == 'draft'}" do %>
+          <i class="fas fa-file"></i> Drafts
+        <% end %>
+        <%= link_to purchase_orders_path(status: 'pending_approval'), class: "quick-filter-btn #{'active' if params[:status] == 'pending_approval'}" do %>
+          <i class="fas fa-clock"></i> Awaiting Approval
+        <% end %>
+        <%= link_to purchase_orders_path(status: 'ordered'), class: "quick-filter-btn #{'active' if params[:status] == 'ordered'}" do %>
+          <i class="fas fa-shopping-cart"></i> With VMCOTT
+        <% end %>
+        <%= link_to purchase_orders_path(status: 'approved'), class: "quick-filter-btn #{'active' if params[:status] == 'approved'}" do %>
+          <i class="fas fa-check-circle"></i> Approved
+        <% end %>
+        <%= link_to purchase_orders_path(status: 'paid'), class: "quick-filter-btn #{'active' if params[:status] == 'paid'}" do %>
+          <i class="fas fa-receipt"></i> Paid
+        <% end %>
+      <% end %>
     </div>
   </div>
 
-  <!-- Filters -->
+  <!-- ===== FILTERS ===== -->
   <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body">
-      <%= form_with url: purchase_orders_path, method: :get, local: true, class: 'row g-3', data: { turbo: false } do |f| %>
+      <%= form_with url: purchase_orders_path, method: :get, local: true, class: 'row g-3', data: { turbo: false }, id: 'filter-form' do |f| %>
         <% if current_user.admin? %>
           <div class="col-md-3">
-            <%= label_tag :agency_id, 'Agency', class: 'form-label' %>
+            <%= label_tag :agency_id, 'Agency', class: 'form-label fw-semibold' %>
             <%= select_tag :agency_id, 
                   options_from_collection_for_select(@agencies, :id, :name, params[:agency_id]),
                   include_blank: 'All Agencies',
-                  class: 'form-select' %>
+                  class: 'form-select',
+                  onchange: 'this.form.requestSubmit()' %>
           </div>
         <% end %>
         
-        <div class="col-md-2">
-          <%= label_tag :status, 'Status', class: 'form-label' %>
+        <div class="col-md-3">
+          <%= label_tag :status, 'Status', class: 'form-label fw-semibold' %>
           <%= select_tag :status, 
                 options_for_select(PurchaseOrder.statuses.keys.map { |s| [s.humanize.titleize, s] }, params[:status]),
                 include_blank: 'All Statuses',
-                class: 'form-select' %>
+                class: 'form-select',
+                onchange: 'this.form.requestSubmit()' %>
         </div>
         
-        <div class="col-md-2">
-          <%= label_tag :payment_status, 'Payment Status', class: 'form-label' %>
-          <%= select_tag :payment_status, 
-                options_for_select(PurchaseOrder.payment_statuses.keys.map { |s| [s.humanize.titleize, s] }, params[:payment_status]),
-                include_blank: 'All Payment Statuses',
-                class: 'form-select' %>
+        <div class="col-md-3">
+          <%= label_tag :vendor, 'Vendor', class: 'form-label fw-semibold' %>
+          <%= select_tag :vendor, 
+                options_for_select(PurchaseOrder.distinct.pluck(:vendor).compact.map { |v| [v, v] }, params[:vendor]),
+                include_blank: 'All Vendors',
+                class: 'form-select',
+                onchange: 'this.form.requestSubmit()' %>
         </div>
         
-        <div class="col-md-2">
-          <%= label_tag :payment_method, 'Payment Method', class: 'form-label' %>
-          <%= select_tag :payment_method, 
-                options_for_select(PurchaseOrder.payment_methods.keys.map { |s| [s.humanize.titleize, s] }, params[:payment_method]),
-                include_blank: 'All Methods',
-                class: 'form-select' %>
+        <div class="col-md-3">
+          <%= label_tag :date_from, 'From Date', class: 'form-label fw-semibold' %>
+          <%= date_field_tag :date_from, params[:date_from], class: 'form-control', onchange: 'this.form.requestSubmit()' %>
         </div>
         
-        <div class="col-md-2">
-          <%= label_tag :date_from, 'From Date', class: 'form-label' %>
-          <%= date_field_tag :date_from, params[:date_from], class: 'form-control' %>
+        <div class="col-md-3">
+          <%= label_tag :date_to, 'To Date', class: 'form-label fw-semibold' %>
+          <%= date_field_tag :date_to, params[:date_to], class: 'form-control', onchange: 'this.form.requestSubmit()' %>
         </div>
         
-        <div class="col-md-2">
-          <%= label_tag :date_to, 'To Date', class: 'form-label' %>
-          <%= date_field_tag :date_to, params[:date_to], class: 'form-control' %>
-        </div>
-        
-        <div class="col-md-1 d-flex align-items-end">
+        <div class="col-md-3 d-flex align-items-end">
           <div class="btn-group w-100">
-            <%= submit_tag 'Filter', class: 'btn btn-primary' %>
-            <%= link_to 'Clear', purchase_orders_path, class: 'btn btn-outline-secondary', data: { turbo: false } %>
+            <%= link_to 'Clear Filters', purchase_orders_path, class: 'btn btn-outline-secondary', data: { turbo: false } %>
           </div>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- Purchase Orders Table -->
+  <!-- ===== PURCHASE ORDERS TABLE ===== -->
   <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -444,223 +932,182 @@
           </thead>
           <tbody>
             <% @purchase_orders.each do |po| %>
+              <% is_vmcott_po = po.vendor == 'VMCOTT' %>
               <tr>
                 <td>
-                  <strong><%= link_to po.po_number, po, class: 'text-decoration-none', data: { turbo: false } %></strong>
+                  <strong><%= link_to po.po_number, po, class: 'text-decoration-none', style: 'color: #1E3A8A;', data: { turbo: false } %></strong>
                   <div class="small text-muted">
                     <i class="fas fa-user-circle fa-fw"></i> <%= po.created_by&.name || 'System' %>
                   </div>
                 </td>
                 <td>
                   <span class="fw-bold"><%= po.vendor %></span>
-                  <% if po.supplier_id.present? %>
-                    <span class="action-badge">ID: <%= po.supplier_id %></span>
-                  <% end %>
                 </td>
                 <td>
                   <% if po.agency %>
-                    <span class="badge bg-<%= agency_badge_color(po.agency.code) %>-subtle text-<%= agency_badge_color(po.agency.code) %> border border-<%= agency_badge_color(po.agency.code) %> mb-1">
+                    <span class="badge" style="background: <%= 
+                      case po.agency.code
+                      when 'PTSC' then '#2563EB20'
+                      when 'TTPS' then '#B91C1C20'
+                      when 'TTDF' then '#04785720'
+                      when 'VMCOTT' then '#5B21B620'
+                      else '#6B728020'
+                      end %>; color: <%= 
+                      case po.agency.code
+                      when 'PTSC' then '#2563EB'
+                      when 'TTPS' then '#B91C1C'
+                      when 'TTDF' then '#047857'
+                      when 'VMCOTT' then '#5B21B6'
+                      else '#6B7280'
+                      end %>; padding: 0.3rem 0.8rem; border-radius: 100px; font-weight: 600; font-size: 0.7rem;">
                       <i class="fas fa-building me-1"></i> <%= po.agency.code %>
                     </span>
                   <% end %>
                   <% if po.vehicle %>
-                    <div class="small">
+                    <div class="small mt-1">
                       <i class="fas fa-car text-muted me-1"></i>
-                      <%= link_to po.vehicle.license_plate, po.vehicle, class: 'text-decoration-none', data: { turbo: false } %>
-                      <span class="text-muted">(<%= po.vehicle.make %>)</span>
+                      <%= link_to po.vehicle.license_plate, po.vehicle, class: 'text-decoration-none text-muted', data: { turbo: false } %>
                     </div>
-                  <% else %>
-                    <span class="text-muted fst-italic">No vehicle</span>
                   <% end %>
                 </td>
                 <td>
-                  <strong class="text-nowrap text-success"><%= format_currency(po.amount) %></strong>
+                  <strong class="text-success"><%= format_currency(po.amount) %></strong>
                 </td>
                 <td>
-                  <span class="badge bg-<%= po.status_badge_color %> px-3 py-2">
+                  <span class="badge bg-<%= po.respond_to?(:status_badge_color) ? po.status_badge_color : 'secondary' %> px-3 py-2">
                     <i class="fas fa-<%= po_status_icon(po.status) %> me-1"></i>
-                    <%= po.display_status %>
+                    <%= po.respond_to?(:display_status) ? po.display_status : po.status.to_s.humanize %>
                   </span>
                 </td>
                 <td>
-                  <div class="mb-1">
-                    <span class="badge bg-<%= po.payment_status_badge_color %> px-3 py-2">
-                      <i class="fas fa-<%= payment_status_icon(po.payment_status) %> me-1"></i>
-                      <%= po.display_payment_status %>
-                    </span>
-                  </div>
-                  <% if po.payment_method %>
-                    <div class="small mt-1">
-                      <span class="badge bg-<%= po.payment_method_badge_color %>">
-                        <i class="fas <%= po.payment_method_icon %> me-1"></i>
-                        <%= po.display_payment_method %>
-                      </span>
-                      <% if po.respond_to?(:last_four_digits) && po.last_four_digits.present? %>
-                        <span class="text-muted ms-1">•••• <%= po.last_four_digits %></span>
-                      <% end %>
-                    </div>
-                  <% end %>
+                  <span class="badge bg-<%= po.respond_to?(:payment_status_badge_color) ? po.payment_status_badge_color : 'secondary' %> px-3 py-2">
+                    <i class="fas fa-<%= payment_status_icon(po.payment_status) %> me-1"></i>
+                    <%= po.respond_to?(:display_payment_status) ? po.display_payment_status : po.payment_status.to_s.humanize %>
+                  </span>
                 </td>
                 <td>
-                  <span class="fw-normal"><%= po.created_at.strftime('%b %d, %Y') %></span>
-                  <div class="small text-muted"><%= time_ago_in_words(po.created_at) %> ago</div>
+                  <span><%= po.created_at.strftime('%b %d, %Y') %></span>
                 </td>
                 
-                <!-- ACTION BUTTONS - COMPACT ICON-ONLY VERSION - ALL IN ONE LINE -->
-                <td class="text-end" style="min-width: 200px;">
+                <!-- ACTION BUTTONS - ENHANCED VISIBILITY -->
+                <td class="text-end">
                   <div class="action-group">
-                    
-                    <!-- === VIEW ACTION (Always visible) === -->
-                    <%= link_to po, 
-                          class: 'btn btn-sm btn-outline-primary', 
-                          title: 'View Purchase Order', 
-                          data: { turbo: false } do %>
-                      <i class="fas fa-file-invoice"></i>
-                      <span class="btn-label">View</span>
+                    <!-- View - Always visible -->
+                    <%= link_to po, class: 'action-btn', title: 'View Details', data: { turbo: false } do %>
+                      <i class="fas fa-eye"></i>
                     <% end %>
                     
-                    <!-- === PDF ACTION (Always visible) === -->
-                    <%= link_to print_purchase_order_path(po, format: :pdf), 
-                          class: 'btn btn-sm btn-outline-dark',
-                          target: '_blank',
-                          title: 'Download PDF',
-                          data: { turbo: false } do %>
+                    <!-- PDF - Always visible -->
+                    <%= link_to purchase_order_path(po, format: :pdf), class: 'action-btn', title: 'Download PDF', target: '_blank', data: { turbo: false } do %>
                       <i class="fas fa-file-pdf"></i>
-                      <span class="btn-label">PDF</span>
                     <% end %>
                     
-                    <!-- === EDIT ACTION (Draft/Editable only) === -->
-                    <% if po.editable? %>
-                      <%= link_to edit_purchase_order_path(po), 
-                            class: 'btn btn-sm btn-outline-warning', 
-                            title: 'Edit Draft', 
-                            data: { turbo: false } do %>
-                        <i class="fas fa-pencil-alt"></i>
-                        <span class="btn-label">Edit</span>
+                    <!-- AGENCY ACTIONS -->
+                    <% if !is_vmcott? %>
+                      <% if po.respond_to?(:editable?) && po.editable? %>
+                        <%= link_to edit_purchase_order_path(po), class: 'action-btn', title: 'Edit', data: { turbo: false } do %>
+                          <i class="fas fa-pencil-alt"></i>
+                        <% end %>
                       <% end %>
-                    <% end %>
-                    
-                    <!-- === SUBMIT FOR APPROVAL (Draft only) === -->
-                    <% if po.draft? %>
-                      <%= button_to submit_purchase_order_path(po), 
-                            method: :post,
-                            class: 'btn btn-sm btn-warning',
-                            title: 'Submit for Approval',
-                            form: { class: 'd-inline', data: { turbo: false } } do %>
-                        <i class="fas fa-paper-plane"></i>
-                        <span class="btn-label">Submit</span>
+                      
+                      <% if po.draft? %>
+                        <%= button_to submit_purchase_order_path(po), method: :post, class: 'action-btn warning', title: 'Submit for Approval', form: { class: 'd-inline', data: { turbo: false } } do %>
+                          <i class="fas fa-paper-plane"></i>
+                        <% end %>
                       <% end %>
-                    <% end %>
-                    
-                    <!-- === APPROVE ACTION (Pending Approval only) === -->
-                    <% if po.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
-                      <%= button_to approve_purchase_order_path(po),
-                            method: :post,
-                            class: 'btn btn-sm btn-success',
-                            title: 'Approve Purchase Order',
-                            form: { class: 'd-inline', data: { turbo: false } } do %>
-                        <i class="fas fa-check-circle"></i>
-                        <span class="btn-label">Approve</span>
+                      
+                      <% if po.approved? %>
+                        <%= button_to mark_ordered_purchase_order_path(po), method: :post, class: 'action-btn primary', title: 'Mark as Ordered (Send to VMCOTT)', form: { class: 'd-inline', data: { turbo: false } } do %>
+                          <i class="fas fa-shopping-cart"></i>
+                        <% end %>
                       <% end %>
-                    <% end %>
-                    
-                    <!-- === REJECT ACTION (Pending Approval only) === -->
-                    <% if po.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
-                      <button type="button" class="btn btn-sm btn-outline-danger" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#rejectModal"
-                              data-po-id="<%= po.id %>"
-                              title="Reject Purchase Order">
-                        <i class="fas fa-times-circle"></i>
-                        <span class="btn-label">Reject</span>
-                      </button>
-                    <% end %>
-                    
-                    <!-- === TRINIDAD CARD PAYMENT === -->
-                    <% if po.can_initiate_payment? && (current_user.finance? || current_user.admin?) %>
-                      <%= link_to payment_page_purchase_order_path(po), 
-                            class: 'btn btn-sm btn-primary',
-                            title: 'Process Trinidad Card Payment',
-                            data: { turbo: false } do %>
-                        <i class="fas fa-credit-card"></i>
-                        <span class="btn-label">🇹🇹 Pay</span>
+                      
+                      <% if po.respond_to?(:can_initiate_payment?) && po.can_initiate_payment? %>
+                        <%= link_to payment_page_purchase_order_path(po), class: 'action-btn success', title: 'Process Payment', data: { turbo: false } do %>
+                          <i class="fas fa-credit-card"></i>
+                        <% end %>
                       <% end %>
-                    <% end %>
                     
-                    <!-- === AUTHORIZE PAYMENT (Admin only) === -->
-                    <% if po.can_authorize_payment? && current_user.admin? %>
-                      <button type="button" class="btn btn-sm btn-info"
-                              data-bs-toggle="modal"
-                              data-bs-target="#authorizePaymentModal"
-                              data-po-id="<%= po.id %>"
-                              data-po-number="<%= po.po_number %>"
-                              data-amount="<%= format_currency(po.amount) %>"
-                              title="Authorize Payment (Admin Only)">
-                        <i class="fas fa-shield-alt"></i>
-                        <span class="btn-label">Authorize</span>
-                      </button>
-                    <% end %>
-                    
-                    <!-- === COMPLETE PAYMENT (Finance only) === -->
-                    <% if po.can_complete_payment? && current_user.finance? %>
-                      <%= button_to complete_payment_purchase_order_path(po),
-                            method: :post,
-                            class: 'btn btn-sm btn-success',
-                            title: 'Complete Payment & Create Invoice',
-                            data: { confirm: 'Complete this payment? This will mark the PO as paid and create an invoice.' },
-                            form: { class: 'd-inline', data: { turbo: false } } do %>
-                        <i class="fas fa-check-double"></i>
-                        <span class="btn-label">Complete</span>
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- === MARK AS PAID (Manual payment) === -->
-                    <% if po.approved? && po.payment_unpaid? && !po.is_trinidad_payment? && (current_user.finance? || current_user.admin?) %>
-                      <button type="button" class="btn btn-sm btn-success" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#markPaidModal" 
-                              data-po-id="<%= po.id %>"
-                              data-po-number="<%= po.po_number %>"
-                              title="Mark as Paid (Cash/Cheque/Bank Transfer)">
-                        <i class="fas fa-money-bill-wave"></i>
-                        <span class="btn-label">Mark Paid</span>
-                      </button>
-                    <% end %>
-                    
-                    <!-- === VMCOTT WORK ORDER === -->
-                    <% if po.vendor == 'VMCOTT' && po.fully_accepted? && current_user.vmcott_staff? %>
-                      <% if po.pending_internal_work? %>
-                        <button type="button" class="btn btn-sm btn-warning"
-                                data-bs-toggle="modal"
-                                data-bs-target="#createInternalPosModal"
+                    <!-- VMCOTT ACTIONS - ACCEPT/REJECT BUTTONS (Tick and X) -->
+                    <% else %>
+                      <!-- Accept/Reject buttons show for VMCOTT POs with status 'ordered' -->
+                      <% if is_vmcott_po && po.status == 'ordered' %>
+                        <!-- ACCEPT BUTTON - Green Tick -->
+                        <button type="button" class="action-btn success" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#acceptModal"
                                 data-po-id="<%= po.id %>"
-                                title="Create Internal Work Order">
-                          <i class="fas fa-tools"></i>
-                          <span class="btn-label">Work Order</span>
+                                data-po-number="<%= po.po_number %>"
+                                title="Accept Purchase Order">
+                          <i class="fas fa-check"></i>
+                        </button>
+                        
+                        <!-- REJECT BUTTON - Red X -->
+                        <button type="button" class="action-btn danger" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#rejectModal"
+                                data-po-id="<%= po.id %>"
+                                data-po-number="<%= po.po_number %>"
+                                title="Reject Purchase Order">
+                          <i class="fas fa-times"></i>
                         </button>
                       <% end %>
                       
-                      <% if po.work_in_progress? %>
-                        <%= button_to mark_internal_work_completed_purchase_order_path(po),
-                              method: :post,
-                              class: 'btn btn-sm btn-info',
-                              title: 'Mark Work Completed',
-                              form: { class: 'd-inline', data: { turbo: false } } do %>
+                      <!-- Show when order is fully accepted (acceptance_status = 'fully_accepted') -->
+                      <% if is_vmcott_po && po.acceptance_status == 'fully_accepted' && po.vmcott_status == 'pending_internal_work' %>
+                        <%= link_to vmcott_internal_pos_from_po_path(purchase_order_id: po.id), class: 'action-btn warning', title: 'Create Work Order', data: { turbo: false } do %>
+                          <i class="fas fa-tools"></i>
+                        <% end %>
+                      <% end %>
+                      
+                      <!-- Show when work is in progress -->
+                      <% if is_vmcott_po && po.vmcott_status == 'work_in_progress' %>
+                        <%= button_to mark_internal_work_completed_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Mark Work Completed', form: { class: 'd-inline', data: { turbo: false } } do %>
                           <i class="fas fa-check"></i>
-                          <span class="btn-label">Complete</span>
+                        <% end %>
+                      <% end %>
+                      
+                      <!-- Show when internal work is completed -->
+                      <% if is_vmcott_po && po.vmcott_status == 'internal_work_completed' %>
+                        <%= button_to mark_ready_for_delivery_purchase_order_path(po), method: :post, class: 'action-btn warning', title: 'Ready for Delivery', form: { class: 'd-inline', data: { turbo: false } } do %>
+                          <i class="fas fa-truck"></i>
+                        <% end %>
+                      <% end %>
+                      
+                      <!-- Show when ready for delivery -->
+                      <% if is_vmcott_po && po.vmcott_status == 'ready_for_delivery' %>
+                        <%= button_to mark_delivered_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Mark Delivered', form: { class: 'd-inline', data: { turbo: false } } do %>
+                          <i class="fas fa-check-circle"></i>
                         <% end %>
                       <% end %>
                     <% end %>
                     
-                    <!-- === INVOICED STATUS (if paid) === -->
-                    <% if po.paid? %>
-                      <span class="btn btn-sm btn-outline-success disabled" 
-                            title="Invoice Generated">
-                        <i class="fas fa-file-invoice"></i>
-                        <span class="btn-label">Invoiced</span>
-                      </span>
+                    <!-- Approve/Reject for supervisors -->
+                    <% if po.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
+                      <%= button_to approve_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Approve', form: { class: 'd-inline', data: { turbo: false } } do %>
+                        <i class="fas fa-check-circle"></i>
+                      <% end %>
+                      <button type="button" class="action-btn danger" 
+                              data-bs-toggle="modal" 
+                              data-bs-target="#rejectModal"
+                              data-po-id="<%= po.id %>"
+                              data-po-number="<%= po.po_number %>"
+                              title="Reject">
+                        <i class="fas fa-times-circle"></i>
+                      </button>
                     <% end %>
                     
+                    <!-- Cancel button (if applicable) -->
+                    <% if po.status != 'cancelled' && po.status != 'paid' && po.status != 'received' %>
+                      <button type="button" class="action-btn danger" 
+                              data-bs-toggle="modal" 
+                              data-bs-target="#cancelModal"
+                              data-po-id="<%= po.id %>"
+                              data-po-number="<%= po.po_number %>"
+                              title="Cancel Order">
+                        <i class="fas fa-ban"></i>
+                      </button>
+                    <% end %>
                   </div>
                 </td>
               </tr>
@@ -673,13 +1120,19 @@
         <div class="text-center py-5">
           <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
           <h4 class="text-muted">No purchase orders found</h4>
-          <p class="text-muted">Create your first purchase order to get started</p>
-          <%= link_to 'Create Purchase Order', new_purchase_order_path, class: 'btn btn-primary', data: { turbo: false } %>
+          <p class="text-muted mb-4">
+            <%= is_vmcott? ? 'No orders have been sent to VMCOTT yet.' : 'Create your first purchase order to get started.' %>
+          </p>
+          <% if !is_vmcott? %>
+            <%= link_to new_purchase_order_path, class: 'btn btn-primary', data: { turbo: false } do %>
+              <i class="fas fa-plus-circle me-2"></i> New Purchase Order
+            <% end %>
+          <% end %>
         </div>
       <% end %>
     </div>
     
-    <% if @purchase_orders.total_pages > 1 %>
+    <% if @purchase_orders.respond_to?(:total_pages) && @purchase_orders.total_pages > 1 %>
       <div class="card-footer border-0 bg-light">
         <div class="d-flex justify-content-center">
           <%= paginate @purchase_orders %>
@@ -687,230 +1140,106 @@
       </div>
     <% end %>
   </div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="dashboard-footer mt-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <span class="text-white opacity-75">VMCOTT • Trinidad & Tobago • Purchase Order Management</span>
+      <span class="text-white opacity-50">© <%= Date.today.year %></span>
+    </div>
+  </div>
+</div>
+
+<!-- Accept Modal -->
+<div class="modal fade" id="acceptModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-check-circle me-2"></i>
+          Accept Purchase Order
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'accept-form' do |f| %>
+        <div class="modal-body">
+          <div class="alert alert-success">
+            <i class="fas fa-question-circle me-2"></i>
+            <strong>Are you sure you want to accept purchase order <span id="acceptPoNumber" class="fw-bold"></span>?</strong>
+          </div>
+          <p class="text-muted mb-0">This will mark all items as accepted and move the order to the next stage.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= submit_tag 'Yes, Accept Purchase Order', class: 'btn btn-success' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
 </div>
 
 <!-- Reject Modal -->
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header">
+      <div class="modal-header bg-danger text-white">
         <h5 class="modal-title">
-          <i class="fas fa-times-circle text-danger me-2"></i>
+          <i class="fas fa-times-circle me-2"></i>
           Reject Purchase Order
         </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <%= form_with url: reject_purchase_order_path('ID_PLACEHOLDER'), method: :post, data: { turbo: false } do |f| %>
+      <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'reject-form' do |f| %>
         <div class="modal-body">
-          <div class="alert alert-warning">
+          <div class="alert alert-danger">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>You are rejecting purchase order <span id="rejectPoNumber" class="fw-bold"></span></strong>
+            <strong>Are you sure you want to reject purchase order <span id="rejectPoNumber" class="fw-bold"></span>?</strong>
           </div>
           
           <div class="mb-3">
-            <%= label_tag :reason, 'Reason for Rejection', class: 'form-label fw-bold' %>
-            <p class="text-muted small mb-2">Please provide a clear reason why this purchase order is being rejected:</p>
-            <%= text_area_tag :reason, nil, 
-                  class: 'form-control',
-                  rows: 4,
-                  placeholder: 'e.g., Incorrect pricing, missing approvals, vendor not approved, budget constraints...',
-                  required: true %>
-          </div>
-          
-          <div class="alert alert-secondary small">
-            <i class="fas fa-info-circle me-1"></i>
-            The vendor will be notified of this rejection. You can edit and resubmit the PO later.
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times me-1"></i> Cancel
-          </button>
-          <%= submit_tag 'Reject Purchase Order', class: 'btn btn-danger' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
-
-<!-- Mark Paid Modal -->
-<div class="modal fade" id="markPaidModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="fas fa-check-circle text-success me-2"></i>
-          Mark Purchase Order as Paid
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <%= form_with url: mark_paid_purchase_order_path('ID_PLACEHOLDER'), method: :post, data: { turbo: false } do |f| %>
-        <div class="modal-body">
-          <div class="alert alert-success">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong>Recording payment for PO: <span id="paidPoNumber"></span></strong>
-          </div>
-          
-          <div class="mb-3">
-            <%= label_tag :payment_method, 'Payment Method', class: 'form-label fw-bold' %>
-            <%= select_tag :payment_method, 
-                  options_for_select([
-                    ['🇹🇹 Trinidad Credit Card', 'trinidad_credit_card'],
-                    ['🇹🇹 Trinidad Debit Card', 'trinidad_debit_card'],
-                    ['🏦 Bank Transfer / Wire', 'bank_transfer'],
-                    ['💵 Cash', 'cash'],
-                    ['📝 Cheque', 'cheque'],
-                    ['💳 International Credit Card', 'credit_card'],
-                    ['💳 International Debit Card', 'debit_card'],
-                    ['🔄 Other', 'other']
-                  ]),
-                  class: 'form-select', 
-                  required: true,
-                  id: 'paymentMethodSelect' %>
-          </div>
-          
-          <!-- Card Details Section -->
-          <div id="cardDetailsSection" class="d-none">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= label_tag :card_type, 'Card Brand', class: 'form-label fw-bold' %>
-                  <%= select_tag :card_type, 
-                        options_for_select([
-                          ['Visa', 'visa'],
-                          ['MasterCard', 'mastercard'],
-                          ['American Express', 'amex'],
-                          ['Discover', 'discover'],
-                          ['First Citizens', 'first_citizens'],
-                          ['Republic Bank', 'republic_bank'],
-                          ['Scotiabank', 'scotiabank'],
-                          ['Other Local Card', 'local']
-                        ], 'visa'),
-                        class: 'form-select',
-                        id: 'cardTypeSelect' %>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <%= label_tag :last_four_digits, 'Last 4 Digits', class: 'form-label fw-bold' %>
-                  <%= text_field_tag :last_four_digits, nil, 
-                        class: 'form-control',
-                        placeholder: '1234',
-                        maxlength: 4,
-                        pattern: '[0-9]{4}',
-                        id: 'lastFourDigitsInput' %>
-                  <div class="form-text">Required for card payments</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="mb-3">
-            <%= label_tag :payment_reference, 'Reference / Transaction ID', class: 'form-label fw-bold' %>
-            <%= text_field_tag :payment_reference, nil, 
-                  class: 'form-control',
-                  placeholder: 'Cheque #, Transfer Ref, Transaction ID',
-                  required: true,
-                  id: 'paymentReferenceInput' %>
-            <div class="form-text">Enter the reference number from your bank, cheque, or payment portal</div>
-          </div>
-          
-          <div class="mb-3">
-            <%= label_tag :payment_date, 'Payment Date', class: 'form-label fw-bold' %>
-            <%= date_field_tag :payment_date, Date.current, 
-                  class: 'form-control',
-                  required: true,
-                  id: 'paymentDateInput' %>
-            <div class="form-text">When was this payment made?</div>
-          </div>
-          
-          <div class="mb-3">
-            <%= label_tag :payment_notes, 'Notes (Optional)', class: 'form-label' %>
-            <%= text_area_tag :payment_notes, nil, 
-                  class: 'form-control',
-                  rows: 2,
-                  placeholder: 'Additional details about this payment...',
-                  id: 'paymentNotesInput' %>
-          </div>
-          
-          <div class="alert alert-info small">
-            <i class="fas fa-file-invoice me-1"></i>
-            <strong>Invoice will be auto-generated</strong> - A paid invoice will be created automatically.
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times me-1"></i> Cancel
-          </button>
-          <%= submit_tag '✓ Confirm Payment', class: 'btn btn-success' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
-
-<!-- Authorize Payment Modal -->
-<div class="modal fade" id="authorizePaymentModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="fas fa-shield-alt text-primary me-2"></i>
-          Authorize Trinidad Card Payment
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <%= form_with url: authorize_payment_purchase_order_path('ID_PLACEHOLDER'), method: :post, data: { turbo: false } do |f| %>
-        <div class="modal-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Administrator Authorization Required</strong>
-          </div>
-          
-          <div class="card mb-3 border-primary">
-            <div class="card-header bg-primary bg-opacity-10 text-primary fw-bold">
-              <i class="fas fa-file-invoice me-1"></i> Purchase Order Details
-            </div>
-            <div class="card-body">
-              <h5 id="authPoNumber" class="mb-2"></h5>
-              <h3 id="authAmount" class="text-success mb-0"></h3>
-              <div class="mt-2 text-muted small">
-                <i class="fas fa-flag me-1"></i> Trinidad & Tobago Card Payment
-              </div>
-            </div>
-          </div>
-          
-          <div class="alert alert-info">
-            <p class="mb-2 fw-bold">By authorizing this payment, you confirm:</p>
-            <ul class="mb-0 small">
-              <li>✓ Vendor has delivered goods/services as specified</li>
-              <li>✓ Amount matches approved invoice/agreement</li>
-              <li>✓ All required departmental approvals obtained</li>
-              <li>✓ Payment complies with agency financial policies</li>
-              <li>✓ Funds are available in designated account</li>
-            </ul>
-          </div>
-          
-          <div class="mb-3">
-            <%= label_tag :authorization_notes, 'Authorization Notes', class: 'form-label fw-bold' %>
-            <%= text_area_tag :authorization_notes, nil, 
+            <%= label_tag :rejection_reason, 'Reason for Rejection (Optional)', class: 'form-label fw-bold' %>
+            <%= text_area_tag :rejection_reason, nil, 
                   class: 'form-control',
                   rows: 3,
-                  placeholder: 'Optional: Add any notes about this authorization (e.g., budget code, special conditions)...' %>
-          </div>
-          
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="confirmAuthCheck" required>
-            <label class="form-check-label fw-bold" for="confirmAuthCheck">
-              I confirm that all requirements have been met and I am authorized to approve this payment.
-            </label>
+                  placeholder: 'Please provide a reason for rejection...' %>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times me-1"></i> Cancel
-          </button>
-          <%= submit_tag '✓ Authorize Payment', class: 'btn btn-primary', disabled: true, id: 'authorizeSubmitBtn' %>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= submit_tag 'Yes, Reject Purchase Order', class: 'btn btn-danger' %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Cancel Purchase Order
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'cancel-form' do |f| %>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <i class="fas fa-question-circle me-2"></i>
+            <strong>Are you sure you want to cancel purchase order <span id="cancelPoNumber" class="fw-bold"></span>?</strong>
+          </div>
+          <p class="text-muted">This action cannot be undone.</p>
+          
+          <div class="mb-3">
+            <%= label_tag :cancellation_reason, 'Reason for Cancellation (Optional)', class: 'form-label' %>
+            <%= text_area_tag :cancellation_reason, nil, class: 'form-control', rows: 2 %>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep it</button>
+          <%= submit_tag 'Yes, Cancel Order', class: 'btn btn-warning' %>
         </div>
       <% end %>
     </div>
@@ -918,119 +1247,24 @@
 </div>
 
 <script>
-// FIX FOR BLINKING/WHITE TEXT ISSUE
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Purchase Orders Index - DOM Loaded, applying fixes');
-  
-  // Add class to body for CSS targeting
   document.body.classList.add('purchase-orders-page');
   
-  // Force immediate visibility with NO transitions
-  document.body.style.transition = 'none';
-  document.body.style.animation = 'none';
-  
-  // Force all transitions to be disabled immediately
-  const disableAllTransitions = () => {
-    const allElements = document.querySelectorAll('*');
-    allElements.forEach(el => {
-      el.style.transition = 'none';
-      el.style.animation = 'none';
-      el.style.opacity = '1';
-      el.style.visibility = 'visible';
+  // Accept Modal
+  const acceptModal = document.getElementById('acceptModal');
+  if (acceptModal) {
+    acceptModal.addEventListener('show.bs.modal', function(event) {
+      const button = event.relatedTarget;
+      const poId = button.getAttribute('data-po-id');
+      const poNumber = button.getAttribute('data-po-number');
+      
+      const poNumberDisplay = acceptModal.querySelector('#acceptPoNumber');
+      const form = acceptModal.querySelector('#accept-form');
+      
+      poNumberDisplay.textContent = poNumber;
+      form.action = '/purchase_orders/' + poId + '/accept_all';
     });
-  };
-  
-  disableAllTransitions();
-  
-  // Force proper text colors immediately
-  setTimeout(() => {
-    const forceTextColor = () => {
-      const container = document.querySelector('.purchase-orders-container');
-      if (container) {
-        const allElements = container.querySelectorAll('*');
-        allElements.forEach(el => {
-          const computedStyle = window.getComputedStyle(el);
-          const bgColor = computedStyle.backgroundColor;
-          const textColor = computedStyle.color;
-          
-          if ((textColor === 'rgba(0, 0, 0, 0)' || 
-               textColor === 'transparent' || 
-               textColor === 'rgb(255, 255, 255)' || 
-               textColor === '#ffffff') &&
-              (bgColor === 'rgba(0, 0, 0, 0)' ||
-               bgColor === 'transparent' ||
-               bgColor === 'rgb(255, 255, 255)' ||
-               bgColor === '#ffffff' ||
-               bgColor === 'rgb(248, 249, 250)' ||
-               bgColor === '#f8f9fa')) {
-            el.style.color = '#212529';
-            el.style.setProperty('color', '#212529', 'important');
-          }
-          
-          if (el.classList.contains('card') && 
-              !el.classList.contains('bg-primary') &&
-              !el.classList.contains('bg-success') &&
-              !el.classList.contains('bg-info') &&
-              !el.classList.contains('bg-warning') &&
-              !el.classList.contains('bg-danger') &&
-              !el.classList.contains('bg-dark')) {
-            el.style.backgroundColor = 'white';
-            el.style.setProperty('background-color', 'white', 'important');
-          }
-          
-          if (el.tagName === 'TABLE' || el.classList.contains('table')) {
-            el.style.backgroundColor = 'white';
-            el.style.setProperty('background-color', 'white', 'important');
-          }
-        });
-      }
-    };
-    
-    forceTextColor();
-    setTimeout(forceTextColor, 50);
-    setTimeout(forceTextColor, 100);
-    setTimeout(forceTextColor, 200);
-  }, 20);
-  
-  // Completely disable Turbo for this page
-  if (typeof Turbo !== 'undefined') {
-    console.log('Disabling Turbo for purchase orders page');
-    Turbo.cache.exemptPageFromCache();
-    Turbo.cache.exemptPageFromPreview();
-    
-    document.addEventListener('turbo:before-cache', function(event) {
-      if (window.location.pathname.includes('/purchase_orders')) {
-        console.log('Preventing Turbo cache for purchase orders');
-        event.preventDefault();
-        Turbo.cache.clear();
-      }
-    });
-    
-    const originalVisit = Turbo.visit;
-    Turbo.visit = function(url, options = {}) {
-      if (url.toString().includes('/purchase_orders')) {
-        console.log('Preventing Turbo visit to purchase order page');
-        window.location.href = url;
-        return;
-      }
-      return originalVisit.call(this, url, options);
-    };
   }
-  
-  // Force disable Turbo for all links and forms
-  setTimeout(() => {
-    document.querySelectorAll('a').forEach(link => {
-      if (!link.hasAttribute('data-turbo') && !link.hasAttribute('target')) {
-        link.setAttribute('data-turbo', 'false');
-      }
-    });
-    
-    document.querySelectorAll('form').forEach(form => {
-      if (!form.hasAttribute('data-turbo')) {
-        form.setAttribute('data-turbo', 'false');
-      }
-    });
-  }, 100);
   
   // Reject Modal
   const rejectModal = document.getElementById('rejectModal');
@@ -1038,98 +1272,30 @@ document.addEventListener('DOMContentLoaded', function() {
     rejectModal.addEventListener('show.bs.modal', function(event) {
       const button = event.relatedTarget;
       const poId = button.getAttribute('data-po-id');
+      const poNumber = button.getAttribute('data-po-number');
       
-      const form = rejectModal.querySelector('form');
       const poNumberDisplay = rejectModal.querySelector('#rejectPoNumber');
-      
-      const row = button.closest('tr');
-      const poNumber = row.querySelector('td:first-child strong').textContent.trim();
+      const form = rejectModal.querySelector('#reject-form');
       
       poNumberDisplay.textContent = poNumber;
-      form.action = form.action.replace('ID_PLACEHOLDER', poId);
+      form.action = '/purchase_orders/' + poId + '/reject';
     });
   }
   
-  // Mark Paid Modal
-  const markPaidModal = document.getElementById('markPaidModal');
-  if (markPaidModal) {
-    markPaidModal.addEventListener('show.bs.modal', function(event) {
+  // Cancel Modal
+  const cancelModal = document.getElementById('cancelModal');
+  if (cancelModal) {
+    cancelModal.addEventListener('show.bs.modal', function(event) {
       const button = event.relatedTarget;
       const poId = button.getAttribute('data-po-id');
       const poNumber = button.getAttribute('data-po-number');
       
-      const form = markPaidModal.querySelector('form');
-      const poNumberDisplay = markPaidModal.querySelector('#paidPoNumber');
+      const poNumberDisplay = cancelModal.querySelector('#cancelPoNumber');
+      const form = cancelModal.querySelector('#cancel-form');
       
       poNumberDisplay.textContent = poNumber;
-      form.action = form.action.replace('ID_PLACEHOLDER', poId);
-    });
-    
-    const paymentMethodSelect = markPaidModal.querySelector('#paymentMethodSelect');
-    const cardDetailsSection = markPaidModal.querySelector('#cardDetailsSection');
-    const lastFourDigitsInput = markPaidModal.querySelector('#lastFourDigitsInput');
-    const cardTypeSelect = markPaidModal.querySelector('#cardTypeSelect');
-    
-    if (paymentMethodSelect && cardDetailsSection) {
-      paymentMethodSelect.addEventListener('change', function(e) {
-        const isCardPayment = e.target.value.includes('card');
-        if (isCardPayment) {
-          cardDetailsSection.classList.remove('d-none');
-          lastFourDigitsInput.required = true;
-          cardTypeSelect.required = true;
-        } else {
-          cardDetailsSection.classList.add('d-none');
-          lastFourDigitsInput.required = false;
-          cardTypeSelect.required = false;
-        }
-      });
-    }
-  }
-  
-  // Authorize Payment Modal
-  const authorizePaymentModal = document.getElementById('authorizePaymentModal');
-  if (authorizePaymentModal) {
-    authorizePaymentModal.addEventListener('show.bs.modal', function(event) {
-      const button = event.relatedTarget;
-      const poId = button.getAttribute('data-po-id');
-      const poNumber = button.getAttribute('data-po-number');
-      const amount = button.getAttribute('data-amount');
-      
-      const form = authorizePaymentModal.querySelector('form');
-      const poNumberDisplay = authorizePaymentModal.querySelector('#authPoNumber');
-      const amountDisplay = authorizePaymentModal.querySelector('#authAmount');
-      const checkbox = authorizePaymentModal.querySelector('#confirmAuthCheck');
-      const submitBtn = authorizePaymentModal.querySelector('#authorizeSubmitBtn');
-      
-      poNumberDisplay.textContent = `Purchase Order: ${poNumber}`;
-      amountDisplay.textContent = amount;
-      form.action = form.action.replace('ID_PLACEHOLDER', poId);
-      
-      checkbox.checked = false;
-      submitBtn.disabled = true;
-      
-      checkbox.addEventListener('change', function() {
-        submitBtn.disabled = !this.checked;
-      });
+      form.action = '/purchase_orders/' + poId + '/cancel';
     });
   }
-  
-  // Fix for pagination links
-  const paginationLinks = document.querySelectorAll('.pagination a');
-  paginationLinks.forEach(link => {
-    link.setAttribute('data-turbo', 'false');
-  });
-  
-  // Final check after everything loads
-  setTimeout(() => {
-    console.log('Final check - ensuring all text is visible');
-    const allTextElements = document.querySelectorAll('.purchase-orders-page p, .purchase-orders-page span, .purchase-orders-page td, .purchase-orders-page th, .purchase-orders-page div, .purchase-orders-page h1, .purchase-orders-page h2, .purchase-orders-page h3, .purchase-orders-page h4, .purchase-orders-page h5, .purchase-orders-page h6');
-    allTextElements.forEach(el => {
-      if (window.getComputedStyle(el).color === 'rgb(255, 255, 255)' || 
-          window.getComputedStyle(el).color === '#ffffff') {
-        el.style.color = '#212529';
-      }
-    });
-  }, 500);
 });
 </script>
