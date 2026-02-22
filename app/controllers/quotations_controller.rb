@@ -293,7 +293,6 @@ class QuotationsController < ApplicationController
       notes: "Auto-generated for missing parts in quotation #{@quotation.quote_number}",
       quotation: @quotation,
       vehicle_id: @quotation.vehicle_id,
-      agency_id: @quotation.agency_id,
       amount: 0.00
     )
     
@@ -946,7 +945,6 @@ class QuotationsController < ApplicationController
   end
 
   # DELETE /quotations/1
-# DELETE /quotations/1
   def destroy
     # 🔒 Only allow deleting draft quotations
     unless @quotation.draft?
@@ -1538,8 +1536,8 @@ class QuotationsController < ApplicationController
       created_by: user,
       status: 'draft',
       po_number: generate_po_number,
-      quotation: quotation,
-      agency_id: quotation.agency_id
+      quotation: quotation
+      # REMOVED: agency_id: quotation.agency_id - PurchaseOrder doesn't have this column
     )
     
     if accepted_items[:line_items].present?
@@ -1699,7 +1697,7 @@ class QuotationsController < ApplicationController
     session.delete("quotation_#{quotation_id}_rejected_items")
   end
 
-  # ✅ Single canonical PO creator (transaction-safe)
+  # ✅ Single canonical PO creator (transaction-safe) - FIXED VERSION
   def create_po_from_selection!(quotation:, accepted_line_items:, accepted_jobs:, accepted_job_parts:)
     # Prevent duplicates: one PO per quotation
     existing = PurchaseOrder.find_by(quotation_id: quotation.id)
@@ -1722,13 +1720,12 @@ class QuotationsController < ApplicationController
 
     accepted_total = line_total + jobs_labor_total + parts_total
 
-    # ✅ FIXED: Explicit attribute assignment instead of slice(column_names)
+    # ✅ FIXED: Explicit attribute assignment - REMOVED agency_id
     po_attrs = {
       quotation_id: quotation.id,
       amount: accepted_total,
       vendor: quotation.vendor,
       vehicle_id: quotation.vehicle_id,
-      agency_id: quotation.agency_id,
       created_by: current_user, # Use association if available
       created_by_id: current_user.id, # Also set foreign key for safety
       po_number: generate_readable_po_number,
@@ -1743,11 +1740,13 @@ class QuotationsController < ApplicationController
       item_attrs = {
         purchase_order: po,
         description: li.description,
-        specifications: li.specifications,
         quantity: li.quantity.to_f,
         unit_price: li.unit_price.to_f,
         total_price: (li.quantity.to_f * li.unit_price.to_f)
       }
+      
+      # Add notes if specifications exist
+      item_attrs[:notes] = li.specifications if li.specifications.present?
 
       if defined?(PurchaseOrderItem) && PurchaseOrderItem.table_exists?
         PurchaseOrderItem.create!(item_attrs)

@@ -6,6 +6,7 @@ class PurchaseOrdersController < ApplicationController
   before_action :check_edit_permission, only: [:edit, :update]
   before_action :require_supervisor, only: [:approve, :reject]
   before_action :require_finance, only: [:mark_paid, :payment, :process_payment, :authorize_payment, :complete_payment, :record_payment]
+  before_action :redirect_pdf_to_print, only: [:show]
 
   # GET /purchase_orders
   def index
@@ -35,12 +36,14 @@ class PurchaseOrdersController < ApplicationController
       return
     end
 
+    accepted_total = calculate_accepted_total(@quotation)
+
     @purchase_order = PurchaseOrder.new(
-      vehicle: @quotation.vehicle,
+      vehicle_id: @quotation.vehicle_id,
       vendor: @quotation.vendor,
-      amount: calculate_accepted_total(@quotation),
+      amount: accepted_total,
       notes: "Created from Quotation #{@quotation.quote_number}\nAccepted items only.",
-      created_by: current_user,
+      created_by_id: current_user.id,
       status: 'draft',
       po_number: generate_po_number,
       quotation_id: @quotation.id
@@ -52,7 +55,7 @@ class PurchaseOrdersController < ApplicationController
         quantity: line_item.quantity,
         unit_price: line_item.unit_price,
         notes: line_item.specifications,
-        is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
+        is_accepted: nil
       )
     end
 
@@ -63,7 +66,7 @@ class PurchaseOrdersController < ApplicationController
           quantity: 1,
           unit_price: job.total_labor_cost || 0,
           notes: job.description,
-          is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
+          is_accepted: nil
         )
 
         job.quotation_job_parts.each do |job_part|
@@ -73,7 +76,7 @@ class PurchaseOrdersController < ApplicationController
             quantity: job_part.quantity,
             unit_price: job_part.unit_price,
             notes: "From job: #{job.name}",
-            is_accepted: nil  # ✅ FIXED: Default to nil for pending acceptance
+            is_accepted: nil
           )
         end
       end
@@ -83,6 +86,7 @@ class PurchaseOrdersController < ApplicationController
       @quotation.update(status: 'accepted', accepted_at: Time.current)
       redirect_to @purchase_order, notice: 'Purchase order created from accepted quotation items.'
     else
+      Rails.logger.error "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
       redirect_to accept_items_quotation_path(@quotation),
                   alert: "Failed to create purchase order: #{@purchase_order.errors.full_messages.join(', ')}"
     end
@@ -92,7 +96,6 @@ class PurchaseOrdersController < ApplicationController
   def awaiting_acceptance
     return redirect_to purchase_orders_path, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
-    # ✅ FIXED: Now using the real column after migration
     @purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT')
                                     .where(acceptance_acknowledged_at: nil)
                                     .order(created_at: :desc)
@@ -106,7 +109,6 @@ class PurchaseOrdersController < ApplicationController
   def acknowledge_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'
 
-    # ✅ FIXED: Now using the real column after migration
     if @purchase_order.update(acceptance_acknowledged_at: Time.current)
       redirect_to @purchase_order, notice: 'Purchase order acceptance acknowledged.'
     else
@@ -146,6 +148,8 @@ class PurchaseOrdersController < ApplicationController
     @pending_items = @purchase_order.purchase_order_items.where(is_accepted: nil)
     @accepted_total = @accepted_items.sum(:total_price)
 
+    # For the simple accept/reject workflow
+    @show_simple_workflow = true
     render :acceptance_details
   end
 
@@ -155,7 +159,6 @@ class PurchaseOrdersController < ApplicationController
 
     item = @purchase_order.purchase_order_items.find(params[:item_id])
 
-    # Convert string to proper boolean/nil
     accepted_value = case params[:accepted]
                      when 'true' then true
                      when 'false' then false
@@ -164,7 +167,6 @@ class PurchaseOrdersController < ApplicationController
                      end
 
     if item.update(is_accepted: accepted_value, rejection_reason: params[:reason])
-      # ✅ FIXED: Use recompute_acceptance_status! instead of recalculate_amount!
       @purchase_order.recompute_acceptance_status!
 
       if request.xhr?
@@ -188,19 +190,17 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def show
+    if request.format.pdf?
+      return redirect_to print_purchase_order_path(@purchase_order, format: :pdf)
+    end
+
     @purchase_order_items = @purchase_order.purchase_order_items
     @invoices = @purchase_order.invoices
     @payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
 
-    # ✅ FIXED: Set payment_audits and payment_histories with limits
     @payment_histories = @purchase_order.payment_histories.order(created_at: :desc).limit(100)
     @payment_audits = @purchase_order.payment_audits.order(created_at: :asc)
 
-    # ✅ IMPORTANT FIX:
-    # Do NOT call @purchase_order.purchase_order_items.includes(:vendor_invoice_items)
-    # because your DB does NOT have vendor_invoice_items.purchase_order_item_id.
-    #
-    # Instead: load vendor invoices + their items by purchase_order_id.
     @vendor_invoice = VendorInvoice.find_by(purchase_order_id: @purchase_order.id)
     @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
   rescue ActiveRecord::StatementInvalid => e
@@ -208,7 +208,6 @@ class PurchaseOrdersController < ApplicationController
     @payment_histories = []
     @payment_audits = []
 
-    # Still keep these safe
     @vendor_invoice = VendorInvoice.find_by(purchase_order_id: @purchase_order.id)
     @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
   end
@@ -226,9 +225,19 @@ class PurchaseOrdersController < ApplicationController
   def create
     @purchase_order = PurchaseOrder.new(purchase_order_params)
     @purchase_order.created_by = current_user
+    
+    if params[:commit] == 'Submit for Approval'
+      @purchase_order.status = 'pending_approval'
+    else
+      @purchase_order.status = 'draft'
+    end
 
     if @purchase_order.save
-      redirect_to @purchase_order, notice: 'Purchase Order created successfully.'
+      if @purchase_order.status == 'pending_approval'
+        redirect_to @purchase_order, notice: 'Purchase Order submitted for approval successfully.'
+      else
+        redirect_to @purchase_order, notice: 'Purchase Order saved as draft successfully.'
+      end
     else
       flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
       render :new, status: :unprocessable_entity
@@ -240,8 +249,16 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def update
+    if params[:commit] == 'Submit for Approval'
+      @purchase_order.status = 'pending_approval'
+    end
+
     if @purchase_order.update(purchase_order_params)
-      redirect_to @purchase_order, notice: 'Purchase order updated successfully.'
+      if @purchase_order.status == 'pending_approval'
+        redirect_to @purchase_order, notice: 'Purchase Order submitted for approval successfully.'
+      else
+        redirect_to @purchase_order, notice: 'Purchase order updated successfully.'
+      end
     else
       flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
       render :edit, status: :unprocessable_entity
@@ -295,6 +312,39 @@ class PurchaseOrdersController < ApplicationController
       redirect_to @purchase_order, notice: 'Marked as received successfully.'
     else
       redirect_to @purchase_order, alert: 'Could not mark as received.'
+    end
+  end
+
+  # VMCOTT Workflow Actions
+  def mark_work_in_progress
+    if @purchase_order.mark_work_in_progress!(current_user)
+      redirect_to @purchase_order, notice: 'Work started successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not start work.'
+    end
+  end
+
+  def mark_internal_work_completed
+    if @purchase_order.mark_internal_work_completed!(current_user)
+      redirect_to @purchase_order, notice: 'Work marked as completed successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark work as completed.'
+    end
+  end
+
+  def mark_ready_for_delivery
+    if @purchase_order.mark_ready_for_delivery!(current_user)
+      redirect_to @purchase_order, notice: 'Marked as ready for delivery.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark as ready for delivery.'
+    end
+  end
+
+  def mark_delivered
+    if @purchase_order.mark_delivered!(current_user)
+      redirect_to @purchase_order, notice: 'Marked as delivered successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark as delivered.'
     end
   end
 
@@ -436,7 +486,7 @@ class PurchaseOrdersController < ApplicationController
 
   def compliance_reports
     @purchase_orders = PurchaseOrder.trinidad_card_payments.order(created_at: :desc).page(params[:page]).per(20)
-    @purchase_orders = @purchase_orders.for_agency(params[:agency_id]) if params[:agency_id].present?
+    @purchase_orders = @purchase_orders.joins(:vehicle).where(vehicles: { agency_id: params[:agency_id] }) if params[:agency_id].present?
     @agencies = Agency.all if current_user.admin?
   end
 
@@ -455,7 +505,12 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def needs_payment
-    @purchase_orders = PurchaseOrder.needs_payment.for_agency(current_user.agency_id).recent.page(params[:page]).per(20)
+    @purchase_orders = PurchaseOrder.needs_payment
+                                    .joins(:vehicle)
+                                    .where(vehicles: { agency_id: current_user.agency_id })
+                                    .recent
+                                    .page(params[:page])
+                                    .per(20)
     render :index
   end
 
@@ -546,7 +601,12 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def pending_approval
-    @purchase_orders = PurchaseOrder.pending_approval.for_agency(current_user.agency_id).recent.page(params[:page]).per(20)
+    @purchase_orders = PurchaseOrder.pending_approval
+                                    .joins(:vehicle)
+                                    .where(vehicles: { agency_id: current_user.agency_id })
+                                    .recent
+                                    .page(params[:page])
+                                    .per(20)
     render :index
   end
 
@@ -583,7 +643,6 @@ class PurchaseOrdersController < ApplicationController
 
   private
 
-  # ✅ FIXED: Eager loading to prevent N+1 queries
   def set_purchase_order
     @purchase_order =
       PurchaseOrder.includes(
@@ -596,25 +655,31 @@ class PurchaseOrdersController < ApplicationController
         :invoices,
         :payment_histories,
         :payment_audits,
-        # ✅ IMPORTANT FIX:
-        # DO NOT eager-load :vendor_invoice_items through purchase_order_items
-        # because DB column vendor_invoice_items.purchase_order_item_id does not exist.
         purchase_order_items: [:part]
       ).find(params[:id])
   rescue ActiveRecord::RecordNotFound
     redirect_to purchase_orders_path, alert: 'Purchase order not found.'
   end
 
+  def redirect_pdf_to_print
+    if request.format.pdf?
+      redirect_to print_purchase_order_path(@purchase_order, format: :pdf)
+    end
+  end
+
   def fetch_purchase_orders
     base_scope = PurchaseOrder.recent.includes(:vehicle, :created_by, :approved_by)
     base_scope = base_scope.includes(:payable) if PurchaseOrder.reflect_on_association(:payable)
 
-    base_scope =
-      if current_user.admin?
-        base_scope.all
-      else
-        base_scope.for_agency(current_user.agency_id)
-      end
+    if current_user.admin?
+      base_scope = base_scope.all
+    elsif current_user.agency&.code == 'VMCOTT'
+      # VMCOTT sees ALL purchase orders (from all agencies)
+      base_scope = base_scope.all
+    else
+      # Regular agencies only see their own
+      base_scope = base_scope.joins(:vehicle).where(vehicles: { agency_id: current_user.agency_id })
+    end
 
     base_scope = base_scope.where(status: params[:status]) if params[:status].present?
     base_scope = base_scope.where(payment_status: params[:payment_status]) if params[:payment_status].present?
@@ -649,7 +714,7 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def calculate_accepted_total(quotation)
-    quotation.amount
+    quotation.amount.to_f
   end
 
   def generate_po_number

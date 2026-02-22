@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION (WITH AGENCY FILTERING FIX)
+# config/routes.rb - COMPLETE REVISED VERSION
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
@@ -69,11 +69,10 @@ Rails.application.routes.draw do
   # ========================
   resources :agencies, only: [:index, :show] do
     member do
-      get :vehicles, to: 'vehicles#index'  # This creates agency_vehicles_path
+      get :vehicles, to: 'vehicles#index'
     end
   end
   
-  # Alternative explicit routes (more reliable)
   get "agencies/:id/vehicles",    to: "vehicles#index", as: :agency_vehicles
   get "agencies/:id/analytics",   to: "vehicles#analytics", as: :agency_analytics
   get "agencies/:id/maintenance", to: "vehicles#maintenance_dashboard", as: :agency_maintenance
@@ -233,7 +232,6 @@ Rails.application.routes.draw do
         to: "inventory#new_purchase_request_with_part",
         as: :inventory_new_purchase_request_with_part
 
-    # ✅ FIX: GET shows the form; POST submits
     get  "inventory/create_purchase_request/:id", to: "inventory#new_purchase_request_with_part"
     post "inventory/create_purchase_request/:id",
          to: "inventory#create_purchase_request",
@@ -280,7 +278,7 @@ Rails.application.routes.draw do
     end
 
     # ------------------------
-    # ✅ Vendor RFQ / Vendor Quotation workflow
+    # Vendor RFQ / Vendor Quotation workflow
     # ------------------------
     resources :vendor_rfqs, only: [:index, :show, :new, :create] do
       member do
@@ -288,7 +286,6 @@ Rails.application.routes.draw do
         post :close
       end
 
-      # Quotations from suppliers against a vendor RFQ
       resources :vendor_quotations, only: [:index, :show, :new, :create] do
         member do
           post :accept
@@ -482,60 +479,85 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # Purchase Orders
+  # PURCHASE ORDERS - COMPLETE ROUTES
   # ========================
   resources :purchase_orders do
     collection do
+      # Reports & Analytics
       get  :reports
       get  :export
+      get  :analytics
+      get  :reconciliation
+      get  :compliance_reports
+      get  :vendor_analysis
+      get  :export_reconciliation
+
+      # Status-based collections
       get  :pending_approval
       get  :needs_payment
+      get  :awaiting_acceptance
+      
+      # Bulk actions
       post :bulk_approve
-
-      get :analytics
-      get :reconciliation
-      get :compliance_reports
-      get :vendor_analysis
-      get :export_reconciliation
-
+      
+      # Dashboard endpoints
       get  :ap_dashboard,      to: "purchase_orders#accounts_payable_index", as: :ap_dashboard
       get  :monthly_statement, to: "purchase_orders#monthly_statement",      as: :monthly_statement
       get  :aging_report,      to: "purchase_orders#aging_report",           as: :aging_report
       post :pay_statement,     to: "purchase_orders#pay_statement",          as: :pay_statement
 
+      # Creation from quotation
       get "from_quotation/:quotation_id", to: "purchase_orders#from_quotation", as: :from_quotation
-      get :awaiting_acceptance
     end
 
     member do
+      # Agency Workflow
       post :submit
       post :approve
       post :reject
       post :cancel
       post :mark_ordered
       post :mark_received
+      
+      # Payment Workflow
       post :mark_paid
       post :record_payment
-      post :convert_to_invoice
-      get  :print
-
       get  :payment,           to: "purchase_orders#payment",           as: :payment_page
       post :process_payment,   to: "purchase_orders#process_payment",   as: :process_payment
       post :authorize_payment, to: "purchase_orders#authorize_payment", as: :authorize_payment
       post :complete_payment,  to: "purchase_orders#complete_payment",  as: :complete_payment
       get  :payment_summary,   to: "purchase_orders#payment_summary",   as: :payment_summary
+      get  :payment_audits,    to: "purchase_orders#payment_audits"
 
-      get :payment_audits, to: "purchase_orders#payment_audits"
-
-      post :acknowledge_acceptance
+      # VMCOTT Acceptance Workflow (SIMPLE VERSION - Accept/Reject entire PO)
+      post :acknowledge_acceptance, to: "purchase_orders#acknowledge_acceptance", as: :acknowledge_acceptance
+      # Note: reject action is already defined above in Agency Workflow
+      
+      # VMCOTT Work Progress (after acceptance)
+      post :mark_work_in_progress
+      post :mark_internal_work_completed
+      post :mark_ready_for_delivery
+      post :mark_delivered
+      
+      # Work Order Creation
       post :create_vmcott_pos
+      
+      # Review Page (read-only items + accept/reject buttons)
       get  :acceptance_details
+      
+      # Legacy item-level acceptance (if still needed)
       post :update_item_acceptance
 
+      # Parts Management
       post :consume_parts
       get  :parts_usage
+
+      # Document Generation
+      get  :print
+      post :convert_to_invoice
     end
 
+    # Nested resources
     resources :purchase_order_items
   end
 

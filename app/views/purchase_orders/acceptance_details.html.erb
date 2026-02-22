@@ -1,0 +1,323 @@
+<%# app/views/purchase_orders/acceptance_details.html.erb %>
+
+<div class="container-fluid py-4">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="mb-1">Purchase Order Review</h1>
+      <div class="text-muted">
+        Review and accept/reject Purchase Order <strong><%= @purchase_order.po_number %></strong>
+      </div>
+    </div>
+
+    <div class="text-end">
+      <div class="fw-semibold h5 text-primary"><%= @purchase_order.po_number %></div>
+      <div class="text-muted small">
+        Vendor: <span class="badge bg-info"><%= @purchase_order.vendor %></span> |
+        Status: <span class="badge bg-<%= @purchase_order.status_badge_color %>"><%= @purchase_order.display_status %></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PO Summary Card -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="text-muted small">Vehicle</div>
+          <div class="fw-semibold">
+            <% if @purchase_order.vehicle %>
+              <%= @purchase_order.vehicle.license_plate %>
+              <small class="text-muted d-block"><%= @purchase_order.vehicle.make %> <%= @purchase_order.vehicle.model %></small>
+            <% else %>
+              <span class="text-danger">N/A</span>
+            <% end %>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="text-muted small">Agency</div>
+          <div class="fw-semibold">
+            <%= @purchase_order.agency&.code || @purchase_order.agency&.name || "N/A" %>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="text-muted small">Total Amount</div>
+          <div class="fw-semibold h5 text-success">
+            $<%= number_with_precision(@purchase_order.amount.to_f, precision: 2) %>
+          </div>
+        </div>
+
+        <div class="col-md-3">
+          <div class="text-muted small">Current Status</div>
+          <div>
+            <span class="badge bg-<%= @purchase_order.acceptance_badge_color %> fs-6 p-2">
+              <%= @purchase_order.display_acceptance_status %>
+            </span>
+          </div>
+        </div>
+
+        <% if @purchase_order.notes.present? %>
+          <div class="col-12">
+            <div class="text-muted small">Notes</div>
+            <div class="border rounded p-2 bg-light" style="white-space: pre-wrap;">
+              <%= @purchase_order.notes %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Items List (Read-only) -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-light">
+      <h5 class="mb-0">Order Items</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Description</th>
+              <th class="text-end">Quantity</th>
+              <th class="text-end">Unit Price</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @purchase_order.purchase_order_items.each do |item| %>
+              <tr>
+                <td>
+                  <div class="fw-semibold"><%= item.description.presence || "Item" %></div>
+                  <% if item.notes.present? %>
+                    <div class="text-muted small"><%= item.notes %></div>
+                  <% end %>
+                </td>
+                <td class="text-end"><%= item.quantity %></td>
+                <td class="text-end">$<%= number_with_precision(item.unit_price, precision: 2) %></td>
+                <td class="text-end fw-bold">$<%= number_with_precision(item.quantity * item.unit_price, precision: 2) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="3" class="text-end"><strong>Total:</strong></td>
+              <td class="text-end fw-bold text-primary">$<%= number_with_precision(@purchase_order.amount, precision: 2) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simple Accept/Reject Actions -->
+  <div class="row">
+    <div class="col-lg-6">
+      <div class="card mb-3 shadow-sm border-success">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Accept Purchase Order</h5>
+        </div>
+        <div class="card-body">
+          <p>Accepting this purchase order confirms that VMCOTT will complete the work.</p>
+          <p class="text-muted small mb-3">This will mark all items as accepted and allow you to start work.</p>
+          
+          <%= button_to acknowledge_acceptance_purchase_order_path(@purchase_order),
+                method: :post,
+                class: "btn btn-success btn-lg w-100",
+                data: { turbo: false, turbo_confirm: "Accept this purchase order and start work?" } do %>
+            <i class="fas fa-check-circle me-2"></i>Accept PO & Start Work
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card mb-3 shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+          <h5 class="mb-0"><i class="fas fa-times-circle me-2"></i>Reject Purchase Order</h5>
+        </div>
+        <div class="card-body">
+          <p>Reject this purchase order if VMCOTT cannot complete the work.</p>
+          
+          <div class="mb-3">
+            <label for="rejectionReason" class="form-label fw-bold">Reason for Rejection</label>
+            <textarea class="form-control" id="rejectionReason" rows="2" placeholder="Please explain why this PO is being rejected..."></textarea>
+          </div>
+          
+          <%= button_to reject_purchase_order_path(@purchase_order),
+                method: :post,
+                params: { reason: 'REPLACE_WITH_REASON' },
+                class: "btn btn-danger btn-lg w-100",
+                data: { turbo: false },
+                id: "reject-po-button" do %>
+            <i class="fas fa-times-circle me-2"></i>Reject Purchase Order
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Work Status Updates (After Acceptance) -->
+  <% if @purchase_order.acceptance_status == 'fully_accepted' || @purchase_order.acceptance_acknowledged_at.present? %>
+    <div class="card mt-4 shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Work Progress</h5>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body text-center">
+                <div class="mb-2">
+                  <% if @purchase_order.vmcott_status == 'pending_internal_work' %>
+                    <span class="badge bg-warning p-3"><i class="fas fa-hourglass-half fa-2x"></i></span>
+                  <% else %>
+                    <span class="badge bg-success p-3"><i class="fas fa-check fa-2x"></i></span>
+                  <% end %>
+                </div>
+                <h6>Step 1: Accept PO</h6>
+                <p class="small text-muted">Order accepted</p>
+                <% if @purchase_order.acceptance_acknowledged_at %>
+                  <span class="badge bg-success">Completed</span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body text-center">
+                <div class="mb-2">
+                  <% if @purchase_order.vmcott_status == 'work_in_progress' %>
+                    <span class="badge bg-primary p-3"><i class="fas fa-play fa-2x"></i></span>
+                  <% elsif @purchase_order.vmcott_status == 'work_in_progress' %>
+                    <span class="badge bg-warning p-3"><i class="fas fa-tools fa-2x"></i></span>
+                  <% elsif ['internal_work_completed', 'ready_for_delivery', 'delivered'].include?(@purchase_order.vmcott_status) %>
+                    <span class="badge bg-success p-3"><i class="fas fa-check fa-2x"></i></span>
+                  <% else %>
+                    <span class="badge bg-secondary p-3"><i class="fas fa-clock fa-2x"></i></span>
+                  <% end %>
+                </div>
+                <h6>Step 2: Start Work</h6>
+                <p class="small text-muted">Work in progress</p>
+                <% if @purchase_order.vmcott_status == 'work_in_progress' %>
+                  <%= button_to mark_internal_work_completed_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-success btn-sm w-100 mt-2",
+                        data: { turbo: false, turbo_confirm: "Mark work as completed?" } do %>
+                    <i class="fas fa-check"></i> Mark Finished
+                  <% end %>
+                <% elsif @purchase_order.vmcott_status == 'pending_internal_work' %>
+                  <%= button_to mark_work_in_progress_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-primary btn-sm w-100 mt-2",
+                        data: { turbo: false, turbo_confirm: "Start work on this order?" } do %>
+                    <i class="fas fa-play"></i> Start Work
+                  <% end %>
+                <% else %>
+                  <span class="badge bg-success w-100 mt-2">Completed</span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body text-center">
+                <div class="mb-2">
+                  <% if @purchase_order.vmcott_status == 'ready_for_delivery' %>
+                    <span class="badge bg-primary p-3"><i class="fas fa-truck fa-2x"></i></span>
+                  <% elsif @purchase_order.vmcott_status == 'delivered' %>
+                    <span class="badge bg-success p-3"><i class="fas fa-check-circle fa-2x"></i></span>
+                  <% else %>
+                    <span class="badge bg-secondary p-3"><i class="fas fa-clock fa-2x"></i></span>
+                  <% end %>
+                </div>
+                <h6>Step 3: Ready for Delivery</h6>
+                <p class="small text-muted">Vehicle ready</p>
+                <% if @purchase_order.vmcott_status == 'internal_work_completed' %>
+                  <%= button_to mark_ready_for_delivery_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-warning btn-sm w-100 mt-2",
+                        data: { turbo: false, turbo_confirm: "Mark as ready for delivery?" } do %>
+                    <i class="fas fa-truck"></i> Ready for Delivery
+                  <% end %>
+                <% elsif @purchase_order.vmcott_status == 'ready_for_delivery' %>
+                  <span class="badge bg-primary w-100 mt-2">Ready</span>
+                <% elsif @purchase_order.vmcott_status == 'delivered' %>
+                  <span class="badge bg-success w-100 mt-2">Delivered</span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-3">
+            <div class="card h-100">
+              <div class="card-body text-center">
+                <div class="mb-2">
+                  <% if @purchase_order.vmcott_status == 'delivered' %>
+                    <span class="badge bg-success p-3"><i class="fas fa-check-circle fa-2x"></i></span>
+                  <% else %>
+                    <span class="badge bg-secondary p-3"><i class="fas fa-clock fa-2x"></i></span>
+                  <% end %>
+                </div>
+                <h6>Step 4: Delivered</h6>
+                <p class="small text-muted">Vehicle returned</p>
+                <% if @purchase_order.vmcott_status == 'ready_for_delivery' %>
+                  <%= button_to mark_delivered_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-success btn-sm w-100 mt-2",
+                        data: { turbo: false, turbo_confirm: "Mark as delivered?" } do %>
+                    <i class="fas fa-check-circle"></i> Mark Delivered
+                  <% end %>
+                <% elsif @purchase_order.vmcott_status == 'delivered' %>
+                  <span class="badge bg-success w-100 mt-2">Delivered</span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Navigation -->
+  <div class="mt-4">
+    <%= link_to @purchase_order, class: "btn btn-outline-secondary" do %>
+      <i class="fas fa-arrow-left me-2"></i>Back to Purchase Order
+    <% end %>
+  </div>
+</div>
+
+<script>
+// Update the reject button with the reason
+document.addEventListener('DOMContentLoaded', function() {
+  const rejectButton = document.getElementById('reject-po-button');
+  const reasonTextarea = document.getElementById('rejectionReason');
+  
+  if (rejectButton && reasonTextarea) {
+    rejectButton.addEventListener('click', function(e) {
+      // Don't prevent default - we want the form to submit
+      // But we need to update the params
+      const reason = reasonTextarea.value.trim();
+      const url = rejectButton.form.action;
+      
+      if (reason) {
+        // Create a hidden input with the reason
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'reason';
+        input.value = reason;
+        rejectButton.form.appendChild(input);
+      }
+      
+      // Remove the placeholder param
+      const originalInput = rejectButton.form.querySelector('input[name="reason"][value="REPLACE_WITH_REASON"]');
+      if (originalInput) {
+        originalInput.remove();
+      }
+    });
+  }
+});
+</script>
