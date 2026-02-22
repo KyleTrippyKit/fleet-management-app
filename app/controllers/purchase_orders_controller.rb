@@ -153,6 +153,18 @@ class PurchaseOrdersController < ApplicationController
     render :acceptance_details
   end
 
+  # POST /purchase_orders/:id/accept_entire_po
+  # Add this method to handle the accept_entire_po route
+  def accept_entire_po
+    @purchase_order = PurchaseOrder.find(params[:id])
+    
+    if @purchase_order.accept_entire_po!(current_user)
+      redirect_to @purchase_order, notice: 'Purchase order accepted successfully. Work has been started.'
+    else
+      redirect_to @purchase_order, alert: 'Could not accept purchase order.'
+    end
+  end
+
   # PATCH /purchase_orders/:id/update_item_acceptance
   def update_item_acceptance
     return redirect_to @purchase_order, alert: 'VMCOTT access only' unless current_user.agency&.code == 'VMCOTT'

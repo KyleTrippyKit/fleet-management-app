@@ -8,33 +8,72 @@
 %>
 
 <div class="container-fluid py-4">
-  <div class="row mb-4">
+  <!-- Breadcrumb Navigation -->
+  <div class="row mb-3">
     <div class="col">
       <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><%= link_to 'Dashboard', root_path %></li>
           <li class="breadcrumb-item"><%= link_to 'Purchase Orders', purchase_orders_path %></li>
           <li class="breadcrumb-item active"><%= @purchase_order.po_number %></li>
         </ol>
       </nav>
+    </div>
+  </div>
 
-      <div class="d-flex justify-content-between align-items-center mt-2">
-        <div>
-          <h1 class="h3 mb-0">Purchase Order: <%= @purchase_order.po_number %></h1>
-          <p class="text-muted mb-0">Vendor: <%= @purchase_order.vendor %></p>
-        </div>
+  <!-- Header with Actions -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="d-flex align-items-center gap-3">
+        <h1 class="h2 mb-0">Purchase Order: <%= @purchase_order.po_number %></h1>
+        
+        <!-- Status Badges -->
+        <span class="badge bg-<%= @purchase_order.status_badge_color %> fs-6 p-2" 
+              data-bs-toggle="tooltip" 
+              title="<%= @purchase_order.status_description %>">
+          <i class="fas fa-<%= @purchase_order.status_icon %> me-1"></i>
+          <%= @purchase_order.display_status %>
+        </span>
+        
+        <% if @purchase_order.fully_accepted? %>
+          <span class="badge bg-success fs-6 p-2" 
+                data-bs-toggle="tooltip" 
+                title="All items have been accepted">
+            <i class="fas fa-check-circle me-1"></i> Accepted
+          </span>
+        <% end %>
+        
+        <% if @purchase_order.fully_rejected? %>
+          <span class="badge bg-danger fs-6 p-2" 
+                data-bs-toggle="tooltip" 
+                title="<%= @purchase_order.rejection_reason %>">
+            <i class="fas fa-times-circle me-1"></i> Rejected
+          </span>
+        <% end %>
+      </div>
+      
+      <div class="text-muted mt-2">
+        <i class="fas fa-calendar me-1"></i> Created <%= time_ago_in_words(@purchase_order.created_at) %> ago
+        by <%= @purchase_order.created_by&.name || 'System' %>
+      </div>
+    </div>
+    
+    <div class="col-md-4 text-end">
+      <div class="btn-group">
+        <%= link_to print_purchase_order_path(@purchase_order, format: :pdf),
+              class: 'btn btn-outline-dark', target: '_blank' do %>
+          <i class="fas fa-print me-2"></i> Print / PDF
+        <% end %>
 
-        <div class="btn-group">
-          <%= link_to print_purchase_order_path(@purchase_order, format: :pdf),
-                class: 'btn btn-outline-dark', target: '_blank' do %>
-            <i class="fas fa-print me-2"></i> Print
+        <% if @purchase_order.editable? %>
+          <%= link_to edit_purchase_order_path(@purchase_order), class: 'btn btn-outline-primary' do %>
+            <i class="fas fa-edit me-2"></i> Edit
           <% end %>
-
-          <% if @purchase_order.respond_to?(:editable?) && @purchase_order.editable? %>
-            <%= link_to edit_purchase_order_path(@purchase_order), class: 'btn btn-outline-primary' do %>
-              <i class="fas fa-edit me-2"></i> Edit
-            <% end %>
-          <% end %>
-        </div>
+        <% end %>
+        
+        <%= link_to purchase_orders_path, class: 'btn btn-outline-secondary' do %>
+          <i class="fas fa-arrow-left me-2"></i> Back
+        <% end %>
       </div>
     </div>
   </div>
@@ -43,346 +82,200 @@
   <% invoices = (@invoices || []).to_a %>
   <% payment_histories = (@payment_histories || []).to_a %>
 
+  <!-- Progress Bar for VMCOTT Workflow -->
+  <% if is_vmcott? && @purchase_order.vendor == 'VMCOTT' && @purchase_order.fully_accepted? %>
+    <div class="card mb-4 border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">
+          <i class="fas fa-tasks me-2 text-primary"></i>
+          Work Progress
+        </h5>
+        
+        <div class="progress mb-3" style="height: 30px;">
+          <div class="progress-bar bg-<%= @purchase_order.vmcott_status_badge_color %>" 
+               role="progressbar" 
+               style="width: <%= @purchase_order.vmcott_progress_percentage %>%"
+               aria-valuenow="<%= @purchase_order.vmcott_progress_percentage %>" 
+               aria-valuemin="0" 
+               aria-valuemax="100">
+            <%= @purchase_order.display_vmcott_status %>
+          </div>
+        </div>
+        
+        <div class="row text-center mt-3">
+          <div class="col">
+            <div class="rounded-circle bg-light p-2 d-inline-block mb-1">
+              <i class="fas fa-hourglass-half <%= @purchase_order.vmcott_progress_percentage >= 0 ? 'text-primary' : 'text-muted' %>"></i>
+            </div>
+            <div class="small">Pending</div>
+          </div>
+          <div class="col">
+            <div class="rounded-circle bg-light p-2 d-inline-block mb-1">
+              <i class="fas fa-tools <%= @purchase_order.vmcott_progress_percentage >= 33 ? 'text-warning' : 'text-muted' %>"></i>
+            </div>
+            <div class="small">In Progress</div>
+          </div>
+          <div class="col">
+            <div class="rounded-circle bg-light p-2 d-inline-block mb-1">
+              <i class="fas fa-check-double <%= @purchase_order.vmcott_progress_percentage >= 66 ? 'text-info' : 'text-muted' %>"></i>
+            </div>
+            <div class="small">Completed</div>
+          </div>
+          <div class="col">
+            <div class="rounded-circle bg-light p-2 d-inline-block mb-1">
+              <i class="fas fa-truck <%= @purchase_order.vmcott_progress_percentage >= 90 ? 'text-primary' : 'text-muted' %>"></i>
+            </div>
+            <div class="small">Ready</div>
+          </div>
+          <div class="col">
+            <div class="rounded-circle bg-light p-2 d-inline-block mb-1">
+              <i class="fas fa-check-circle <%= @purchase_order.vmcott_progress_percentage >= 100 ? 'text-success' : 'text-muted' %>"></i>
+            </div>
+            <div class="small">Delivered</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <div class="row">
     <div class="col-lg-8">
-      <!-- Details Card -->
-      <div class="card mb-4">
+      <!-- Order Details Card -->
+      <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">
+            <i class="fas fa-info-circle text-primary me-2"></i>
+            Order Details
+          </h5>
+        </div>
         <div class="card-body">
           <div class="row">
             <div class="col-md-6">
-              <h6 class="text-muted mb-3">Details</h6>
-              <p><strong>Vendor:</strong> <%= @purchase_order.vendor %></p>
-              <p><strong>Amount:</strong> <span class="text-primary fw-bold"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></span></p>
-              <p><strong>Agency:</strong> <%= @purchase_order.agency&.name || 'N/A' %></p>
-              <p><strong>Vehicle:</strong> <%= @purchase_order.respond_to?(:display_vehicle) ? @purchase_order.display_vehicle : 'N/A' %></p>
-
-              <p>
-                <strong>Created By:</strong>
-                <%= @purchase_order.created_by&.name || @purchase_order.created_by&.email || "Unknown" %>
-                on <%= @purchase_order.created_at.strftime('%b %d, %Y') %>
-              </p>
-
-              <% if @purchase_order.respond_to?(:approved_by) && @purchase_order.approved_by %>
-                <p><strong>Approved By:</strong> <%= @purchase_order.approved_by.name %> on <%= @purchase_order.approved_at&.strftime('%b %d, %Y') %></p>
-              <% end %>
-
-              <% if @purchase_order.respond_to?(:rejected_by) && @purchase_order.rejected_by %>
-                <p><strong>Rejected By:</strong> <%= @purchase_order.rejected_by.name %> on <%= @purchase_order.rejected_at&.strftime('%b %d, %Y') %></p>
-                <% if @purchase_order.respond_to?(:rejection_reason) && @purchase_order.rejection_reason.present? %>
-                  <p><strong>Reason:</strong> <%= @purchase_order.rejection_reason %></p>
-                <% end %>
-              <% end %>
+              <table class="table table-borderless">
+                <tr>
+                  <td class="text-muted">PO Number:</td>
+                  <td class="fw-bold"><%= @purchase_order.po_number %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Vendor:</td>
+                  <td class="fw-bold"><%= @purchase_order.vendor %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Vehicle:</td>
+                  <td class="fw-bold">
+                    <% if @purchase_order.vehicle %>
+                      <%= link_to @purchase_order.vehicle.license_plate, @purchase_order.vehicle %>
+                      <div class="small text-muted"><%= @purchase_order.vehicle.make %> <%= @purchase_order.vehicle.model %></div>
+                    <% else %>
+                      <span class="text-danger">No vehicle assigned</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Agency:</td>
+                  <td class="fw-bold"><%= @purchase_order.agency&.name || 'N/A' %></td>
+                </tr>
+              </table>
             </div>
-
+            
             <div class="col-md-6">
-              <h6 class="text-muted mb-3">Payment Information</h6>
-
-              <div class="mb-3">
-                <p class="mb-1"><strong>Payment Status:</strong></p>
-                <span class="badge bg-<%= @purchase_order.respond_to?(:payment_status_badge_color) ? @purchase_order.payment_status_badge_color : "secondary" %>">
-                  <%= @purchase_order.respond_to?(:display_payment_status) ? @purchase_order.display_payment_status : @purchase_order.payment_status.to_s.humanize %>
-                </span>
-              </div>
-
-              <% if @purchase_order.respond_to?(:payment_method) && @purchase_order.payment_method.present? %>
-                <div class="mb-3">
-                  <p class="mb-1"><strong>Payment Method:</strong></p>
-                  <p class="mb-1">
-                    <i class="fas <%= @purchase_order.respond_to?(:payment_method_icon) ? @purchase_order.payment_method_icon : "fa-money-bill" %> me-2"></i>
-                    <%= @purchase_order.respond_to?(:display_payment_method) ? @purchase_order.display_payment_method : @purchase_order.payment_method.to_s.humanize %>
-                  </p>
-
-                  <% if @purchase_order.respond_to?(:payment_reference) && @purchase_order.payment_reference.present? %>
-                    <p class="mb-1"><strong>Reference:</strong> <code><%= @purchase_order.payment_reference %></code></p>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:paid_at) && @purchase_order.paid_at.present? %>
-                    <p class="mb-0"><strong>Paid On:</strong> <%= @purchase_order.paid_at.strftime('%b %d, %Y %I:%M %p') %></p>
-                  <% end %>
-                </div>
-              <% end %>
-
-              <% if @purchase_order.respond_to?(:payment_notes) && @purchase_order.payment_notes.present? %>
-                <div class="mb-3">
-                  <p class="mb-1"><strong>Payment Notes:</strong></p>
-                  <p class="mb-0 text-muted"><%= @purchase_order.payment_notes %></p>
-                </div>
-              <% end %>
-
-              <!-- Action Buttons -->
-              <div class="mt-4">
-                <!-- AGENCY ACTIONS -->
-                <% if !is_vmcott? %>
-                  <% if @purchase_order.respond_to?(:draft?) && @purchase_order.draft? %>
-                    <%= button_to 'Submit for Approval',
-                          submit_purchase_order_path(@purchase_order),
-                          method: :post,
-                          class: 'btn btn-warning w-100 mb-2',
-                          data: { confirm: 'Submit this purchase order for approval?' } %>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:pending_approval?) && @purchase_order.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
-                    <div class="btn-group w-100" role="group">
-                      <%= button_to 'Approve',
-                            approve_purchase_order_path(@purchase_order),
-                            method: :post,
-                            class: 'btn btn-success',
-                            data: { confirm: 'Approve this purchase order?' } %>
-
-                      <button type="button" class="btn btn-outline-danger"
-                              data-bs-toggle="modal"
-                              data-bs-target="#rejectModal">
-                        Reject
-                      </button>
-                    </div>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:approved?) && @purchase_order.approved? %>
-                    <%= button_to 'Send to VMCOTT',
-                          mark_ordered_purchase_order_path(@purchase_order),
-                          method: :post,
-                          class: 'btn btn-info w-100 mt-2' %>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:ordered?) && @purchase_order.ordered? && !@purchase_order.received? %>
-                    <%= button_to 'Mark as Received',
-                          mark_received_purchase_order_path(@purchase_order),
-                          method: :post,
-                          class: 'btn btn-primary w-100 mt-2' %>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:can_initiate_payment?) && @purchase_order.can_initiate_payment? && (current_user.finance? || current_user.admin?) %>
-                    <%= link_to payment_page_purchase_order_path(@purchase_order),
-                          class: 'btn btn-primary w-100 mt-2' do %>
-                      <i class="fas fa-credit-card me-2"></i>
-                      <% if @purchase_order.respond_to?(:is_trinidad_card_payment?) && @purchase_order.is_trinidad_card_payment? %>
-                        Complete Trinidad Card Payment
-                      <% else %>
-                        Pay with Trinidad Card
-                      <% end %>
-                    <% end %>
-                  <% end %>
-
-                  <% if @purchase_order.respond_to?(:approved?) && @purchase_order.approved? && @purchase_order.payment_status == 'unpaid' && (current_user.finance? || current_user.admin?) %>
-                    <button type="button" class="btn btn-success w-100 mt-2"
-                            data-bs-toggle="modal"
-                            data-bs-target="#markPaidModal">
-                      <i class="fas fa-check-circle me-2"></i> Mark as Paid (Other Methods)
-                    </button>
-                  <% end %>
-                
-                <!-- VMCOTT ACTIONS -->
-                <% else %>
-                  <% if @purchase_order.vendor == 'VMCOTT' %>
-                    
-                    <!-- Review & Accept/Reject Items - For ordered POs -->
-                    <% if @purchase_order.status == 'ordered' %>
-                      <%= link_to acceptance_details_purchase_order_path(@purchase_order), 
-                            class: 'btn w-100 mb-2', 
-                            style: 'background: #5B21B6; color: white; border: none;' do %>
-                        <i class="fas fa-clipboard-check me-2"></i> Review & Accept/Reject Items
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- Create Work Order - For fully accepted POs -->
-                    <% if @purchase_order.acceptance_status == 'fully_accepted' && @purchase_order.vmcott_status == 'pending_internal_work' %>
-                      <%= link_to vmcott_internal_pos_from_po_path(purchase_order_id: @purchase_order.id), 
-                            class: 'btn btn-warning w-100 mb-2' do %>
-                        <i class="fas fa-tools me-2"></i> Create Work Order
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- Mark Work In Progress - START BUTTON -->
-                    <% if @purchase_order.vmcott_status == 'pending_internal_work' %>
-                      <%= button_to mark_work_in_progress_purchase_order_path(@purchase_order), 
-                            method: :post, 
-                            class: 'btn btn-primary w-100 mb-2', 
-                            data: { confirm: 'Start work on this purchase order?' } do %>
-                        <i class="fas fa-play me-2"></i> Start Work
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- FINISHED BUTTON - When work is in progress -->
-                    <% if @purchase_order.vmcott_status == 'work_in_progress' %>
-                      <%= button_to mark_internal_work_completed_purchase_order_path(@purchase_order), 
-                            method: :post, 
-                            class: 'btn btn-success w-100 mb-2', 
-                            data: { confirm: 'Mark this work as completed?' } do %>
-                        <i class="fas fa-check me-2"></i> Finished
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- Mark Ready for Delivery -->
-                    <% if @purchase_order.vmcott_status == 'internal_work_completed' %>
-                      <%= button_to mark_ready_for_delivery_purchase_order_path(@purchase_order), 
-                            method: :post, 
-                            class: 'btn btn-warning w-100 mb-2', 
-                            data: { confirm: 'Mark this order as ready for delivery?' } do %>
-                        <i class="fas fa-truck me-2"></i> Ready for Delivery
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- Mark Delivered -->
-                    <% if @purchase_order.vmcott_status == 'ready_for_delivery' %>
-                      <%= button_to mark_delivered_purchase_order_path(@purchase_order), 
-                            method: :post, 
-                            class: 'btn btn-success w-100 mb-2', 
-                            data: { confirm: 'Mark this order as delivered?' } do %>
-                        <i class="fas fa-check-circle me-2"></i> Mark Delivered
-                      <% end %>
-                    <% end %>
-                    
-                    <!-- Quick Reject All -->
-                    <% if @purchase_order.status == 'ordered' && @purchase_order.acceptance_status != 'fully_accepted' %>
-                      <button type="button" class="btn btn-danger w-100 mb-2" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#rejectModal">
-                        <i class="fas fa-times-circle me-2"></i> Reject All Items
-                      </button>
-                    <% end %>
-                  <% end %>
-                <% end %>
-
-                <!-- Cancel button (if applicable) - Available to both -->
-                <% if @purchase_order.status != 'cancelled' && @purchase_order.status != 'paid' && @purchase_order.status != 'received' %>
-                  <button type="button" class="btn btn-outline-danger w-100 mt-2" 
-                          data-bs-toggle="modal" 
-                          data-bs-target="#cancelModal">
-                    <i class="fas fa-ban me-2"></i> Cancel Order
-                  </button>
-                <% end %>
-              </div>
+              <table class="table table-borderless">
+                <tr>
+                  <td class="text-muted">Total Amount:</td>
+                  <td class="fw-bold text-success fs-5"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Payment Status:</td>
+                  <td>
+                    <span class="badge bg-<%= @purchase_order.payment_status_badge_color %> p-2"
+                          data-bs-toggle="tooltip"
+                          title="<%= @purchase_order.payment_status_description %>">
+                      <i class="fas fa-<%= 
+                        case @purchase_order.payment_status
+                        when 'unpaid' then 'exclamation-circle'
+                        when 'pending' then 'clock'
+                        when 'processing' then 'sync'
+                        when 'authorized' then 'shield-alt'
+                        when 'completed' then 'check-circle'
+                        when 'failed' then 'times-circle'
+                        else 'circle'
+                        end %> me-1"></i>
+                      <%= @purchase_order.display_payment_status %>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Created:</td>
+                  <td><%= @purchase_order.created_at.strftime('%b %d, %Y at %I:%M %p') %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Last Updated:</td>
+                  <td><%= time_ago_in_words(@purchase_order.updated_at) %> ago</td>
+                </tr>
+              </table>
             </div>
           </div>
 
           <% if @purchase_order.notes.present? %>
             <hr>
             <div class="mt-3">
-              <h6 class="text-muted mb-2">Notes</h6>
-              <%= simple_format(@purchase_order.notes) %>
+              <h6 class="text-muted mb-2">
+                <i class="fas fa-sticky-note me-1"></i> Notes
+              </h6>
+              <div class="bg-light p-3 rounded">
+                <%= simple_format(@purchase_order.notes) %>
+              </div>
             </div>
           <% end %>
         </div>
       </div>
 
-      <!-- Payment Timeline Card -->
-      <% if @purchase_order.respond_to?(:is_trinidad_card_payment?) && @purchase_order.is_trinidad_card_payment? && @payment_audits.present? %>
-        <div class="card mb-4 border-0 shadow-sm">
-          <div class="card-header bg-white border-0">
-            <div class="d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                <i class="fas fa-history text-primary me-2"></i>
-                Payment Timeline
-              </h5>
-              <span class="badge bg-light text-dark">
-                <%= @purchase_order.payment_audits.count %> events
-              </span>
-            </div>
-          </div>
-
-          <div class="card-body">
-            <div class="timeline">
-              <% @payment_audits.reverse_each.with_index do |audit, index| %>
-                <div class="timeline-item <%= 'timeline-item-last' if index == @purchase_order.payment_audits.count - 1 %>">
-                  <div class="timeline-marker">
-                    <span class="badge rounded-circle bg-<%= audit.action_badge_color %> p-2">
-                      <i class="fas <%= audit_action_icon(audit.action) %>"></i>
-                    </span>
-                  </div>
-
-                  <div class="timeline-content">
-                    <div class="d-flex justify-content-between align-items-start mb-1">
-                      <h6 class="mb-0">
-                        <%= audit.action_humanized %>
-                        <% if audit.duration_from_previous && audit.duration_from_previous > 0 %>
-                          <small class="text-muted ms-2">
-                            <i class="fas fa-clock me-1"></i>
-                            <%= distance_of_time_in_words(audit.duration_from_previous) %>
-                          </small>
-                        <% end %>
-                      </h6>
-
-                      <small class="text-muted">
-                        <%= audit.created_at.strftime('%b %d, %Y %I:%M %p') %>
-                      </small>
-                    </div>
-
-                    <% if audit.user %>
-                      <p class="text-muted small mb-2">
-                        <i class="fas fa-user me-1"></i>
-                        By <%= audit.user.name %>
-                        <% if audit.ip_address %>
-                          <span class="ms-2">
-                            <i class="fas fa-globe me-1"></i>
-                            <%= audit.ip_address %>
-                          </span>
-                        <% end %>
-                      </p>
-                    <% end %>
-
-                    <% if audit.metadata.present? %>
-                      <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-secondary" type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#auditDetails<%= audit.id %>"
-                                aria-expanded="false">
-                          <i class="fas fa-info-circle me-1"></i>
-                          View Details
-                        </button>
-
-                        <div class="collapse mt-2" id="auditDetails<%= audit.id %>">
-                          <div class="card card-body bg-light">
-                            <% raw_json = audit.metadata.is_a?(String) ? audit.metadata : audit.metadata.to_json %>
-                            <pre class="mb-0 small"><%= raw_json.to_s.truncate(2000) %></pre>
-                          </div>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          </div>
+      <!-- Line Items Card -->
+      <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">
+            <i class="fas fa-list text-primary me-2"></i>
+            Line Items
+          </h5>
         </div>
-      <% end %>
-
-      <!-- Line Items -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h6 class="mb-0">Line Items</h6>
-        </div>
-
         <div class="card-body">
           <% if purchase_order_items.any? %>
             <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
+              <table class="table table-hover">
+                <thead class="table-light">
                   <tr>
                     <th>#</th>
                     <th>Description</th>
                     <th class="text-end">Quantity</th>
                     <th class="text-end">Unit Price</th>
                     <th class="text-end">Total</th>
-                    <% if is_vmcott? && @purchase_order.status == 'ordered' %>
+                    <% if is_vmcott? && @purchase_order.acceptance_status == 'pending_acceptance' %>
                       <th class="text-center">Status</th>
                     <% end %>
                   </tr>
                 </thead>
-
                 <tbody>
                   <% purchase_order_items.each_with_index do |item, index| %>
                     <tr>
                       <td><%= index + 1 %></td>
-                      <td><%= item.description %></td>
+                      <td>
+                        <%= item.description %>
+                        <% if item.notes.present? %>
+                          <div class="small text-muted"><%= item.notes %></div>
+                        <% end %>
+                      </td>
                       <td class="text-end"><%= item.quantity %></td>
                       <td class="text-end"><%= number_to_currency(item.unit_price, unit: 'TTD $') %></td>
                       <td class="text-end"><strong><%= number_to_currency(item.total_price, unit: 'TTD $') %></strong></td>
-                      <% if is_vmcott? && @purchase_order.status == 'ordered' %>
+                      <% if is_vmcott? && @purchase_order.acceptance_status == 'pending_acceptance' %>
                         <td class="text-center">
                           <% if item.is_accepted == true %>
                             <span class="badge bg-success">Accepted</span>
                           <% elsif item.is_accepted == false %>
                             <span class="badge bg-danger">Rejected</span>
+                            <% if item.rejection_reason.present? %>
+                              <div class="small text-muted"><%= truncate(item.rejection_reason, length: 30) %></div>
+                            <% end %>
                           <% else %>
                             <span class="badge bg-warning">Pending</span>
                           <% end %>
@@ -391,10 +284,10 @@
                     </tr>
                   <% end %>
 
-                  <tr class="table-light">
-                    <td colspan="4" class="text-end"><strong>Total:</strong></td>
-                    <td class="text-end"><strong class="text-primary"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></strong></td>
-                    <% if is_vmcott? && @purchase_order.status == 'ordered' %>
+                  <tr class="table-light fw-bold">
+                    <td colspan="4" class="text-end">Total:</td>
+                    <td class="text-end"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></td>
+                    <% if is_vmcott? && @purchase_order.acceptance_status == 'pending_acceptance' %>
                       <td></td>
                     <% end %>
                   </tr>
@@ -402,181 +295,307 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center mb-0">No line items added</p>
+            <div class="text-center py-4 text-muted">
+              <i class="fas fa-box-open fa-3x mb-3"></i>
+              <p>No line items added to this purchase order.</p>
+            </div>
           <% end %>
+        </div>
+      </div>
+
+      <!-- Timeline Card -->
+      <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">
+            <i class="fas fa-history text-primary me-2"></i>
+            Order Timeline
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="timeline">
+            <% @purchase_order.timeline_events.each do |event| %>
+              <div class="timeline-item">
+                <div class="timeline-marker bg-<%= event[:color] %>"></div>
+                <div class="timeline-content">
+                  <div class="d-flex justify-content-between">
+                    <h6 class="mb-1"><%= event[:title] %></h6>
+                    <small class="text-muted"><%= time_ago_in_words(event[:date]) %> ago</small>
+                  </div>
+                  <p class="mb-1"><%= event[:description] %></p>
+                  <small class="text-muted"><%= event[:date].strftime('%b %d, %Y at %I:%M %p') %></small>
+                </div>
+              </div>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="col-lg-4">
-      <!-- Status Timeline - CORRECTED FOR YOUR WORKFLOW -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h6 class="mb-0">Status Timeline</h6>
+      <!-- Action Card -->
+      <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-white border-0">
+          <h5 class="mb-0">
+            <i class="fas fa-cog text-primary me-2"></i>
+            Actions
+          </h5>
         </div>
-
         <div class="card-body">
-          <div class="timeline">
-            
-            <!-- 1. PO Created (from Quotation) -->
-            <div class="timeline-item completed">
-              <div class="timeline-marker bg-secondary"></div>
-              <div class="timeline-content">
-                <h6 class="mb-0">PO Created</h6>
-                <small class="text-muted"><%= @purchase_order.created_at.strftime('%b %d, %Y') %></small>
-                <div class="small text-muted">From quotation acceptance</div>
+          <!-- AGENCY ACTIONS -->
+          <% if !is_vmcott? %>
+            <% if @purchase_order.draft? %>
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                This is a draft. Submit for approval when ready.
               </div>
-            </div>
+              
+              <%= button_to submit_purchase_order_path(@purchase_order),
+                    method: :post,
+                    class: "btn btn-warning btn-lg w-100 mb-2",
+                    data: { turbo: false, turbo_confirm: "Submit this purchase order for approval?" } do %>
+                <i class="fas fa-paper-plane me-2"></i> Submit for Approval
+                <small class="d-block text-white-50">Send to supervisors for review</small>
+              <% end %>
+            <% end %>
 
-            <!-- 2. Sent to VMCOTT (Ordered) -->
-            <% if @purchase_order.ordered? || @purchase_order.received? || @purchase_order.paid? %>
-              <div class="timeline-item <%= 'completed' if @purchase_order.received? || @purchase_order.paid? %> <%= 'current' if @purchase_order.ordered? && !@purchase_order.received? %>">
-                <div class="timeline-marker <%= 'bg-success' if @purchase_order.received? || @purchase_order.paid? %> <%= 'bg-primary' if @purchase_order.ordered? && !@purchase_order.received? %>"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Sent to VMCOTT</h6>
-                  <% if @purchase_order.ordered_at %>
-                    <small class="text-muted"><%= @purchase_order.ordered_at.strftime('%b %d, %Y') %></small>
-                  <% end %>
-                </div>
+            <% if @purchase_order.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
+              <div class="alert alert-warning">
+                <i class="fas fa-clock me-2"></i>
+                This order is pending your approval.
+              </div>
+              
+              <div class="btn-group w-100 mb-2" role="group">
+                <%= button_to approve_purchase_order_path(@purchase_order),
+                      method: :post,
+                      class: "btn btn-success",
+                      data: { turbo: false, turbo_confirm: "Approve this purchase order?" } do %>
+                  <i class="fas fa-check-circle me-2"></i> Approve
+                <% end %>
+
+                <button type="button" class="btn btn-danger"
+                        data-bs-toggle="modal"
+                        data-bs-target="#rejectModal"
+                        data-po-id="<%= @purchase_order.id %>"
+                        data-po-number="<%= @purchase_order.po_number %>">
+                  <i class="fas fa-times-circle me-2"></i> Reject
+                </button>
               </div>
             <% end %>
 
-            <!-- 3. Waiting on Service (Work in Progress - VMCOTT side) -->
+            <% if @purchase_order.approved? %>
+              <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                This order is approved and ready to send to VMCOTT.
+              </div>
+              
+              <%= button_to mark_ordered_purchase_order_path(@purchase_order),
+                    method: :post,
+                    class: "btn btn-primary btn-lg w-100 mb-2",
+                    data: { turbo: false, turbo_confirm: "Send this order to VMCOTT?" } do %>
+                <i class="fas fa-paper-plane me-2"></i> Send to VMCOTT
+                <small class="d-block text-white-50">VMCOTT will review and start work</small>
+              <% end %>
+            <% end %>
+
             <% if @purchase_order.ordered? && !@purchase_order.received? %>
-              <div class="timeline-item current">
-                <div class="timeline-marker bg-warning"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Waiting on Service</h6>
-                  <small class="text-muted">VMCOTT is working on the vehicle</small>
-                  <% if @purchase_order.respond_to?(:vmcott_status) && @purchase_order.vmcott_status.present? %>
-                    <div class="small mt-1">
-                      <span class="badge bg-info">VMCOTT: <%= @purchase_order.display_vmcott_status %></span>
-                    </div>
-                  <% end %>
-                </div>
+              <div class="alert alert-info">
+                <i class="fas fa-tools me-2"></i>
+                This order has been sent to VMCOTT and is being processed.
               </div>
+              
+              <%= button_to mark_received_purchase_order_path(@purchase_order),
+                    method: :post,
+                    class: "btn btn-primary btn-lg w-100 mb-2",
+                    data: { turbo: false, turbo_confirm: "Mark this order as received? (Only do this when vehicle is back)" } do %>
+                <i class="fas fa-check-circle me-2"></i> Mark as Received
+                <small class="d-block text-white-50">Click when vehicle is returned</small>
+              <% end %>
             <% end %>
 
-            <!-- 4. Work Completed (VMCOTT finishes) - Agency doesn't see this until they receive vehicle -->
-            <% if @purchase_order.respond_to?(:vmcott_status) && @purchase_order.vmcott_status == 'internal_work_completed' && !@purchase_order.received? %>
-              <div class="timeline-item">
-                <div class="timeline-marker bg-success"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Work Completed by VMCOTT</h6>
-                  <small class="text-muted">Ready for pickup</small>
-                </div>
+            <% if @purchase_order.can_initiate_payment? %>
+              <div class="alert alert-success">
+                <i class="fas fa-credit-card me-2"></i>
+                Ready for payment processing.
               </div>
+              
+              <%= link_to payment_page_purchase_order_path(@purchase_order),
+                    class: "btn btn-success btn-lg w-100 mb-2" do %>
+                <i class="fas fa-credit-card me-2"></i> Process Payment
+                <small class="d-block text-white-50">Complete payment for this order</small>
+              <% end %>
             <% end %>
 
-            <!-- 5. Ready for Delivery (VMCOTT marks ready) -->
-            <% if @purchase_order.respond_to?(:vmcott_status) && @purchase_order.vmcott_status == 'ready_for_delivery' && !@purchase_order.received? %>
-              <div class="timeline-item">
-                <div class="timeline-marker bg-success"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Ready for Delivery</h6>
-                  <small class="text-muted">Vehicle ready to be picked up</small>
-                </div>
-              </div>
-            <% end %>
-
-            <!-- 6. Vehicle Received (Agency marks received) -->
-            <% if @purchase_order.received? %>
-              <div class="timeline-item completed">
-                <div class="timeline-marker bg-success"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Vehicle Received</h6>
-                  <% if @purchase_order.received_at %>
-                    <small class="text-muted"><%= @purchase_order.received_at.strftime('%b %d, %Y') %></small>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-
-            <!-- 7. Completed (Paid) -->
             <% if @purchase_order.paid? %>
-              <div class="timeline-item completed">
-                <div class="timeline-marker bg-success"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0">Completed</h6>
-                  <% if @purchase_order.paid_at %>
-                    <small class="text-muted"><%= @purchase_order.paid_at.strftime('%b %d, %Y') %></small>
-                  <% end %>
-                </div>
+              <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Payment Complete</strong>
+                <p class="mb-0 mt-2">This order has been paid and is closed.</p>
               </div>
             <% end %>
-
-            <!-- Rejected (if applicable) -->
-            <% if @purchase_order.rejected? %>
-              <div class="timeline-item">
-                <div class="timeline-marker bg-danger"></div>
-                <div class="timeline-content">
-                  <h6 class="mb-0 text-danger">Rejected</h6>
-                  <% if @purchase_order.rejected_at %>
-                    <small class="text-danger"><%= @purchase_order.rejected_at.strftime('%b %d, %Y') %></small>
-                  <% end %>
-                  <% if @purchase_order.rejection_reason %>
-                    <p class="small text-muted mt-1"><%= @purchase_order.rejection_reason %></p>
-                  <% end %>
+          
+          <!-- VMCOTT ACTIONS -->
+          <% else %>
+            <% if @purchase_order.vendor == 'VMCOTT' %>
+              
+              <!-- Pending Acceptance State -->
+              <% if @purchase_order.acceptance_status == 'pending_acceptance' %>
+                <div class="alert alert-warning">
+                  <i class="fas fa-clock me-2"></i>
+                  <strong>Awaiting Your Decision</strong>
+                  <p class="mb-0 mt-2">Please review this order and accept or reject it.</p>
                 </div>
-              </div>
-            <% end %>
-          </div>
-        </div>
-      </div>
-
-      <!-- VMCOTT Status Card (for reference) -->
-      <% if @purchase_order.respond_to?(:vmcott_status) && @purchase_order.vmcott_status.present? && @purchase_order.ordered? && !@purchase_order.received? %>
-        <div class="card mb-4 border-info">
-          <div class="card-header bg-info text-white">
-            <h6 class="mb-0">VMCOTT Work Status</h6>
-          </div>
-          <div class="card-body">
-            <div class="d-flex align-items-center mb-3">
-              <div class="me-3">
-                <span class="badge bg-<%= @purchase_order.vmcott_status_badge_color %> p-3">
-                  <i class="fas fa-<%= 
-                    case @purchase_order.vmcott_status
-                    when 'pending_internal_work' then 'hourglass-half'
-                    when 'work_in_progress' then 'tools'
-                    when 'internal_work_completed' then 'check-double'
-                    when 'ready_for_delivery' then 'truck'
-                    when 'delivered' then 'check-circle'
-                    else 'circle'
-                    end %> fa-2x"></i>
-                </span>
-              </div>
-              <div>
-                <h5 class="mb-1"><%= @purchase_order.display_vmcott_status %></h5>
-                <p class="text-muted mb-0 small">Current VMCOTT status</p>
-              </div>
-            </div>
-            
-            <% if @purchase_order.internal_pos.any? %>
-              <hr>
-              <h6 class="mb-2">Work Orders</h6>
-              <% @purchase_order.internal_pos.each do |work_order| %>
-                <div class="border rounded p-2 mb-2 bg-light">
-                  <div class="d-flex justify-content-between">
-                    <span class="fw-semibold"><%= work_order.work_order_number %></span>
-                    <span class="badge bg-<%= work_order.status == 'completed' ? 'success' : 'warning' %>">
-                      <%= work_order.status.humanize %>
-                    </span>
+                
+                <!-- Accept Button -->
+                <%= button_to accept_entire_po_purchase_order_path(@purchase_order),
+                      method: :post,
+                      class: "btn btn-success btn-lg w-100 mb-3",
+                      data: { turbo: false, turbo_confirm: "Accept this purchase order? Work will automatically start." } do %>
+                  <i class="fas fa-check-circle me-2"></i> Accept Order
+                  <small class="d-block text-white-50">Accept and begin work</small>
+                <% end %>
+                
+                <!-- Reject Button -->
+                <button type="button" class="btn btn-danger btn-lg w-100" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#rejectModal"
+                        data-po-id="<%= @purchase_order.id %>"
+                        data-po-number="<%= @purchase_order.po_number %>">
+                  <i class="fas fa-times-circle me-2"></i> Reject Order
+                  <small class="d-block text-white-50">Reject with reason</small>
+                </button>
+                
+              <% elsif @purchase_order.fully_accepted? %>
+                <!-- Work Progress Buttons -->
+                <div class="alert alert-success">
+                  <i class="fas fa-check-circle me-2"></i>
+                  <strong>Order Accepted</strong>
+                  <p class="mb-0 mt-2">Current status: <%= @purchase_order.display_vmcott_status %></p>
+                </div>
+                
+                <% if @purchase_order.vmcott_status == 'pending_internal_work' %>
+                  <%= button_to mark_work_in_progress_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-primary btn-lg w-100 mb-3",
+                        data: { turbo: false, turbo_confirm: "Start work on this order?" } do %>
+                    <i class="fas fa-play me-2"></i> Start Work
+                    <small class="d-block text-white-50">Begin working on the vehicle</small>
+                  <% end %>
+                <% end %>
+                
+                <% if @purchase_order.vmcott_status == 'work_in_progress' %>
+                  <%= button_to mark_internal_work_completed_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-warning btn-lg w-100 mb-3",
+                        data: { turbo: false, turbo_confirm: "Mark work as completed?" } do %>
+                    <i class="fas fa-check-double me-2"></i> Work Completed
+                    <small class="d-block text-white-50">All work on vehicle is finished</small>
+                  <% end %>
+                <% end %>
+                
+                <% if @purchase_order.vmcott_status == 'internal_work_completed' %>
+                  <%= button_to mark_ready_for_delivery_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-info btn-lg w-100 mb-3",
+                        data: { turbo: false, turbo_confirm: "Mark as ready for delivery?" } do %>
+                    <i class="fas fa-truck me-2"></i> Ready for Delivery
+                    <small class="d-block text-white-50">Vehicle is ready for pickup</small>
+                  <% end %>
+                <% end %>
+                
+                <% if @purchase_order.vmcott_status == 'ready_for_delivery' %>
+                  <%= button_to mark_delivered_purchase_order_path(@purchase_order),
+                        method: :post,
+                        class: "btn btn-success btn-lg w-100 mb-3",
+                        data: { turbo: false, turbo_confirm: "Mark as delivered?" } do %>
+                    <i class="fas fa-check-circle me-2"></i> Delivered
+                    <small class="d-block text-white-50">Vehicle has been returned to agency</small>
+                  <% end %>
+                <% end %>
+                
+                <% if @purchase_order.vmcott_status == 'delivered' %>
+                  <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Order Complete</strong>
+                    <p class="mb-0 mt-2">Vehicle has been delivered. Waiting for payment.</p>
                   </div>
-                  <% if work_order.estimated_completion_date %>
-                    <small class="text-muted">Est. completion: <%= work_order.estimated_completion_date.strftime('%b %d, %Y') %></small>
-                  <% end %>
+                <% end %>
+              <% end %>
+              
+              <!-- For Rejected Orders -->
+              <% if @purchase_order.fully_rejected? %>
+                <div class="alert alert-danger">
+                  <i class="fas fa-times-circle me-2"></i>
+                  <strong>Order Rejected</strong>
+                  <p class="mb-0 mt-2">Reason: <%= @purchase_order.rejection_reason %></p>
                 </div>
               <% end %>
             <% end %>
+          <% end %>
+
+          <!-- Cancel button (if applicable) - Available to both -->
+          <% if @purchase_order.status != 'cancelled' && @purchase_order.status != 'paid' && @purchase_order.status != 'received' %>
+            <button type="button" class="btn btn-outline-danger w-100 mt-3" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#cancelModal"
+                    data-po-id="<%= @purchase_order.id %>"
+                    data-po-number="<%= @purchase_order.po_number %>">
+              <i class="fas fa-ban me-2"></i> Cancel Order
+            </button>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Payment Information Card -->
+      <% if @purchase_order.paid_at || @purchase_order.payment_reference %>
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-white border-0">
+            <h5 class="mb-0">
+              <i class="fas fa-credit-card text-primary me-2"></i>
+              Payment Information
+            </h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-borderless">
+              <tr>
+                <td class="text-muted">Payment Method:</td>
+                <td>
+                  <span class="badge bg-<%= @purchase_order.payment_method_badge_color %>">
+                    <i class="fas <%= @purchase_order.payment_method_icon %> me-1"></i>
+                    <%= @purchase_order.display_payment_method %>
+                  </span>
+                </td>
+              </tr>
+              <% if @purchase_order.payment_reference.present? %>
+                <tr>
+                  <td class="text-muted">Reference:</td>
+                  <td><code><%= @purchase_order.payment_reference %></code></td>
+                </tr>
+              <% end %>
+              <% if @purchase_order.paid_at.present? %>
+                <tr>
+                  <td class="text-muted">Paid On:</td>
+                  <td><%= @purchase_order.paid_at.strftime('%b %d, %Y at %I:%M %p') %></td>
+                </tr>
+              <% end %>
+              <% if @purchase_order.payment_notes.present? %>
+                <tr>
+                  <td class="text-muted">Notes:</td>
+                  <td><%= @purchase_order.payment_notes %></td>
+                </tr>
+              <% end %>
+            </table>
           </div>
         </div>
       <% end %>
 
-      <!-- Generated Invoices -->
+      <!-- Generated Invoices Card -->
       <% if invoices.any? %>
-        <div class="card mb-4">
-          <div class="card-header">
-            <h6 class="mb-0">Generated Invoices</h6>
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-white border-0">
+            <h5 class="mb-0">
+              <i class="fas fa-file-invoice text-primary me-2"></i>
+              Invoices
+            </h5>
           </div>
           <div class="card-body">
             <div class="list-group">
@@ -584,39 +603,13 @@
                 <%= link_to invoice, class: 'list-group-item list-group-item-action' do %>
                   <div class="d-flex w-100 justify-content-between">
                     <h6 class="mb-1"><%= invoice.invoice_number %></h6>
-                    <small><%= invoice.status&.humanize || 'Unknown' %></small>
+                    <span class="badge bg-<%= invoice.status == 'paid' ? 'success' : 'warning' %>">
+                      <%= invoice.status %>
+                    </span>
                   </div>
-                  <p class="mb-1">Amount: <%= number_to_currency(invoice.amount, unit: 'TTD $') %></p>
-                  <small>Created: <%= invoice.created_at.strftime('%b %d, %Y') %></small>
+                  <p class="mb-1"><%= number_to_currency(invoice.amount, unit: 'TTD $') %></p>
+                  <small class="text-muted"><%= invoice.created_at.strftime('%b %d, %Y') %></small>
                 <% end %>
-              <% end %>
-            </div>
-          </div>
-        </div>
-      <% end %>
-
-      <!-- Payment History -->
-      <% if payment_histories.any? %>
-        <div class="card mb-4">
-          <div class="card-header">
-            <h6 class="mb-0">Payment History</h6>
-          </div>
-          <div class="card-body">
-            <div class="list-group">
-              <% payment_histories.each do |payment| %>
-                <div class="list-group-item">
-                  <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1"><%= number_to_currency(payment.amount, unit: 'TTD $') %></h6>
-                    <small><%= payment.status&.humanize || 'Unknown' %></small>
-                  </div>
-                  <p class="mb-1"><%= payment.payment_method&.humanize %></p>
-                  <small class="text-muted">
-                    <%= payment.payment_date&.strftime('%b %d, %Y %I:%M %p') || 'Date not available' %>
-                    <% if payment.reference_number %>
-                      | Ref: <%= payment.reference_number %>
-                    <% end %>
-                  </small>
-                </div>
               <% end %>
             </div>
           </div>
@@ -630,27 +623,44 @@
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Reject Purchase Order</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-times-circle me-2"></i>
+          Reject Purchase Order
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
-      <%= form_with url: reject_purchase_order_path(@purchase_order), method: :post do |f| %>
+      <%= form_with url: reject_purchase_order_path(@purchase_order), method: :post, data: { turbo: false } do |f| %>
         <div class="modal-body">
-          <p>You are rejecting purchase order <strong><%= @purchase_order.po_number %></strong>.</p>
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>This action cannot be undone!</strong>
+          </div>
+          
+          <p>Rejecting this order will:</p>
+          <ul class="mb-3">
+            <li><i class="fas fa-times-circle text-danger me-2"></i>Cancel all work on this order</li>
+            <li><i class="fas fa-envelope text-info me-2"></i>Notify the agency of the rejection</li>
+            <li><i class="fas fa-save text-success me-2"></i>Save your reason for future reference</li>
+          </ul>
+          
+          <p>You are rejecting purchase order <strong><%= @purchase_order.po_number %></strong></p>
 
           <div class="mb-3">
-            <%= label_tag :reason, 'Reason for Rejection (Optional)', class: 'form-label' %>
+            <%= label_tag :reason, 'Reason for Rejection', class: 'form-label fw-bold' %>
             <%= text_area_tag :reason, nil,
                   class: 'form-control',
                   rows: 3,
-                  placeholder: 'Please provide a reason for rejecting this purchase order...' %>
+                  placeholder: 'Please explain why this order is being rejected (e.g., parts not available, cannot complete work, etc.)',
+                  required: true %>
+            <div class="form-text">This will be visible to the agency.</div>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag 'Reject Purchase Order', class: 'btn btn-danger' %>
+          <%= submit_tag 'Reject Order', class: 'btn btn-danger' %>
         </div>
       <% end %>
     </div>
@@ -662,13 +672,20 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header bg-warning text-dark">
-        <h5 class="modal-title">Cancel Purchase Order</h5>
+        <h5 class="modal-title">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Cancel Purchase Order
+        </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
-      <%= form_with url: cancel_purchase_order_path(@purchase_order), method: :post do |f| %>
+      <%= form_with url: cancel_purchase_order_path(@purchase_order), method: :post, data: { turbo: false } do |f| %>
         <div class="modal-body">
-          <p>You are cancelling purchase order <strong><%= @purchase_order.po_number %></strong>.</p>
+          <div class="alert alert-warning">
+            <i class="fas fa-question-circle me-2"></i>
+            <strong>Are you sure you want to cancel this order?</strong>
+          </div>
+          <p>You are cancelling purchase order <strong><%= @purchase_order.po_number %></strong></p>
           <p class="text-muted">This action cannot be undone.</p>
 
           <div class="mb-3">
@@ -676,112 +693,13 @@
             <%= text_area_tag :cancellation_reason, nil,
                   class: 'form-control',
                   rows: 2,
-                  placeholder: 'Please provide a reason for cancelling this purchase order...' %>
+                  placeholder: 'Why are you cancelling this order?' %>
           </div>
         </div>
 
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep it</button>
           <%= submit_tag 'Yes, Cancel Order', class: 'btn btn-warning' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
-
-<!-- Mark Paid Modal -->
-<div class="modal fade" id="markPaidModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Mark Purchase Order as Paid</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <%= form_with url: mark_paid_purchase_order_path(@purchase_order), method: :post do |f| %>
-        <div class="modal-body">
-          <p>You are marking <strong><%= @purchase_order.po_number %></strong> as paid.</p>
-
-          <div class="mb-3">
-            <%= label_tag :payment_method, 'Payment Method', class: 'form-label' %>
-            <%= select_tag :payment_method,
-                  options_for_select(PurchaseOrder.payment_methods.keys.map { |m| [m.humanize.titleize, m] }),
-                  class: 'form-select', required: true %>
-          </div>
-
-          <div class="mb-3">
-            <%= label_tag :payment_reference, 'Reference Number', class: 'form-label' %>
-            <%= text_field_tag :payment_reference, nil,
-                  class: 'form-control',
-                  placeholder: 'Bank transfer ref, cheque #, transaction ID',
-                  required: true %>
-            <div class="form-text">Enter the payment reference from your bank or payment portal</div>
-          </div>
-
-          <div class="mb-3">
-            <%= label_tag :payment_notes, 'Notes (Optional)', class: 'form-label' %>
-            <%= text_area_tag :payment_notes, nil,
-                  class: 'form-control',
-                  rows: 2,
-                  placeholder: 'Any additional notes about this payment...' %>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag 'Mark as Paid', class: 'btn btn-primary' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
-
-<!-- Authorize Payment Modal -->
-<div class="modal fade" id="authorizePaymentModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Authorize Trinidad Card Payment</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-
-      <%= form_with url: authorize_payment_purchase_order_path(@purchase_order), method: :post do |f| %>
-        <div class="modal-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Authorization Required</strong>
-            <p class="mb-0 mt-2">You are authorizing payment for:</p>
-          </div>
-
-          <div class="card mb-3">
-            <div class="card-body">
-              <h6 class="mb-2">Purchase Order: <%= @purchase_order.po_number %></h6>
-              <h4 class="text-success mb-0"><%= number_to_currency(@purchase_order.amount, unit: 'TTD $') %></h4>
-            </div>
-          </div>
-
-          <p class="mb-3">By authorizing this payment, you confirm that:</p>
-
-          <ul class="small">
-            <li>The vendor has delivered the goods/services</li>
-            <li>The amount matches the invoice/agreement</li>
-            <li>All required approvals have been obtained</li>
-            <li>This payment complies with agency financial policies</li>
-            <li>Funds are available in the appropriate account</li>
-          </ul>
-
-          <div class="mb-3">
-            <%= label_tag :authorization_notes, 'Authorization Notes (Optional)', class: 'form-label' %>
-            <%= text_area_tag :authorization_notes, nil,
-                  class: 'form-control',
-                  rows: 2,
-                  placeholder: 'Any notes about this authorization...' %>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag 'Authorize Payment', class: 'btn btn-primary' %>
         </div>
       <% end %>
     </div>
@@ -820,36 +738,21 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background-color: #6c757d;
     border: 3px solid white;
     z-index: 1;
-  }
-
-  .timeline-item.completed .timeline-marker {
-    background-color: #198754;
-  }
-
-  .timeline-item.current .timeline-marker {
-    background-color: #0d6efd;
-    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
   }
 
   .timeline-content {
     padding-left: 15px;
   }
-
-  .timeline-item-last {
-    margin-bottom: 0;
-  }
-  
-  .btn-vmcott {
-    background: #5B21B6;
-    color: white;
-    border: none;
-  }
-  
-  .btn-vmcott:hover {
-    background: #7C3AED;
-    color: white;
-  }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+  });
+});
+</script>

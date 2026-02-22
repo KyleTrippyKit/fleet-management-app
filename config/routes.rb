@@ -531,6 +531,7 @@ Rails.application.routes.draw do
 
       # VMCOTT Acceptance Workflow (SIMPLE VERSION - Accept/Reject entire PO)
       post :acknowledge_acceptance, to: "purchase_orders#acknowledge_acceptance", as: :acknowledge_acceptance
+      post :accept_entire_po, to: "purchase_orders#accept_entire_po", as: :accept_entire_po  # ← ADD THIS LINE
       # Note: reject action is already defined above in Agency Workflow
       
       # VMCOTT Work Progress (after acceptance)

@@ -221,7 +221,7 @@ class PurchaseOrder < ApplicationRecord
     end
   end
 
-  # Simple check if any items are pending (shouldn't happen in simplified workflow)
+  # Simple check if any items are pending
   def any_items_pending?
     purchase_order_items.where(is_accepted: nil).any?
   end
@@ -230,19 +230,20 @@ class PurchaseOrder < ApplicationRecord
   # VMCOTT Workflow Methods (After Acceptance)
   # -------------------------
 
-  def mark_work_in_progress!(user)
+  # FIXED: Added default user = nil to all methods
+  def mark_work_in_progress!(user = nil)
     update!(vmcott_status: 'work_in_progress')
   end
 
-  def mark_internal_work_completed!(user)
+  def mark_internal_work_completed!(user = nil)
     update!(vmcott_status: 'internal_work_completed')
   end
 
-  def mark_ready_for_delivery!(user)
+  def mark_ready_for_delivery!(user = nil)
     update!(vmcott_status: 'ready_for_delivery')
   end
 
-  def mark_delivered!(user)
+  def mark_delivered!(user = nil)
     update!(vmcott_status: 'delivered')
   end
 
@@ -603,10 +604,11 @@ class PurchaseOrder < ApplicationRecord
     pdf_s3_url.present?
   end
 
-  # -------------------------
-  # View Helpers & Badges
-  # -------------------------
+  # ============================================
+  # DISPLAY METHODS & BADGES
+  # ============================================
 
+  # Badge color methods
   def status_badge_color
     case status
     when 'draft' then 'secondary'
@@ -654,25 +656,77 @@ class PurchaseOrder < ApplicationRecord
     end
   end
 
-  def payment_method_icon
-    case payment_method
-    when 'bank_transfer' then 'fa-university'
-    when 'cheque' then 'fa-money-check'
-    when 'cash' then 'fa-money-bill-wave'
-    when 'debit_card', 'trinidad_debit_card' then 'fa-credit-card'
-    when 'credit_card', 'trinidad_credit_card' then 'fa-credit-card'
-    else 'fa-money-bill-alt'
+  # Icon methods
+  def status_icon
+    case status
+    when 'draft' then 'file'
+    when 'pending_approval' then 'clock'
+    when 'approved' then 'check-circle'
+    when 'ordered' then 'paper-plane'
+    when 'received' then 'eye'
+    when 'paid' then 'receipt'
+    when 'cancelled' then 'ban'
+    when 'rejected' then 'times-circle'
+    else 'circle'
     end
   end
 
-  def payment_method_badge_color
-    case payment_method
-    when 'trinidad_debit_card', 'trinidad_credit_card' then 'primary'
-    when 'debit_card', 'credit_card' then 'info'
-    when 'bank_transfer' then 'success'
-    when 'cheque' then 'warning'
-    when 'cash' then 'secondary'
-    else 'dark'
+  def vmcott_status_icon
+    case vmcott_status
+    when 'pending_internal_work' then 'hourglass-half'
+    when 'work_in_progress' then 'tools'
+    when 'internal_work_completed' then 'check-double'
+    when 'ready_for_delivery' then 'truck'
+    when 'delivered' then 'check-circle'
+    else 'circle'
+    end
+  end
+
+  # Description methods
+  def status_description
+    case status
+    when 'draft' then 'This is a draft - not yet submitted for approval'
+    when 'pending_approval' then 'Awaiting supervisor approval before sending to VMCOTT'
+    when 'approved' then 'Approved and ready to send to VMCOTT'
+    when 'ordered' then 'Sent to VMCOTT - awaiting their review'
+    when 'received' then 'Work completed - awaiting your review and payment'
+    when 'paid' then 'Payment completed - order is closed'
+    when 'cancelled' then 'This order was cancelled'
+    when 'rejected' then 'This order was rejected'
+    else 'Status unknown'
+    end
+  end
+
+  def vmcott_status_description
+    case vmcott_status
+    when 'pending_internal_work' then 'Order received - waiting to start work'
+    when 'work_in_progress' then 'Vehicle is currently being worked on'
+    when 'internal_work_completed' then 'Work is finished - ready to prepare for delivery'
+    when 'ready_for_delivery' then 'Vehicle is ready for pickup/delivery'
+    when 'delivered' then 'Vehicle has been delivered to the agency'
+    else 'Status unknown'
+    end
+  end
+
+  def acceptance_status_description
+    case acceptance_status
+    when 'pending_acceptance' then 'Waiting for VMCOTT to review and accept/reject'
+    when 'fully_accepted' then 'All items accepted - work can begin'
+    when 'fully_rejected' then 'All items rejected - order cancelled'
+    else 'Status unknown'
+    end
+  end
+
+  def payment_status_description
+    case payment_status
+    when 'unpaid' then 'Payment has not been initiated'
+    when 'pending' then 'Payment is being processed'
+    when 'processing' then 'Payment is being processed by the bank'
+    when 'authorized' then 'Payment authorized - waiting to complete'
+    when 'completed' then 'Payment completed successfully'
+    when 'failed' then 'Payment failed - please try again'
+    when 'refunded' then 'Payment has been refunded'
+    else 'Status unknown'
     end
   end
 
@@ -758,6 +812,162 @@ class PurchaseOrder < ApplicationRecord
 
   def compliance_checked?
     compliance_checked.present? && compliance_checked
+  end
+
+  # Payment method helpers
+  def payment_method_icon
+    case payment_method
+    when 'bank_transfer' then 'fa-university'
+    when 'cheque' then 'fa-money-check'
+    when 'cash' then 'fa-money-bill-wave'
+    when 'debit_card', 'trinidad_debit_card' then 'fa-credit-card'
+    when 'credit_card', 'trinidad_credit_card' then 'fa-credit-card'
+    else 'fa-money-bill-alt'
+    end
+  end
+
+  def payment_method_badge_color
+    case payment_method
+    when 'trinidad_debit_card', 'trinidad_credit_card' then 'primary'
+    when 'debit_card', 'credit_card' then 'info'
+    when 'bank_transfer' then 'success'
+    when 'cheque' then 'warning'
+    when 'cash' then 'secondary'
+    else 'dark'
+    end
+  end
+
+  # Utility methods
+  def vmcott_progress_percentage
+    case vmcott_status
+    when 'pending_internal_work' then 0
+    when 'work_in_progress' then 33
+    when 'internal_work_completed' then 66
+    when 'ready_for_delivery' then 90
+    when 'delivered' then 100
+    else 0
+    end
+  end
+
+  def priority_level
+    if amount >= 5000
+      'high'
+    elsif amount >= 2000
+      'medium'
+    else
+      'low'
+    end
+  end
+
+  def priority_badge_color
+    case priority_level
+    when 'high' then 'danger'
+    when 'medium' then 'warning'
+    else 'success'
+    end
+  end
+
+  def priority_icon
+    case priority_level
+    when 'high' then 'exclamation-triangle'
+    when 'medium' then 'clock'
+    else 'check-circle'
+    end
+  end
+
+  # Timeline Events
+  def timeline_events
+    events = []
+    
+    events << {
+      date: created_at,
+      title: "Purchase Order Created",
+      description: "PO #{po_number} was created by #{created_by&.name || 'System'}",
+      icon: 'file-plus',
+      color: 'primary'
+    }
+    
+    if ordered_at
+      events << {
+        date: ordered_at,
+        title: "Sent to VMCOTT",
+        description: "Order was sent to VMCOTT for processing",
+        icon: 'paper-plane',
+        color: 'info'
+      }
+    end
+    
+    if acceptance_acknowledged_at
+      events << {
+        date: acceptance_acknowledged_at,
+        title: "Accepted by VMCOTT",
+        description: "VMCOTT accepted the order and started work",
+        icon: 'check-circle',
+        color: 'success'
+      }
+    end
+    
+    if rejected_at
+      events << {
+        date: rejected_at,
+        title: "Rejected by VMCOTT",
+        description: rejection_reason || "Order was rejected",
+        icon: 'times-circle',
+        color: 'danger'
+      }
+    end
+    
+    if vmcott_status == 'work_in_progress' && acceptance_acknowledged_at
+      events << {
+        date: acceptance_acknowledged_at + 1.hour,
+        title: "Work Started",
+        description: "VMCOTT began working on the vehicle",
+        icon: 'tools',
+        color: 'warning'
+      }
+    end
+    
+    if internal_work_completed?
+      events << {
+        date: updated_at,
+        title: "Work Completed",
+        description: "All work on the vehicle has been finished",
+        icon: 'check-double',
+        color: 'info'
+      }
+    end
+    
+    if ready_for_delivery?
+      events << {
+        date: updated_at,
+        title: "Ready for Delivery",
+        description: "Vehicle is ready to be picked up",
+        icon: 'truck',
+        color: 'primary'
+      }
+    end
+    
+    if delivered?
+      events << {
+        date: updated_at,
+        title: "Delivered",
+        description: "Vehicle has been delivered to the agency",
+        icon: 'check-circle',
+        color: 'success'
+      }
+    end
+    
+    if paid_at
+      events << {
+        date: paid_at,
+        title: "Payment Completed",
+        description: "Payment of #{ActionController::Base.helpers.number_to_currency(amount)} was processed",
+        icon: 'receipt',
+        color: 'success'
+      }
+    end
+    
+    events.sort_by { |e| e[:date] }.reverse
   end
 
   # -------------------------

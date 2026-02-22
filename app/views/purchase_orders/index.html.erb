@@ -459,6 +459,56 @@
         letter-spacing: 0.3px;
         color: #6B7280;
       }
+      
+      /* Timeline styles for show page */
+      .timeline {
+        position: relative;
+        padding-left: 30px;
+      }
+
+      .timeline::before {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: #e9ecef;
+      }
+
+      .timeline-item {
+        position: relative;
+        padding-bottom: 20px;
+      }
+
+      .timeline-item:last-child {
+        padding-bottom: 0;
+      }
+
+      .timeline-marker {
+        position: absolute;
+        left: -30px;
+        top: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #6c757d;
+        border: 3px solid white;
+        z-index: 1;
+      }
+
+      .timeline-item.completed .timeline-marker {
+        background-color: #198754;
+      }
+
+      .timeline-item.current .timeline-marker {
+        background-color: #0d6efd;
+        box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
+      }
+
+      .timeline-content {
+        padding-left: 15px;
+      }
     </style>
     <script>
       document.addEventListener('DOMContentLoaded', function() {
@@ -494,6 +544,12 @@
             }
           });
         }, 10);
+        
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
       });
       
       document.addEventListener('turbo:load', function() {
@@ -512,6 +568,12 @@
             Turbo.cache.exemptPageFromPreview();
             Turbo.cache.exemptPageFromCache();
           }
+          
+          // Re-initialize tooltips after Turbo load
+          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+          var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+          });
         }
       });
     </script>
@@ -597,34 +659,40 @@
     </div>
   </div>
 
-  <!-- ===== HEADER WITH ACTIONS ===== -->
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-    <div></div>
-    <div class="d-flex gap-2">
-      <!-- No buttons or actions here -->
-    </div>
-  </div>
-
-  <!-- ===== QUICK STATS ===== -->
+  <!-- ===== QUICK STATS CARDS ===== -->
   <div class="row g-3 mb-4">
     <% if is_vmcott? %>
       <!-- VMCOTT Stats -->
       <div class="col-md-3">
-        <div class="card border-0 shadow-sm bg-primary text-white">
+        <div class="card border-0 shadow-sm bg-primary text-white h-100">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Awaiting Review</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'ordered').count %></h2>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-clock me-1"></i> Awaiting Review
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'ordered').count %></h2>
+              </div>
+              <i class="fas fa-inbox fa-2x opacity-50"></i>
+            </div>
             <p class="mb-0 small" style="opacity: 0.8;">New orders to process</p>
           </div>
         </div>
       </div>
       
       <div class="col-md-3">
-        <div class="card border-0 shadow-sm bg-warning text-dark">
+        <div class="card border-0 shadow-sm bg-warning text-dark h-100">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Pending Acceptance</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance').count %></h2>
-            <p class="mb-0 small" style="opacity: 0.8;">Need review</p>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-hourglass-half me-1"></i> Pending Acceptance
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance').count %></h2>
+              </div>
+              <i class="fas fa-clipboard-check fa-2x opacity-50"></i>
+            </div>
+            <p class="mb-0 small" style="opacity: 0.8;">Need your decision</p>
           </div>
         </div>
       </div>
@@ -632,18 +700,32 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #5B21B6, #7C3AED); color: white;">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">In Progress</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', vmcott_status: 'work_in_progress').count %></h2>
-            <p class="mb-0 small" style="opacity: 0.8;">Work in progress</p>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-tools me-1"></i> In Progress
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', vmcott_status: 'work_in_progress').count %></h2>
+              </div>
+              <i class="fas fa-wrench fa-2x opacity-50"></i>
+            </div>
+            <p class="mb-0 small" style="opacity: 0.8;">Currently being worked on</p>
           </div>
         </div>
       </div>
       
       <div class="col-md-3">
-        <div class="card border-0 shadow-sm bg-success text-white">
+        <div class="card border-0 shadow-sm bg-success text-white h-100">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Completed</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'paid').count %></h2>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-check-circle me-1"></i> Completed
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'paid').count %></h2>
+              </div>
+              <i class="fas fa-flag-checkered fa-2x opacity-50"></i>
+            </div>
             <p class="mb-0 small" style="opacity: 0.8;">Paid and delivered</p>
           </div>
         </div>
@@ -653,8 +735,15 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #4B5563, #6B7280); color: white;">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Drafts</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'draft').count %></h2>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-pen me-1"></i> Drafts
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'draft').count %></h2>
+              </div>
+              <i class="fas fa-file-alt fa-2x opacity-50"></i>
+            </div>
             <p class="mb-0 small" style="opacity: 0.8;">Not yet submitted</p>
           </div>
         </div>
@@ -663,9 +752,16 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm bg-primary text-white">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Sent to VMCOTT</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'ordered').count %></h2>
-            <p class="mb-0 small" style="opacity: 0.8;">Orders sent for processing</p>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-paper-plane me-1"></i> Sent to VMCOTT
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'ordered').count %></h2>
+              </div>
+              <i class="fas fa-truck fa-2x opacity-50"></i>
+            </div>
+            <p class="mb-0 small" style="opacity: 0.8;">Awaiting processing</p>
           </div>
         </div>
       </div>
@@ -673,9 +769,16 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #8B5CF6, #6D28D9); color: white;">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Pending Review</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'received').count %></h2>
-            <p class="mb-0 small" style="opacity: 0.8;">Awaiting final approval</p>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-eye me-1"></i> Pending Review
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'received').count %></h2>
+              </div>
+              <i class="fas fa-clipboard-list fa-2x opacity-50"></i>
+            </div>
+            <p class="mb-0 small" style="opacity: 0.8;">Ready for your approval</p>
           </div>
         </div>
       </div>
@@ -683,8 +786,15 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm bg-success text-white">
           <div class="card-body">
-            <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">Completed</h6>
-            <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'paid').count %></h2>
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="text-uppercase mb-2" style="opacity: 0.9; font-weight: 600; font-size: 0.8rem;">
+                  <i class="fas fa-check-circle me-1"></i> Completed
+                </h6>
+                <h2 class="mb-1" style="font-weight: 700; font-size: 2.2rem;"><%= @purchase_orders.where(status: 'paid').count %></h2>
+              </div>
+              <i class="fas fa-flag-checkered fa-2x opacity-50"></i>
+            </div>
             <p class="mb-0 small" style="opacity: 0.8;">Payment completed</p>
           </div>
         </div>
@@ -692,37 +802,95 @@
     <% end %>
   </div>
 
+  <!-- ===== QUICK FILTER TABS ===== -->
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <%= link_to purchase_orders_path, class: "nav-link #{'active' if params[:filter].blank?}" do %>
+        <i class="fas fa-list me-1"></i> All Orders
+      <% end %>
+    </li>
+    <% if is_vmcott? %>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'pending'), class: "nav-link #{'active' if params[:filter] == 'pending'}" do %>
+          <i class="fas fa-clock me-1"></i> Pending Review
+          <span class="badge bg-warning ms-1"><%= @purchase_orders.where(vendor: 'VMCOTT', acceptance_status: 'pending_acceptance').count %></span>
+        <% end %>
+      </li>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'in_progress'), class: "nav-link #{'active' if params[:filter] == 'in_progress'}" do %>
+          <i class="fas fa-tools me-1"></i> In Progress
+          <span class="badge bg-primary ms-1"><%= @purchase_orders.where(vendor: 'VMCOTT', vmcott_status: 'work_in_progress').count %></span>
+        <% end %>
+      </li>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'completed'), class: "nav-link #{'active' if params[:filter] == 'completed'}" do %>
+          <i class="fas fa-check-circle me-1"></i> Completed
+          <span class="badge bg-success ms-1"><%= @purchase_orders.where(vendor: 'VMCOTT', status: 'paid').count %></span>
+        <% end %>
+      </li>
+    <% else %>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'draft'), class: "nav-link #{'active' if params[:filter] == 'draft'}" do %>
+          <i class="fas fa-pen me-1"></i> Drafts
+          <span class="badge bg-secondary ms-1"><%= @purchase_orders.where(status: 'draft').count %></span>
+        <% end %>
+      </li>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'sent'), class: "nav-link #{'active' if params[:filter] == 'sent'}" do %>
+          <i class="fas fa-paper-plane me-1"></i> Sent
+          <span class="badge bg-info ms-1"><%= @purchase_orders.where(status: 'ordered').count %></span>
+        <% end %>
+      </li>
+      <li class="nav-item">
+        <%= link_to purchase_orders_path(filter: 'received'), class: "nav-link #{'active' if params[:filter] == 'received'}" do %>
+          <i class="fas fa-eye me-1"></i> Pending Review
+          <span class="badge bg-primary ms-1"><%= @purchase_orders.where(status: 'received').count %></span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+
   <!-- ===== FILTERS ===== -->
   <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body">
       <%= form_with url: purchase_orders_path, method: :get, local: true, class: 'row g-3', data: { turbo: false }, id: 'filter-form' do |f| %>
         
-        <div class="col-md-4">
+        <div class="col-md-3">
           <%= label_tag :status, 'Filter by Status', class: 'form-label fw-semibold' %>
           <%= select_tag :status, 
                 options_for_select([
                   ['All Statuses', ''],
                   ['Draft', 'draft'],
+                  ['Pending Approval', 'pending_approval'],
+                  ['Approved', 'approved'],
                   ['Sent', 'ordered'],
                   ['Pending Review', 'received'],
-                  ['Paid', 'paid']
+                  ['Paid', 'paid'],
+                  ['Cancelled', 'cancelled'],
+                  ['Rejected', 'rejected']
                 ], params[:status]),
                 class: 'form-select',
                 onchange: 'this.form.requestSubmit()' %>
         </div>
         
         <div class="col-md-3">
-          <%= label_tag :date_from, 'From Date', class: 'form-label fw-semibold' %>
-          <%= date_field_tag :date_from, params[:date_from], class: 'form-control', onchange: 'this.form.requestSubmit()' %>
+          <%= label_tag :vendor, 'Vendor', class: 'form-label fw-semibold' %>
+          <%= text_field_tag :vendor, params[:vendor], class: 'form-control', placeholder: 'Search by vendor...' %>
         </div>
         
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <%= label_tag :date_from, 'From Date', class: 'form-label fw-semibold' %>
+          <%= date_field_tag :date_from, params[:date_from], class: 'form-control' %>
+        </div>
+        
+        <div class="col-md-2">
           <%= label_tag :date_to, 'To Date', class: 'form-label fw-semibold' %>
-          <%= date_field_tag :date_to, params[:date_to], class: 'form-control', onchange: 'this.form.requestSubmit()' %>
+          <%= date_field_tag :date_to, params[:date_to], class: 'form-control' %>
         </div>
         
         <div class="col-md-2 d-flex align-items-end">
           <div class="btn-group w-100">
+            <%= submit_tag 'Apply Filters', class: 'btn btn-primary', name: nil %>
             <%= link_to 'Clear', purchase_orders_path, class: 'btn btn-outline-secondary', data: { turbo: false } %>
           </div>
         </div>
@@ -742,7 +910,7 @@
                 <th class="border-0">Vendor</th>
               <% end %>
               <th class="border-0">Vehicle</th>
-              <th class="border-0">Amount</th>
+              <th class="border-0 text-end">Amount</th>
               <th class="border-0">Status</th>
               <% if is_vmcott? %>
                 <th class="border-0">Acceptance</th>
@@ -774,25 +942,29 @@
                     <span class="text-muted">—</span>
                   <% end %>
                 </td>
-                <td>
+                <td class="text-end">
                   <strong class="text-success"><%= format_currency(po.amount) %></strong>
                 </td>
                 <td>
-                  <span class="badge bg-<%= po.respond_to?(:status_badge_color) ? po.status_badge_color : 'secondary' %> px-3 py-2">
-                    <i class="fas fa-<%= po_status_icon(po.status) %> me-1"></i>
-                    <%= display_status_name(po.status) %>
+                  <span class="badge bg-<%= po.status_badge_color %> px-3 py-2" 
+                        data-bs-toggle="tooltip" 
+                        title="<%= po.status_description %>">
+                    <i class="fas fa-<%= po.status_icon %> me-1"></i>
+                    <%= po.display_status %>
                   </span>
                 </td>
                 
                 <% if is_vmcott? %>
                   <td>
                     <% if po.acceptance_status.present? %>
-                      <span class="badge bg-<%= acceptance_status_color(po.acceptance_status) %>">
+                      <span class="badge bg-<%= po.acceptance_badge_color %> px-3 py-2"
+                            data-bs-toggle="tooltip"
+                            title="<%= po.acceptance_status_description %>">
                         <i class="fas fa-<%= 
                           po.acceptance_status == 'pending_acceptance' ? 'clock' : 
                           (po.acceptance_status == 'fully_accepted' ? 'check-circle' : 'times-circle') 
                         %> me-1"></i>
-                        <%= acceptance_status_display(po.acceptance_status) %>
+                        <%= po.display_acceptance_status %>
                       </span>
                     <% else %>
                       <span class="text-muted">—</span>
@@ -800,8 +972,10 @@
                   </td>
                   <td>
                     <% if po.vmcott_status.present? %>
-                      <span class="badge bg-<%= vmcott_status_color(po.vmcott_status) %>">
-                        <i class="fas fa-<%= vmcott_status_icon(po.vmcott_status) %> me-1"></i>
+                      <span class="badge bg-<%= po.vmcott_status_badge_color %> px-3 py-2"
+                            data-bs-toggle="tooltip"
+                            title="<%= po.vmcott_status_description %>">
+                        <i class="fas fa-<%= po.vmcott_status_icon %> me-1"></i>
                         <%= po.display_vmcott_status %>
                       </span>
                     <% else %>
@@ -811,9 +985,11 @@
                 <% end %>
                 
                 <td>
-                  <span class="badge bg-<%= po.respond_to?(:payment_status_badge_color) ? po.payment_status_badge_color : 'secondary' %> px-3 py-2">
+                  <span class="badge bg-<%= po.payment_status_badge_color %> px-3 py-2"
+                        data-bs-toggle="tooltip"
+                        title="<%= po.payment_status_description %>">
                     <i class="fas fa-<%= payment_status_icon(po.payment_status) %> me-1"></i>
-                    <%= po.respond_to?(:display_payment_status) ? po.display_payment_status : po.payment_status.to_s.humanize %>
+                    <%= po.display_payment_status %>
                   </span>
                 </td>
                 <td>
@@ -823,35 +999,35 @@
                   </div>
                 </td>
                 
-                <!-- ACTION BUTTONS - SIMPLIFIED FOR VMCOTT -->
+                <!-- ACTION BUTTONS -->
                 <td class="text-end">
                   <div class="action-group">
-                    <!-- View - The ONLY button for VMCOTT in the index -->
-                    <%= link_to po, class: 'action-btn vmcott', title: 'View Details', data: { turbo: false } do %>
+                    <!-- View - Always visible -->
+                    <%= link_to po, class: 'action-btn', title: 'View Details', data: { turbo: false } do %>
                       <i class="fas fa-eye"></i> View
                     <% end %>
                     
-                    <!-- PDF - Optional, can keep if desired -->
+                    <!-- PDF - Always visible -->
                     <%= link_to print_purchase_order_path(po, format: :pdf), class: 'action-btn', title: 'Download PDF', target: '_blank', data: { turbo: false } do %>
                       <i class="fas fa-file-pdf"></i> PDF
                     <% end %>
                     
-                    <!-- AGENCY ACTIONS - KEEP AS IS (not shown for VMCOTT) -->
+                    <!-- AGENCY ACTIONS -->
                     <% if !is_vmcott? %>
-                      <% if po.respond_to?(:editable?) && po.editable? %>
-                        <%= link_to edit_purchase_order_path(po), class: 'action-btn', title: 'Edit', data: { turbo: false } do %>
+                      <% if po.editable? %>
+                        <%= link_to edit_purchase_order_path(po), class: 'action-btn', title: 'Edit this draft', data: { turbo: false } do %>
                           <i class="fas fa-pencil-alt"></i> Edit
                         <% end %>
                       <% end %>
                       
                       <% if po.draft? %>
-                        <%= button_to submit_purchase_order_path(po), method: :post, class: 'action-btn warning', title: 'Submit for Approval', form: { class: 'd-inline', data: { turbo: false } } do %>
+                        <%= button_to submit_purchase_order_path(po), method: :post, class: 'action-btn warning', title: 'Submit for approval', form: { class: 'd-inline', data: { turbo: false } } do %>
                           <i class="fas fa-paper-plane"></i> Submit
                         <% end %>
                       <% end %>
                       
                       <% if po.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
-                        <%= button_to approve_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Approve', form: { class: 'd-inline', data: { turbo: false } } do %>
+                        <%= button_to approve_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Approve this order', form: { class: 'd-inline', data: { turbo: false } } do %>
                           <i class="fas fa-check-circle"></i> Approve
                         <% end %>
                         <button type="button" class="action-btn danger" 
@@ -859,7 +1035,7 @@
                                 data-bs-target="#rejectModal"
                                 data-po-id="<%= po.id %>"
                                 data-po-number="<%= po.po_number %>"
-                                title="Reject">
+                                title="Reject this order">
                           <i class="fas fa-times-circle"></i> Reject
                         </button>
                       <% end %>
@@ -870,21 +1046,25 @@
                         <% end %>
                       <% end %>
                       
-                      <% if po.respond_to?(:can_initiate_payment?) && po.can_initiate_payment? %>
-                        <%= link_to payment_page_purchase_order_path(po), class: 'action-btn success', title: 'Process Payment', data: { turbo: false } do %>
+                      <% if po.can_initiate_payment? %>
+                        <%= link_to payment_page_purchase_order_path(po), class: 'action-btn success', title: 'Process payment', data: { turbo: false } do %>
                           <i class="fas fa-credit-card"></i> Pay
                         <% end %>
                       <% end %>
+                    
+                    <!-- VMCOTT ACTIONS - Only View button in index -->
+                    <% else %>
+                      <!-- All actions are on the show page - only View here -->
                     <% end %>
                     
-                    <!-- Cancel button (if applicable) - Keep for both? -->
+                    <!-- Cancel button (if applicable) -->
                     <% if po.status != 'cancelled' && po.status != 'paid' && po.status != 'received' && !is_vmcott? %>
                       <button type="button" class="action-btn danger" 
                               data-bs-toggle="modal" 
                               data-bs-target="#cancelModal"
                               data-po-id="<%= po.id %>"
                               data-po-number="<%= po.po_number %>"
-                              title="Cancel Order">
+                              title="Cancel this order">
                         <i class="fas fa-ban"></i> Cancel
                       </button>
                     <% end %>
@@ -898,11 +1078,23 @@
       
       <% if @purchase_orders.empty? %>
         <div class="text-center py-5">
-          <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
-          <h4 class="text-muted">No purchase orders found</h4>
+          <div class="mb-4">
+            <i class="fas fa-clipboard-list fa-4x text-muted"></i>
+          </div>
+          <h3 class="text-muted">No Purchase Orders Found</h3>
           <p class="text-muted mb-4">
-            <%= is_vmcott? ? 'No purchase orders have been created yet.' : 'No purchase orders match your criteria.' %>
+            <% if is_vmcott? %>
+              You don't have any purchase orders to review yet. 
+              When agencies send orders, they'll appear here.
+            <% else %>
+              You haven't created any purchase orders yet.
+            <% end %>
           </p>
+          <% if !is_vmcott? %>
+            <%= link_to new_purchase_order_path, class: "btn btn-primary btn-lg" do %>
+              <i class="fas fa-plus me-2"></i> Create Your First Purchase Order
+            <% end %>
+          <% end %>
         </div>
       <% end %>
     </div>
@@ -919,13 +1111,16 @@
   <!-- ===== FOOTER ===== -->
   <div class="dashboard-footer mt-4">
     <div class="d-flex justify-content-between align-items-center">
-      <span class="text-white opacity-75">VMCOTT • Trinidad & Tobago • Purchase Order Management</span>
+      <span class="text-white opacity-75">
+        <i class="fas fa-car me-2"></i>
+        VMCOTT • Trinidad & Tobago • Purchase Order Management
+      </span>
       <span class="text-white opacity-50">© <%= Date.today.year %></span>
     </div>
   </div>
 </div>
 
-<!-- Reject Modal (keep for agency use) -->
+<!-- Reject Modal -->
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -938,29 +1133,39 @@
       </div>
       <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'reject-form' do |f| %>
         <div class="modal-body">
-          <div class="alert alert-danger">
+          <div class="alert alert-warning">
             <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Are you sure you want to reject purchase order <span id="rejectPoNumber" class="fw-bold"></span>?</strong>
+            <strong>This action cannot be undone!</strong>
           </div>
           
+          <p>Rejecting this order will:</p>
+          <ul class="mb-3">
+            <li><i class="fas fa-times-circle text-danger me-2"></i>Cancel all work on this order</li>
+            <li><i class="fas fa-envelope text-info me-2"></i>Notify the agency of the rejection</li>
+            <li><i class="fas fa-save text-success me-2"></i>Save your reason for future reference</li>
+          </ul>
+          
+          <p class="mb-3">You are rejecting purchase order <strong id="rejectPoNumber" class="fw-bold"></strong></p>
+          
           <div class="mb-3">
-            <%= label_tag :rejection_reason, 'Reason for Rejection (Optional)', class: 'form-label fw-bold' %>
+            <%= label_tag :rejection_reason, 'Reason for Rejection', class: 'form-label fw-bold' %>
             <%= text_area_tag :rejection_reason, nil, 
                   class: 'form-control',
                   rows: 3,
-                  placeholder: 'Please provide a reason for rejection...' %>
+                  placeholder: 'Please explain why this order is being rejected (e.g., parts not available, cannot complete work, etc.)' %>
+            <div class="form-text">This will be visible to the agency.</div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag 'Yes, Reject', class: 'btn btn-danger' %>
+          <%= submit_tag 'Yes, Reject Order', class: 'btn btn-danger' %>
         </div>
       <% end %>
     </div>
   </div>
 </div>
 
-<!-- Cancel Modal (keep for agency use) -->
+<!-- Cancel Modal -->
 <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -975,18 +1180,19 @@
         <div class="modal-body">
           <div class="alert alert-warning">
             <i class="fas fa-question-circle me-2"></i>
-            <strong>Are you sure you want to cancel purchase order <span id="cancelPoNumber" class="fw-bold"></span>?</strong>
+            <strong>Are you sure you want to cancel this order?</strong>
           </div>
+          <p>You are cancelling purchase order <strong id="cancelPoNumber" class="fw-bold"></strong></p>
           <p class="text-muted">This action cannot be undone.</p>
           
           <div class="mb-3">
             <%= label_tag :cancellation_reason, 'Reason for Cancellation (Optional)', class: 'form-label' %>
-            <%= text_area_tag :cancellation_reason, nil, class: 'form-control', rows: 2 %>
+            <%= text_area_tag :cancellation_reason, nil, class: 'form-control', rows: 2, placeholder: 'Why are you cancelling this order?' %>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep it</button>
-          <%= submit_tag 'Yes, Cancel', class: 'btn btn-warning' %>
+          <%= submit_tag 'Yes, Cancel Order', class: 'btn btn-warning' %>
         </div>
       <% end %>
     </div>
@@ -997,7 +1203,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   document.body.classList.add('purchase-orders-page');
   
-  // Reject Modal (for agency use)
+  // Reject Modal
   const rejectModal = document.getElementById('rejectModal');
   if (rejectModal) {
     rejectModal.addEventListener('show.bs.modal', function(event) {
@@ -1013,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Cancel Modal (for agency use)
+  // Cancel Modal
   const cancelModal = document.getElementById('cancelModal');
   if (cancelModal) {
     cancelModal.addEventListener('show.bs.modal', function(event) {
