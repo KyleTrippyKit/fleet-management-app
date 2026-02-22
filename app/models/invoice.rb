@@ -1,4 +1,6 @@
-# app/models/invoice.rb
+# app/models/invoice.rb - COMPLETE REVISED VERSION
+# FIX: Added before_save callback to auto-update aging_bucket
+
 class Invoice < ApplicationRecord
   include ActionView::Helpers::DateHelper
   include ActionView::Helpers::NumberHelper
@@ -813,10 +815,11 @@ class Invoice < ApplicationRecord
   end
 
   # ==========================================================
-  # CALLBACKS
+  # CALLBACKS - FIXED with auto-updating aging_bucket
   # ==========================================================
   before_save :update_overdue_status
   before_save :link_supplier
+  before_save :update_aging_bucket  # ← NEW: Auto-update aging bucket before save
   after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
   after_save :check_status_change_for_logs, if: :saved_change_to_status?
 
@@ -830,6 +833,13 @@ class Invoice < ApplicationRecord
 
   def link_supplier
     self.supplier = Supplier.find_by(name: vendor) if vendor.present? && supplier.nil?
+  end
+
+  # ==========================================================
+  # NEW METHOD: Auto-update aging bucket based on days overdue
+  # ==========================================================
+  def update_aging_bucket
+    self.aging_bucket = calculate_aging_bucket
   end
 
   def check_aging_bucket_change
