@@ -1,5 +1,5 @@
 # app/controllers/purchase_orders_controller.rb
-# COMPLETE REVISED VERSION
+# COMPLETE REVISED VERSION with all improvements
 
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
@@ -13,6 +13,7 @@ class PurchaseOrdersController < ApplicationController
   def index
     @purchase_orders = fetch_purchase_orders
     @agencies = Agency.all if current_user.admin?
+    @users = User.all if current_user.admin? || current_user.supervisor? # For "Created By" filter
 
     # Fix any nil statuses in the collection (temporary fix)
     @purchase_orders.each do |po|
@@ -154,16 +155,16 @@ class PurchaseOrdersController < ApplicationController
     render :acceptance_details
   end
 
-  # ========== NEW ACTION ADDED ==========
   # POST /purchase_orders/:id/accept_entire_po
   def accept_entire_po
     if @purchase_order.accept_entire_po!(current_user)
+      # Send email notification
+      PurchaseOrderMailer.po_accepted(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
       redirect_to @purchase_order, notice: 'Purchase order accepted successfully. Work has been started.'
     else
       redirect_to @purchase_order, alert: 'Could not accept purchase order.'
     end
   end
-  # ======================================
 
   # PATCH /purchase_orders/:id/update_item_acceptance
   def update_item_acceptance
@@ -245,6 +246,9 @@ class PurchaseOrdersController < ApplicationController
     end
 
     if @purchase_order.save
+      # Send email notification for new PO
+      PurchaseOrderMailer.po_created(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
+      
       if @purchase_order.status == 'pending_approval'
         redirect_to @purchase_order, notice: 'Purchase Order submitted for approval successfully.'
       else
@@ -296,6 +300,8 @@ class PurchaseOrdersController < ApplicationController
 
   def reject
     if @purchase_order.reject!(current_user, params[:reason])
+      # Send rejection email
+      PurchaseOrderMailer.po_rejected(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
       redirect_to @purchase_order, notice: 'Rejected successfully.'
     else
       redirect_to @purchase_order, alert: 'Could not reject purchase order.'
@@ -354,6 +360,8 @@ class PurchaseOrdersController < ApplicationController
 
   def mark_delivered
     if @purchase_order.mark_delivered!(current_user)
+      # Send delivery notification
+      PurchaseOrderMailer.po_delivered(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
       redirect_to @purchase_order, notice: 'Marked as delivered successfully.'
     else
       redirect_to @purchase_order, alert: 'Could not mark as delivered.'
@@ -375,6 +383,10 @@ class PurchaseOrdersController < ApplicationController
       )
         payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
         payable&.record_payment(@purchase_order.amount, params[:payment_method], params[:payment_reference])
+        
+        # Send payment notification
+        PurchaseOrderMailer.po_paid(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
+        
         redirect_to @purchase_order, notice: 'Marked as paid successfully.'
       else
         redirect_to @purchase_order, alert: 'Could not mark as paid.'
@@ -410,7 +422,9 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def payment
-    redirect_to @purchase_order, alert: 'This purchase order cannot be paid at this time.' unless @purchase_order.can_initiate_payment?
+    unless @purchase_order.can_initiate_payment?
+      redirect_to @purchase_order, alert: 'This purchase order cannot be paid at this time.'
+    end
   end
 
   def process_payment
@@ -513,7 +527,13 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def export_reconciliation
-    redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon'
+    @purchase_orders = fetch_purchase_orders
+    
+    respond_to do |format|
+      format.csv { send_data @purchase_orders.to_csv, filename: "reconciliation-#{Date.today}.csv" }
+      format.xlsx { send_data @purchase_orders.to_xlsx, filename: "reconciliation-#{Date.today}.xlsx" }
+      format.html { redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon' }
+    end
   end
 
   def needs_payment
@@ -693,8 +713,10 @@ class PurchaseOrdersController < ApplicationController
       base_scope = base_scope.joins(:vehicle).where(vehicles: { agency_id: current_user.agency_id })
     end
 
+    # Apply filters
     base_scope = base_scope.where(status: params[:status]) if params[:status].present?
     base_scope = base_scope.where(payment_status: params[:payment_status]) if params[:payment_status].present?
+    base_scope = base_scope.by_creator(params[:created_by]) if params[:created_by].present? && PurchaseOrder.respond_to?(:by_creator)
     base_scope = base_scope.where(payment_method: params[:payment_method]) if params[:payment_method].present?
     base_scope = base_scope.where('created_at >= ?', params[:date_from]) if params[:date_from].present?
     base_scope = base_scope.where('created_at <= ?', params[:date_to]) if params[:date_to].present?

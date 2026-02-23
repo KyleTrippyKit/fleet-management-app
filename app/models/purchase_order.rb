@@ -532,6 +532,10 @@ class PurchaseOrder < ApplicationRecord
     }
   end
 
+  def self.search(query)
+    return all if query.blank?
+    where("po_number ILIKE :q OR vendor ILIKE :q", q: "%#{query}%")
+  end
   # -------------------------
   # Print/PDF methods
   # -------------------------

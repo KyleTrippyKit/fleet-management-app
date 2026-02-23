@@ -1,5 +1,5 @@
 <%# app/views/purchase_orders/index.html.erb %>
-<%# REDESIGNED: Clear separation between Agency and VMCOTT views %>
+<%# SIMPLIFIED VERSION - Only View button in actions %>
 
 <%# ======================================================== %>
 <%# HELPER METHODS - DEFINED FIRST FOR PROPER SCOPE          %>
@@ -855,7 +855,7 @@
     <div class="card-body">
       <%= form_with url: purchase_orders_path, method: :get, local: true, class: 'row g-3', data: { turbo: false }, id: 'filter-form' do |f| %>
         
-        <div class="col-md-3">
+        <div class="col-md-2">
           <%= label_tag :status, 'Filter by Status', class: 'form-label fw-semibold' %>
           <%= select_tag :status, 
                 options_for_select([
@@ -873,9 +873,18 @@
                 onchange: 'this.form.requestSubmit()' %>
         </div>
         
-        <div class="col-md-3">
+        <div class="col-md-2">
           <%= label_tag :vendor, 'Vendor', class: 'form-label fw-semibold' %>
           <%= text_field_tag :vendor, params[:vendor], class: 'form-control', placeholder: 'Search by vendor...' %>
+        </div>
+        
+        <!-- Created By filter -->
+        <div class="col-md-2">
+          <%= label_tag :created_by, 'Created By', class: 'form-label fw-semibold' %>
+          <%= select_tag :created_by, 
+                options_from_collection_for_select(User.all, :id, :name, params[:created_by]),
+                include_blank: 'All Users',
+                class: 'form-select' %>
         </div>
         
         <div class="col-md-2">
@@ -917,7 +926,7 @@
                 <th class="border-0">VMCOTT Status</th>
               <% end %>
               <th class="border-0">Payment</th>
-              <th class="border-0">Created</th>
+              <th class="border-0">Created / Last Updated</th>
               <th class="border-0 text-end">Actions</th>
             </tr>
           </thead>
@@ -992,82 +1001,32 @@
                     <%= po.display_payment_status %>
                   </span>
                 </td>
+                
+                <!-- Created / Last Updated column -->
                 <td>
-                  <span><%= po.created_at.strftime('%b %d, %Y') %></span>
+                  <div><%= po.created_at.strftime('%b %d, %Y') %></div>
                   <div class="small text-muted">
-                    <i class="fas fa-user-circle fa-fw"></i> <%= po.created_by&.name || 'System' %>
+                    <i class="fas fa-clock me-1"></i> updated <%= time_ago_in_words(po.updated_at) %> ago
+                  </div>
+                  <div class="small text-muted">
+                    <i class="fas fa-user-circle me-1"></i> <%= po.created_by&.name || 'System' %>
                   </div>
                 </td>
                 
-                <!-- ACTION BUTTONS -->
+                <!-- ACTION BUTTONS - SIMPLIFIED: ONLY VIEW BUTTON -->
                 <td class="text-end">
                   <div class="action-group">
-                    <!-- View - Always visible -->
+                    <!-- View - The ONLY button -->
                     <%= link_to po, class: 'action-btn', title: 'View Details', data: { turbo: false } do %>
                       <i class="fas fa-eye"></i> View
                     <% end %>
                     
-                    <!-- PDF - Always visible -->
+                    <!-- PDF - Optional, can remove if you want ONLY View 
                     <%= link_to print_purchase_order_path(po, format: :pdf), class: 'action-btn', title: 'Download PDF', target: '_blank', data: { turbo: false } do %>
                       <i class="fas fa-file-pdf"></i> PDF
-                    <% end %>
+                    <% end %> -->
                     
-                    <!-- AGENCY ACTIONS -->
-                    <% if !is_vmcott? %>
-                      <% if po.editable? %>
-                        <%= link_to edit_purchase_order_path(po), class: 'action-btn', title: 'Edit this draft', data: { turbo: false } do %>
-                          <i class="fas fa-pencil-alt"></i> Edit
-                        <% end %>
-                      <% end %>
-                      
-                      <% if po.draft? %>
-                        <%= button_to submit_purchase_order_path(po), method: :post, class: 'action-btn warning', title: 'Submit for approval', form: { class: 'd-inline', data: { turbo: false } } do %>
-                          <i class="fas fa-paper-plane"></i> Submit
-                        <% end %>
-                      <% end %>
-                      
-                      <% if po.pending_approval? && (current_user.supervisor? || current_user.admin?) %>
-                        <%= button_to approve_purchase_order_path(po), method: :post, class: 'action-btn success', title: 'Approve this order', form: { class: 'd-inline', data: { turbo: false } } do %>
-                          <i class="fas fa-check-circle"></i> Approve
-                        <% end %>
-                        <button type="button" class="action-btn danger" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#rejectModal"
-                                data-po-id="<%= po.id %>"
-                                data-po-number="<%= po.po_number %>"
-                                title="Reject this order">
-                          <i class="fas fa-times-circle"></i> Reject
-                        </button>
-                      <% end %>
-                      
-                      <% if po.approved? %>
-                        <%= button_to mark_ordered_purchase_order_path(po), method: :post, class: 'action-btn primary', title: 'Send to VMCOTT', form: { class: 'd-inline', data: { turbo: false } } do %>
-                          <i class="fas fa-paper-plane"></i> Send
-                        <% end %>
-                      <% end %>
-                      
-                      <% if po.can_initiate_payment? %>
-                        <%= link_to payment_page_purchase_order_path(po), class: 'action-btn success', title: 'Process payment', data: { turbo: false } do %>
-                          <i class="fas fa-credit-card"></i> Pay
-                        <% end %>
-                      <% end %>
-                    
-                    <!-- VMCOTT ACTIONS - Only View button in index -->
-                    <% else %>
-                      <!-- All actions are on the show page - only View here -->
-                    <% end %>
-                    
-                    <!-- Cancel button (if applicable) -->
-                    <% if po.status != 'cancelled' && po.status != 'paid' && po.status != 'received' && !is_vmcott? %>
-                      <button type="button" class="action-btn danger" 
-                              data-bs-toggle="modal" 
-                              data-bs-target="#cancelModal"
-                              data-po-id="<%= po.id %>"
-                              data-po-number="<%= po.po_number %>"
-                              title="Cancel this order">
-                        <i class="fas fa-ban"></i> Cancel
-                      </button>
-                    <% end %>
+                    <!-- ALL OTHER ACTION BUTTONS REMOVED -->
                   </div>
                 </td>
               </tr>
@@ -1120,119 +1079,17 @@
   </div>
 </div>
 
-<!-- Reject Modal -->
-<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-danger text-white">
-        <h5 class="modal-title">
-          <i class="fas fa-times-circle me-2"></i>
-          Reject Purchase Order
-        </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'reject-form' do |f| %>
-        <div class="modal-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>This action cannot be undone!</strong>
-          </div>
-          
-          <p>Rejecting this order will:</p>
-          <ul class="mb-3">
-            <li><i class="fas fa-times-circle text-danger me-2"></i>Cancel all work on this order</li>
-            <li><i class="fas fa-envelope text-info me-2"></i>Notify the agency of the rejection</li>
-            <li><i class="fas fa-save text-success me-2"></i>Save your reason for future reference</li>
-          </ul>
-          
-          <p class="mb-3">You are rejecting purchase order <strong id="rejectPoNumber" class="fw-bold"></strong></p>
-          
-          <div class="mb-3">
-            <%= label_tag :rejection_reason, 'Reason for Rejection', class: 'form-label fw-bold' %>
-            <%= text_area_tag :rejection_reason, nil, 
-                  class: 'form-control',
-                  rows: 3,
-                  placeholder: 'Please explain why this order is being rejected (e.g., parts not available, cannot complete work, etc.)' %>
-            <div class="form-text">This will be visible to the agency.</div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag 'Yes, Reject Order', class: 'btn btn-danger' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
-
-<!-- Cancel Modal -->
-<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header bg-warning text-dark">
-        <h5 class="modal-title">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          Cancel Purchase Order
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <%= form_with url: "#", method: :post, data: { turbo: false }, id: 'cancel-form' do |f| %>
-        <div class="modal-body">
-          <div class="alert alert-warning">
-            <i class="fas fa-question-circle me-2"></i>
-            <strong>Are you sure you want to cancel this order?</strong>
-          </div>
-          <p>You are cancelling purchase order <strong id="cancelPoNumber" class="fw-bold"></strong></p>
-          <p class="text-muted">This action cannot be undone.</p>
-          
-          <div class="mb-3">
-            <%= label_tag :cancellation_reason, 'Reason for Cancellation (Optional)', class: 'form-label' %>
-            <%= text_area_tag :cancellation_reason, nil, class: 'form-control', rows: 2, placeholder: 'Why are you cancelling this order?' %>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep it</button>
-          <%= submit_tag 'Yes, Cancel Order', class: 'btn btn-warning' %>
-        </div>
-      <% end %>
-    </div>
-  </div>
-</div>
+<!-- Reject Modal - REMOVED (no longer needed since reject button is gone) -->
+<!-- Cancel Modal - REMOVED (no longer needed since cancel button is gone) -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   document.body.classList.add('purchase-orders-page');
   
-  // Reject Modal
-  const rejectModal = document.getElementById('rejectModal');
-  if (rejectModal) {
-    rejectModal.addEventListener('show.bs.modal', function(event) {
-      const button = event.relatedTarget;
-      const poId = button.getAttribute('data-po-id');
-      const poNumber = button.getAttribute('data-po-number');
-      
-      const poNumberDisplay = rejectModal.querySelector('#rejectPoNumber');
-      const form = rejectModal.querySelector('#reject-form');
-      
-      poNumberDisplay.textContent = poNumber;
-      form.action = '/purchase_orders/' + poId + '/reject';
-    });
-  }
-  
-  // Cancel Modal
-  const cancelModal = document.getElementById('cancelModal');
-  if (cancelModal) {
-    cancelModal.addEventListener('show.bs.modal', function(event) {
-      const button = event.relatedTarget;
-      const poId = button.getAttribute('data-po-id');
-      const poNumber = button.getAttribute('data-po-number');
-      
-      const poNumberDisplay = cancelModal.querySelector('#cancelPoNumber');
-      const form = cancelModal.querySelector('#cancel-form');
-      
-      poNumberDisplay.textContent = poNumber;
-      form.action = '/purchase_orders/' + poId + '/cancel';
-    });
-  }
+  // Initialize tooltips
+  var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+  var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+  });
 });
 </script>

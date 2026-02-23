@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_11_103823) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_23_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -155,6 +155,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_11_103823) do
     t.index ["agency_id"], name: "index_alerts_on_agency_id"
     t.index ["driver_id"], name: "index_alerts_on_driver_id"
     t.index ["severity", "priority"], name: "index_alerts_on_severity_and_priority"
+    t.index ["status", "severity", "priority"], name: "index_alerts_on_status_and_severity_and_priority"
     t.index ["status", "severity"], name: "index_alerts_on_status_and_severity"
     t.index ["vehicle_id", "created_at"], name: "index_alerts_on_vehicle_id_and_created_at"
     t.index ["vehicle_id"], name: "index_alerts_on_vehicle_id"
@@ -343,6 +344,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_11_103823) do
     t.index ["purchase_order_id"], name: "index_invoices_on_purchase_order_id"
     t.index ["quickbooks_id"], name: "index_invoices_on_quickbooks_id"
     t.index ["reviewed_by_id"], name: "index_invoices_on_reviewed_by_id"
+    t.index ["status", "due_date"], name: "index_invoices_on_status_and_due_date"
     t.index ["status"], name: "index_invoices_on_status"
     t.index ["supplier_id"], name: "index_invoices_on_supplier_id"
     t.index ["sync_status"], name: "index_invoices_on_sync_status"
@@ -729,6 +731,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_11_103823) do
     t.string "vendor", null: false
     t.string "vmcott_status", default: "pending_internal_work", null: false
     t.index ["acceptance_acknowledged_at"], name: "index_purchase_orders_on_acceptance_acknowledged_at"
+    t.index ["acceptance_status"], name: "index_purchase_orders_on_acceptance_status"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["payable_id"], name: "index_purchase_orders_on_payable_id"
@@ -741,6 +744,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_11_103823) do
     t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id", unique: true
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
+    t.index ["vendor", "status"], name: "index_purchase_orders_on_vendor_and_status"
+    t.index ["vmcott_status"], name: "index_purchase_orders_on_vmcott_status"
   end
 
   create_table "purchase_requests", force: :cascade do |t|
