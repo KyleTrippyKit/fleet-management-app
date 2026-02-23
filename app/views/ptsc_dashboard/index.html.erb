@@ -1,4 +1,40 @@
-<%# app/views/ptsc_dashboard/index.html.erb - PTSC TRINIDAD & TOBAGO FLEET DASHBOARD (FULLY OPTIMIZED) %>
+<%# EMERGENCY FIX for location attribute - Add at the VERY TOP of the file %>
+<%
+  # Ensure Vehicle model handles location safely in this view
+  if defined?(Vehicle) && !Vehicle.method_defined?(:safe_location)
+    Vehicle.class_eval do
+      def safe_location
+        begin
+          return self[:location] if has_attribute?('location') && self[:location].present?
+        rescue => e
+          Rails.logger.debug("Error accessing location: #{e.message}")
+        end
+        
+        begin
+          return current_location if respond_to?(:current_location)
+        rescue => e
+          Rails.logger.debug("Error accessing current_location: #{e.message}")
+        end
+        
+        # Ultimate fallback
+        "#{make} #{model}"
+      end
+      
+      # Override location method to be safe
+      def location_with_safety
+        safe_location
+      end
+      
+      # Only alias if the original exists
+      unless method_defined?(:location_without_safety)
+        alias_method :location_without_safety, :location if method_defined?(:location)
+        alias_method :location, :location_with_safety
+      end
+    end
+  end
+%>
+
+<%# app/views/ptsc_dashboard/index.html.erb - PTSC TRINIDAD & TOBAGO FLEET DASHBOARD %>
 
 <%
   # TT Flag colors
@@ -8,14 +44,24 @@
   ptsc_yellow = "#ffb81c"
   ptsc_blue = "#0033a0"
   
-  # Get real data from controller
-  total_fleet       = @vehicle_stats[:total_vehicles] rescue 0
-  active_fleet      = @vehicle_stats[:active_vehicles] rescue 0
-  maintenance_fleet = @vehicle_stats[:in_maintenance] rescue 0
+  # SAFE DATA ACCESS - Provide fallbacks for all variables
+  # Vehicle stats with safe defaults
+  total_fleet       = @vehicle_stats&.[](:total_vehicles) || @vehicles&.count || 0
+  active_fleet      = @vehicle_stats&.[](:active_vehicles) || @active_vehicles_count || 0
+  maintenance_fleet = @vehicle_stats&.[](:in_maintenance) || @maintenance_vehicles_count || 0
   out_fleet         = total_fleet - active_fleet - maintenance_fleet
 
-  active_alerts = @active_alerts_count || 0
-  upcoming_cnt  = @maintenance_stats[:upcoming] rescue 0
+  # Alerts
+  active_alerts = @active_alerts_count || @active_alerts&.count || 0
+  
+  # Maintenance stats
+  upcoming_cnt = if @maintenance_stats.present?
+    @maintenance_stats[:upcoming] || @maintenance_stats['upcoming'] || 0
+  elsif @upcoming_maintenances.present?
+    @upcoming_maintenances.count
+  else
+    0
+  end
 
   availability_pct = total_fleet.positive? ? ((active_fleet.to_f / total_fleet) * 100).round(1) : 0.0
 
@@ -35,12 +81,41 @@
     { label: "Critical", badge: "danger", icon: "fa-triangle-exclamation", score: health_score }
   end
 
-  # Real data from controller
-  pending_rfqs = @invoice_stats[:pending_count] rescue 0
-  received_quotations = @invoice_stats[:received_count] rescue 0
-  avg_response_time = @invoice_stats[:avg_response_time] rescue 3.2
-  utilization_trend = @usage_stats[:average_utilization] rescue 78.5
-  month_to_date = @usage_stats[:month_to_date] rescue 86.3
+  # Invoice/Procurement stats with safe defaults
+  pending_rfqs = if @invoice_stats.present?
+    @invoice_stats[:pending_count] || @invoice_stats['pending_count'] || 0
+  else
+    @pending_rfqs_count || 0
+  end
+  
+  received_quotations = if @invoice_stats.present?
+    @invoice_stats[:received_count] || @invoice_stats['received_count'] || 0
+  else
+    @received_quotations_count || 0
+  end
+  
+  avg_response_time = if @invoice_stats.present?
+    @invoice_stats[:avg_response_time] || @invoice_stats['avg_response_time'] || 3.2
+  else
+    3.2
+  end
+  
+  # Usage stats with safe defaults
+  utilization_trend = if @usage_stats.present?
+    @usage_stats[:average_utilization] || @usage_stats['average_utilization'] || 78.5
+  else
+    78.5
+  end
+  
+  month_to_date = if @usage_stats.present?
+    @usage_stats[:month_to_date] || @usage_stats['month_to_date'] || 86.3
+  else
+    86.3
+  end
+
+  # Safe collections
+  active_alerts_list = @active_alerts || []
+  upcoming_maintenances_list = @upcoming_maintenances || []
 %>
 
 <!-- Font Awesome 6 (Free) -->
@@ -165,7 +240,7 @@
                 </div>
                 <div class="progress mb-4 bg-white bg-opacity-25" style="height: 12px;">
                   <div class="progress-bar" role="progressbar" 
-                       style="width:<%= [[availability_pct,0].max,100].min %>; background: <%= ptsc_yellow %> !important;" 
+                       style="width:<%= [[availability_pct,0].max,100].min %>%; background: <%= ptsc_yellow %> !important;" 
                        aria-valuenow="<%= availability_pct %>" aria-valuemin="0" aria-valuemax="100">
                   </div>
                 </div>
@@ -214,7 +289,7 @@
             <span class="fw-bold"><%= availability_pct %>%</span>
           </div>
           <div class="progress mt-2" style="height: 6px;">
-            <div class="progress-bar" style="width: <%= availability_pct %>; background: <%= tt_red %> !important;"></div>
+            <div class="progress-bar" style="width: <%= availability_pct %>%; background: <%= tt_red %> !important;"></div>
           </div>
           <div class="mt-2 text-end">
             <span class="tt-flag-indicator">
@@ -340,10 +415,10 @@
         </div>
         
         <div class="card-body p-4">
-          <% if @active_alerts.present? %>
+          <% if active_alerts_list.any? %>
             <div class="list-group list-group-flush">
-              <% @active_alerts.limit(5).each do |alert| %>
-                <% sev = alert.severity.to_s.downcase %>
+              <% active_alerts_list.first(5).each do |alert| %>
+                <% sev = alert.severity.to_s.downcase rescue "medium" %>
                 <% badge_color = sev == "high" ? "danger" : sev == "medium" ? "warning" : "info" %>
                 
                 <div class="list-group-item border-0 px-0 py-3">
@@ -354,29 +429,29 @@
                     <div class="flex-grow-1">
                       <div class="d-flex justify-content-between align-items-start">
                         <div>
-                          <span class="badge bg-<%= badge_color %> rounded-pill mb-2"><%= alert.severity.titleize %></span>
+                          <span class="badge bg-<%= badge_color %> rounded-pill mb-2"><%= alert.severity.titleize rescue "Medium" %></span>
                           <h6 class="fw-bold mb-1"><%= alert.title %></h6>
-                          <p class="small text-muted mb-1"><%= truncate(alert.description, length: 80) %></p>
+                          <p class="small text-muted mb-1"><%= truncate(alert.description.to_s, length: 80) %></p>
                         </div>
-                        <small class="text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(alert.created_at) %> ago</small>
+                        <small class="text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(alert.created_at) rescue "Unknown" %> ago</small>
                       </div>
                       <% if alert.vehicle.present? %>
                         <span class="small text-muted">
-                          <i class="fas fa-bus me-1"></i> <%= alert.vehicle.registration_number || alert.vehicle.license_plate %>
+                          <i class="fas fa-bus me-1"></i> <%= alert.vehicle.registration_number.presence || alert.vehicle.license_plate rescue "Unknown" %>
                         </span>
                       <% end %>
                     </div>
                   </div>
                 </div>
-                <% unless alert == @active_alerts.limit(5).last %>
+                <% unless alert == active_alerts_list.first(5).last %>
                   <hr class="my-1">
                 <% end %>
               <% end %>
             </div>
             
-            <% if @active_alerts.count > 5 %>
+            <% if active_alerts_list.count > 5 %>
               <div class="text-center mt-3">
-                <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= @active_alerts.count - 5 %> additional alerts</span>
+                <span class="small text-muted"><i class="fas fa-ellipsis me-1"></i> + <%= active_alerts_list.count - 5 %> additional alerts</span>
               </div>
             <% end %>
           <% else %>
@@ -408,8 +483,8 @@
         </div>
         
         <div class="card-body p-4">
-          <% if @upcoming_maintenances.present? %>
-            <% upcoming_soon = @upcoming_maintenances.select { |m| 
+          <% if upcoming_maintenances_list.any? %>
+            <% upcoming_soon = upcoming_maintenances_list.select { |m| 
               due = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date)
               due && due.to_date <= 7.days.from_now.to_date
             } %>
@@ -427,23 +502,23 @@
                   </thead>
                   <tbody>
                     <% upcoming_soon.first(5).each do |m| %>
-                      <% due_date = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date).to_date %>
-                      <% days_until = (due_date - Date.today).to_i %>
+                      <% due_date = (m.respond_to?(:due_date) ? m.due_date : m.end_date || m.start_date).to_date rescue Date.today %>
+                      <% days_until = (due_date - Date.today).to_i rescue 0 %>
                       <% status_badge = days_until <= 0 ? 'danger' : days_until <= 2 ? 'warning' : 'success' %>
                       <% status_text = days_until <= 0 ? 'Overdue' : days_until == 1 ? 'Tomorrow' : "#{days_until} days" %>
                       
                       <tr>
                         <td>
-                          <div class="fw-semibold"><i class="fas fa-bus-alt me-1 text-muted"></i> <%= m.vehicle&.registration_number || m.vehicle&.license_plate %></div>
-                          <div class="small text-muted"><%= m.vehicle&.make %> <%= m.vehicle&.model %></div>
+                          <div class="fw-semibold"><i class="fas fa-bus-alt me-1 text-muted"></i> <%= m.vehicle&.registration_number.presence || m.vehicle&.license_plate rescue "Unknown" %></div>
+                          <div class="small text-muted"><%= m.vehicle&.make %> <%= m.vehicle&.model rescue "" %></div>
                         </td>
                         <td>
                           <div class="fw-medium"><%= m.service_type.presence || "General Service" %></div>
                           <div class="small text-muted"><%= truncate(m.notes.to_s, length: 30) %></div>
                         </td>
                         <td>
-                          <div class="fw-medium"><%= due_date.strftime("%b %d, %Y") %></div>
-                          <div class="small text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(due_date) %></div>
+                          <div class="fw-medium"><%= due_date.strftime("%b %d, %Y") rescue "Unknown" %></div>
+                          <div class="small text-muted"><i class="far fa-clock me-1"></i><%= time_ago_in_words(due_date) rescue "Unknown" %></div>
                         </td>
                         <td class="text-end">
                           <span class="badge bg-<%= status_badge %> bg-opacity-15 text-dark rounded-pill px-3 py-2">
@@ -497,7 +572,7 @@
                   <span class="fw-bold"><%= active_fleet %></span>
                 </div>
                 <div class="progress mb-3" style="height: 8px;">
-                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (active_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_red %>;"></div>
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (active_fleet.to_f / total_fleet * 100) : 0 %>%; background: <%= tt_red %>;"></div>
                 </div>
                 
                 <div class="d-flex justify-content-between mb-1">
@@ -505,7 +580,7 @@
                   <span class="fw-bold"><%= maintenance_fleet %></span>
                 </div>
                 <div class="progress mb-3" style="height: 8px;">
-                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (maintenance_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= ptsc_yellow %>;"></div>
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (maintenance_fleet.to_f / total_fleet * 100) : 0 %>%; background: <%= ptsc_yellow %>;"></div>
                 </div>
                 
                 <div class="d-flex justify-content-between mb-1">
@@ -513,7 +588,7 @@
                   <span class="fw-bold"><%= out_fleet %></span>
                 </div>
                 <div class="progress mb-3" style="height: 8px;">
-                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (out_fleet.to_f / total_fleet * 100) : 0 %>; background: <%= tt_black %>;"></div>
+                  <div class="progress-bar" style="width: <%= total_fleet > 0 ? (out_fleet.to_f / total_fleet * 100) : 0 %>%; background: <%= tt_black %>;"></div>
                 </div>
               </div>
             </div>
@@ -692,6 +767,8 @@
     </div>
   </div>
 </div>
+
+<!-- Rest of your CSS styles remain exactly the same -->
 
 <style>
   /* PTSC Trinidad & Tobago Fleet Dashboard - Professional with Bus Icons */

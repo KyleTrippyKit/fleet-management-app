@@ -73,10 +73,11 @@
             <% end %>
           </li>
           <li>
-            <%= link_to "#", class: "dropdown-item py-2 text-danger",
-                  data: { bs_toggle: "modal", bs_target: "#deleteModal" } do %>
+            <button type="button" class="dropdown-item py-2 text-danger" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#deleteVehicleModal">
               <i class="bi bi-trash me-2"></i> Delete Vehicle
-            <% end %>
+            </button>
           </li>
         </ul>
       </div>
@@ -330,7 +331,6 @@
                             <%= maintenance.status %>
                           </span>
                         </div>
-                        <!-- FIXED: Changed strftime to format_date helper -->
                         <p class="text-muted small mb-1">
                           <i class="bi bi-calendar me-1"></i><%= format_date(maintenance.date) %>
                           <% if maintenance.cost.present? %>
@@ -627,12 +627,6 @@
                   class: "btn btn-outline-danger btn-lg d-flex align-items-center justify-content-center gap-2" do %>
               <i class="bi bi-exclamation-triangle"></i>
               Report Issue
-            <% end %>
-            
-            <%= link_to new_vehicle_maintenance_path(@vehicle), 
-                  class: "btn btn-outline-warning btn-lg d-flex align-items-center justify-content-center gap-2" do %>
-              <i class="bi bi-tools"></i>
-              Schedule Maintenance
             <% end %>
             
             <% if @vehicle.driver %>
@@ -938,32 +932,88 @@
   </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger">
-          <i class="bi bi-exclamation-triangle me-2"></i>Delete Vehicle
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p>Are you sure you want to delete this vehicle?</p>
-        <div class="alert alert-danger">
-          <i class="bi bi-exclamation-circle me-2"></i>
-          This will permanently delete the vehicle and all associated records (maintenance, trips, documents).
+<!-- Delete Vehicle Confirmation Modal - FIXED VERSION -->
+<div class="modal fade" id="deleteVehicleModal" tabindex="-1" aria-labelledby="deleteVehicleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <!-- Modal Header - Danger style -->
+      <div class="modal-header bg-danger text-white">
+        <div class="d-flex align-items-center">
+          <div class="bg-white bg-opacity-25 rounded-circle p-2 me-3">
+            <i class="bi bi-exclamation-triangle fs-5"></i>
+          </div>
+          <div>
+            <h5 class="modal-title mb-0" id="deleteVehicleModalLabel">Delete Vehicle</h5>
+            <p class="mb-0 small opacity-75">This action cannot be undone</p>
+          </div>
         </div>
-        <p class="fw-bold mb-0">
-          <%= @vehicle.make %> <%= @vehicle.model %> (<%= @vehicle.license_plate %>)
-        </p>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <%= link_to "Delete Vehicle", vehicle_path(@vehicle), 
-              method: :get, 
-              class: "btn btn-danger",
-              data: { confirm: "This action cannot be undone. Are you absolutely sure?" } %>
+      
+      <!-- Modal Body -->
+      <div class="modal-body p-4">
+        <!-- Vehicle Info Card -->
+        <div class="card border-danger border-opacity-25 mb-4">
+          <div class="card-body p-3">
+            <div class="d-flex align-items-center">
+              <div class="flex-shrink-0">
+                <%= vehicle_image(@vehicle, variant: :thumb, 
+                      class: "rounded", 
+                      style: "width: 60px; height: 60px; object-fit: cover;") %>
+              </div>
+              <div class="flex-grow-1 ms-3">
+                <h6 class="mb-1"><%= @vehicle.make %> <%= @vehicle.model %></h6>
+                <p class="text-muted small mb-0">
+                  <i class="bi bi-123 me-1"></i><%= @vehicle.license_plate %>
+                  <% if @vehicle.year_of_manufacture.present? %>
+                    • <i class="bi bi-calendar me-1"></i><%= @vehicle.year_of_manufacture %>
+                  <% end %>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Warning Messages -->
+        <div class="alert alert-danger border-0 d-flex align-items-start mb-3">
+          <i class="bi bi-exclamation-circle-fill me-3 fs-4"></i>
+          <div>
+            <strong>Warning:</strong> This will permanently delete:
+            <ul class="mb-0 mt-2">
+              <li>The vehicle record</li>
+              <li>All maintenance history (<%= @vehicle.maintenances.count %> records)</li>
+              <li>All trip history (<%= @vehicle.trips.count %> records)</li>
+              <li>All associated documents and photos</li>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Additional Info -->
+        <div class="bg-light p-3 rounded small text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          If you need to temporarily remove this vehicle from service, consider changing its status to "Inactive" instead.
+        </div>
+      </div>
+      
+      <!-- Modal Footer - FIXED VERSION with working delete button -->
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle me-1"></i> Cancel
+        </button>
+        
+        <!-- For Rails 7+ with Turbo -->
+        <%= button_to vehicle_path(@vehicle), 
+              method: :delete,
+              form: { 
+                data: { 
+                  turbo_confirm: "Are you absolutely sure you want to delete this vehicle? This action cannot be undone." 
+                } 
+              },
+              class: "btn btn-danger d-flex align-items-center",
+              data: { bs_dismiss: "modal" } do %>
+          <i class="bi bi-trash me-2"></i>
+          <span>Permanently Delete Vehicle</span>
+        <% end %>
       </div>
     </div>
   </div>
@@ -1080,12 +1130,14 @@
 }
 
 /* Modal custom styles */
-#assignDriverModal .modal-content {
+#assignDriverModal .modal-content,
+#deleteVehicleModal .modal-content {
   border-radius: 0.75rem;
   overflow: hidden;
 }
 
-#assignDriverModal .modal-header {
+#assignDriverModal .modal-header,
+#deleteVehicleModal .modal-header {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 

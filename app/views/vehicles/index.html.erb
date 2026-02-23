@@ -8,8 +8,14 @@
   ptsc_yellow = "#ffb81c"
   ptsc_blue = "#0033a0"
   
-  # Get all agencies for filter buttons - EXCLUDE VMCOTT COMPLETELY
-  @agencies = Agency.where.not(code: 'VMCOTT').order(:name) if defined?(Agency)
+  # Get all agencies for filter buttons
+  # If user is PTSC, only show PTSC
+  # Exclude VMCOTT completely
+  if current_user.agency&.code == 'PTSC'
+    @agencies = Agency.where(code: 'PTSC')
+  else
+    @agencies = Agency.where.not(code: 'VMCOTT').order(:name)
+  end if defined?(Agency)
   
   # Agency-specific colors - VMCOTT removed from filter bar
   agency_colors = {
@@ -72,19 +78,21 @@
     </div>
   </div>
 
-  <!-- AGENCY FILTER BUTTONS - VMCOTT COMPLETELY REMOVED -->
+  <!-- AGENCY FILTER BUTTONS - RESTRICTED FOR PTSC USERS -->
   <div class="agency-filter-section mb-4">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <span class="fw-medium me-2" style="color: <%= ptsc_blue %>;">Filter by Agency:</span>
       
-      <!-- All Agencies button (always visible) -->
-      <%= link_to vehicles_path, 
-          class: "btn agency-filter-btn #{'active-filter' if params[:agency_id].blank?}", 
-          style: "background: #{params[:agency_id].blank? ? '#6c757d' : '#f8f9fa'}; color: #{params[:agency_id].blank? ? 'white' : '#6c757d'}; border: 1px solid #6c757d; border-radius: 100px; padding: 0.5rem 1.2rem; font-weight: 500; text-decoration: none; transition: all 0.2s ease;" do %>
-        <i class="fas fa-globe me-1"></i> All Agencies
+      <!-- All Agencies button - only show if user can see multiple agencies -->
+      <% if @agencies.count > 1 || current_user.agency&.code != 'PTSC' %>
+        <%= link_to vehicles_path, 
+            class: "btn agency-filter-btn #{'active-filter' if params[:agency_id].blank?}", 
+            style: "background: #{params[:agency_id].blank? ? '#6c757d' : '#f8f9fa'}; color: #{params[:agency_id].blank? ? 'white' : '#6c757d'}; border: 1px solid #6c757d; border-radius: 100px; padding: 0.5rem 1.2rem; font-weight: 500; text-decoration: none; transition: all 0.2s ease;" do %>
+          <i class="fas fa-globe me-1"></i> All Agencies
+        <% end %>
       <% end %>
       
-      <!-- Agency-specific buttons - VMCOTT automatically excluded because @agencies doesn't include it -->
+      <!-- Agency-specific buttons - only shows agencies user has access to -->
       <% @agencies&.each do |agency| %>
         <% color = agency_colors[agency.code] || { bg: "#6c757d", text: "#FFFFFF", icon: "fa-building" } %>
         <% is_active = params[:agency_id].to_s == agency.id.to_s %>
@@ -290,6 +298,8 @@
       <% @vehicles.each do |vehicle| %>
         <!-- Skip VMCOTT vehicles completely -->
         <% next if vehicle.agency&.code == 'VMCOTT' %>
+        <!-- Skip vehicles from other agencies if user is PTSC -->
+        <% next if current_user.agency&.code == 'PTSC' && vehicle.agency&.code != 'PTSC' %>
         
         <div class="col-xl-3 col-lg-4 col-md-6">
           <div class="ptsc-vehicle-card card border-0 shadow-sm rounded-4 h-100">
@@ -403,12 +413,19 @@
                 <div class="text-muted small">
                   <%= vehicle.year_of_manufacture %> • <%= vehicle.vehicle_type || "Bus" %>
                 </div>
-                <!-- Agency badge - Clickable to filter by this agency -->
-                <%= link_to vehicles_path(agency_id: vehicle.agency_id), 
-                    class: "tt-agency-badge text-decoration-none", 
-                    style: "background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;",
-                    title: "Filter by #{vehicle.agency&.code} vehicles" do %>
-                  <%= vehicle.agency&.code || "N/A" %>
+                <!-- Agency badge - Clickable to filter by this agency (only if user can see it) -->
+                <% if current_user.agency&.code != 'PTSC' || vehicle.agency&.code == 'PTSC' %>
+                  <%= link_to vehicles_path(agency_id: vehicle.agency_id), 
+                      class: "tt-agency-badge text-decoration-none", 
+                      style: "background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;",
+                      title: "Filter by #{vehicle.agency&.code} vehicles" do %>
+                    <%= vehicle.agency&.code || "N/A" %>
+                  <% end %>
+                <% else %>
+                  <span class="tt-agency-badge" 
+                      style="background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;">
+                    <%= vehicle.agency&.code || "N/A" %>
+                  </span>
                 <% end %>
               </div>
 
@@ -481,6 +498,8 @@
               <% @vehicles.each do |vehicle| %>
                 <!-- Skip VMCOTT vehicles completely -->
                 <% next if vehicle.agency&.code == 'VMCOTT' %>
+                <!-- Skip vehicles from other agencies if user is PTSC -->
+                <% next if current_user.agency&.code == 'PTSC' && vehicle.agency&.code != 'PTSC' %>
                 
                 <tr>
                   <!-- Vehicle Image Column -->
@@ -552,13 +571,20 @@
                     <%= vehicle.mileage.present? ? "#{number_with_delimiter(vehicle.mileage.to_i)} km" : "—" %>
                   </td>
                   
-                  <!-- Agency - Clickable to filter -->
+                  <!-- Agency - Clickable to filter (only if user can see it) -->
                   <td>
-                    <%= link_to vehicles_path(agency_id: vehicle.agency_id), 
-                        class: "tt-agency-badge text-decoration-none",
-                        style: "background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;",
-                        title: "Filter by #{vehicle.agency&.code} vehicles" do %>
-                      <%= vehicle.agency&.code || "—" %>
+                    <% if current_user.agency&.code != 'PTSC' || vehicle.agency&.code == 'PTSC' %>
+                      <%= link_to vehicles_path(agency_id: vehicle.agency_id), 
+                          class: "tt-agency-badge text-decoration-none",
+                          style: "background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;",
+                          title: "Filter by #{vehicle.agency&.code} vehicles" do %>
+                        <%= vehicle.agency&.code || "—" %>
+                      <% end %>
+                    <% else %>
+                      <span class="tt-agency-badge"
+                          style="background: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}20; color: #{agency_colors[vehicle.agency&.code]&.dig(:bg) || '#6c757d'}; padding: 0.25rem 0.75rem; border-radius: 100px; font-size: 0.8rem; font-weight: 600;">
+                        <%= vehicle.agency&.code || "—" %>
+                      </span>
                     <% end %>
                   </td>
                   
@@ -978,6 +1004,7 @@ document.addEventListener('turbo:load', function() {
   background: rgba(0, 51, 160, 0.08); color: #0033a0; padding: 0.25rem 0.75rem;
   border-radius: 100px; font-size: 0.8rem; font-weight: 600; white-space: nowrap;
   transition: all 0.2s ease;
+  display: inline-block;
 }
 
 .tt-agency-badge:hover {

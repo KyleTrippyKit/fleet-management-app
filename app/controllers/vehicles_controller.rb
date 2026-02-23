@@ -277,7 +277,7 @@ class VehiclesController < ApplicationController
     @owner_filter = params[:owner].presence && params[:owner] != "All Owners" ? params[:owner] : nil
 
     # NEW: server-side tab selector (instead of bootstrap tabs)
-    @priority = params[:priority].presence_in(%w[overdue pending upcoming completed]) || "overdue"
+    @priority = params[:priority].presence_in?(%w[overdue pending upcoming completed]) || "overdue"
 
     # Check if we're filtering by a specific agency (from the link click)
     if params[:agency_id].present?
@@ -567,7 +567,7 @@ class VehiclesController < ApplicationController
   end
 
   # ====================================================
-  # Strong params
+  # Strong params - FIXED: Removes any stray 'location' param
   # ====================================================
   def vehicle_params
     params.require(:vehicle).permit(
@@ -581,7 +581,10 @@ class VehiclesController < ApplicationController
       :make_model_ui,
       :license_registration_ui,
       gallery_photos: []
-    )
+    ).tap do |whitelisted|
+      # If location somehow gets through, remove it
+      whitelisted.delete('location') if whitelisted.key?('location')
+    end
   end
 
   # ====================================================
