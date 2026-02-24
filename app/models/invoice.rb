@@ -1,5 +1,8 @@
 # app/models/invoice.rb - COMPLETE REVISED VERSION
 # FIX: Added before_save callback to auto-update aging_bucket
+# FIX: Added after_create callback to create payable from invoice
+# FIX: Added can_approve? method for test compatibility
+# FIX: Commented out ActivityLog references (model doesn't exist)
 
 class Invoice < ApplicationRecord
   include ActionView::Helpers::DateHelper
@@ -24,7 +27,7 @@ class Invoice < ApplicationRecord
   has_many :ledger_entries, dependent: :destroy
   has_many :transactions, dependent: :destroy
   has_many :payment_histories, dependent: :destroy
-  has_many :activity_logs, as: :record, dependent: :destroy
+  # has_many :activity_logs, as: :record, dependent: :destroy  # Commented out - ActivityLog model doesn't exist
 
   delegate :agency, :agency_id, to: :vehicle, allow_nil: true
 
@@ -372,6 +375,13 @@ class Invoice < ApplicationRecord
   end
 
   # ==========================================================
+  # ADD THIS METHOD FOR TEST COMPATIBILITY
+  # ==========================================================
+  def can_approve?
+    %w[pending reviewed].include?(status) && !paid? && !cancelled?
+  end
+
+  # ==========================================================
   # APPROVAL WORKFLOW (CORRECT + SAFE)
   # ==========================================================
   def approve!(user:)
@@ -389,12 +399,12 @@ class Invoice < ApplicationRecord
 
       post_ledger_entries!(user)
 
-      ActivityLog.create!(
-        user: user,
-        action: "invoice_approved",
-        description: "Invoice #{invoice_number} approved and posted to ledger",
-        record: self
-      ) if defined?(ActivityLog)
+      # ActivityLog.create!(
+      #   user: user,
+      #   action: "invoice_approved",
+      #   description: "Invoice #{invoice_number} approved and posted to ledger",
+      #   record: self
+      # ) if defined?(ActivityLog)
     end
 
     true
@@ -644,12 +654,12 @@ class Invoice < ApplicationRecord
         sync_error: nil
       )
 
-      ActivityLog.create!(
-        user: created_by,
-        action: "quickbooks_sync",
-        description: "Invoice synced to QuickBooks: #{result[:quickbooks_id]}",
-        record: self
-      ) if defined?(ActivityLog)
+      # ActivityLog.create!(
+      #   user: created_by,
+      #   action: "quickbooks_sync",
+      #   description: "Invoice synced to QuickBooks: #{result[:quickbooks_id]}",
+      #   record: self
+      # ) if defined?(ActivityLog)
 
       { success: true, message: "Synced successfully", quickbooks_id: result[:quickbooks_id] }
     else
@@ -815,13 +825,42 @@ class Invoice < ApplicationRecord
   end
 
   # ==========================================================
+  # PAYABLE CREATION - NEW METHOD
+  # ==========================================================
+  def create_payable_from_invoice
+    return if purchase_order.nil?
+    return if purchase_order.payable.present?
+    
+    begin
+      payable = Payable.create!(
+        purchase_order: purchase_order,
+        invoice: self,
+        vendor_name: vendor,
+        amount: amount,
+        amount_due: amount,
+        due_date: due_date,
+        agency_id: purchase_order.vehicle&.agency_id,
+        description: "Invoice #{invoice_number} for PO #{purchase_order.po_number}",
+        category: 'purchase_order',
+        status: 'open',
+        reference_number: "INV-#{invoice_number}"
+      )
+      
+      Rails.logger.info "✅ Payable #{payable.id} created from Invoice #{invoice_number}"
+    rescue => e
+      Rails.logger.error "❌ Failed to create payable from Invoice #{invoice_number}: #{e.message}"
+    end
+  end
+
+  # ==========================================================
   # CALLBACKS - FIXED with auto-updating aging_bucket
   # ==========================================================
   before_save :update_overdue_status
   before_save :link_supplier
   before_save :update_aging_bucket  # ← NEW: Auto-update aging bucket before save
   after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
-  after_save :check_status_change_for_logs, if: :saved_change_to_status?
+  # after_save :check_status_change_for_logs, if: :saved_change_to_status?  # Commented out - uses ActivityLog
+  after_create :create_payable_from_invoice, if: -> { purchase_order.present? }  # ← NEW: Create payable when invoice is created
 
   private
 
@@ -868,16 +907,16 @@ class Invoice < ApplicationRecord
     severity.fetch(new_bucket, 0) > severity.fetch(old_bucket, 0)
   end
 
-  def check_status_change_for_logs
-    return unless defined?(ActivityLog)
-
-    if approved?
-      ActivityLog.create!(
-        user: approved_by,
-        action: "invoice_approved",
-        description: "Invoice #{invoice_number} approved by #{approved_by&.name}",
-        record: self
-      ) if approved_by.present?
-    end
-  end
+  # def check_status_change_for_logs
+  #   return unless defined?(ActivityLog)
+  #
+  #   if approved?
+  #     ActivityLog.create!(
+  #       user: approved_by,
+  #       action: "invoice_approved",
+  #       description: "Invoice #{invoice_number} approved by #{approved_by&.name}",
+  #       record: self
+  #     ) if approved_by.present?
+  #   end
+  # end
 end

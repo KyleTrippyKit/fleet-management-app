@@ -73,10 +73,10 @@ class AlertsController < ApplicationController
   def create
     @alert = Alert.new(alert_params)
 
-    # ✅ Always lock to creator's agency (primary rule)
+    # Always lock to creator's agency (primary rule)
     @alert.agency_id = current_user.agency_id
 
-    # ✅ If user has no agency for some reason, try fallback from vehicle/driver
+    # If user has no agency for some reason, try fallback from vehicle/driver
     if @alert.agency_id.blank?
       @alert.agency_id =
         (@alert.vehicle&.agency_id if @alert.respond_to?(:vehicle)) ||
@@ -91,7 +91,7 @@ class AlertsController < ApplicationController
     end
 
     # Default status
-    @alert.status = "open" if @alert.status.blank?
+    @alert.status = "active" if @alert.status.blank?
 
     # Creator tracking (string column)
     if @alert.respond_to?(:created_by=)
@@ -119,7 +119,7 @@ class AlertsController < ApplicationController
   end
 
   def update
-    # ✅ Never allow agency reassignment from params
+    # Never allow agency reassignment from params
     safe_params = alert_params.except(:agency_id)
 
     if @alert.update(safe_params)
@@ -148,7 +148,7 @@ class AlertsController < ApplicationController
       return
     end
 
-    # Track acknowledgment inside notes (since you don't have acknowledged_at/by columns)
+    # Track acknowledgment inside notes
     stamp = "#{Time.current.in_time_zone('America/Port_of_Spain').strftime('%Y-%m-%d %H:%M:%S %z')}"
     who   = current_user.try(:name).presence || current_user.email
 
@@ -188,7 +188,7 @@ class AlertsController < ApplicationController
   end
 
   # ============================================================
-  # ESCALATE TO FINANCE
+  # ESCALATE TO FINANCE (SEND FOR PROCUREMENT REVIEW)
   # ============================================================
   def escalate
     stamp = "#{Time.current.in_time_zone('America/Port_of_Spain').strftime('%Y-%m-%d %H:%M:%S %z')}"
@@ -196,15 +196,22 @@ class AlertsController < ApplicationController
 
     new_notes = []
     new_notes << @alert.notes.to_s.strip if @alert.notes.present?
-    new_notes << "Sent to Finance by #{who} at #{stamp}"
+    new_notes << "Sent to Finance for procurement review by #{who} at #{stamp}"
     new_notes = new_notes.reject(&:blank?).join("\n")
 
-    @alert.update(status: "awaiting_procurement", notes: new_notes)
-    redirect_back fallback_location: alert_path(@alert), notice: "Alert sent to Finance."
+    @alert.update(
+      status: "awaiting_procurement",
+      notes: new_notes,
+      sent_to_finance_at: Time.current,
+      sent_to_finance_by: who
+    )
+
+    redirect_back fallback_location: alert_path(@alert),
+                  notice: "Alert sent to Finance for procurement review."
   end
 
   # ============================================================
-  # CREATE RFQ FROM ALERT (FINANCE/ADMIN)
+  # CREATE RFQ FROM ALERT (FINANCE/ADMIN) - OPTIONAL ACTION
   # ============================================================
   def create_rfq
     vehicle_label =
@@ -214,13 +221,24 @@ class AlertsController < ApplicationController
         "Vehicle"
       end
 
+    # Track that RFQ was considered
+    stamp = "#{Time.current.in_time_zone('America/Port_of_Spain').strftime('%Y-%m-%d %H:%M:%S %z')}"
+    who   = current_user.try(:name).presence || current_user.email
+
+    new_notes = []
+    new_notes << @alert.notes.to_s.strip if @alert.notes.present?
+    new_notes << "RFQ generation started by #{who} at #{stamp}"
+    @alert.update(notes: new_notes.reject(&:blank?).join("\n"))
+
+    # Redirect to new RFQ page with alert data pre-filled
     redirect_to new_rfq_path(
       from_alert_id: @alert.id,
       vehicle_id: @alert.vehicle_id,
       driver_id: @alert.driver_id,
-      subject: "RFQ for #{vehicle_label}",
-      description: @alert.description.to_s
-    )
+      title: "Procurement Request: #{@alert.title}",
+      description: @alert.description.to_s,
+      source: "alert"
+    ), notice: "Please review and complete the RFQ form."
   end
 
   # ============================================================
@@ -232,7 +250,7 @@ class AlertsController < ApplicationController
     @alert = scoped_alerts.find(params[:id])
   end
 
-  # ✅ STRICT: Only agency that created the alert can see it
+  # STRICT: Only agency that created the alert can see it
   def scoped_alerts
     base = Alert.includes(:vehicle, :driver, :agency)
     return base if current_user.admin?
@@ -268,13 +286,11 @@ class AlertsController < ApplicationController
     redirect_to alerts_path, alert: "You are not allowed to create alerts."
   end
 
-  # ✅ Only Fleet Manager (or Admin) can acknowledge
   def authorize_acknowledge!
     return if current_user.admin? || current_user.fleet_manager?
     redirect_back fallback_location: alerts_path, alert: "Only Fleet Managers can acknowledge alerts."
   end
 
-  # ✅ Resolve / escalate allowed for management roles
   def authorize_manage!
     return if current_user.admin?
     return if current_user.fleet_manager? ||
@@ -298,11 +314,12 @@ class AlertsController < ApplicationController
     base = scoped_alerts
     {
       total: base.count,
-      open: base.where(status: "open").count,
+      open: base.where(status: "active").count,
       acknowledged: base.where(status: "acknowledged").count,
       awaiting_procurement: base.where(status: "awaiting_procurement").count,
       resolved: base.where(status: "resolved").count,
-      critical: base.where(severity: "critical").count
+      critical: base.where(severity: "critical").count,
+      needs_attention: base.where("severity = 'critical' OR priority = 'urgent'").count
     }.with_indifferent_access
   end
 

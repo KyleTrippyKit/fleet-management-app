@@ -9,6 +9,15 @@
   ptsc_blue = "#0033a0"
   
   stats = (@summary_stats || {}).with_indifferent_access
+  
+  # Role helpers
+  maintenance_roles = current_user.admin? ||
+                      current_user.fleet_manager? ||
+                      current_user.supervisor? ||
+                      current_user.maintenance_supervisor?
+  
+  finance_roles = current_user.admin? ||
+                  current_user.finance?
 %>
 
 <!-- Font Awesome 6 (Free) - Matching other pages -->
@@ -77,7 +86,7 @@
           </div>
           <div class="d-flex align-items-center text-muted small">
             <i class="fas fa-chart-pie me-1"></i> 
-            <span class="me-2">Open: <strong><%= stats[:open].to_i %></strong></span>
+            <span class="me-2">Active: <strong><%= stats[:open].to_i %></strong></span>
             <span class="me-2">Ack: <strong><%= stats[:acknowledged].to_i %></strong></span>
             <span>Resolved: <strong><%= stats[:resolved].to_i %></strong></span>
           </div>
@@ -97,7 +106,7 @@
         <div class="card-body p-4">
           <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
-              <span class="text-muted text-uppercase small fw-semibold">Open</span>
+              <span class="text-muted text-uppercase small fw-semibold">Active</span>
               <div class="display-5 fw-bold text-danger"><%= stats[:open].to_i %></div>
             </div>
             <div class="ptsc-icon-circle bg-danger bg-opacity-10">
@@ -105,7 +114,7 @@
             </div>
           </div>
           <div class="d-flex align-items-center text-danger small">
-            <i class="fas fa-clock me-1"></i> Awaiting Finance/RFQ: <strong class="ms-1"><%= stats[:awaiting_procurement].to_i %></strong>
+            <i class="fas fa-clock me-1"></i> Awaiting Procurement: <strong class="ms-1"><%= stats[:awaiting_procurement].to_i %></strong>
           </div>
         </div>
       </div>
@@ -158,9 +167,9 @@
       <% end %>
     <% end %>
 
-    <% if respond_to?(:recent_alerts_path) %>
-      <%= link_to recent_alerts_path, class: "ptsc-outline-btn" do %>
-        <i class="fas fa-clock me-2" style="color: <%= ptsc_blue %>;"></i> Recent Alerts
+    <% if respond_to?(:awaiting_procurement_alerts_path) && finance_roles %>
+      <%= link_to awaiting_procurement_alerts_path, class: "ptsc-outline-btn" do %>
+        <i class="fas fa-clock me-2" style="color: <%= ptsc_blue %>;"></i> Awaiting Procurement (<%= stats[:awaiting_procurement].to_i %>)
       <% end %>
     <% end %>
 
@@ -272,7 +281,7 @@
             </thead>
             <tbody>
               <% @alerts.each do |alert| %>
-                <% is_critical_active = (alert.respond_to?(:critical?) && alert.critical?) && (alert.respond_to?(:active?) && alert.active?) %>
+                <% is_critical_active = alert.severity_critical? && alert.status_active? %>
                 <tr class="<%= 'ptsc-critical-row' if is_critical_active %>">
                   <td>
                     <%= check_box_tag "alert_ids[]", alert.id, false, class: "alert-checkbox form-check-input" %>
@@ -319,21 +328,22 @@
                   <td>
                     <%
                       badge_color = case alert.status.to_s
-                      when "active", "open" then "danger"
-                      when "resolved", "closed" then "success"
+                      when "active" then "danger"
+                      when "acknowledged" then "warning"
                       when "awaiting_procurement" then "info"
-                      else "warning"
+                      when "resolved", "closed" then "success"
+                      else "secondary"
                       end
                       
                       severity_color = case alert.severity.to_s
-                      when "critical", "high" then tt_red
-                      when "medium" then ptsc_yellow
+                      when "critical" then tt_red
+                      when "high_severity", "warning" then ptsc_yellow
                       else "#6c757d"
                       end
                       
                       priority_color = case alert.priority.to_s
-                      when "urgent", "high" then tt_red
-                      when "medium" then ptsc_yellow
+                      when "urgent" then tt_red
+                      when "high_priority" then ptsc_yellow
                       else "#6c757d"
                       end
                     %>
@@ -347,6 +357,14 @@
                         <%= alert.humanized_priority %>
                       </span>
                     </div>
+                    
+                    <% if alert.status_awaiting_procurement? && finance_roles %>
+                      <div class="mt-2">
+                        <span class="badge bg-info" style="font-size: 0.7rem;">
+                          <i class="fas fa-clock me-1"></i> Ready for Finance Review
+                        </span>
+                      </div>
+                    <% end %>
                   </td>
 
                   <td>
@@ -368,7 +386,7 @@
                         <i class="fas fa-edit"></i>
                       <% end %>
 
-                      <% if alert.can_acknowledge? && respond_to?(:acknowledge_alert_path) && (current_user&.fleet_manager? || current_user&.admin?) %>
+                      <% if alert.can_acknowledge? && (current_user.fleet_manager? || current_user.admin?) %>
                         <%= button_to acknowledge_alert_path(alert),
                               method: :post,
                               class: "ptsc-table-action",
@@ -379,24 +397,25 @@
                         <% end %>
                       <% end %>
 
-                      <% if alert.can_resolve? && (respond_to?(:resolve_form_alert_path)) %>
-                        <%= link_to resolve_form_alert_path(alert),
+                      <% if alert.can_send_to_finance? && maintenance_roles %>
+                        <%= button_to escalate_alert_path(alert),
+                              method: :post,
                               class: "ptsc-table-action",
-                              title: "Resolve" do %>
-                          <i class="fas fa-check-double"></i>
+                              title: "Send to Finance",
+                              form: { class: "d-inline" },
+                              data: { turbo_confirm: "Send this alert to Finance for procurement review?" } do %>
+                          <i class="fas fa-arrow-up"></i>
                         <% end %>
                       <% end %>
 
-                      <% if alert.respond_to?(:status) && alert.status.to_s != "awaiting_procurement" && respond_to?(:escalate_alert_path) %>
-                        <% if current_user&.fleet_manager? || current_user&.supervisor? || current_user&.maintenance_supervisor? || current_user&.admin? %>
-                          <%= button_to escalate_alert_path(alert),
-                                method: :post,
-                                class: "ptsc-table-action",
-                                title: "Send to Finance",
-                                form: { class: "d-inline" },
-                                data: { turbo_confirm: "Send this alert to Finance for RFQ?" } do %>
-                            <i class="fas fa-arrow-up"></i>
-                          <% end %>
+                      <% if alert.can_resolve? && maintenance_roles %>
+                        <%= button_to resolve_alert_path(alert),
+                              method: :post,
+                              class: "ptsc-table-action",
+                              title: "Resolve",
+                              form: { class: "d-inline" },
+                              data: { turbo_confirm: "Resolve this alert?" } do %>
+                          <i class="fas fa-check-double"></i>
                         <% end %>
                       <% end %>
                     </div>
@@ -415,11 +434,14 @@
                 <div class="ptsc-select-wrapper" style="min-width: 200px;">
                   <select id="bulk-action-select" name="bulk_action" class="ptsc-select form-select form-select-sm">
                     <option value="">Bulk Actions</option>
-                    <% if current_user&.fleet_manager? || current_user&.admin? %>
+                    <% if current_user.fleet_manager? || current_user.admin? %>
                       <option value="acknowledge">Acknowledge Selected</option>
                     <% end %>
+                    <% if maintenance_roles %>
+                      <option value="send_to_finance">Send to Finance</option>
+                    <% end %>
                     <option value="resolve">Resolve Selected</option>
-                    <% if current_user&.admin? %>
+                    <% if current_user.admin? %>
                       <option value="delete">Delete Selected</option>
                     <% end %>
                   </select>

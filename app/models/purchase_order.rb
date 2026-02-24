@@ -100,7 +100,7 @@ class PurchaseOrder < ApplicationRecord
   validates :payment_status, presence: true
   
   # Custom validations
-  validate :must_have_payable_when_approved, if: :approved?
+  # REMOVED: must_have_payable_when_approved - payable should come from invoice, not PO approval
   validate :cannot_cancel_if_paid, if: :cancelled?
 
   # -------------------------
@@ -230,7 +230,6 @@ class PurchaseOrder < ApplicationRecord
   # VMCOTT Workflow Methods (After Acceptance)
   # -------------------------
 
-  # FIXED: Added default user = nil to all methods
   def mark_work_in_progress!(user = nil)
     update!(vmcott_status: 'work_in_progress')
   end
@@ -298,7 +297,7 @@ class PurchaseOrder < ApplicationRecord
         approved_at: Time.current,
         due_date: calculate_due_date
       )
-      ensure_payable!
+      # REMOVED: ensure_payable! - payable should be created from invoice, not PO approval
     end
   end
 
@@ -446,11 +445,6 @@ class PurchaseOrder < ApplicationRecord
     )
   end
 
-  def ensure_payable!
-    return payable if payable.present?
-    create_payable!
-  end
-
   # -------------------------
   # Business Logic Methods
   # -------------------------
@@ -536,6 +530,7 @@ class PurchaseOrder < ApplicationRecord
     return all if query.blank?
     where("po_number ILIKE :q OR vendor ILIKE :q", q: "%#{query}%")
   end
+
   # -------------------------
   # Print/PDF methods
   # -------------------------
@@ -1014,7 +1009,7 @@ class PurchaseOrder < ApplicationRecord
   before_validation :set_default_statuses, on: :create
   before_validation :calculate_amount_from_items, if: -> { purchase_order_items.present? }
   before_save :link_supplier
-  before_save :ensure_payable_for_approved_status, if: :will_save_change_to_status?
+  # REMOVED: ensure_payable_for_approved_status - payable comes from invoice
 
   after_update :auto_create_invoice_if_paid
   after_update :create_payment_audit_trail, if: :saved_change_to_payment_status?
@@ -1057,17 +1052,6 @@ class PurchaseOrder < ApplicationRecord
     return if vendor.blank? || supplier.present?
     self.supplier = Supplier.find_by(name: vendor)
   end
-  
-  def ensure_payable_for_approved_status
-    if status == 'approved' && payable.blank?
-      begin
-        create_payable!
-      rescue => e
-        errors.add(:base, "Cannot approve PO without payable: #{e.message}")
-        throw(:abort)
-      end
-    end
-  end
 
   def auto_create_invoice_if_paid
     return unless saved_change_to_payment_status?
@@ -1092,12 +1076,6 @@ class PurchaseOrder < ApplicationRecord
     return unless is_trinidad_payment?
     return unless defined?(PaymentAudit) && PaymentAudit.respond_to?(:create_audit_trail)
     PaymentAudit.create_audit_trail(self)
-  end
-  
-  def must_have_payable_when_approved
-    if payable.blank?
-      errors.add(:base, "Payable record must exist for approved purchase orders")
-    end
   end
   
   def cannot_cancel_if_paid

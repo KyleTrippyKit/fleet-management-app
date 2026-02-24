@@ -27,18 +27,13 @@ class Alert < ApplicationRecord
     critical: "critical"
   }, prefix: true
 
-  # ✅ Updated statuses to align with your workflow
-  # - active: created and waiting action
-  # - acknowledged: maintenance/admin has accepted it
-  # - awaiting_procurement: maintenance wants finance to do RFQ
-  # - resolved: maintenance closed out the issue
-  # - closed: optional archive state
+  # Updated statuses to align with your workflow
   enum :status, {
-    active: "active",
-    acknowledged: "acknowledged",
-    awaiting_procurement: "awaiting_procurement",
-    resolved: "resolved",
-    closed: "closed"
+    active: "active",                    # Created and waiting action
+    acknowledged: "acknowledged",         # Maintenance/admin has accepted it
+    awaiting_procurement: "awaiting_procurement",  # Sent to finance for review
+    resolved: "resolved",                  # Issue closed out
+    closed: "closed"                       # Archived
   }, prefix: true
 
   enum :priority, {
@@ -71,6 +66,7 @@ class Alert < ApplicationRecord
   scope :for_vehicle, ->(vehicle) { where(vehicle_id: vehicle.id) }
   scope :for_agency,  ->(agency)  { where(agency_id: agency.id) }
   scope :needs_attention, -> { active_alerts.where("severity = 'critical' OR priority = 'urgent'") }
+  scope :awaiting_procurement, -> { where(status: "awaiting_procurement") }
 
   # Compatibility helpers (if other code calls Alert.active / critical / urgent)
   def self.active = active_alerts
@@ -81,6 +77,7 @@ class Alert < ApplicationRecord
   def self.critical_count = critical_alerts.count
   def self.urgent_count = urgent_alerts.count
   def self.needs_attention_count = needs_attention.count
+  def self.awaiting_procurement_count = awaiting_procurement.count
 
   # ============================================================
   # Class factories
@@ -128,10 +125,14 @@ class Alert < ApplicationRecord
   end
 
   # ============================================================
-  # Workflow booleans
+  # Workflow booleans (STATUS ONLY - NO USER CHECKS)
   # ============================================================
   def needs_attention?
     status_active? && (severity_critical? || priority_urgent?)
+  end
+
+  def procurement_needed?
+    status_awaiting_procurement?
   end
 
   def can_acknowledge?
@@ -143,7 +144,6 @@ class Alert < ApplicationRecord
   end
 
   def can_send_to_finance?
-    # Maintenance/Admin chooses to send procurement to finance
     status_active? || status_acknowledged?
   end
 
@@ -155,8 +155,6 @@ class Alert < ApplicationRecord
   # Workflow actions (safe, audit-friendly)
   # ============================================================
   def acknowledge!(user)
-    # columns expected (optional):
-    # acknowledged_at, acknowledged_by
     attrs = { status: "acknowledged" }
     attrs[:acknowledged_at] = Time.current if respond_to?(:acknowledged_at=)
     attrs[:acknowledged_by] = user&.name if respond_to?(:acknowledged_by=)
@@ -168,7 +166,10 @@ class Alert < ApplicationRecord
 
   def send_to_finance!(user)
     attrs = { status: "awaiting_procurement" }
-    append_note!("Sent to Finance by #{user&.name || 'Unknown'} at #{Time.current}") if respond_to?(:notes)
+    attrs[:sent_to_finance_at] = Time.current if respond_to?(:sent_to_finance_at=)
+    attrs[:sent_to_finance_by] = user&.name if respond_to?(:sent_to_finance_by=)
+    
+    append_note!("Sent to Finance for procurement review by #{user&.name || 'Unknown'} at #{Time.current}") if respond_to?(:notes)
     update!(attrs)
   end
 
@@ -271,6 +272,7 @@ class Alert < ApplicationRecord
       short_display: short_display,
       created_at: created_at,
       needs_attention: needs_attention?,
+      procurement_needed: procurement_needed?,
       overdue: overdue?,
       duration_hours: duration
     }
@@ -293,6 +295,17 @@ class Alert < ApplicationRecord
     when "warning"       then "info"
     when "info"          then "primary"
     else "secondary"
+    end
+  end
+
+  def status_color
+    case status
+    when "active" then "danger"
+    when "acknowledged" then "warning"
+    when "awaiting_procurement" then "info"
+    when "resolved" then "success"
+    when "closed" then "secondary"
+    else "warning"
     end
   end
 

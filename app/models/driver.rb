@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Driver < ApplicationRecord
   has_many :alerts, dependent: :destroy
   STATUSES = %w[active suspended inactive].freeze
@@ -5,6 +7,8 @@ class Driver < ApplicationRecord
   # ============================================================
   # Associations
   # ============================================================
+  belongs_to :agency, optional: true  # ← ADD THIS LINE
+  
   has_many :vehicles, dependent: :nullify
   has_many :trips, dependent: :nullify
   has_many :damage_reports, dependent: :nullify
@@ -28,6 +32,7 @@ class Driver < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :inactive, -> { where.not(status: "active") }
   scope :available, -> { active.where.not(id: Vehicle.where.not(driver_id: nil).select(:driver_id)) }
+  scope :for_agency, ->(agency_id) { where(agency_id: agency_id) }
 
   # ============================================================
   # Instance Methods
@@ -36,10 +41,14 @@ class Driver < ApplicationRecord
     status == "active"
   end
 
+  def belongs_to_agency?
+    agency_id.present?
+  end
+
   # Maintenance-related methods
   def maintenance_stats
     {
-      reports_submitted: 0, # Placeholder until maintenance_requests exists
+      reports_submitted: 0,
       open_issues: 0,
       resolved_issues: 0,
       damage_reports_count: damage_reports.count
@@ -47,14 +56,13 @@ class Driver < ApplicationRecord
   end
 
   def recent_maintenance_requests(limit = 5)
-    [] # Placeholder until maintenance_requests exists
+    []
   end
 
   def assigned_vehicles_display
     vehicles.map(&:display_name).join(", ") || "None assigned"
   end
 
-  # Performance metrics for maintenance team
   def maintenance_performance
     {
       total_issues_reported: 0,
@@ -65,10 +73,9 @@ class Driver < ApplicationRecord
   end
 
   def calculate_avg_response_time
-    0 # Placeholder
+    0
   end
 
-  # Quick contact info for maintenance team
   def contact_info
     {
       name: name,
@@ -79,22 +86,18 @@ class Driver < ApplicationRecord
     }
   end
 
-  # Display names of assigned vehicles
   def assigned_vehicle_names
     vehicles.pluck(:registration_number).join(", ")
   end
 
-  # Historical vehicles - simple implementation for now
   def historical_vehicles
     []
   end
 
-  # Current vehicles - all assigned vehicles
   def current_vehicles
     vehicles.to_a
   end
 
-  # Compute usage stats for this driver
   def usage_stats(from: 30.days.ago.to_date, to: Date.today)
     trips_in_range = trips.where(start_time: from.beginning_of_day..to.end_of_day)
 

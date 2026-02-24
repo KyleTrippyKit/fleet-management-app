@@ -1,5 +1,9 @@
 <%# app/views/quotations/_form.html.erb - VMCOTT WITH TRINIDAD GOVERNMENT STYLING (WITH JOB TEMPLATE INTEGRATION) %>
-<%= form_with model: @quotation, local: true, class: 'tt-vmcott-quotation-form' do |f| %>
+
+<!-- Add hidden field for Turbo/Turbolinks compatibility -->
+<input type="hidden" id="quotation-sent-status" value="<%= @quotation.sent? %>">
+
+<%= form_with model: @quotation, local: true, class: 'tt-vmcott-quotation-form', data: { turbo: false } do |f| %>
   <% if @quotation.errors.any? %>
     <div class="alert alert-danger gov-alert-danger">
       <h4><i class="fas fa-exclamation-triangle"></i> <%= pluralize(@quotation.errors.count, "error") %> prohibited this quotation from being saved:</h4>
@@ -142,6 +146,7 @@
                         data-action="input->quotation-vehicle-search#vehicleInput"
                         data-search-url="<%= search_vehicles_path(format: :json) %>">
 
+                  <!-- FIXED: Changed hyphen to underscore in the target name -->
                   <%= f.hidden_field :vehicle_id, data: { quotation_vehicle_search_target: "vehicleHidden" } %>
 
                   <!-- Dropdown results -->
@@ -247,7 +252,7 @@
 
     <!-- NEW SECTION: Job Template Selection (For VMCOTT only) -->
     <% if current_user.agency&.code == 'VMCOTT' && @labor_job_templates.present? && !@quotation.sent? %>
-      <div class="form-section mb-4 gov-section">
+      <div class="form-section mb-4 gov-section" id="job-template-section">
         <div class="section-header" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-left: 5px solid #ff6b35; border-bottom: 2px solid #dee2e6;">
           <h4 style="color: #2c3e50; font-weight: 700;">
             <i class="fas fa-clipboard-list me-2" style="color: #ff6b35;"></i>SECTION 1.2: SELECT JOB TEMPLATES
@@ -383,7 +388,7 @@
                         <%= job.object.estimated_hours %>
                         <%= job.hidden_field :estimated_hours %>
                       <% else %>
-                        <%= job.number_field :estimated_hours, class: 'form-control gov-input', step: '0.25', min: '0.25', 
+                        <%= job.number_field :estimated_hours, class: 'form-control gov-input job-hours-input', step: '0.25', min: '0.25', 
                               value: job.object.estimated_hours || 1, disabled: @quotation.sent? %>
                       <% end %>
                     </div>
@@ -396,7 +401,7 @@
                       <% else %>
                         <div class="input-group input-group-sm">
                           <span class="input-group-text gov-currency-sm">$</span>
-                          <%= job.number_field :labor_rate_per_hour, class: 'form-control form-control-sm', step: '0.01', min: '0', 
+                          <%= job.number_field :labor_rate_per_hour, class: 'form-control form-control-sm job-rate-input', step: '0.01', min: '0', 
                                 value: job.object.labor_rate_per_hour || 100, disabled: @quotation.sent? %>
                         </div>
                       <% end %>
@@ -414,7 +419,7 @@
                     </div>
                   </td>
                   <td class="text-center">
-                    <% unless job.object.persisted? && !@quotation.sent? %>
+                    <% unless (job.object.persisted? && !@quotation.sent?) || @quotation.sent? %>
                       <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="<%= job.index %>"
                               <%= 'disabled' if @quotation.sent? %>>
                         <span style="font-size: 14px; pointer-events: none;">✕</span>
@@ -869,7 +874,7 @@
       </div>
       <div class="col-md-5 text-end">
         <div class="action-buttons">
-          <%= link_to vmcott_rfq_inbox_path, class: 'btn gov-btn gov-btn-secondary' do %>
+          <%= link_to quotations_path, class: 'btn gov-btn gov-btn-secondary' do %>
             <i class="fas fa-times-circle me-2"></i> CANCEL
           <% end %>
           
@@ -1019,13 +1024,15 @@
   </tr>
 </template>
 
-<!-- Updated Hidden template for adding new job rows with removal button -->
+<!-- Updated Hidden template for adding new job rows with removal button and job_type field -->
 <template id="job-row-template">
   <tr class="gov-table-row job-row" data-job-index="__JOB_INDEX__" data-template-id="__TEMPLATE_ID__">
     <td style="background: #f8f9fa;">
       <input type="text" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][name]" 
              class="form-control gov-input" placeholder="Job Name" required value="__JOB_NAME__">
       <input type="hidden" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][job_template_id]" value="__TEMPLATE_ID__">
+      <!-- ADDED: Hidden field for job_type to fix validation error -->
+      <input type="hidden" name="quotation[quotation_jobs_attributes][__JOB_INDEX__][job_type]" value="labor">
     </td>
     <td>
       <textarea name="quotation[quotation_jobs_attributes][__JOB_INDEX__][description]" 
@@ -1046,32 +1053,8 @@
       <span class="job-total-amount">$__JOB_TOTAL__</span>
     </td>
     <td class="text-center">
-      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="__JOB_INDEX__" 
-              style="
-                min-width: 32px; 
-                padding: 6px 10px; 
-                cursor: pointer; 
-                z-index: 100; 
-                position: relative;
-                background: linear-gradient(135deg, #ff0000 0%, #ff3300 25%, #ff6600 50%, #ff9900 75%, #ffcc00 100%);
-                border: 2px solid #ff3300;
-                color: white;
-                border-radius: 6px;
-                font-weight: 800;
-                box-shadow: 
-                  0 0 15px rgba(255, 51, 0, 0.7),
-                  0 0 25px rgba(255, 102, 0, 0.5),
-                  0 0 35px rgba(255, 153, 0, 0.3),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.4),
-                  inset 0 -2px 0 rgba(0, 0, 0, 0.2);
-                text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
-                transition: all 0.3s ease;
-              "
-              onmouseover="this.style.background='linear-gradient(135deg, #ff3300 0%, #ff6600 25%, #ff9900 50%, #ffcc00 75%, #ffff00 100%)'; this.style.transform='translateY(-2px) scale(1.1)'; this.style.boxShadow='0 0 20px rgba(255, 51, 0, 0.9), 0 0 35px rgba(255, 102, 0, 0.7), 0 0 50px rgba(255, 153, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 0 rgba(0, 0, 0, 0.3)';"
-              onmouseout="this.style.background='linear-gradient(135deg, #ff0000 0%, #ff3300 25%, #ff6600 50%, #ff9900 75%, #ffcc00 100%)'; this.style.transform=''; this.style.boxShadow='0 0 15px rgba(255, 51, 0, 0.7), 0 0 25px rgba(255, 102, 0, 0.5), 0 0 35px rgba(255, 153, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -2px 0 rgba(0, 0, 0, 0.2)';"
-              onmousedown="this.style.transform='translateY(1px) scale(0.95)'; this.style.boxShadow='0 0 10px rgba(255, 51, 0, 0.5), 0 0 15px rgba(255, 102, 0, 0.3), 0 2px 5px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3)';"
-              onmouseup="this.style.transform='translateY(-2px) scale(1.1)'; this.style.boxShadow='0 0 20px rgba(255, 51, 0, 0.9), 0 0 35px rgba(255, 102, 0, 0.7), 0 0 50px rgba(255, 153, 0, 0.5), 0 5px 15px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 0 rgba(0, 0, 0, 0.3)';">
-        <span style="font-size: 14px; pointer-events: none; font-weight: bold; text-shadow: 0 0 5px rgba(255, 255, 255, 0.8), 0 0 10px rgba(255, 255, 255, 0.5), 1px 1px 2px rgba(0, 0, 0, 0.5);">✕</span>
+      <button type="button" class="btn btn-sm btn-danger remove-job-from-table-btn" data-job-index="__JOB_INDEX__">
+        <span style="font-size: 14px; pointer-events: none;">✕</span>
       </button>
     </td>
   </tr>
@@ -1792,665 +1775,587 @@
 
 <!-- JavaScript for Trinidad Government Quotation Form with Inventory Parts Integration -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  console.log("Quotation form JavaScript loaded - WITH INVENTORY PARTS");
+(function() {
+  // Store initialization state
+  let initialized = false;
+  let initAttempts = 0;
+  const MAX_ATTEMPTS = 5;
   
-  const vatRate = 0.125; // 12.5% VAT for Trinidad and Tobago
-  const currencySymbol = '$'; // TTD
-  
-  // Format currency with Trinidad formatting
-  function formatCurrency(amount) {
-    return currencySymbol + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
-  }
-  
-  // Store selected jobs
-  const selectedJobs = new Map();
-  let jobCounter = 0;
-  
-  // Store selected parts
-  const selectedParts = new Map();
-  let partCounter = 0;
-  
-  // Store custom items
-  const customItems = new Map();
-  let customItemCounter = 0;
-  
-  // Check if quotation is sent
-  const quotationSent = <%= @quotation.sent?.to_json || false %>;
-  
-  // Initialize with existing jobs from the form
-  const existingJobRows = document.querySelectorAll('.job-row');
-  existingJobRows.forEach((row, index) => {
-    const jobIndex = index;
-    const nameInput = row.querySelector('input[name*="name"]');
-    const descInput = row.querySelector('textarea[name*="description"]');
-    const hoursInput = row.querySelector('input[name*="estimated_hours"]');
-    const rateInput = row.querySelector('input[name*="labor_rate_per_hour"]');
-    const templateId = row.getAttribute('data-template-id');
-    
-    if (nameInput && nameInput.value) {
-      selectedJobs.set(jobIndex, {
-        name: nameInput.value,
-        description: descInput?.value || '',
-        hours: parseFloat(hoursInput?.value || 1),
-        rate: parseFloat(rateInput?.value || 100),
-        templateId: templateId,
-        row: row
-      });
-      jobCounter = Math.max(jobCounter, jobIndex + 1);
-    }
-  });
-  
-  // Update selected jobs display
-  function updateSelectedJobsDisplay() {
-    const selectedJobsList = document.getElementById('selected-jobs-list');
-    const noJobsMessage = document.getElementById('no-jobs-message');
-    const selectedJobsCount = document.getElementById('selected-jobs-count');
-    
-    if (!selectedJobsList) {
-      console.error("Selected jobs list not found!");
-      return;
+  function initQuotationForm() {
+    // Prevent multiple initializations
+    if (initialized) {
+      console.log("Quotation form already initialized");
+      return true;
     }
     
-    // Clear the list
-    selectedJobsList.innerHTML = '';
+    console.log("Initializing quotation form - WITH INVENTORY PARTS (attempt " + (initAttempts + 1) + ")");
     
-    if (selectedJobs.size === 0) {
-      if (noJobsMessage) {
-        noJobsMessage.style.display = 'block';
-      } else {
-        selectedJobsList.innerHTML = '<p class="text-muted text-center mb-0"><i class="fas fa-info-circle"></i> No jobs selected yet. Select jobs from the left panel.</p>';
-      }
-      if (selectedJobsCount) selectedJobsCount.textContent = '0';
-      return;
+    // Check if DOM elements are ready
+    const jobTemplatesPanel = document.querySelector('.job-templates-panel');
+    const vatRate = 0.125; // 12.5% VAT for Trinidad and Tobago
+    const currencySymbol = '$'; // TTD
+    
+    // Format currency with Trinidad formatting
+    function formatCurrency(amount) {
+      return currencySymbol + amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
     }
     
+    // Store selected jobs
+    const selectedJobs = new Map();
+    let jobCounter = 0;
     
-    if (noJobsMessage) {
-      noJobsMessage.style.display = 'none';
-    }
+    // Store selected parts
+    const selectedParts = new Map();
+    let partCounter = 0;
     
-    if (selectedJobsCount) selectedJobsCount.textContent = selectedJobs.size;
-    
-    // Add each selected job
-    selectedJobs.forEach((job, index) => {
-      const jobItem = document.createElement('div');
-      jobItem.className = 'job-item mb-2 p-2 border rounded';
-      jobItem.setAttribute('data-job-index', index);
-      
-      // Calculate total for this job
-      const jobTotal = (job.hours * job.rate).toFixed(2);
-      
-      jobItem.innerHTML = `
-        <div class="job-header d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <strong>${job.name}</strong>
-            ${job.templateId ? '<span class="badge bg-info ms-2">Template</span>' : ''}
-          </div>
-          ${!quotationSent ? `
-          <button type="button" class="btn btn-sm btn-danger remove-selected-job-btn" data-index="${index}" title="Remove job" style="min-width: 28px; padding: 4px 8px; cursor: pointer; z-index: 100; position: relative;">
-            <span style="font-size: 12px; pointer-events: none;">✕</span>
-          </button>
-          ` : ''}
-        </div>
-        <div class="job-details">
-          <small class="text-muted d-block">${job.description || 'No description'}</small>
-          <div class="mt-1 d-flex justify-content-between">
-            <div>
-              <small><i class="fas fa-clock"></i> ${job.hours} hrs</small> | 
-              <small><i class="fas fa-dollar-sign"></i> ${job.rate}/hr</small>
-            </div>
-            <div>
-              <small><strong>Total: ${formatCurrency(job.hours * job.rate)}</strong></small>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      selectedJobsList.appendChild(jobItem);
-    });
-  }
-  
-  // Add job from template
-  function addJobFromTemplate(templateId, name, description, hours, rate) {
-    console.log("=== ADDING JOB FROM TEMPLATE ===");
+    // Store custom items
+    const customItems = new Map();
+    let customItemCounter = 0;
     
     // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
-    }
+    const quotationSentElem = document.getElementById('quotation-sent-status');
+    const quotationSent = quotationSentElem ? quotationSentElem.value === 'true' : <%= @quotation.sent?.to_json || false %>;
     
-    // Check if already added (by templateId)
-    for (const [index, job] of selectedJobs) {
-      if (job.templateId == templateId) {
-        alert('This job template has already been added.');
+    // Initialize with existing jobs from the form
+    const existingJobRows = document.querySelectorAll('.job-row');
+    existingJobRows.forEach((row, index) => {
+      const jobIndex = index;
+      const nameInput = row.querySelector('input[name*="name"]');
+      const descInput = row.querySelector('textarea[name*="description"]');
+      const hoursInput = row.querySelector('.job-hours-input');
+      const rateInput = row.querySelector('.job-rate-input');
+      const templateId = row.getAttribute('data-template-id');
+      
+      if (nameInput && nameInput.value) {
+        selectedJobs.set(jobIndex, {
+          name: nameInput.value,
+          description: descInput?.value || '',
+          hours: parseFloat(hoursInput?.value || 1),
+          rate: parseFloat(rateInput?.value || 100),
+          templateId: templateId,
+          row: row
+        });
+        jobCounter = Math.max(jobCounter, jobIndex + 1);
+      }
+    });
+    
+    // Update selected jobs display
+    function updateSelectedJobsDisplay() {
+      const selectedJobsList = document.getElementById('selected-jobs-list');
+      const noJobsMessage = document.getElementById('no-jobs-message');
+      const selectedJobsCount = document.getElementById('selected-jobs-count');
+      
+      if (!selectedJobsList) {
+        console.error("Selected jobs list not found!");
         return;
       }
-    }
-    
-    // Create job row in table
-    const jobTableBody = document.getElementById('job-table-body');
-    const jobRowTemplate = document.getElementById('job-row-template');
-    
-    if (!jobTableBody || !jobRowTemplate) {
-      console.error("Job table body or template not found!");
-      alert("Error: Cannot add job. Please refresh the page and try again.");
-      return;
-    }
-    
-    // Remove "no jobs" message if it exists
-    const noJobsRow = document.getElementById('no-jobs-row');
-    if (noJobsRow) {
-      noJobsRow.remove();
-    }
-    
-    // Show the total footer
-    const jobTotalFooter = document.getElementById('job-total-footer');
-    if (jobTotalFooter) {
-      jobTotalFooter.style.display = '';
-    }
-    
-    const templateContent = jobRowTemplate.innerHTML;
-    const jobTotal = (parseFloat(hours) * parseFloat(rate)).toFixed(2);
-    
-    const newRowHtml = templateContent
-      .replace(/__JOB_INDEX__/g, jobCounter)
-      .replace(/__TEMPLATE_ID__/g, templateId)
-      .replace(/__JOB_NAME__/g, name)
-      .replace(/__JOB_DESCRIPTION__/g, description)
-      .replace(/__JOB_HOURS__/g, hours)
-      .replace(/__JOB_RATE__/g, rate)
-      .replace(/__JOB_TOTAL__/g, jobTotal);
-    
-    const newRow = document.createElement('tr');
-    newRow.className = 'gov-table-row job-row';
-    newRow.setAttribute('data-job-index', jobCounter);
-    newRow.setAttribute('data-template-id', templateId);
-    newRow.innerHTML = newRowHtml;
-    
-    // Add to table
-    jobTableBody.appendChild(newRow);
-    
-    // Add to selected jobs Map
-    selectedJobs.set(jobCounter, {
-      name: name,
-      description: description,
-      hours: parseFloat(hours),
-      rate: parseFloat(rate),
-      templateId: templateId,
-      row: newRow
-    });
-    
-    // Add event listeners to new inputs (only if not sent)
-    if (!quotationSent) {
-      const hoursInput = newRow.querySelector('.job-hours-input');
-      const rateInput = newRow.querySelector('.job-rate-input');
       
-      if (hoursInput) {
-        hoursInput.addEventListener('input', function() {
-          updateJobTotal(newRow);
-          calculateAllTotals();
-        });
+      // Clear the list
+      selectedJobsList.innerHTML = '';
+      
+      if (selectedJobs.size === 0) {
+        if (noJobsMessage) {
+          noJobsMessage.style.display = 'block';
+        } else {
+          selectedJobsList.innerHTML = '<p class="text-muted text-center mb-0"><i class="fas fa-info-circle"></i> No jobs selected yet. Select jobs from the left panel.</p>';
+        }
+        if (selectedJobsCount) selectedJobsCount.textContent = '0';
+        return;
       }
       
-      if (rateInput) {
-        rateInput.addEventListener('input', function() {
-          updateJobTotal(newRow);
-          calculateAllTotals();
-        });
+      if (noJobsMessage) {
+        noJobsMessage.style.display = 'none';
       }
       
-      // Add direct click handler to remove button using a closure
-      const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
-      if (removeBtn) {
-        (function(currentIndex) {
+      if (selectedJobsCount) selectedJobsCount.textContent = selectedJobs.size;
+      
+      // Add each selected job
+      selectedJobs.forEach((job, index) => {
+        const jobItem = document.createElement('div');
+        jobItem.className = 'job-item mb-2 p-2 border rounded';
+        jobItem.setAttribute('data-job-index', index);
+        
+        // Calculate total for this job
+        const jobTotal = (job.hours * job.rate).toFixed(2);
+        
+        jobItem.innerHTML = `
+          <div class="job-header d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <strong>${job.name}</strong>
+              ${job.templateId ? '<span class="badge bg-info ms-2">Template</span>' : ''}
+            </div>
+            ${!quotationSent ? `
+            <button type="button" class="btn btn-sm btn-danger remove-selected-job-btn" data-index="${index}" title="Remove job" style="min-width: 28px; padding: 4px 8px; cursor: pointer; z-index: 100; position: relative;">
+              <span style="font-size: 12px; pointer-events: none;">✕</span>
+            </button>
+            ` : ''}
+          </div>
+          <div class="job-details">
+            <small class="text-muted d-block">${job.description || 'No description'}</small>
+            <div class="mt-1 d-flex justify-content-between">
+              <div>
+                <small><i class="fas fa-clock"></i> ${job.hours} hrs</small> | 
+                <small><i class="fas fa-dollar-sign"></i> ${job.rate}/hr</small>
+              </div>
+              <div>
+                <small><strong>Total: ${formatCurrency(job.hours * job.rate)}</strong></small>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        selectedJobsList.appendChild(jobItem);
+      });
+    }
+    
+    // Add job from template
+    function addJobFromTemplate(templateId, name, description, hours, rate) {
+      console.log("=== ADDING JOB FROM TEMPLATE ===");
+      
+      // Check if quotation is sent
+      if (quotationSent) {
+        alert('This quotation has been submitted and cannot be edited.');
+        return;
+      }
+      
+      // Check if already added (by templateId)
+      for (const [index, job] of selectedJobs) {
+        if (job.templateId == templateId) {
+          alert('This job template has already been added.');
+          return;
+        }
+      }
+      
+      // Create job row in table
+      const jobTableBody = document.getElementById('job-table-body');
+      const jobRowTemplate = document.getElementById('job-row-template');
+      
+      if (!jobTableBody || !jobRowTemplate) {
+        console.error("Job table body or template not found!");
+        alert("Error: Cannot add job. Please refresh the page and try again.");
+        return;
+      }
+      
+      // Remove "no jobs" message if it exists
+      const noJobsRow = document.getElementById('no-jobs-row');
+      if (noJobsRow) {
+        noJobsRow.remove();
+      }
+      
+      // Show the total footer
+      const jobTotalFooter = document.getElementById('job-total-footer');
+      if (jobTotalFooter) {
+        jobTotalFooter.style.display = '';
+      }
+      
+      const templateContent = jobRowTemplate.innerHTML;
+      const jobTotal = (parseFloat(hours) * parseFloat(rate)).toFixed(2);
+      
+      const newRowHtml = templateContent
+        .replace(/__JOB_INDEX__/g, jobCounter)
+        .replace(/__TEMPLATE_ID__/g, templateId)
+        .replace(/__JOB_NAME__/g, name)
+        .replace(/__JOB_DESCRIPTION__/g, description)
+        .replace(/__JOB_HOURS__/g, hours)
+        .replace(/__JOB_RATE__/g, rate)
+        .replace(/__JOB_TOTAL__/g, jobTotal);
+      
+      const newRow = document.createElement('tr');
+      newRow.className = 'gov-table-row job-row';
+      newRow.setAttribute('data-job-index', jobCounter);
+      newRow.setAttribute('data-template-id', templateId);
+      newRow.innerHTML = newRowHtml;
+      
+      // Add to table
+      jobTableBody.appendChild(newRow);
+      
+      // Add to selected jobs Map
+      selectedJobs.set(jobCounter, {
+        name: name,
+        description: description,
+        hours: parseFloat(hours),
+        rate: parseFloat(rate),
+        templateId: templateId,
+        row: newRow
+      });
+      
+      // Add event listeners to new inputs (only if not sent)
+      if (!quotationSent) {
+        const hoursInput = newRow.querySelector('.job-hours-input');
+        const rateInput = newRow.querySelector('.job-rate-input');
+        
+        if (hoursInput) {
+          hoursInput.addEventListener('input', function() {
+            updateJobTotal(newRow);
+            calculateAllTotals();
+          });
+        }
+        
+        if (rateInput) {
+          rateInput.addEventListener('input', function() {
+            updateJobTotal(newRow);
+            calculateAllTotals();
+          });
+        }
+        
+        // Add direct click handler to remove button
+        const removeBtn = newRow.querySelector('.remove-job-from-table-btn');
+        if (removeBtn) {
+          (function(currentIndex) {
+            removeBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              removeJob(currentIndex);
+            });
+          })(jobCounter);
+        }
+      }
+      
+      // Initialize the job total calculation
+      updateJobTotal(newRow);
+      
+      // Update job counter
+      jobCounter++;
+      
+      // Update displays and totals
+      updateSelectedJobsDisplay();
+      calculateAllTotals();
+      updateJobTemplateData();
+      
+      return true;
+    }
+    
+    // Update job total display
+    function updateJobTotal(row) {
+      const hoursInput = row.querySelector('.job-hours-input');
+      const rateInput = row.querySelector('.job-rate-input');
+      const totalCell = row.querySelector('.job-total-amount');
+      
+      if (hoursInput && rateInput && totalCell) {
+        const hours = parseFloat(hoursInput.value) || 0;
+        const rate = parseFloat(rateInput.value) || 0;
+        const total = hours * rate;
+        totalCell.textContent = formatCurrency(total);
+        
+        // Update stored job data
+        const jobIndex = parseInt(row.getAttribute('data-job-index'));
+        if (selectedJobs.has(jobIndex)) {
+          const job = selectedJobs.get(jobIndex);
+          job.hours = hours;
+          job.rate = rate;
+          selectedJobs.set(jobIndex, job);
+        }
+      }
+    }
+    
+    // Remove job
+    function removeJob(jobIndex) {
+      console.log("=== REMOVING JOB ===");
+      
+      // Check if quotation is sent
+      if (quotationSent) {
+        alert('This quotation has been submitted and cannot be edited.');
+        return;
+      }
+      
+      if (!selectedJobs.has(jobIndex)) return;
+      
+      // Get job data
+      const job = selectedJobs.get(jobIndex);
+      
+      // Remove from selected jobs Map
+      selectedJobs.delete(jobIndex);
+      
+      // Remove from HTML table if row exists
+      if (job.row && job.row.parentNode) {
+        job.row.remove();
+      }
+      
+      // Show "no jobs" message if no jobs left
+      if (selectedJobs.size === 0) {
+        const jobTableBody = document.getElementById('job-table-body');
+        const jobTotalFooter = document.getElementById('job-total-footer');
+        
+        if (jobTableBody && !document.getElementById('no-jobs-row')) {
+          const noJobsRow = document.createElement('tr');
+          noJobsRow.id = 'no-jobs-row';
+          noJobsRow.innerHTML = `
+            <td colspan="6" class="text-center text-muted py-4">
+              <i class="fas fa-info-circle me-2"></i>
+              No jobs added yet. Select jobs from the template panel above.
+            </td>
+          `;
+          jobTableBody.appendChild(noJobsRow);
+        }
+        
+        if (jobTotalFooter) {
+          jobTotalFooter.style.display = 'none';
+        }
+      }
+      
+      // Update displays and totals
+      updateSelectedJobsDisplay();
+      calculateAllTotals();
+      updateJobTemplateData();
+    }
+    
+    // Add part from inventory
+    function addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus) {
+      console.log("=== ADDING PART FROM INVENTORY ===");
+      
+      // Check if quotation is sent
+      if (quotationSent) {
+        alert('This quotation has been submitted and cannot be edited.');
+        return;
+      }
+      
+      // Check if already added
+      if (selectedParts.has(partId)) {
+        alert('This part has already been added to the quotation.');
+        return;
+      }
+      
+      // Check if in stock
+      if (stockStatus === 'out_of_stock') {
+        alert('This part is out of stock and cannot be added to the quotation.');
+        return;
+      }
+      
+      // Create part row in table
+      const partsTableBody = document.getElementById('parts-table-body');
+      const partRowTemplate = document.getElementById('part-row-template');
+      
+      if (!partsTableBody || !partRowTemplate) return;
+      
+      // Show the parts table footer
+      const partsTableFooter = document.getElementById('parts-table-footer');
+      if (partsTableFooter) {
+        partsTableFooter.style.display = '';
+      }
+      
+      const templateContent = partRowTemplate.innerHTML;
+      const vatAmount = (unitPrice * vatRate).toFixed(2);
+      const maxQuantity = parseInt(currentStock);
+      const stockColor = stockStatus === 'low_stock' ? 'warning' : stockStatus === 'out_of_stock' ? 'danger' : 'success';
+      
+      const newRowHtml = templateContent
+        .replace(/__PART_ID__/g, partId)
+        .replace(/__INDEX__/g, partCounter)
+        .replace(/__ITEM_NUMBER__/g, selectedParts.size + 1)
+        .replace(/__PART_NAME__/g, partName)
+        .replace(/__PART_NUMBER__/g, partNumber || 'N/A')
+        .replace(/__PART_DESCRIPTION__/g, description || 'No description')
+        .replace(/__CURRENT_STOCK__/g, currentStock)
+        .replace(/__MAX_QUANTITY__/g, maxQuantity)
+        .replace(/__UNIT_PRICE__/g, unitPrice.toFixed(2))
+        .replace(/__VAT_AMOUNT__/g, vatAmount)
+        .replace(/__STOCK_COLOR__/g, stockColor);
+      
+      const newRow = document.createElement('tr');
+      newRow.className = 'gov-table-row inventory-part-row';
+      newRow.setAttribute('data-part-id', partId);
+      newRow.setAttribute('data-index', partCounter);
+      newRow.innerHTML = newRowHtml;
+      
+      // Add to table
+      partsTableBody.appendChild(newRow);
+      
+      // Add to selected parts Map
+      selectedParts.set(partId, {
+        partId: partId,
+        name: partName,
+        partNumber: partNumber,
+        description: description,
+        unitPrice: unitPrice,
+        currentStock: currentStock,
+        stockStatus: stockStatus,
+        quantity: 1,
+        row: newRow
+      });
+      
+      // Add event listener to quantity input (only if not sent)
+      if (!quotationSent) {
+        const quantityInput = newRow.querySelector('.part-quantity-input');
+        if (quantityInput) {
+          quantityInput.addEventListener('input', function() {
+            const newQuantity = parseInt(this.value) || 1;
+            if (newQuantity > maxQuantity) {
+              this.value = maxQuantity;
+              alert(`Maximum quantity available: ${maxQuantity}`);
+            }
+            updatePartTotal(partId);
+            calculateAllTotals();
+          });
+        }
+        
+        // Add event listener to remove button
+        const removeBtn = newRow.querySelector('.remove-part-btn');
+        if (removeBtn) {
           removeBtn.addEventListener('click', function(e) {
-            console.log("DIRECT CLICK HANDLER: Remove button clicked for job:", currentIndex);
             e.preventDefault();
             e.stopPropagation();
-            removeJob(currentIndex);
+            removePart(partId);
           });
-        })(jobCounter);
+        }
+      }
+      
+      // Update part counter
+      partCounter++;
+      
+      // Update parts data and totals
+      updatePartsData();
+      calculateAllTotals();
+    }
+    
+    // Update part total
+    function updatePartTotal(partId) {
+      if (!selectedParts.has(partId)) return;
+      
+      const part = selectedParts.get(partId);
+      const row = part.row;
+      const quantityInput = row.querySelector('.part-quantity-input');
+      const unitPriceInput = row.querySelector('.part-unit-price-input');
+      
+      if (quantityInput && unitPriceInput) {
+        const quantity = parseInt(quantityInput.value) || 1;
+        const unitPrice = parseFloat(unitPriceInput.value) || 0;
         
-        // Make sure button is visible and clickable
-        removeBtn.style.cursor = 'pointer';
-        removeBtn.style.position = 'relative';
-        removeBtn.style.zIndex = '100';
+        // Update stored quantity
+        part.quantity = quantity;
+        selectedParts.set(partId, part);
+        
+        // Update display
+        const subtotal = quantity * unitPrice;
+        const vat = subtotal * vatRate;
+        
+        const subtotalCell = row.querySelector('.subtotal-amount');
+        const vatCell = row.querySelector('.vat-amount');
+        
+        if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
+        if (vatCell) vatCell.textContent = formatCurrency(vat);
       }
     }
     
-    // Initialize the job total calculation
-    updateJobTotal(newRow);
-    
-    // Update job counter AFTER setting up the click handler
-    jobCounter++;
-    
-    // Update selected jobs display
-    updateSelectedJobsDisplay();
-    
-    // Update totals
-    calculateAllTotals();
-    
-    // Update job template data
-    updateJobTemplateData();
-    
-    return true;
-  }
-  
-  // Update job total display
-  function updateJobTotal(row) {
-    const hoursInput = row.querySelector('.job-hours-input');
-    const rateInput = row.querySelector('.job-rate-input');
-    const totalCell = row.querySelector('.job-total-amount');
-    
-    if (hoursInput && rateInput && totalCell) {
-      const hours = parseFloat(hoursInput.value) || 0;
-      const rate = parseFloat(rateInput.value) || 0;
-      const total = hours * rate;
-      totalCell.textContent = formatCurrency(total);
-      
-      // Update stored job data
-      const jobIndex = parseInt(row.getAttribute('data-job-index'));
-      if (selectedJobs.has(jobIndex)) {
-        const job = selectedJobs.get(jobIndex);
-        job.hours = hours;
-        job.rate = rate;
-        selectedJobs.set(jobIndex, job);
-      }
-    }
-  }
-  
-  // Remove job
-  function removeJob(jobIndex) {
-    console.log("=== REMOVING JOB ===");
-    
-    // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
-    }
-    
-    if (!selectedJobs.has(jobIndex)) {
-      console.log("Job index not found in selectedJobs:", jobIndex);
-      return;
-    }
-    
-    // Get job data
-    const job = selectedJobs.get(jobIndex);
-    
-    // Remove from selected jobs Map
-    selectedJobs.delete(jobIndex);
-    
-    // Remove from HTML table if row exists
-    if (job.row && job.row.parentNode) {
-      job.row.remove();
-    }
-    
-    // Show "no jobs" message if no jobs left
-    if (selectedJobs.size === 0) {
-      const jobTableBody = document.getElementById('job-table-body');
-      const jobTotalFooter = document.getElementById('job-total-footer');
-      
-      if (jobTableBody && !document.getElementById('no-jobs-row')) {
-        const noJobsRow = document.createElement('tr');
-        noJobsRow.id = 'no-jobs-row';
-        noJobsRow.innerHTML = `
-          <td colspan="6" class="text-center text-muted py-4">
-            <i class="fas fa-info-circle me-2"></i>
-            No jobs added yet. Select jobs from the template panel above.
-          </td>
-        `;
-        jobTableBody.appendChild(noJobsRow);
+    // Remove part
+    function removePart(partId) {
+      // Check if quotation is sent
+      if (quotationSent) {
+        alert('This quotation has been submitted and cannot be edited.');
+        return;
       }
       
-      if (jobTotalFooter) {
-        jobTotalFooter.style.display = 'none';
+      if (!selectedParts.has(partId)) return;
+      
+      const part = selectedParts.get(partId);
+      
+      // Remove from table
+      if (part.row && part.row.parentNode) {
+        part.row.remove();
       }
+      
+      // Remove from Map
+      selectedParts.delete(partId);
+      
+      // Hide footer if no parts left
+      if (selectedParts.size === 0) {
+        const partsTableFooter = document.getElementById('parts-table-footer');
+        if (partsTableFooter) {
+          partsTableFooter.style.display = 'none';
+        }
+      } else {
+        // Update item numbers
+        updatePartItemNumbers();
+      }
+      
+      // Update parts data and totals
+      updatePartsData();
+      calculateAllTotals();
     }
     
-    // Update selected jobs display
-    updateSelectedJobsDisplay();
-    
-    // Update totals
-    calculateAllTotals();
-    
-    // Update job template data
-    updateJobTemplateData();
-  }
-  
-  // Add part from inventory
-  function addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus) {
-    console.log("=== ADDING PART FROM INVENTORY ===");
-    
-    // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
+    // Update part item numbers
+    function updatePartItemNumbers() {
+      const partRows = document.querySelectorAll('.inventory-part-row');
+      partRows.forEach((row, index) => {
+        const numberCell = row.querySelector('.item-number');
+        if (numberCell) {
+          numberCell.textContent = index + 1;
+        }
+      });
     }
     
-    // Check if already added
-    if (selectedParts.has(partId)) {
-      alert('This part has already been added to the quotation.');
-      return;
-    }
-    
-    // Check if in stock
-    if (stockStatus === 'out_of_stock') {
-      alert('This part is out of stock and cannot be added to the quotation.');
-      return;
-    }
-    
-    // Create part row in table
-    const partsTableBody = document.getElementById('parts-table-body');
-    const partRowTemplate = document.getElementById('part-row-template');
-    
-    if (!partsTableBody || !partRowTemplate) {
-      console.error("Parts table body or template not found!");
-      alert("Error: Cannot add part. Please refresh the page and try again.");
-      return;
-    }
-    
-    // Show the parts table footer
-    const partsTableFooter = document.getElementById('parts-table-footer');
-    if (partsTableFooter) {
-      partsTableFooter.style.display = '';
-    }
-    
-    const templateContent = partRowTemplate.innerHTML;
-    const vatAmount = (unitPrice * vatRate).toFixed(2);
-    const maxQuantity = parseInt(currentStock);
-    const stockColor = stockStatus === 'low_stock' ? 'warning' : stockStatus === 'out_of_stock' ? 'danger' : 'success';
-    
-    const newRowHtml = templateContent
-      .replace(/__PART_ID__/g, partId)
-      .replace(/__INDEX__/g, partCounter)
-      .replace(/__ITEM_NUMBER__/g, selectedParts.size + 1)
-      .replace(/__PART_NAME__/g, partName)
-      .replace(/__PART_NUMBER__/g, partNumber || 'N/A')
-      .replace(/__PART_DESCRIPTION__/g, description || 'No description')
-      .replace(/__CURRENT_STOCK__/g, currentStock)
-      .replace(/__MAX_QUANTITY__/g, maxQuantity)
-      .replace(/__UNIT_PRICE__/g, unitPrice.toFixed(2))
-      .replace(/__VAT_AMOUNT__/g, vatAmount)
-      .replace(/__STOCK_COLOR__/g, stockColor);
-    
-    const newRow = document.createElement('tr');
-    newRow.className = 'gov-table-row inventory-part-row';
-    newRow.setAttribute('data-part-id', partId);
-    newRow.setAttribute('data-index', partCounter);
-    newRow.innerHTML = newRowHtml;
-    
-    // Add to table
-    partsTableBody.appendChild(newRow);
-    
-    // Add to selected parts Map
-    selectedParts.set(partId, {
-      partId: partId,
-      name: partName,
-      partNumber: partNumber,
-      description: description,
-      unitPrice: unitPrice,
-      currentStock: currentStock,
-      stockStatus: stockStatus,
-      quantity: 1,
-      row: newRow
-    });
-    
-    // Add event listener to quantity input (only if not sent)
-    if (!quotationSent) {
-      const quantityInput = newRow.querySelector('.part-quantity-input');
+    // Add custom item
+    function addCustomItem() {
+      // Check if quotation is sent
+      if (quotationSent) {
+        alert('This quotation has been submitted and cannot be edited.');
+        return;
+      }
+      
+      const partsTableBody = document.getElementById('parts-table-body');
+      const customItemTemplate = document.getElementById('custom-item-template');
+      
+      if (!partsTableBody || !customItemTemplate) return;
+      
+      // Show the parts table footer
+      const partsTableFooter = document.getElementById('parts-table-footer');
+      if (partsTableFooter) {
+        partsTableFooter.style.display = '';
+      }
+      
+      const templateContent = customItemTemplate.innerHTML;
+      const newRowHtml = templateContent
+        .replace(/__INDEX__/g, customItemCounter)
+        .replace(/__ITEM_NUMBER__/g, selectedParts.size + customItems.size + 1);
+      
+      const newRow = document.createElement('tr');
+      newRow.className = 'gov-table-row custom-item-row';
+      newRow.setAttribute('data-index', customItemCounter);
+      newRow.innerHTML = newRowHtml;
+      
+      // Add to table
+      partsTableBody.appendChild(newRow);
+      
+      // Add to custom items Map
+      customItems.set(customItemCounter, {
+        index: customItemCounter,
+        row: newRow
+      });
+      
+      // Add event listeners
+      const quantityInput = newRow.querySelector('input[name*="quantity"]');
+      const priceInput = newRow.querySelector('.custom-unit-price-input');
+      const removeBtn = newRow.querySelector('.remove-custom-item-btn');
+      
       if (quantityInput) {
         quantityInput.addEventListener('input', function() {
-          const newQuantity = parseInt(this.value) || 1;
-          if (newQuantity > maxQuantity) {
-            this.value = maxQuantity;
-            alert(`Maximum quantity available: ${maxQuantity}`);
-          }
-          updatePartTotal(partId);
+          calculateCustomItemTotal(customItemCounter);
           calculateAllTotals();
         });
       }
       
-      // Add event listener to remove button
-      const removeBtn = newRow.querySelector('.remove-part-btn');
+      if (priceInput) {
+        priceInput.addEventListener('input', function() {
+          calculateCustomItemTotal(customItemCounter);
+          calculateAllTotals();
+        });
+      }
+      
       if (removeBtn) {
         removeBtn.addEventListener('click', function(e) {
           e.preventDefault();
-          e.stopPropagation();
-          removePart(partId);
+          removeCustomItem(customItemCounter);
         });
       }
-    }
-    
-    // Update part counter
-    partCounter++;
-    
-    // Update parts data for submission
-    updatePartsData();
-    
-    // Update totals
-    calculateAllTotals();
-    
-    return true;
-  }
-  
-  // Update part total
-  function updatePartTotal(partId) {
-    if (!selectedParts.has(partId)) return;
-    
-    const part = selectedParts.get(partId);
-    const row = part.row;
-    const quantityInput = row.querySelector('.part-quantity-input');
-    const unitPriceInput = row.querySelector('.part-unit-price-input');
-    
-    if (quantityInput && unitPriceInput) {
-      const quantity = parseInt(quantityInput.value) || 1;
-      const unitPrice = parseFloat(unitPriceInput.value) || 0;
       
-      // Update stored quantity
-      part.quantity = quantity;
-      selectedParts.set(partId, part);
+      customItemCounter++;
+      calculateAllTotals();
+    }
+    
+    // Calculate custom item total
+    function calculateCustomItemTotal(index) {
+      if (!customItems.has(index)) return;
       
-      // Update display
-      const subtotal = quantity * unitPrice;
-      const vat = subtotal * vatRate;
-      
-      const subtotalCell = row.querySelector('.subtotal-amount');
-      const vatCell = row.querySelector('.vat-amount');
-      
-      if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
-      if (vatCell) vatCell.textContent = formatCurrency(vat);
-    }
-  }
-  
-  // Remove part
-  function removePart(partId) {
-    // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
-    }
-    
-    if (!selectedParts.has(partId)) return;
-    
-    const part = selectedParts.get(partId);
-    
-    // Remove from table
-    if (part.row && part.row.parentNode) {
-      part.row.remove();
-    }
-    
-    // Remove from Map
-    selectedParts.delete(partId);
-    
-    // Hide footer if no parts left
-    if (selectedParts.size === 0) {
-      const partsTableFooter = document.getElementById('parts-table-footer');
-      if (partsTableFooter) {
-        partsTableFooter.style.display = 'none';
-      }
-    } else {
-      // Update item numbers
-      updatePartItemNumbers();
-    }
-    
-    // Update parts data
-    updatePartsData();
-    
-    // Update totals
-    calculateAllTotals();
-  }
-  
-  // Update part item numbers
-  function updatePartItemNumbers() {
-    const partRows = document.querySelectorAll('.inventory-part-row');
-    partRows.forEach((row, index) => {
-      const numberCell = row.querySelector('.item-number');
-      if (numberCell) {
-        numberCell.textContent = index + 1;
-      }
-    });
-  }
-  
-  // Add custom item
-  function addCustomItem() {
-    // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
-    }
-    
-    const partsTableBody = document.getElementById('parts-table-body');
-    const customItemTemplate = document.getElementById('custom-item-template');
-    
-    if (!partsTableBody || !customItemTemplate) return;
-    
-    // Show the parts table footer
-    const partsTableFooter = document.getElementById('parts-table-footer');
-    if (partsTableFooter) {
-      partsTableFooter.style.display = '';
-    }
-    
-    const templateContent = customItemTemplate.innerHTML;
-    const newRowHtml = templateContent
-      .replace(/__INDEX__/g, customItemCounter)
-      .replace(/__ITEM_NUMBER__/g, selectedParts.size + customItems.size + 1);
-    
-    const newRow = document.createElement('tr');
-    newRow.className = 'gov-table-row custom-item-row';
-    newRow.setAttribute('data-index', customItemCounter);
-    newRow.innerHTML = newRowHtml;
-    
-    // Add to table
-    partsTableBody.appendChild(newRow);
-    
-    // Add to custom items Map
-    customItems.set(customItemCounter, {
-      index: customItemCounter,
-      row: newRow
-    });
-    
-    // Add event listeners
-    const quantityInput = newRow.querySelector('input[name*="quantity"]');
-    const priceInput = newRow.querySelector('.custom-unit-price-input');
-    const removeBtn = newRow.querySelector('.remove-custom-item-btn');
-    
-    if (quantityInput) {
-      quantityInput.addEventListener('input', function() {
-        calculateCustomItemTotal(customItemCounter);
-        calculateAllTotals();
-      });
-    }
-    
-    if (priceInput) {
-      priceInput.addEventListener('input', function() {
-        calculateCustomItemTotal(customItemCounter);
-        calculateAllTotals();
-      });
-    }
-    
-    if (removeBtn) {
-      removeBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        removeCustomItem(customItemCounter);
-      });
-    }
-    
-    customItemCounter++;
-    calculateAllTotals();
-  }
-  
-  // Calculate custom item total
-  function calculateCustomItemTotal(index) {
-    if (!customItems.has(index)) return;
-    
-    const item = customItems.get(index);
-    const row = item.row;
-    const quantityInput = row.querySelector('input[name*="quantity"]');
-    const priceInput = row.querySelector('.custom-unit-price-input');
-    
-    if (quantityInput && priceInput) {
-      const quantity = parseInt(quantityInput.value) || 1;
-      const unitPrice = parseFloat(priceInput.value) || 0;
-      const subtotal = quantity * unitPrice;
-      const vat = subtotal * vatRate;
-      
-      const subtotalCell = row.querySelector('.subtotal-amount');
-      const vatCell = row.querySelector('.vat-amount');
-      
-      if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
-      if (vatCell) vatCell.textContent = formatCurrency(vat);
-    }
-  }
-  
-  // Remove custom item
-  function removeCustomItem(index) {
-    // Check if quotation is sent
-    if (quotationSent) {
-      alert('This quotation has been submitted and cannot be edited.');
-      return;
-    }
-    
-    if (!customItems.has(index)) return;
-    
-    const item = customItems.get(index);
-    
-    // Remove from table
-    if (item.row && item.row.parentNode) {
-      item.row.remove();
-    }
-    
-    // Remove from Map
-    customItems.delete(index);
-    
-    // Hide footer if no items left
-    if (selectedParts.size === 0 && customItems.size === 0) {
-      const partsTableFooter = document.getElementById('parts-table-footer');
-      if (partsTableFooter) {
-        partsTableFooter.style.display = 'none';
-      }
-    }
-    
-    calculateAllTotals();
-  }
-  
-  // Calculate parts totals
-  function calculatePartsTotals() {
-    let partsSubtotal = 0;
-    let partsVat = 0;
-    let partsTotal = 0;
-    
-    // Calculate inventory parts
-    selectedParts.forEach((part) => {
-      const quantity = part.quantity || 1;
-      const subtotal = quantity * part.unitPrice;
-      partsSubtotal += subtotal;
-      partsVat += subtotal * vatRate;
-    });
-    
-    // Calculate custom items
-    customItems.forEach((item, index) => {
+      const item = customItems.get(index);
       const row = item.row;
       const quantityInput = row.querySelector('input[name*="quantity"]');
       const priceInput = row.querySelector('.custom-unit-price-input');
@@ -2459,413 +2364,509 @@ document.addEventListener('DOMContentLoaded', function() {
         const quantity = parseInt(quantityInput.value) || 1;
         const unitPrice = parseFloat(priceInput.value) || 0;
         const subtotal = quantity * unitPrice;
-        partsSubtotal += subtotal;
-        partsVat += subtotal * vatRate;
+        const vat = subtotal * vatRate;
+        
+        const subtotalCell = row.querySelector('.subtotal-amount');
+        const vatCell = row.querySelector('.vat-amount');
+        
+        if (subtotalCell) subtotalCell.textContent = formatCurrency(subtotal);
+        if (vatCell) vatCell.textContent = formatCurrency(vat);
       }
-    });
-    
-    partsTotal = partsSubtotal + partsVat;
-    
-    // Update parts totals display
-    const partsSubtotalElem = document.getElementById('parts-subtotal');
-    const partsVatElem = document.getElementById('parts-vat');
-    
-    if (partsSubtotalElem) partsSubtotalElem.textContent = formatCurrency(partsSubtotal);
-    if (partsVatElem) partsVatElem.textContent = formatCurrency(partsVat);
-    
-    return { partsSubtotal, partsVat, partsTotal };
-  }
-  
-  // Calculate job item totals
-  function calculateJobItem(row) {
-    const hoursInput = row.querySelector('.job-hours-input') || row.querySelector('input[name*="estimated_hours"]');
-    const rateInput = row.querySelector('.job-rate-input') || row.querySelector('input[name*="labor_rate_per_hour"]');
-    
-    const hours = parseFloat(hoursInput?.value) || 0;
-    const rate = parseFloat(rateInput?.value) || 0;
-    const total = hours * rate;
-    
-    // Update display
-    const totalCell = row.querySelector('.job-total-amount');
-    if (totalCell) totalCell.textContent = formatCurrency(total);
-    
-    return { hours, rate, total };
-  }
-  
-  // Calculate all totals
-  function calculateAllTotals() {
-    let jobsTotal = 0;
-    
-    // Calculate jobs
-    selectedJobs.forEach((job) => {
-      if (job.row) {
-        const { total } = calculateJobItem(job.row);
-        jobsTotal += total;
-      } else {
-        jobsTotal += (job.hours * job.rate);
-      }
-    });
-    
-    // Calculate parts
-    const { partsTotal } = calculatePartsTotals();
-    
-    // Grand total = jobs + parts
-    const grandTotal = jobsTotal + partsTotal;
-    
-    // Update summary totals
-    const grandTotalElem = document.getElementById('grand-total');
-    const totalAmountDisplay = document.getElementById('total-amount-display');
-    const quotationAmount = document.getElementById('quotation_amount');
-    const totalLaborCost = document.getElementById('total-labor-cost');
-    
-    // Update jobs section total
-    if (totalLaborCost) totalLaborCost.textContent = formatCurrency(jobsTotal);
-    
-    // Update main totals (jobs + parts)
-    if (grandTotalElem) grandTotalElem.textContent = formatCurrency(grandTotal);
-    if (totalAmountDisplay) totalAmountDisplay.value = formatCurrency(grandTotal);
-    if (quotationAmount) quotationAmount.value = grandTotal.toFixed(2);
-    
-    return { jobsTotal, partsTotal, grandTotal };
-  }
-  
-  // Update job template data for submission
-  function updateJobTemplateData() {
-    const jobData = Array.from(selectedJobs.entries()).map(([index, job]) => ({
-      index: index,
-      templateId: job.templateId,
-      name: job.name,
-      description: job.description,
-      hours: job.hours,
-      rate: job.rate
-    }));
-    
-    const jobTemplateData = document.getElementById('job_template_data');
-    if (jobTemplateData) {
-      jobTemplateData.value = JSON.stringify(jobData);
     }
-  }
-  
-  // Update parts data for submission
-  function updatePartsData() {
-    const partsData = Array.from(selectedParts.entries()).map(([partId, part]) => ({
-      partId: partId,
-      quantity: part.quantity,
-      unitPrice: part.unitPrice
-    }));
     
-    const partsDataInput = document.getElementById('parts_data');
-    if (partsDataInput) {
-      partsDataInput.value = JSON.stringify(partsData);
-    }
-  }
-  
-  // Form validation
-  function setupFormValidation() {
-    const form = document.querySelector('.tt-vmcott-quotation-form');
-    if (!form) return;
-    
-    form.addEventListener('submit', function(e) {
-      console.log("Form submit validation");
-      
+    // Remove custom item
+    function removeCustomItem(index) {
       // Check if quotation is sent
       if (quotationSent) {
-        e.preventDefault();
         alert('This quotation has been submitted and cannot be edited.');
-        return false;
+        return;
       }
       
-      // Check if we have at least jobs OR parts
-      const hasJobs = selectedJobs.size > 0;
-      const hasParts = selectedParts.size > 0;
-      const hasCustomItems = customItems.size > 0;
+      if (!customItems.has(index)) return;
       
-      if (!hasJobs && !hasParts && !hasCustomItems) {
-        e.preventDefault();
-        alert('Please add at least one job, part, or custom item before submitting the quotation.');
-        return false;
+      const item = customItems.get(index);
+      
+      // Remove from table
+      if (item.row && item.row.parentNode) {
+        item.row.remove();
       }
       
-      // Validate job data
-      let hasValidJobs = true;
-      selectedJobs.forEach((job, index) => {
-        if (!job.name || job.hours <= 0 || job.rate <= 0) {
-          hasValidJobs = false;
-          console.error(`Invalid job at index ${index}:`, job);
+      // Remove from Map
+      customItems.delete(index);
+      
+      // Hide footer if no items left
+      if (selectedParts.size === 0 && customItems.size === 0) {
+        const partsTableFooter = document.getElementById('parts-table-footer');
+        if (partsTableFooter) {
+          partsTableFooter.style.display = 'none';
+        }
+      }
+      
+      calculateAllTotals();
+    }
+    
+    // Calculate parts totals
+    function calculatePartsTotals() {
+      let partsSubtotal = 0;
+      let partsVat = 0;
+      let partsTotal = 0;
+      
+      // Calculate inventory parts
+      selectedParts.forEach((part) => {
+        const quantity = part.quantity || 1;
+        const subtotal = quantity * part.unitPrice;
+        partsSubtotal += subtotal;
+        partsVat += subtotal * vatRate;
+      });
+      
+      // Calculate custom items
+      customItems.forEach((item, index) => {
+        const row = item.row;
+        const quantityInput = row.querySelector('input[name*="quantity"]');
+        const priceInput = row.querySelector('.custom-unit-price-input');
+        
+        if (quantityInput && priceInput) {
+          const quantity = parseInt(quantityInput.value) || 1;
+          const unitPrice = parseFloat(priceInput.value) || 0;
+          const subtotal = quantity * unitPrice;
+          partsSubtotal += subtotal;
+          partsVat += subtotal * vatRate;
         }
       });
       
-      if (!hasValidJobs) {
-        e.preventDefault();
-        alert('Please ensure all jobs have valid names, hours, and rates.');
-        return false;
-      }
+      partsTotal = partsSubtotal + partsVat;
       
-      console.log("Form validation passed - submitting");
-      return true;
-    });
-  }
-  
-  // Parts search functionality
-  function setupPartsSearch() {
-    const searchInput = document.getElementById('parts-search');
-    const clearSearchBtn = document.getElementById('clear-search');
+      // Update parts totals display
+      const partsSubtotalElem = document.getElementById('parts-subtotal');
+      const partsVatElem = document.getElementById('parts-vat');
+      
+      if (partsSubtotalElem) partsSubtotalElem.textContent = formatCurrency(partsSubtotal);
+      if (partsVatElem) partsVatElem.textContent = formatCurrency(partsVat);
+      
+      return { partsSubtotal, partsVat, partsTotal };
+    }
     
-    if (searchInput) {
-      searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const partCards = document.querySelectorAll('.part-card');
-        
-        partCards.forEach(card => {
-          const partName = card.getAttribute('data-part-name').toLowerCase();
-          const partNumber = card.getAttribute('data-part-number')?.toLowerCase() || '';
-          const partDescription = card.getAttribute('data-part-description')?.toLowerCase() || '';
+    // Calculate job item totals
+    function calculateJobItem(row) {
+      const hoursInput = row.querySelector('.job-hours-input') || row.querySelector('input[name*="estimated_hours"]');
+      const rateInput = row.querySelector('.job-rate-input') || row.querySelector('input[name*="labor_rate_per_hour"]');
+      
+      const hours = parseFloat(hoursInput?.value) || 0;
+      const rate = parseFloat(rateInput?.value) || 0;
+      const total = hours * rate;
+      
+      // Update display
+      const totalCell = row.querySelector('.job-total-amount');
+      if (totalCell) totalCell.textContent = formatCurrency(total);
+      
+      return { hours, rate, total };
+    }
+    
+    // Calculate all totals
+    function calculateAllTotals() {
+      let jobsTotal = 0;
+      
+      // Calculate jobs
+      selectedJobs.forEach((job) => {
+        if (job.row) {
+          const { total } = calculateJobItem(job.row);
+          jobsTotal += total;
+        } else {
+          jobsTotal += (job.hours * job.rate);
+        }
+      });
+      
+      // Calculate parts
+      const { partsTotal } = calculatePartsTotals();
+      
+      // Grand total = jobs + parts
+      const grandTotal = jobsTotal + partsTotal;
+      
+      // Update summary totals
+      const grandTotalElem = document.getElementById('grand-total');
+      const totalAmountDisplay = document.getElementById('total-amount-display');
+      const quotationAmount = document.getElementById('quotation_amount');
+      const totalLaborCost = document.getElementById('total-labor-cost');
+      
+      // Update jobs section total
+      if (totalLaborCost) totalLaborCost.textContent = formatCurrency(jobsTotal);
+      
+      // Update main totals (jobs + parts)
+      if (grandTotalElem) grandTotalElem.textContent = formatCurrency(grandTotal);
+      if (totalAmountDisplay) totalAmountDisplay.value = formatCurrency(grandTotal);
+      if (quotationAmount) quotationAmount.value = grandTotal.toFixed(2);
+      
+      return { jobsTotal, partsTotal, grandTotal };
+    }
+    
+    // Update job template data for submission
+    function updateJobTemplateData() {
+      const jobData = Array.from(selectedJobs.entries()).map(([index, job]) => ({
+        index: index,
+        templateId: job.templateId,
+        name: job.name,
+        description: job.description,
+        hours: job.hours,
+        rate: job.rate
+      }));
+      
+      const jobTemplateData = document.getElementById('job_template_data');
+      if (jobTemplateData) {
+        jobTemplateData.value = JSON.stringify(jobData);
+      }
+    }
+    
+    // Update parts data for submission
+    function updatePartsData() {
+      const partsData = Array.from(selectedParts.entries()).map(([partId, part]) => ({
+        partId: partId,
+        quantity: part.quantity,
+        unitPrice: part.unitPrice
+      }));
+      
+      const partsDataInput = document.getElementById('parts_data');
+      if (partsDataInput) {
+        partsDataInput.value = JSON.stringify(partsData);
+      }
+    }
+    
+    // Parts search functionality
+    function setupPartsSearch() {
+      const searchInput = document.getElementById('parts-search');
+      const clearSearchBtn = document.getElementById('clear-search');
+      
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          const searchTerm = this.value.toLowerCase();
+          const partCards = document.querySelectorAll('.part-card');
           
-          if (partName.includes(searchTerm) || 
-              partNumber.includes(searchTerm) || 
-              partDescription.includes(searchTerm)) {
+          partCards.forEach(card => {
+            const partName = card.getAttribute('data-part-name')?.toLowerCase() || '';
+            const partNumber = card.getAttribute('data-part-number')?.toLowerCase() || '';
+            const partDescription = card.getAttribute('data-part-description')?.toLowerCase() || '';
+            
+            if (partName.includes(searchTerm) || 
+                partNumber.includes(searchTerm) || 
+                partDescription.includes(searchTerm)) {
+              card.style.display = 'block';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        });
+      }
+      
+      if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', function() {
+          if (searchInput) searchInput.value = '';
+          const partCards = document.querySelectorAll('.part-card');
+          partCards.forEach(card => {
             card.style.display = 'block';
-          } else {
-            card.style.display = 'none';
-          }
+          });
         });
-      });
+      }
     }
     
-    if (clearSearchBtn) {
-      clearSearchBtn.addEventListener('click', function() {
-        searchInput.value = '';
-        const partCards = document.querySelectorAll('.part-card');
-        partCards.forEach(card => {
-          card.style.display = 'block';
+    // Parts filter functionality
+    function setupPartsFilter() {
+      const showInStockBtn = document.getElementById('show-in-stock');
+      const showLowStockBtn = document.getElementById('show-low-stock');
+      const showAllPartsBtn = document.getElementById('show-all-parts');
+      
+      if (showInStockBtn) {
+        showInStockBtn.addEventListener('click', function() {
+          const partCards = document.querySelectorAll('.part-card');
+          partCards.forEach(card => {
+            const stockStatus = card.getAttribute('data-stock-status');
+            if (stockStatus === 'in_stock') {
+              card.style.display = 'block';
+            } else {
+              card.style.display = 'none';
+            }
+          });
         });
-      });
-    }
-  }
-  
-  // Parts filter functionality
-  function setupPartsFilter() {
-    const showInStockBtn = document.getElementById('show-in-stock');
-    const showLowStockBtn = document.getElementById('show-low-stock');
-    const showAllPartsBtn = document.getElementById('show-all-parts');
-    
-    if (showInStockBtn) {
-      showInStockBtn.addEventListener('click', function() {
-        const partCards = document.querySelectorAll('.part-card');
-        partCards.forEach(card => {
-          const stockStatus = card.getAttribute('data-stock-status');
-          if (stockStatus === 'in_stock') {
+      }
+      
+      if (showLowStockBtn) {
+        showLowStockBtn.addEventListener('click', function() {
+          const partCards = document.querySelectorAll('.part-card');
+          partCards.forEach(card => {
+            const stockStatus = card.getAttribute('data-stock-status');
+            if (stockStatus === 'low_stock') {
+              card.style.display = 'block';
+            } else {
+              card.style.display = 'none';
+            }
+          });
+        });
+      }
+      
+      if (showAllPartsBtn) {
+        showAllPartsBtn.addEventListener('click', function() {
+          const partCards = document.querySelectorAll('.part-card');
+          partCards.forEach(card => {
             card.style.display = 'block';
-          } else {
-            card.style.display = 'none';
-          }
+          });
         });
-      });
+      }
     }
     
-    if (showLowStockBtn) {
-      showLowStockBtn.addEventListener('click', function() {
-        const partCards = document.querySelectorAll('.part-card');
-        partCards.forEach(card => {
-          const stockStatus = card.getAttribute('data-stock-status');
-          if (stockStatus === 'low_stock') {
-            card.style.display = 'block';
-          } else {
-            card.style.display = 'none';
-          }
-        });
-      });
-    }
-    
-    if (showAllPartsBtn) {
-      showAllPartsBtn.addEventListener('click', function() {
-        const partCards = document.querySelectorAll('.part-card');
-        partCards.forEach(card => {
-          card.style.display = 'block';
-        });
-      });
-    }
-  }
-  
-  // Attach template selection event listeners
-  function attachTemplateListeners() {
-    console.log("Setting up template listeners...");
-    
-    // Use event delegation for job templates
-    document.addEventListener('click', function(e) {
-      const addBtn = e.target.closest('.add-template-btn');
-      if (addBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if quotation is sent
-        if (quotationSent) {
-          alert('This quotation has been submitted and cannot be edited.');
-          return;
-        }
-        
-        const card = addBtn.closest('.template-card');
-        if (!card) return;
-        
-        const templateId = card.getAttribute('data-template-id');
-        const name = card.getAttribute('data-template-name');
-        const description = card.getAttribute('data-template-description');
-        const hours = card.getAttribute('data-template-hours') || 1;
-        const rate = card.getAttribute('data-template-rate') || 100;
-        
-        console.log("Add button clicked for template:", templateId, name);
-        
-        addJobFromTemplate(templateId, name, description, hours, rate);
-        
-        // Visual feedback
-        card.style.backgroundColor = '#e7f3fe';
-        card.style.borderColor = '#007bff';
-        setTimeout(() => {
-          card.style.backgroundColor = '';
-          card.style.borderColor = '';
-        }, 500);
-      }
-    });
-  }
-  
-  // Attach parts selection event listeners
-  function attachPartsListeners() {
-    // Use event delegation for parts
-    document.addEventListener('click', function(e) {
-      const addPartBtn = e.target.closest('.add-part-btn');
-      if (addPartBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if quotation is sent
-        if (quotationSent) {
-          alert('This quotation has been submitted and cannot be edited.');
-          return;
-        }
-        
-        const card = addPartBtn.closest('.part-card');
-        if (!card) return;
-        
-        const partId = card.getAttribute('data-part-id');
-        const partName = card.getAttribute('data-part-name');
-        const partNumber = card.getAttribute('data-part-number');
-        const description = card.getAttribute('data-part-description');
-        const unitPrice = parseFloat(card.getAttribute('data-unit-price'));
-        const currentStock = card.getAttribute('data-current-stock');
-        const stockStatus = card.getAttribute('data-stock-status');
-        
-        addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus);
-        
-        // Visual feedback
-        card.style.transform = 'scale(0.95)';
-        setTimeout(() => {
-          card.style.transform = '';
-        }, 300);
-      }
-    });
-  }
-  
-  // Set up event delegation for ALL remove buttons
-  function setupRemoveButtonDelegation() {
-    console.log("Setting up remove button event delegation...");
-    
-    // Event delegation for ALL clicks
-    document.addEventListener('click', function(e) {
-      // Check if clicked on job remove button
-      let tableRemoveBtn = e.target.closest('.remove-job-from-table-btn');
+    // Attach template selection event listeners
+    function attachTemplateListeners() {
+      console.log("Setting up template listeners...");
       
-      // If not found, check if clicked on span inside button
-      if (!tableRemoveBtn && e.target.tagName === 'SPAN') {
-        tableRemoveBtn = e.target.closest('button');
-        if (tableRemoveBtn && tableRemoveBtn.classList.contains('remove-job-from-table-btn')) {
-          console.log("Found span inside remove button");
-        }
-      }
-      
-      if (tableRemoveBtn) {
-        console.log("TABLE REMOVE BUTTON CLICKED VIA DELEGATION");
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if quotation is sent
-        if (quotationSent) {
-          alert('This quotation has been submitted and cannot be edited.');
-          return;
-        }
-        
-        const row = tableRemoveBtn.closest('.job-row');
-        if (!row) {
-          console.error("Could not find job row");
-          return;
-        }
-        
-        const jobIndex = parseInt(row.getAttribute('data-job-index'));
-        console.log("Removing job index via delegation:", jobIndex);
-        removeJob(jobIndex);
-        return;
-      }
-      
-      // Check if clicked on remove button in panel
-      const panelRemoveBtn = e.target.closest('.remove-selected-job-btn');
-      if (panelRemoveBtn) {
-        console.log("PANEL REMOVE BUTTON CLICKED VIA DELEGATION");
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if quotation is sent
-        if (quotationSent) {
-          alert('This quotation has been submitted and cannot be edited.');
-          return;
-        }
-        
-        const jobIndex = parseInt(panelRemoveBtn.getAttribute('data-index'));
-        console.log("Removing job index via delegation:", jobIndex);
-        removeJob(jobIndex);
-        return;
-      }
-    }, true); // Use capture phase
-  }
-  
-  // Initialize everything
-  function init() {
-    console.log("Initializing quotation form - WITH INVENTORY PARTS");
-    
-    // Attach listeners (only if not sent)
-    if (!quotationSent) {
-      attachTemplateListeners();
-      attachPartsListeners();
-      setupRemoveButtonDelegation();
-      setupPartsSearch();
-      setupPartsFilter();
-      setupFormValidation();
-      
-      // Custom item button
-      const addCustomPartBtn = document.getElementById('add-custom-part');
-      if (addCustomPartBtn) {
-        addCustomPartBtn.addEventListener('click', function(e) {
+      // Use event delegation for job templates
+      document.addEventListener('click', function(e) {
+        const addBtn = e.target.closest('.add-template-btn');
+        if (addBtn) {
           e.preventDefault();
-          addCustomItem();
-        });
-      }
-    } else {
-      // Disable all interactive elements if quotation is sent
-      console.log("Quotation is sent - disabling interactive elements");
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const card = addBtn.closest('.template-card');
+          if (!card) return;
+          
+          const templateId = card.getAttribute('data-template-id');
+          const name = card.getAttribute('data-template-name');
+          const description = card.getAttribute('data-template-description');
+          const hours = card.getAttribute('data-template-hours') || 1;
+          const rate = card.getAttribute('data-template-rate') || 100;
+          
+          addJobFromTemplate(templateId, name, description, hours, rate);
+          
+          // Visual feedback
+          card.style.backgroundColor = '#e7f3fe';
+          card.style.borderColor = '#007bff';
+          setTimeout(() => {
+            card.style.backgroundColor = '';
+            card.style.borderColor = '';
+          }, 500);
+        }
+      });
     }
     
-    // Update displays
-    updateSelectedJobsDisplay();
+    // Attach parts selection event listeners
+    function attachPartsListeners() {
+      // Use event delegation for parts
+      document.addEventListener('click', function(e) {
+        const addPartBtn = e.target.closest('.add-part-btn');
+        if (addPartBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const card = addPartBtn.closest('.part-card');
+          if (!card) return;
+          
+          const partId = card.getAttribute('data-part-id');
+          const partName = card.getAttribute('data-part-name');
+          const partNumber = card.getAttribute('data-part-number');
+          const description = card.getAttribute('data-part-description');
+          const unitPrice = parseFloat(card.getAttribute('data-unit-price')) || 0;
+          const currentStock = card.getAttribute('data-current-stock');
+          const stockStatus = card.getAttribute('data-stock-status');
+          
+          addPartFromInventory(partId, partName, partNumber, description, unitPrice, currentStock, stockStatus);
+          
+          // Visual feedback
+          card.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            card.style.transform = '';
+          }, 300);
+        }
+      });
+    }
     
-    // Calculate initial totals
-    calculateAllTotals();
+    // Set up event delegation for ALL remove buttons
+    function setupRemoveButtonDelegation() {
+      console.log("Setting up remove button event delegation...");
+      
+      // Event delegation for ALL clicks
+      document.addEventListener('click', function(e) {
+        // Check if clicked on job remove button
+        let tableRemoveBtn = e.target.closest('.remove-job-from-table-btn');
+        
+        // If not found, check if clicked on span inside button
+        if (!tableRemoveBtn && e.target.tagName === 'SPAN') {
+          tableRemoveBtn = e.target.closest('button');
+        }
+        
+        if (tableRemoveBtn && tableRemoveBtn.classList.contains('remove-job-from-table-btn')) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const row = tableRemoveBtn.closest('.job-row');
+          if (!row) return;
+          
+          const jobIndex = parseInt(row.getAttribute('data-job-index'));
+          removeJob(jobIndex);
+          return;
+        }
+        
+        // Check if clicked on remove button in panel
+        const panelRemoveBtn = e.target.closest('.remove-selected-job-btn');
+        if (panelRemoveBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const jobIndex = parseInt(panelRemoveBtn.getAttribute('data-index'));
+          removeJob(jobIndex);
+          return;
+        }
+        
+        // Check if clicked on custom item remove button
+        const customRemoveBtn = e.target.closest('.remove-custom-item-btn');
+        if (customRemoveBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const index = parseInt(customRemoveBtn.getAttribute('data-index'));
+          removeCustomItem(index);
+          return;
+        }
+        
+        // Check if clicked on part remove button
+        const partRemoveBtn = e.target.closest('.remove-part-btn');
+        if (partRemoveBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Check if quotation is sent
+          if (quotationSent) {
+            alert('This quotation has been submitted and cannot be edited.');
+            return;
+          }
+          
+          const partId = partRemoveBtn.closest('tr')?.getAttribute('data-part-id');
+          if (partId) removePart(partId);
+          return;
+        }
+      }, true); // Use capture phase
+    }
     
-    // Update data for submission
-    updateJobTemplateData();
-    updatePartsData();
+    // Form validation
+    function setupFormValidation() {
+      const form = document.querySelector('.tt-vmcott-quotation-form');
+      if (!form) return;
+      
+      form.addEventListener('submit', function(e) {
+        console.log("Form submit validation");
+        
+        // Check if quotation is sent
+        if (quotationSent) {
+          e.preventDefault();
+          alert('This quotation has been submitted and cannot be edited.');
+          return false;
+        }
+        
+        // Check if we have at least jobs OR parts
+        const hasJobs = selectedJobs.size > 0;
+        const hasParts = selectedParts.size > 0;
+        const hasCustomItems = customItems.size > 0;
+        
+        if (!hasJobs && !hasParts && !hasCustomItems) {
+          e.preventDefault();
+          alert('Please add at least one job, part, or custom item before submitting the quotation.');
+          return false;
+        }
+        
+        console.log("Form validation passed - submitting");
+        return true;
+      });
+    }
     
-    console.log("Quotation form initialization complete");
+    // Initialize everything
+    function init() {
+      console.log("Initializing quotation form");
+      
+      // Update displays
+      updateSelectedJobsDisplay();
+      
+      // Calculate initial totals
+      calculateAllTotals();
+      
+      // Update data for submission
+      updateJobTemplateData();
+      updatePartsData();
+      
+      // Attach listeners (only if not sent)
+      if (!quotationSent) {
+        attachTemplateListeners();
+        attachPartsListeners();
+        setupRemoveButtonDelegation();
+        setupPartsSearch();
+        setupPartsFilter();
+        setupFormValidation();
+        
+        // Custom item button
+        const addCustomPartBtn = document.getElementById('add-custom-part');
+        if (addCustomPartBtn) {
+          addCustomPartBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            addCustomItem();
+          });
+        }
+      } else {
+        console.log("Quotation is sent - disabling interactive elements");
+      }
+      
+      console.log("Quotation form initialization complete");
+      initialized = true;
+    }
+    
+    // Start initialization
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
   }
   
-  // Start initialization
-  init();
-});
+  // Initialize on DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(initQuotationForm, 100);
+  });
+  
+  // Initialize on Turbo/Turbolinks load
+  document.addEventListener('turbo:load', function() {
+    initialized = false;
+    initAttempts = 0;
+    setTimeout(initQuotationForm, 100);
+  });
+  
+  // Also initialize on page:load for older Turbolinks
+  document.addEventListener('page:load', function() {
+    initialized = false;
+    initAttempts = 0;
+    setTimeout(initQuotationForm, 100);
+  });
+})();
 </script>

@@ -1,6 +1,4 @@
-```erb
 <%# File: app/views/alerts/show.html.erb %>
-<%# Replace the ENTIRE file with this (copy/paste). %>
 
 <div class="container-fluid py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -14,7 +12,6 @@
         <i class="bi bi-arrow-left me-2"></i>Back to Alerts
       <% end %>
 
-      <%# Optional: keep Edit visible for anyone who can edit the alert (or leave as-is) %>
       <%= link_to edit_alert_path(@alert), class: "btn btn-warning" do %>
         <i class="bi bi-pencil me-2"></i>Edit
       <% end %>
@@ -23,15 +20,13 @@
 
   <%# Role helpers (keeps logic consistent across page) %>
   <%
-    maintenance_roles =
-      current_user.admin? ||
-      current_user.fleet_manager? ||
-      current_user.supervisor? ||
-      current_user.maintenance_supervisor?
+    maintenance_roles = current_user.admin? ||
+                       current_user.fleet_manager? ||
+                       current_user.supervisor? ||
+                       current_user.maintenance_supervisor?
 
-    finance_roles =
-      current_user.admin? ||
-      current_user.finance?
+    finance_roles = current_user.admin? ||
+                   current_user.finance?
   %>
 
   <div class="row g-4">
@@ -52,29 +47,17 @@
             </div>
           <% end %>
 
-          <% if @alert.respond_to?(:notes) && @alert.notes.present? %>
+          <% if @alert.notes.present? %>
             <div class="mb-4">
-              <h6 class="text-muted mb-2">Notes</h6>
+              <h6 class="text-muted mb-2">Notes & History</h6>
               <div class="bg-light p-3 rounded">
                 <%= simple_format(@alert.notes) %>
               </div>
             </div>
           <% end %>
-
-          <% if @alert.respond_to?(:resolution_notes) && @alert.resolution_notes.present? %>
-            <div class="mb-0">
-              <h6 class="text-muted mb-2">Resolution Notes</h6>
-              <div class="bg-light p-3 rounded">
-                <%= simple_format(@alert.resolution_notes) %>
-              </div>
-            </div>
-          <% end %>
         </div>
-
-        <%# ✅ Removed the old card-footer actions to avoid duplicates %>
       </div>
 
-      <%# Related Alerts (optional – only show if controller sets @related_alerts) %>
       <% if defined?(@related_alerts) && @related_alerts.present? %>
         <div class="card">
           <div class="card-header">
@@ -85,7 +68,7 @@
               <% @related_alerts.each do |a| %>
                 <li class="list-group-item">
                   <%= link_to a.title, alert_path(a), class: "text-decoration-none" %>
-                  <span class="badge bg-<%= a.status == "active" ? "danger" : a.status == "resolved" ? "success" : "warning" %> float-end">
+                  <span class="badge bg-<%= a.status_color %> float-end">
                     <%= a.humanized_status %>
                   </span>
                 </li>
@@ -107,7 +90,7 @@
             <div class="col-12">
               <label class="form-label text-muted mb-1">Status</label>
               <div>
-                <span class="badge bg-<%= @alert.status == "active" ? "danger" : @alert.status == "resolved" ? "success" : "warning" %> fs-6">
+                <span class="badge bg-<%= @alert.status_color %> fs-6">
                   <%= @alert.humanized_status %>
                 </span>
               </div>
@@ -137,7 +120,7 @@
               <p class="mb-0"><%= @alert.created_at.strftime("%b %d, %Y %I:%M %p") %></p>
             </div>
 
-            <% if @alert.respond_to?(:incident_time) && @alert.incident_time.present? %>
+            <% if @alert.incident_time.present? %>
               <div class="col-12">
                 <label class="form-label text-muted mb-1">Incident Time</label>
                 <p class="mb-0"><%= @alert.incident_time.strftime("%b %d, %Y %I:%M %p") %></p>
@@ -177,37 +160,28 @@
               </div>
             <% end %>
 
-            <% if @alert.respond_to?(:created_by) && @alert.created_by.present? %>
+            <% if @alert.created_by.present? %>
               <div class="col-12">
                 <label class="form-label text-muted mb-1">Created By</label>
                 <p class="mb-0"><%= @alert.created_by %></p>
               </div>
             <% end %>
 
-            <%# Audit trail (only if columns exist) %>
-            <% if @alert.respond_to?(:acknowledged_by) && @alert.acknowledged_by.present? %>
+            <%# Show when alert was sent to finance (new columns from migration) %>
+            <% if @alert.sent_to_finance_by.present? %>
               <div class="col-12">
-                <label class="form-label text-muted mb-1">Acknowledged</label>
+                <label class="form-label text-muted mb-1">Sent to Finance</label>
                 <p class="mb-0">
-                  <%= @alert.acknowledged_by %>
-                  <% if @alert.respond_to?(:acknowledged_at) && @alert.acknowledged_at.present? %>
-                    <span class="text-muted">• <%= @alert.acknowledged_at.strftime("%b %d, %Y %I:%M %p") %></span>
+                  <%= @alert.sent_to_finance_by %>
+                  <% if @alert.sent_to_finance_at.present? %>
+                    <span class="text-muted">• <%= @alert.sent_to_finance_at.strftime("%b %d, %Y %I:%M %p") %></span>
                   <% end %>
                 </p>
               </div>
             <% end %>
 
-            <% if @alert.respond_to?(:resolved_by) && @alert.resolved_by.present? %>
-              <div class="col-12">
-                <label class="form-label text-muted mb-1">Resolved</label>
-                <p class="mb-0">
-                  <%= @alert.resolved_by %>
-                  <% if @alert.respond_to?(:resolved_at) && @alert.resolved_at.present? %>
-                    <span class="text-muted">• <%= @alert.resolved_at.strftime("%b %d, %Y %I:%M %p") %></span>
-                  <% end %>
-                </p>
-              </div>
-            <% end %>
+            <%# Extract acknowledgment info from notes - we'll show this in the notes section instead %>
+            <%# Extract resolution info from notes - we'll show this in the notes section instead %>
           </div>
         </div>
       </div>
@@ -220,7 +194,7 @@
         <div class="card-body">
           <div class="d-grid gap-2">
 
-            <% if @alert.can_acknowledge? && current_user&.fleet_manager? %>
+            <% if @alert.can_acknowledge? && (current_user.fleet_manager? || current_user.admin?) %>
               <%= button_to acknowledge_alert_path(@alert),
                     method: :post,
                     class: "btn btn-warning",
@@ -233,42 +207,33 @@
               <%= button_to escalate_alert_path(@alert),
                     method: :post,
                     class: "btn btn-outline-primary",
-                    data: { confirm: "Send this alert to Finance?" } do %>
+                    data: { confirm: "Send this alert to Finance for procurement review?" } do %>
                 <i class="bi bi-cash-coin me-2"></i>Send to Finance
               <% end %>
             <% end %>
 
-            <%# Optional: if you really have a separate severity escalation action/route, keep it here.
-                Your pasted show uses escalate_alert_path for TWO different meanings (send-to-finance + escalate severity).
-                If you don't have a separate route, DO NOT show this button. %>
-            <% if @alert.respond_to?(:can_escalate?) && @alert.can_escalate? && maintenance_roles && respond_to?(:escalate_severity_alert_path) %>
-              <%= button_to escalate_severity_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-danger",
-                    data: { confirm: "Escalate this alert to CRITICAL + URGENT?" } do %>
-                <i class="bi bi-arrow-up me-2"></i>Escalate Severity
-              <% end %>
+            <% if @alert.procurement_needed? %>
+              <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle me-2"></i>
+                This alert is awaiting procurement review.
+                <% if finance_roles %>
+                  <hr class="my-2">
+                  <p class="mb-2 small">Review this alert and create an RFQ if needed:</p>
+                  <%= button_to create_rfq_alert_path(@alert),
+                        method: :post,
+                        class: "btn btn-warning btn-sm w-100",
+                        data: { confirm: "Start creating an RFQ from this alert?" } do %>
+                    <i class="bi bi-file-earmark-text me-2"></i>Create RFQ from Alert
+                  <% end %>
+                <% end %>
+              </div>
             <% end %>
 
             <% if @alert.can_resolve? && maintenance_roles %>
-              <%= button_to resolve_alert_path(@alert),
-                    method: :post,
-                    params: { resolution_notes: "" },
+              <%= link_to resolve_form_alert_path(@alert),
                     class: "btn btn-success",
-                    data: { confirm: "Mark this alert as resolved?" } do %>
+                    data: { turbo_frame: "_top" } do %>
                 <i class="bi bi-check2-all me-2"></i>Resolve Alert
-              <% end %>
-            <% end %>
-
-            <%# ✅ Finance/Admin ONLY: Create RFQ.
-                Optional: only show when status indicates it has been sent to finance.
-                If your status is 'awaiting_procurement' in the controller, use that here. %>
-            <% if finance_roles && (@alert.status == "awaiting_procurement" || @alert.status == "sent_to_finance") %>
-              <%= button_to create_rfq_alert_path(@alert),
-                    method: :post,
-                    class: "btn btn-warning",
-                    data: { confirm: "Create RFQ from this alert?" } do %>
-                <i class="bi bi-file-earmark-text me-2"></i>Create RFQ
               <% end %>
             <% end %>
 
@@ -287,4 +252,3 @@
     </div>
   </div>
 </div>
-```

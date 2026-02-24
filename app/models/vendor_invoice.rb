@@ -1,6 +1,6 @@
 class VendorInvoice < ApplicationRecord
   belongs_to :supplier
-  belongs_to :purchase_order, optional: true
+  # belongs_to :purchase_order, optional: true
   belongs_to :user, optional: true
   has_many :inventory_transactions
   has_many :purchase_requests

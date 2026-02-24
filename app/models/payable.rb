@@ -11,7 +11,7 @@ class Payable < ApplicationRecord
 
   has_many :account_transactions, dependent: :restrict_with_error
   has_many :payment_histories, as: :payment_transaction, dependent: :destroy
-  has_one :payment_schedule, dependent: :destroy
+  # has_one :payment_schedule, dependent: :destroy  # COMMENTED OUT - PaymentSchedule model doesn't exist
 
   # -------------------------
   # Validations
