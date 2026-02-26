@@ -55,6 +55,12 @@ class QuotationsController < ApplicationController
       return
     end
 
+    # ✅ FIXED: Allow finance users to access received quotations
+    unless current_user.agency_id.present? && (current_user.finance? || current_user.admin? || current_user.fleet_manager?)
+      redirect_to quotations_path, alert: 'Access denied.'
+      return
+    end
+
     # ✅ FIXED: Use scope_quotations for consistent authorization
     base_scope = scope_quotations
                  .where(agency_id: current_user.agency_id)
@@ -1254,9 +1260,10 @@ class QuotationsController < ApplicationController
     return
   end
 
+  # ✅ FIXED: Added finance role to can_accept_items? method
   def can_accept_items?
     return false unless @quotation.agency_id
-    return true if current_user.admin?
+    return true if current_user.admin? || current_user.finance?
     
     current_user.agency_id == @quotation.agency_id && 
     @quotation.vendor == 'VMCOTT' && 

@@ -18,6 +18,9 @@
   
   finance_roles = current_user.admin? ||
                   current_user.finance?
+  
+  # Check if we're on the procurement view
+  is_procurement_view = params[:status] == "awaiting_procurement"
 %>
 
 <!-- Font Awesome 6 (Free) - Matching other pages -->
@@ -43,7 +46,13 @@
         </div>
         <div>
           <div class="d-flex align-items-center gap-2">
-            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">Alerts Management</h1>
+            <h1 class="display-6 fw-bold mb-0 ptsc-tt-title">
+              <% if is_procurement_view %>
+                Procurement Review
+              <% else %>
+                Alerts Management
+              <% end %>
+            </h1>
             <span class="tt-flag-badge">Trinidad & Tobago</span>
           </div>
           <div class="d-flex align-items-center gap-3 mt-1">
@@ -56,6 +65,12 @@
             <span class="text-ptsc-blue fw-medium">
               <i class="fas fa-bell me-1"></i> <%= stats[:total].to_i %> total
             </span>
+            <% if is_procurement_view %>
+              <span class="vr"></span>
+              <span class="badge bg-info">
+                <i class="fas fa-clock me-1"></i> <%= stats[:awaiting_procurement].to_i %> awaiting
+              </span>
+            <% end %>
           </div>
         </div>
       </div>
@@ -65,6 +80,19 @@
       <div class="d-flex gap-2">
         <%= link_to new_alert_path, class: "ptsc-primary-btn" do %>
           <i class="fas fa-plus-circle me-2"></i> New Alert
+        <% end %>
+        <% if finance_roles && !is_procurement_view %>
+          <%= link_to alerts_path(status: 'awaiting_procurement'), class: "ptsc-outline-btn" do %>
+            <i class="fas fa-clock me-2"></i> View Procurement Queue
+            <% if stats[:awaiting_procurement].to_i > 0 %>
+              <span class="badge bg-warning ms-2"><%= stats[:awaiting_procurement].to_i %></span>
+            <% end %>
+          <% end %>
+        <% end %>
+        <% if is_procurement_view %>
+          <%= link_to alerts_path, class: "ptsc-outline-btn" do %>
+            <i class="fas fa-arrow-left me-2"></i> Back to All Alerts
+          <% end %>
         <% end %>
       </div>
     </div>
@@ -159,27 +187,6 @@
     </div>
   </div>
 
-  <!-- QUICK LINKS - PTSC STYLE -->
-  <div class="d-flex flex-wrap gap-2 mb-4">
-    <% if respond_to?(:needs_attention_alerts_path) %>
-      <%= link_to needs_attention_alerts_path, class: "ptsc-outline-btn" do %>
-        <i class="fas fa-exclamation-triangle me-2" style="color: <%= ptsc_yellow %>;"></i> Needs Attention (<%= stats[:needs_attention].to_i %>)
-      <% end %>
-    <% end %>
-
-    <% if respond_to?(:awaiting_procurement_alerts_path) && finance_roles %>
-      <%= link_to awaiting_procurement_alerts_path, class: "ptsc-outline-btn" do %>
-        <i class="fas fa-clock me-2" style="color: <%= ptsc_blue %>;"></i> Awaiting Procurement (<%= stats[:awaiting_procurement].to_i %>)
-      <% end %>
-    <% end %>
-
-    <% if respond_to?(:summary_alerts_path) %>
-      <%= link_to summary_alerts_path, class: "ptsc-outline-btn" do %>
-        <i class="fas fa-chart-bar me-2" style="color: <%= ptsc_blue %>;"></i> Summary
-      <% end %>
-    <% end %>
-  </div>
-
   <!-- FILTER SECTION - MATCHES FLEET MANAGEMENT -->
   <div class="ptsc-filter-card card border-0 shadow-sm rounded-4 mb-4">
     <div class="card-body p-4">
@@ -193,6 +200,9 @@
           <span class="flag-white"></span>
           <span class="flag-black"></span>
         </span>
+        <% if is_procurement_view %>
+          <span class="badge bg-info ms-2">Showing: Awaiting Procurement Only</span>
+        <% end %>
       </div>
       
       <%= form_with url: alerts_path, method: :get, local: true, class: "row g-3" do |f| %>
@@ -282,7 +292,8 @@
             <tbody>
               <% @alerts.each do |alert| %>
                 <% is_critical_active = alert.severity_critical? && alert.status_active? %>
-                <tr class="<%= 'ptsc-critical-row' if is_critical_active %>">
+                <% is_procurement_alert = alert.status_awaiting_procurement? %>
+                <tr class="<%= 'ptsc-critical-row' if is_critical_active %> <%= 'ptsc-procurement-row' if is_procurement_alert %>">
                   <td>
                     <%= check_box_tag "alert_ids[]", alert.id, false, class: "alert-checkbox form-check-input" %>
                   </td>
@@ -293,6 +304,11 @@
                       <div class="flex-grow-1">
                         <div class="fw-semibold">
                           <%= link_to alert.title, alert_path(alert), class: "text-decoration-none", style: "color: #{ptsc_blue};" %>
+                          <% if alert.status_awaiting_procurement? && finance_roles %>
+                            <span class="badge bg-info ms-2" style="font-size: 0.7rem;">
+                              <i class="fas fa-clock"></i> Procurement
+                            </span>
+                          <% end %>
                         </div>
                         <div class="text-muted small">
                           <% if alert.description.present? %>
@@ -370,6 +386,11 @@
                   <td>
                     <div class="small fw-medium"><%= time_ago_in_words(alert.created_at) %> ago</div>
                     <div class="small text-muted"><%= alert.created_at.strftime("%b %d, %Y") %></div>
+                    <% if alert.status_awaiting_procurement? && alert.respond_to?(:sent_to_finance_at) && alert.sent_to_finance_at.present? %>
+                      <div class="small text-info">
+                        <i class="fas fa-clock"></i> Sent: <%= alert.sent_to_finance_at.strftime("%b %d") %>
+                      </div>
+                    <% end %>
                   </td>
 
                   <td class="text-end">
@@ -380,10 +401,12 @@
                         <i class="fas fa-eye"></i>
                       <% end %>
 
-                      <%= link_to edit_alert_path(alert),
-                            class: "ptsc-table-action",
-                            title: "Edit Alert" do %>
-                        <i class="fas fa-edit"></i>
+                      <% if !alert.status_resolved? %>
+                        <%= link_to edit_alert_path(alert),
+                              class: "ptsc-table-action",
+                              title: "Edit Alert" do %>
+                          <i class="fas fa-edit"></i>
+                        <% end %>
                       <% end %>
 
                       <% if alert.can_acknowledge? && (current_user.fleet_manager? || current_user.admin?) %>
@@ -408,6 +431,17 @@
                         <% end %>
                       <% end %>
 
+                      <% if alert.status_awaiting_procurement? && finance_roles %>
+                        <%= button_to create_rfq_alert_path(alert),
+                              method: :post,
+                              class: "ptsc-table-action",
+                              title: "Create RFQ",
+                              form: { class: "d-inline" },
+                              data: { turbo_confirm: "Create an RFQ from this alert?" } do %>
+                          <i class="fas fa-file-invoice"></i>
+                        <% end %>
+                      <% end %>
+
                       <% if alert.can_resolve? && maintenance_roles %>
                         <%= button_to resolve_alert_path(alert),
                               method: :post,
@@ -427,49 +461,61 @@
         </div>
 
         <!-- Bulk Actions - PTSC STYLE -->
-        <% if respond_to?(:bulk_action_alerts_path) %>
-          <%= form_with url: bulk_action_alerts_path, method: :post, id: "bulk-action-form" do %>
-            <div class="d-flex justify-content-between align-items-center p-4 flex-wrap gap-2">
-              <div class="d-flex align-items-center gap-2">
-                <div class="ptsc-select-wrapper" style="min-width: 200px;">
-                  <select id="bulk-action-select" name="bulk_action" class="ptsc-select form-select form-select-sm">
-                    <option value="">Bulk Actions</option>
-                    <% if current_user.fleet_manager? || current_user.admin? %>
-                      <option value="acknowledge">Acknowledge Selected</option>
-                    <% end %>
-                    <% if maintenance_roles %>
-                      <option value="send_to_finance">Send to Finance</option>
-                    <% end %>
-                    <option value="resolve">Resolve Selected</option>
-                    <% if current_user.admin? %>
-                      <option value="delete">Delete Selected</option>
-                    <% end %>
-                  </select>
-                  <i class="fas fa-chevron-down select-arrow"></i>
-                </div>
-                <button type="button" id="apply-bulk-action" class="ptsc-apply-btn" style="height: 38px;">Apply</button>
-              </div>
-
-              <div>
-                <%= paginate @alerts if respond_to?(:paginate) %>
-              </div>
+        <div class="d-flex justify-content-between align-items-center p-4 flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <div class="ptsc-select-wrapper" style="min-width: 200px;">
+              <select id="bulk-action-select" name="bulk_action" class="ptsc-select form-select form-select-sm">
+                <option value="">Bulk Actions</option>
+                <% if current_user.fleet_manager? || current_user.admin? %>
+                  <option value="acknowledge">Acknowledge Selected</option>
+                <% end %>
+                <% if maintenance_roles %>
+                  <option value="send_to_finance">Send to Finance</option>
+                <% end %>
+                <% if finance_roles %>
+                  <option value="create_rfq">Create RFQ from Selected</option>
+                <% end %>
+                <option value="resolve">Resolve Selected</option>
+                <% if current_user.admin? %>
+                  <option value="delete">Delete Selected</option>
+                <% end %>
+              </select>
+              <i class="fas fa-chevron-down select-arrow"></i>
             </div>
-          <% end %>
-        <% else %>
-          <div class="p-4">
-            <%= paginate @alerts if respond_to?(:paginate) %>
+            <button type="button" id="apply-bulk-action" class="ptsc-apply-btn" style="height: 38px;">Apply</button>
           </div>
-        <% end %>
+
+          <div>
+            <%= paginate @alerts if @alerts.respond_to?(:total_pages) %>
+          </div>
+        </div>
 
       <% else %>
         <div class="text-center py-5">
           <div class="ptsc-empty-icon mb-3">
             <i class="fas fa-bell fa-4x" style="color: <%= ptsc_blue %>; opacity: 0.2;"></i>
           </div>
-          <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">No Alerts Found</h5>
-          <p class="text-muted mb-4">All alerts are cleared or no alerts match your filters.</p>
+          <h5 class="fw-bold mb-2" style="color: <%= ptsc_blue %>;">
+            <% if is_procurement_view %>
+              No Procurement Alerts Found
+            <% else %>
+              No Alerts Found
+            <% end %>
+          </h5>
+          <p class="text-muted mb-4">
+            <% if is_procurement_view %>
+              There are no alerts waiting for procurement review at this time.
+            <% else %>
+              All alerts are cleared or no alerts match your filters.
+            <% end %>
+          </p>
           <%= link_to new_alert_path, class: "ptsc-primary-btn px-5 py-3" do %>
             <i class="fas fa-plus-circle me-2"></i> Create New Alert
+          <% end %>
+          <% if is_procurement_view %>
+            <%= link_to alerts_path, class: "ptsc-outline-btn ms-2" do %>
+              <i class="fas fa-arrow-left me-2"></i> Back to All Alerts
+            <% end %>
           <% end %>
         </div>
       <% end %>
@@ -488,6 +534,9 @@
         <span class="small text-muted">
           <i class="fas fa-bell me-1" style="color: <%= ptsc_blue %>;"></i> 
           PTSC Alerts • <%= Date.today.strftime("%B %d, %Y") %>
+          <% if is_procurement_view %>
+            • <span class="text-info">Procurement View</span>
+          <% end %>
         </span>
       </div>
       <span class="tt-footer-emblem">
@@ -497,7 +546,7 @@
   </div>
 </div>
 
-<!-- JavaScript for Bulk Actions (unchanged) -->
+<!-- JavaScript for Bulk Actions (updated for finance actions) -->
 <script>
 (function () {
   const ready = (fn) => {
@@ -517,9 +566,8 @@
 
     const applyBtn = document.getElementById("apply-bulk-action");
     const bulkSelect = document.getElementById("bulk-action-select");
-    const bulkForm = document.getElementById("bulk-action-form");
 
-    if (applyBtn && bulkSelect && bulkForm) {
+    if (applyBtn && bulkSelect) {
       applyBtn.addEventListener("click", function () {
         const action = bulkSelect.value;
         const selectedIds = Array.from(checkboxes)
@@ -536,20 +584,48 @@
           return;
         }
 
-        if (!confirm(`Are you sure you want to ${action} ${selectedIds.length} alert(s)?`)) return;
+        let confirmMessage = `Are you sure you want to ${action} ${selectedIds.length} alert(s)?`;
+        
+        if (action === 'create_rfq') {
+          confirmMessage = `Create RFQs from ${selectedIds.length} selected alert(s)? This will create separate RFQs for each alert.`;
+        }
+        
+        if (!confirm(confirmMessage)) return;
 
-        const existingInputs = bulkForm.querySelectorAll('input[name="alert_ids[]"]');
-        existingInputs.forEach((input) => input.remove());
+        // Create a form dynamically for the bulk action
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<%= bulk_action_alerts_path if respond_to?(:bulk_action_alerts_path) %>';
+        form.style.display = 'none';
 
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name="csrf-token"]')?.content;
+        if (csrfToken) {
+          const csrfInput = document.createElement('input');
+          csrfInput.type = 'hidden';
+          csrfInput.name = 'authenticity_token';
+          csrfInput.value = csrfToken;
+          form.appendChild(csrfInput);
+        }
+
+        // Add action
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'bulk_action';
+        actionInput.value = action;
+        form.appendChild(actionInput);
+
+        // Add selected IDs
         selectedIds.forEach((id) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = "alert_ids[]";
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'alert_ids[]';
           input.value = id;
-          bulkForm.appendChild(input);
+          form.appendChild(input);
         });
 
-        bulkForm.submit();
+        document.body.appendChild(form);
+        form.submit();
       });
     }
   });
@@ -674,6 +750,12 @@
 
 .text-ptsc-blue {
   color: #0033a0 !important;
+}
+
+/* Procurement row highlight */
+.ptsc-procurement-row {
+  background-color: rgba(23, 162, 184, 0.03);
+  border-left: 3px solid #17a2b8;
 }
 
 /* Buttons */

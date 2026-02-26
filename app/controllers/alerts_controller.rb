@@ -328,6 +328,17 @@ class AlertsController < ApplicationController
     @severities  = Alert.severities.keys
     @priorities  = Alert.priorities.keys
     @statuses    = Alert.statuses.keys
+    
+    # Load vehicles, agencies, and drivers for the current user's agency
+    if current_user.agency_id.present?
+      @vehicles = Vehicle.where(agency_id: current_user.agency_id).order(:license_plate)
+      @agencies = Agency.where(id: current_user.agency_id)
+      @drivers = Driver.where(agency_id: current_user.agency_id).order(:name)
+    else
+      @vehicles = []
+      @agencies = []
+      @drivers = []
+    end
   end
 
   def alert_params

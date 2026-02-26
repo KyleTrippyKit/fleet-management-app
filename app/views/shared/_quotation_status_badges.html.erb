@@ -1,0 +1,99 @@
+<%# app/views/shared/_quotation_status_badges.html.erb %>
+
+<%# Set default context if not provided %>
+<% context = local_assigns[:context] || 'workspace' %>
+
+<%# Friendly status names for different contexts %>
+<% friendly_status = case quotation.status
+  when 'draft'
+    context == 'workspace' ? '⚪ Draft - VMCOTT Processing' : '⚪ Draft'
+  when 'sent'
+    context == 'workspace' ? '🔵 Sent to Agency' : '🔵 Awaiting Finance Team'
+  when 'pending_acceptance'
+    context == 'workspace' ? '🟡 Under Agency Review' : '🟡 Agency Review in Progress'
+  when 'accepted'
+    context == 'workspace' ? '🟢 Accepted by Agency' : '🟢 Ready for PO Creation'
+  when 'rejected'
+    '🔴 Rejected by Agency'
+  when 'expired'
+    '⚫ Expired'
+  when 'converted'
+    '🔵 Converted to Purchase Order'
+  when 'partially_rejected'
+    '🟠 Partially Rejected'
+  else
+    quotation.status.humanize
+  end
+%>
+
+<%# Status badge color for Bootstrap classes %>
+<% status_color = case quotation.status
+  when 'draft' then 'secondary'
+  when 'sent' then context == 'workspace' ? 'primary' : 'info'
+  when 'pending_acceptance' then 'warning'
+  when 'accepted' then 'success'
+  when 'rejected' then 'danger'
+  when 'expired' then 'dark'
+  when 'converted' then 'info'
+  when 'partially_rejected' then 'danger'
+  else 'light'
+  end
+%>
+
+<%# Priority indicators for finance team %>
+<% if context == 'received' && quotation.status == 'sent' %>
+  <% if quotation.created_at < 3.days.ago %>
+    <% priority_badge = 'danger' %>
+    <% priority_text = '🔴 High Priority - Pending over 3 days' %>
+  <% elsif quotation.created_at < 7.days.ago %>
+    <% priority_badge = 'warning' %>
+    <% priority_text = '🟡 Medium Priority - Pending over 1 week' %>
+  <% else %>
+    <% priority_badge = 'info' %>
+    <% priority_text = '🔵 Normal Priority' %>
+  <% end %>
+<% end %>
+
+<%# Expiry warnings %>
+<% if quotation.valid_to.present? %>
+  <% days_left = (quotation.valid_to.to_date - Date.current).to_i %>
+  <% if quotation.status == 'sent' && days_left <= 3 && days_left > 0 %>
+    <% expiry_badge = 'danger' %>
+    <% expiry_text = "⚠️ Expires in #{days_left} days" %>
+  <% elsif quotation.status == 'sent' && days_left <= 7 && days_left > 0 %>
+    <% expiry_badge = 'warning' %>
+    <% expiry_text = "⚠️ Expires in #{days_left} days" %>
+  <% end %>
+<% end %>
+
+<div class="d-flex flex-wrap gap-1 align-items-center">
+  <%# Main status badge %>
+  <span class="badge bg-<%= status_color %> p-2" title="<%= friendly_status %>">
+    <%= friendly_status %>
+  </span>
+
+  <%# Sent/Lock indicator %>
+  <% if quotation.sent? %>
+    <span class="badge bg-success" title="Sent and locked">
+      <i class="bi bi-lock me-1"></i>Sent
+    </span>
+  <% else %>
+    <span class="badge bg-secondary" title="Draft - editable">
+      <i class="bi bi-pencil me-1"></i>Draft
+    </span>
+  <% end %>
+
+  <%# Priority badge for finance team %>
+  <% if defined?(priority_badge) && priority_badge.present? %>
+    <span class="badge bg-<%= priority_badge %>">
+      <%= priority_text %>
+    </span>
+  <% end %>
+
+  <%# Expiry warning badge %>
+  <% if defined?(expiry_badge) && expiry_badge.present? %>
+    <span class="badge bg-<%= expiry_badge %>">
+      <%= expiry_text %>
+    </span>
+  <% end %>
+</div>

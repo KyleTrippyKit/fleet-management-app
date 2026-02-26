@@ -35,7 +35,11 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :alert_type, "Type", class: "form-label" %>
-                  <%= form.select :alert_type, @alert_types, { include_blank: "Select Type" }, class: "form-control", required: true %>
+                  <%= form.select :alert_type, 
+                      options_for_select(@alert_types, @alert.alert_type), 
+                      { include_blank: "Select Type" }, 
+                      class: "form-control", 
+                      required: true %>
                 </div>
               </div>
 
@@ -50,14 +54,22 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :severity, class: "form-label" %>
-                  <%= form.select :severity, @severities, { include_blank: "Select Severity" }, class: "form-control", required: true %>
+                  <%= form.select :severity, 
+                      options_for_select(@severities, @alert.severity), 
+                      { include_blank: "Select Severity" }, 
+                      class: "form-control", 
+                      required: true %>
                 </div>
               </div>
 
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :priority, class: "form-label" %>
-                  <%= form.select :priority, @priorities, { include_blank: "Select Priority" }, class: "form-control", required: true %>
+                  <%= form.select :priority, 
+                      options_for_select(@priorities, @alert.priority), 
+                      { include_blank: "Select Priority" }, 
+                      class: "form-control", 
+                      required: true %>
                 </div>
               </div>
 
@@ -65,7 +77,11 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :status, class: "form-label" %>
-                  <%= form.select :status, @statuses, { include_blank: "Select Status" }, class: "form-control", required: true %>
+                  <%= form.select :status, 
+                      options_for_select(@statuses, @alert.status), 
+                      { include_blank: "Select Status" }, 
+                      class: "form-control", 
+                      required: true %>
                 </div>
               </div>
 
@@ -73,21 +89,47 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :vehicle_id, "Vehicle", class: "form-label" %>
-                  <%= form.select :vehicle_id, @vehicles.map { |v| [v.license_plate, v.id] }, { include_blank: "Select Vehicle" }, class: "form-control" %>
+                  <%= form.collection_select :vehicle_id, 
+                      @vehicles, 
+                      :id, 
+                      :license_plate, 
+                      { include_blank: "Select Vehicle", selected: @alert.vehicle_id }, 
+                      class: "form-control" %>
                 </div>
               </div>
 
+              <!-- Agency field (readonly) -->
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :agency_id, "Agency", class: "form-label" %>
-                  <%= form.select :agency_id, @agencies.map { |a| [a.name, a.id] }, { include_blank: "Select Agency" }, class: "form-control" %>
+                  <% if @alert.agency.present? %>
+                    <%= form.text_field :agency_name, 
+                        value: @alert.agency.name, 
+                        class: "form-control", 
+                        readonly: true,
+                        disabled: true %>
+                    <%= form.hidden_field :agency_id, value: @alert.agency_id %>
+                  <% else %>
+                    <%= form.collection_select :agency_id, 
+                        @agencies, 
+                        :id, 
+                        :name, 
+                        { include_blank: "Select Agency", selected: @alert.agency_id }, 
+                        class: "form-control" %>
+                  <% end %>
+                  <small class="text-muted">Agency is locked to your organization</small>
                 </div>
               </div>
 
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :driver_id, "Driver", class: "form-label" %>
-                  <%= form.select :driver_id, @drivers.map { |d| [d.name, d.id] }, { include_blank: "Select Driver" }, class: "form-control" %>
+                  <%= form.collection_select :driver_id, 
+                      @drivers, 
+                      :id, 
+                      :name, 
+                      { include_blank: "Select Driver", selected: @alert.driver_id }, 
+                      class: "form-control" %>
                 </div>
               </div>
 
@@ -102,25 +144,34 @@
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :incident_time, "Incident Time", class: "form-label" %>
-                  <%= form.datetime_local_field :incident_time, class: "form-control" %>
+                  <%= form.datetime_local_field :incident_time, 
+                      value: @alert.incident_time&.strftime('%Y-%m-%dT%H:%M'), 
+                      class: "form-control" %>
                 </div>
               </div>
 
+              <!-- Check if these fields exist in your model -->
+              <% if @alert.respond_to?(:estimated_resolution_time) %>
               <div class="col-md-6">
                 <div class="mb-3">
                   <%= form.label :estimated_resolution_time, "Estimated Resolution Time", class: "form-label" %>
-                  <%= form.datetime_local_field :estimated_resolution_time, class: "form-control" %>
+                  <%= form.datetime_local_field :estimated_resolution_time, 
+                      value: @alert.estimated_resolution_time&.strftime('%Y-%m-%dT%H:%M'), 
+                      class: "form-control" %>
                 </div>
               </div>
+              <% end %>
 
-              <!-- Additional Information -->
+              <% if @alert.respond_to?(:assigned_to) %>
               <div class="col-md-12">
                 <div class="mb-3">
                   <%= form.label :assigned_to, "Assigned To", class: "form-label" %>
                   <%= form.text_field :assigned_to, class: "form-control" %>
                 </div>
               </div>
+              <% end %>
 
+              <!-- Notes -->
               <div class="col-md-12">
                 <div class="mb-3">
                   <%= form.label :notes, class: "form-label" %>

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Quotation < ApplicationRecord
   # ------------------------------------------------------------
   # Safety: clear any problematic alias that can break associations
@@ -97,6 +99,102 @@ class Quotation < ApplicationRecord
   before_validation :set_agency_fallback, on: :create
   before_validation :recalculate_amount_from_children
   before_save :update_status_timestamps, if: :will_save_change_to_status?
+
+  # ------------------------------------------------------------
+  # User-friendly Status Methods
+  # ------------------------------------------------------------
+  
+  # Friendly status name for VMCOTT workspace view
+  def vmcott_friendly_status
+    case status.to_sym
+    when :draft
+      '⚪ Draft - VMCOTT Processing'
+    when :sent
+      '🔵 Sent to Agency'
+    when :pending_acceptance
+      '🟡 Under Agency Review'
+    when :accepted
+      '🟢 Accepted by Agency'
+    when :rejected
+      '🔴 Rejected by Agency'
+    when :expired
+      '⚫ Expired'
+    when :converted
+      '🔵 Converted to PO'
+    when :partially_rejected
+      '🟠 Partially Rejected'
+    else
+      status.humanize
+    end
+  end
+
+  # Friendly status name for Agency/Finance view
+  def agency_friendly_status
+    case status.to_sym
+    when :draft
+      '⚪ Draft'
+    when :sent
+      '🔵 Awaiting Finance Team'
+    when :pending_acceptance
+      '🟡 Agency Review in Progress'
+    when :accepted
+      '🟢 Ready for PO Creation'
+    when :rejected
+      '🔴 Rejected'
+    when :expired
+      '⚫ Expired'
+    when :converted
+      '🔵 Converted to PO'
+    when :partially_rejected
+      '🟠 Partially Rejected'
+    else
+      status.humanize
+    end
+  end
+
+  # Priority level for finance team
+  def finance_priority
+    return nil unless status.to_sym == :sent
+    
+    if created_at < 3.days.ago
+      { level: 'high', text: '🔴 High Priority - Pending over 3 days', badge: 'danger' }
+    elsif created_at < 7.days.ago
+      { level: 'medium', text: '🟡 Medium Priority - Pending over 1 week', badge: 'warning' }
+    else
+      { level: 'normal', text: '🔵 Normal Priority', badge: 'info' }
+    end
+  end
+
+  # Expiry warning
+  def expiry_warning
+    return nil unless valid_to.present? && status.to_sym == :sent
+    
+    days_left = (valid_to.to_date - Date.current).to_i
+    return nil if days_left <= 0
+    
+    if days_left <= 3
+      { level: 'critical', text: "⚠️ Expires in #{days_left} days", badge: 'danger' }
+    elsif days_left <= 7
+      { level: 'warning', text: "⚠️ Expires in #{days_left} days", badge: 'warning' }
+    else
+      nil
+    end
+  end
+
+  # Status badge color for Bootstrap
+  def status_badge_color(context = 'workspace')
+    case status.to_sym
+    when :draft then 'secondary'
+    when :sent then context == 'workspace' ? 'primary' : 'info'
+    when :pending_acceptance then 'warning'
+    when :accepted then 'success'
+    when :rejected then 'danger'
+    when :expired then 'dark'
+    when :converted then 'info'
+    when :partially_rejected then 'danger'
+    else 'light'
+    end
+  end
 
   # ------------------------------------------------------------
   # Status / time helpers
