@@ -137,6 +137,7 @@ class Maintenance < ApplicationRecord
     end_date || (Date.today + 7.days)
   end
 
+  attr_accessor :next_maintenance_mileage
   # =====================================================
   # Timeline Methods - USE enum predicate methods
   # =====================================================

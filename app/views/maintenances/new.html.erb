@@ -14,12 +14,12 @@
             </div>
 
             <% if @vehicle.present? %>
-              <span class="badge bg-primary">
+              <span class="badge bg-primary" data-maintenance-target="vehicleBadge">
                 <%= @vehicle.make %> <%= @vehicle.model %>
                 (<%= @vehicle.registration_number.presence || @vehicle.license_plate.presence || "No ID" %>)
               </span>
             <% else %>
-              <span class="badge bg-secondary">
+              <span class="badge bg-secondary" data-maintenance-target="vehicleBadge">
                 Select a vehicle to continue
               </span>
             <% end %>
@@ -53,6 +53,9 @@
   </div>
 </div>
 
+<!-- Stimulus controller for vehicle search -->
+<div data-controller="maintenance-vehicle-search" style="display: none;"></div>
+
 <!-- Flatpickr (CDN) -->
 <%= stylesheet_link_tag "https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css", media: "all" %>
 <%= javascript_include_tag "https://cdn.jsdelivr.net/npm/flatpickr" %>
@@ -68,24 +71,15 @@
 
     const startDateField = document.getElementById("maintenance_start_date");
     const endDateField   = document.getElementById("maintenance_end_date");
-    const dateField      = document.getElementById("maintenance_date");
-    const nextDueField   = document.getElementById("maintenance_next_due_date");
 
     const todayStr = new Date().toISOString().split("T")[0];
 
     if (startDateField && !startDateField.value) startDateField.value = todayStr;
-    if (dateField && !dateField.value) dateField.value = todayStr;
 
     if (endDateField && !endDateField.value) {
       const d = new Date();
       d.setDate(d.getDate() + 7);
       endDateField.value = d.toISOString().split("T")[0];
-    }
-
-    if (nextDueField && !nextDueField.value) {
-      const d = new Date();
-      d.setDate(d.getDate() + 30);
-      nextDueField.value = d.toISOString().split("T")[0];
     }
 
     startDateField?.addEventListener("change", function () {
@@ -99,3 +93,13 @@
     });
   });
 </script>
+
+<style>
+  .search-result-item { cursor: pointer; }
+  .search-result-item:hover { background-color: #f8f9fa; }
+  
+  [data-maintenance-vehicle-search-target="results"] {
+    max-height: 250px;
+    overflow-y: auto;
+  }
+</style>

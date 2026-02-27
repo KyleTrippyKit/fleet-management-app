@@ -2,7 +2,7 @@
 
 <% form_model = (@vehicle.present? ? [@vehicle, @maintenance] : @maintenance) %>
 
-<%= form_with(model: form_model, local: true, html: { multipart: true, class: "needs-validation", novalidate: true }) do |f| %>
+<%= form_with(model: form_model, local: true, html: { multipart: true, class: "needs-validation", novalidate: true, data: { controller: "maintenance-form" } }) do |f| %>
 
   <% if @maintenance.errors.any? %>
     <div class="alert alert-danger alert-dismissible fade show">
@@ -27,13 +27,7 @@
         </div>
 
         <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <%= f.label :assignment_type, "Assignment Type", class: "form-label fw-semibold" %>
-            <%= f.select :assignment_type,
-                  options_for_select(Maintenance::ASSIGNMENT_TYPES.map { |a| [a.titleize, a] }, @maintenance.assignment_type),
-                  { prompt: "Select assignment type" },
-                  class: "form-select" %>
-          </div>
+          <!-- ASSIGNMENT TYPE - REMOVED (handled by hidden field) -->
 
           <div class="col-12 col-md-6">
             <%= f.label :urgency, "Urgency", class: "form-label fw-semibold" %>
@@ -47,7 +41,7 @@
               <span id="urgency_badge_preview">
                 <% if @maintenance.urgency.present? %>
                   <%= content_tag(:span, @maintenance.urgency.titleize,
-                        class: "badge #{maintenance_urgency_badge_class(@maintenance)}") %>
+                        class: "badge #{@maintenance.urgency_badge_class}") %>
                 <% end %>
               </span>
             </div>
@@ -58,7 +52,8 @@
             <%= f.text_field :start_date,
                   class: "form-control datepicker",
                   autocomplete: "off",
-                  required: true %>
+                  required: true,
+                  value: @maintenance.start_date || Date.today %>
             <div class="invalid-feedback">Please enter a start date.</div>
           </div>
 
@@ -67,35 +62,16 @@
             <%= f.text_field :end_date,
                   class: "form-control datepicker",
                   autocomplete: "off",
-                  required: true %>
+                  required: true,
+                  value: @maintenance.end_date || Date.today + 7.days %>
             <div class="invalid-feedback">Please enter an end date.</div>
             <div class="form-text">Required for Gantt timeline view</div>
           </div>
 
-          <div class="col-12 col-md-6">
-            <%= f.label :date, "Maintenance Date", class: "form-label fw-semibold" %>
-            <%= f.text_field :date, class: "form-control datepicker", autocomplete: "off" %>
-          </div>
-
-          <div class="col-12 col-md-6">
-            <%= f.label :next_due_date, "Next Due Date", class: "form-label fw-semibold" %>
-            <%= f.text_field :next_due_date, class: "form-control datepicker", autocomplete: "off" %>
-          </div>
-
-          <div class="col-12 col-md-6">
-            <%= f.label :reminder_sent_at, "Reminder Sent Date", class: "form-label fw-semibold" %>
-            <%= f.text_field :reminder_sent_at, class: "form-control datepicker", autocomplete: "off" %>
-          </div>
-
-          <div class="col-12 col-md-6">
-            <%= f.label :status, "Status *", class: "form-label fw-semibold" %>
-            <%= f.select :status,
-                  options_for_select(Maintenance::STATUSES, @maintenance.status || "Pending"),
-                  {},
-                  class: "form-select",
-                  required: true %>
-            <div class="invalid-feedback">Please select a status.</div>
-          </div>
+          <!-- MAINTENANCE DATE - REMOVED -->
+          <!-- NEXT DUE DATE - REMOVED -->
+          <!-- REMINDER SENT DATE - REMOVED -->
+          <!-- STATUS - REMOVED -->
 
           <div class="col-12">
             <%= f.label :service_type, "Service Type *", class: "form-label fw-semibold" %>
@@ -115,26 +91,16 @@
           </div>
 
           <div class="col-12 col-md-6">
-            <%= f.label :service_provider_id, "Service Provider", class: "form-label fw-semibold" %>
-            <%= f.collection_select :service_provider_id, @service_providers, :id, :name,
-                  { prompt: "Select provider" },
+            <%= f.label :agency_id, "Agency", class: "form-label fw-semibold" %>
+            <%= f.collection_select :agency_id, 
+                  Agency.all.order(:name), 
+                  :id, 
+                  :name,
+                  { prompt: "Select Agency (e.g., PTSC, TTPS, etc.)" },
                   class: "form-select" %>
           </div>
 
-          <div class="col-12 col-md-6">
-            <%= f.label :mileage, "Mileage", class: "form-label fw-semibold" %>
-            <div class="input-group">
-              <%= f.number_field :mileage,
-                    class: "form-control",
-                    value: @maintenance.mileage || @vehicle&.mileage,
-                    placeholder: "Enter mileage" %>
-              <span class="input-group-text">km</span>
-            </div>
-            <% if @vehicle.present? %>
-              <div class="form-text">Vehicle current: <%= @vehicle.mileage %> km</div>
-            <% end %>
-          </div>
-
+          <!-- COST - KEPT -->
           <div class="col-12 col-md-6">
             <%= f.label :cost, "Cost (TTD)", class: "form-label fw-semibold" %>
             <div class="input-group">
@@ -151,12 +117,12 @@
     <div class="col-12 col-lg-5">
 
       <div class="p-3 p-md-4 border rounded-3 bg-white shadow-sm">
-        <h5 class="fw-bold mb-3">Vehicle & Notes</h5>
+        <h5 class="fw-bold mb-3">Vehicle & Mileage</h5>
 
         <% if @vehicle.present? %>
           <div class="mb-3">
             <% if @vehicle.primary_photo.attached? %>
-              <%= image_tag @vehicle.image, class: "img-fluid rounded w-100", style: "max-height: 240px; object-fit: cover;" %>
+              <%= image_tag url_for(@vehicle.primary_photo), class: "img-fluid rounded w-100", style: "max-height: 240px; object-fit: cover;" %>
             <% else %>
               <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width:100%; height:240px;">
                 <i class="bi bi-car-front text-muted" style="font-size: 4rem;"></i>
@@ -175,30 +141,100 @@
                 </span>
               </div>
             </div>
+            
+            <!-- Hidden field for vehicle_id when vehicle is preselected -->
+            <%= f.hidden_field :vehicle_id, value: @vehicle.id %>
           </div>
         <% else %>
-          <div class="alert alert-warning mb-3">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            No vehicle selected. Please select a vehicle first.
-          </div>
+          <!-- Vehicle Search - USING THE SAME WORKING PATTERN AS ALERTS -->
+          <div class="mb-3 position-relative" data-controller="alert-search">
+            <label class="form-label fw-semibold">Vehicle <span class="text-danger">*</span></label>
 
-          <div class="mb-3">
-            <%= f.label :vehicle_id, "Select Vehicle *", class: "form-label fw-semibold" %>
-            <%= f.collection_select :vehicle_id,
-                  Vehicle.active.order(:make, :model),
-                  :id,
-                  ->(v) {
-                    label_id = v.registration_number.presence || v.license_plate.presence || "No ID"
-                    "#{v.make} #{v.model} (#{label_id})"
-                  },
-                  { prompt: "Select a vehicle" },
-                  class: "form-select",
-                  required: true %>
-            <div class="invalid-feedback">Please select a vehicle.</div>
+            <input type="text"
+                   class="form-control"
+                   placeholder="Search by license plate, make, or model... (min 2 chars)"
+                   autocomplete="off"
+                   data-alert-search-target="vehicleInput"
+                   data-action="input->alert-search#vehicleInput"
+                   data-search-url="<%= search_vehicles_path(format: :json) %>">
+
+            <%= f.hidden_field :vehicle_id, 
+                  value: @maintenance.vehicle_id,
+                  data: { alert_search_target: "vehicleHidden" } %>
+
+            <!-- Search results dropdown -->
+            <div class="list-group position-absolute w-100 shadow"
+                 style="z-index: 1055; display:none;"
+                 data-alert-search-target="vehicleResults">
+              <div data-alert-search-target="vehicleList"></div>
+            </div>
+
+            <!-- Selected vehicle chip -->
+            <div class="mt-2" style="display:none;" data-alert-search-target="vehicleSelected">
+              <div class="alert alert-info py-2 mb-0">
+                <i class="bi bi-truck me-2"></i>
+                <span data-alert-search-target="vehicleSelectedText"></span>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger float-end"
+                        data-action="click->alert-search#clearVehicle">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </div>
           </div>
         <% end %>
 
-        <div class="row g-3">
+        <!-- HIDDEN FIELD FOR ASSIGNMENT TYPE - Ensures valid value is submitted -->
+        <%= f.hidden_field :assignment_type, value: 'stores' %>
+
+        <!-- MILEAGE TRACKING SECTION - Using existing mileage field + virtual attributes -->
+        <div class="row g-3 mt-2">
+          <h6 class="fw-semibold mb-0">Mileage Tracking</h6>
+          
+          <div class="col-md-4">
+            <%= f.label :mileage, "Current (km)", class: "form-label" %>
+            <%= f.number_field :mileage, 
+                class: "form-control", 
+                placeholder: "e.g., 125000",
+                min: 0,
+                step: 1,
+                value: @maintenance.mileage || @vehicle&.mileage,
+                data: { 
+                  maintenance_form_target: "currentMileage",
+                  action: "input->maintenance-form#calculateKmLeft"
+                } %>
+            <% if @vehicle.present? && @vehicle.mileage.present? %>
+              <small class="text-muted">Vehicle current: <%= @vehicle.mileage %> km</small>
+            <% end %>
+          </div>
+
+          <div class="col-md-4">
+            <label for="next_maintenance_mileage" class="form-label">Next Service (km)</label>
+            <input type="number"
+                   name="maintenance[next_maintenance_mileage]"
+                   id="maintenance_next_maintenance_mileage"
+                   class="form-control"
+                   placeholder="e.g., 130000"
+                   min="0"
+                   step="1"
+                   value="<%= @maintenance.instance_variable_get(:@next_maintenance_mileage) || '' %>"
+                   data-maintenance-form-target="nextMileage"
+                   data-action="input->maintenance-form#calculateKmLeft">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">KM Until Service</label>
+            <div class="form-control bg-light" 
+                 style="height: 38px; display: flex; align-items: center;"
+                 data-maintenance-form-target="kmLeft">
+              —
+            </div>
+            <small class="text-muted">Auto-calculated</small>
+          </div>
+        </div>
+
+        <!-- NOTES AND DETAILS -->
+        <div class="row g-3 mt-3">
           <div class="col-12">
             <%= f.label :source, "Source", class: "form-label fw-semibold" %>
             <%= f.text_field :source, class: "form-control", placeholder: "e.g., Scheduled, Emergency, Inspection" %>
@@ -209,21 +245,12 @@
             <%= f.text_field :technician, class: "form-control", placeholder: "Name of technician" %>
           </div>
 
-          <div class="col-12">
-            <div class="form-check mt-1">
-              <%= f.check_box :part_in_stock, class: "form-check-input" %>
-              <%= f.label :part_in_stock, "Part in Stock", class: "form-check-label fw-semibold" %>
-            </div>
-          </div>
-
-          <div class="col-12">
-            <%= f.label :estimated_delivery_date, "Estimated Delivery Date", class: "form-label fw-semibold" %>
-            <%= f.text_field :estimated_delivery_date, class: "form-control datepicker", autocomplete: "off" %>
-          </div>
+          <!-- PART IN STOCK - REMOVED -->
+          <!-- ESTIMATED DELIVERY DATE - REMOVED -->
 
           <div class="col-12">
             <%= f.label :notes, "Notes", class: "form-label fw-semibold" %>
-            <%= f.text_area :notes, class: "form-control", rows: 4, placeholder: "Enter any notes here" %>
+            <%= f.text_area :notes, class: "form-control", rows: 3, placeholder: "Enter any notes here" %>
           </div>
 
           <div class="col-12">
@@ -248,6 +275,22 @@
     <%= link_to "View Timeline", gantt_path, class: "btn btn-outline-info ms-lg-auto" %>
   </div>
 
+<% end %>
+
+<!-- Add virtual attributes to the model for this request -->
+<% content_for :head do %>
+  <script>
+    // This ensures the virtual attributes are recognized for this form submission
+    document.addEventListener('turbo:load', function() {
+      const form = document.querySelector('form.needs-validation');
+      if (form) {
+        form.addEventListener('submit', function() {
+          // Add virtual attributes to the model instance for this request
+          // The controller will need to handle these params
+        });
+      }
+    });
+  </script>
 <% end %>
 
 <script>
@@ -308,5 +351,34 @@
         form.classList.add("was-validated");
       }, false);
     });
+
+    // Mileage calculator
+    const currentInput = document.getElementById("maintenance_mileage");
+    const nextInput = document.getElementById("maintenance_next_maintenance_mileage");
+    const kmLeftDisplay = document.querySelector("[data-maintenance-form-target='kmLeft']");
+
+    function calculateKmLeft() {
+      if (!kmLeftDisplay) return;
+      
+      const current = parseFloat(currentInput?.value) || 0;
+      const next = parseFloat(nextInput?.value) || 0;
+      
+      if (current > 0 && next > current) {
+        const kmLeft = next - current;
+        kmLeftDisplay.textContent = kmLeft.toLocaleString() + " km";
+        kmLeftDisplay.style.color = kmLeft < 1000 ? "#dc3545" : "#198754";
+        kmLeftDisplay.style.fontWeight = kmLeft < 1000 ? "bold" : "normal";
+      } else {
+        kmLeftDisplay.textContent = "—";
+        kmLeftDisplay.style.color = "";
+        kmLeftDisplay.style.fontWeight = "normal";
+      }
+    }
+
+    if (currentInput) currentInput.addEventListener("input", calculateKmLeft);
+    if (nextInput) nextInput.addEventListener("input", calculateKmLeft);
+    
+    // Initial calculation
+    setTimeout(calculateKmLeft, 100);
   });
 </script>

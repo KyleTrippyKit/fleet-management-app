@@ -121,7 +121,7 @@
     
     <div class="po-info">
       <h3>PO #: <%= @purchase_order.po_number %></h3>
-      <p>Status: <%= @purchase_order.status.humanize %></p>
+      <p>Status: <%= @purchase_order.display_status %></p>
       <p>Created: <%= @purchase_order.created_at.strftime('%B %d, %Y') %></p>
     </div>
   </div>
@@ -137,7 +137,7 @@
     <% end %>
   </div>
   
-  <!-- Line Items -->
+  <!-- Line Items - FIXED with safe navigation -->
   <div class="section">
     <div class="section-title">Items Ordered</div>
     <table>
@@ -151,15 +151,29 @@
         </tr>
       </thead>
       <tbody>
-        <% @purchase_order_items.each_with_index do |item, index| %>
+        <% 
+          # Safely get purchase order items - FIXED
+          items = (@purchase_order_items || @purchase_order.purchase_order_items)
+          items = items.to_a if items.respond_to?(:to_a)
+          items = [] if items.nil?
+        %>
+        
+        <% if items.any? %>
+          <% items.each_with_index do |item, index| %>
+            <tr>
+              <td><%= index + 1 %></td>
+              <td><%= item.description %></td>
+              <td><%= item.quantity %></td>
+              <td style="text-align: right;"><%= number_to_currency(item.unit_price, unit: '') %></td>
+              <td style="text-align: right;"><%= number_to_currency(item.total_price, unit: '') %></td>
+            </tr>
+          <% end %>
+        <% else %>
           <tr>
-            <td><%= index + 1 %></td>
-            <td><%= item.description %></td>
-            <td><%= item.quantity %></td>
-            <td style="text-align: right;"><%= number_to_currency(item.unit_price, unit: '') %></td>
-            <td style="text-align: right;"><%= number_to_currency(item.total_price, unit: '') %></td>
+            <td colspan="5" style="text-align: center; color: #666;">No items found for this purchase order</td>
           </tr>
         <% end %>
+        
         <tr class="total-row">
           <td colspan="4" style="text-align: right;"><strong>Total:</strong></td>
           <td style="text-align: right;"><strong>TTD <%= number_to_currency(@purchase_order.amount, unit: '') %></strong></td>
@@ -171,7 +185,7 @@
   <!-- Payment Information -->
   <div class="section">
     <div class="section-title">Payment Information</div>
-    <p><strong>Payment Status:</strong> <%= @purchase_order.payment_status.humanize %></p>
+    <p><strong>Payment Status:</strong> <%= @purchase_order.display_payment_status %></p>
     <% if @purchase_order.payment_method %>
       <p><strong>Payment Method:</strong> <%= @purchase_order.payment_method.humanize %></p>
     <% end %>
@@ -232,6 +246,10 @@
     <p>4. This purchase order is subject to Trinidad and Tobago laws.</p>
   </div>
   
+  <div style="text-align: center; font-size: 9px; color: #666; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 30px;">
+    Trinidad Fleet Management System | <%= Date.current.strftime('%B %d, %Y') %> | PO: <%= @purchase_order.po_number %>
+  </div>
+  
   <script>
     // Auto-print when loaded
     window.onload = function() {
@@ -241,14 +259,6 @@
         window.close();
       }, 1000);
     };
-    
-    // Alternative: allow manual printing
-    document.addEventListener('keydown', function(e) {
-      if (e.ctrlKey && e.key === 'p') {
-        e.preventDefault();
-        window.print();
-      }
-    });
   </script>
 </body>
 </html>

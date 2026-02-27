@@ -199,6 +199,17 @@ class MaintenancesController < ApplicationController
     validate_date_order(@maintenance)
 
     if @maintenance.errors.empty? && @maintenance.save
+      # ✅ Update vehicle mileage if current mileage is provided
+      if params[:maintenance][:mileage].present? && @vehicle.present?
+        @vehicle.update(mileage: params[:maintenance][:mileage])
+      end
+
+      # ✅ Handle next_maintenance_mileage virtual attribute
+      if params[:maintenance][:next_maintenance_mileage].present? && @vehicle.present?
+        # Store this in a session or use it for notifications
+        session[:next_maintenance_mileage] = params[:maintenance][:next_maintenance_mileage]
+      end
+
       # ✅ part_in_stock may not exist in some schemas → safely handle
       part_in_stock_value =
         if @maintenance.respond_to?(:part_in_stock)
@@ -238,6 +249,11 @@ class MaintenancesController < ApplicationController
     validate_date_order(@maintenance)
 
     if @maintenance.errors.empty? && @maintenance.update(maintenance_params)
+      # ✅ Update vehicle mileage if current mileage is provided
+      if params[:maintenance][:mileage].present? && @vehicle.present?
+        @vehicle.update(mileage: params[:maintenance][:mileage])
+      end
+
       if request.xhr?
         render json: { success: true, message: "Maintenance updated successfully" }
       else
@@ -305,8 +321,10 @@ class MaintenancesController < ApplicationController
       :notes, :mileage, :status, :assignment_type,
       :service_provider_id, :estimated_delivery_date, :source, :start_date,
       :end_date, :category, :urgency, :vehicle_id,
-      # keep it permitted if it exists in DB; harmless if it doesn't
-      :part_in_stock
+      # Keep existing fields
+      :part_in_stock,
+      # New virtual attribute for next maintenance mileage
+      :next_maintenance_mileage
     )
   end
 
@@ -422,7 +440,8 @@ class MaintenancesController < ApplicationController
           service_owner: vehicle.service_owner,
           registration_number: vehicle.registration_number,
           current_driver: vehicle.driver&.name || "Unassigned",
-          vehicle_type: vehicle.vehicle_type
+          vehicle_type: vehicle.vehicle_type,
+          current_mileage: vehicle.mileage
         }
       }
 
@@ -466,7 +485,8 @@ class MaintenancesController < ApplicationController
             duration: (m.respond_to?(:duration_days) ? m.duration_days : nil),
             service_owner: vehicle.service_owner,
             service_type: m.service_type,
-            category: m.category
+            category: m.category,
+            mileage: m.mileage
           }
         }
       end

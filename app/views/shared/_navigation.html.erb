@@ -195,21 +195,23 @@
                   </li>
                 <% end %>
 
-                <!-- DRIVERS SECTION -->
-                <li><hr class="dropdown-divider"></li>
-                <li class="dropdown-section">DRIVERS</li>
-                <li>
-                  <%= link_to drivers_path, class: "dropdown-item" do %>
-                    <i class="bi bi-person-badge me-2"></i> Manage Drivers
-                  <% end %>
-                </li>
-                <li>
-                  <%= link_to new_driver_path, class: "dropdown-item" do %>
-                    <i class="bi bi-person-plus me-2"></i> Add New Driver
-                  <% end %>
-                </li>
+                <%# DRIVERS SECTION - SHOW ONLY FOR NON-VMCOTT USERS %>
+                <% if agency_code != "VMCOTT" %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">DRIVERS</li>
+                  <li>
+                    <%= link_to drivers_path, class: "dropdown-item" do %>
+                      <i class="bi bi-person-badge me-2"></i> Manage Drivers
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to new_driver_path, class: "dropdown-item" do %>
+                      <i class="bi bi-person-plus me-2"></i> Add New Driver
+                    <% end %>
+                  </li>
+                <% end %>
 
-                <%# Hide Alerts for VMCOTT users %>
+                <%# Alerts section - Show for all except VMCOTT %>
                 <% if agency_code != "VMCOTT" %>
                   <li><hr class="dropdown-divider"></li>
                   <li class="dropdown-section">ALERTS</li>
@@ -239,17 +241,7 @@
               <ul class="dropdown-menu dropdown-menu-float">
                 <li class="dropdown-section">MAINTENANCE</li>
 
-                <li>
-                  <% if agency_code == "PTSC" %>
-                    <%= link_to ptsc_maintenance_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-wrench me-2"></i> Dashboard
-                    <% end %>
-                  <% else %>
-                    <%= link_to maintenance_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-wrench me-2"></i> Dashboard
-                    <% end %>
-                  <% end %>
-                </li>
+                <!-- REMOVED: Dashboard link from Maintenance dropdown -->
 
                 <li>
                   <%= link_to gantt_path, class: "dropdown-item" do %>
@@ -428,7 +420,7 @@
             </div>
           <% end %>
 
-          <!-- ================= FINANCE (VMCOTT Finance only) ================= -->
+          <!-- ================= FINANCE (VMCOTT Finance only) - UPDATED TO HIDE ITEMS ================= -->
           <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_finance) %>
             <div class="dropdown nav-dd">
               <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
@@ -450,28 +442,6 @@
                 <li>
                   <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
                     <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
-                  <% end %>
-                </li>
-
-                <li><hr class="dropdown-divider"></li>
-
-                <li class="dropdown-section">PROCUREMENT REVIEW</li>
-                <li>
-                  <%= link_to alerts_path(status: 'awaiting_procurement'), class: "dropdown-item" do %>
-                    <i class="bi bi-bell me-2"></i> Alerts Awaiting Procurement
-                    <%# Optional: Add badge with count %>
-                    <% if defined?(Alert) && Alert.respond_to?(:awaiting_procurement) %>
-                      <span class="badge bg-warning ms-2"><%= Alert.awaiting_procurement.count %></span>
-                    <% end %>
-                  <% end %>
-                </li>
-
-                <li><hr class="dropdown-divider"></li>
-
-                <li class="dropdown-section">FINANCE DASHBOARD</li>
-                <li>
-                  <%= link_to vmcott_dashboard_path, class: "dropdown-item" do %>
-                    <i class="bi bi-graph-up me-2"></i> VMCOTT Dashboard
                   <% end %>
                 </li>
               </ul>

@@ -276,8 +276,13 @@ class VehiclesController < ApplicationController
     @query        = params[:search].presence || params[:query].presence
     @owner_filter = params[:owner].presence && params[:owner] != "All Owners" ? params[:owner] : nil
 
-    # NEW: server-side tab selector (instead of bootstrap tabs)
-    @priority = params[:priority].presence_in?(%w[overdue pending upcoming completed]) || "overdue"
+    # FIXED: Safe navigation to handle nil params[:priority]
+    # This was causing NoMethodError (undefined method `presence_in?' for nil)
+    @priority = if params[:priority].present?
+                  params[:priority].presence_in?(%w[overdue pending upcoming completed]) || "overdue"
+                else
+                  "overdue"
+                end
 
     # Check if we're filtering by a specific agency (from the link click)
     if params[:agency_id].present?
