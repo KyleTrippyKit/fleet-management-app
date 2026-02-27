@@ -1,0 +1,150 @@
+<%# app/views/ptsc/fleet_dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">
+        <i class="fas fa-truck me-2"></i>
+        PTSC Fleet Manager Dashboard
+      </h1>
+      <p class="text-muted">Manage your fleet vehicles and operations</p>
+    </div>
+    <div class="col-auto">
+      <%= link_to vehicles_path, class: "btn btn-primary" do %>
+        <i class="fas fa-bus me-2"></i> View All Vehicles
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-primary text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Total Vehicles</h6>
+          <h2 class="mb-0"><%= @stats[:total_vehicles] %></h2>
+          <small>In your fleet</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-success text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Active</h6>
+          <h2 class="mb-0"><%= @stats[:active_vehicles] %></h2>
+          <small>On the road</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-warning text-dark">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">In Maintenance</h6>
+          <h2 class="mb-0"><%= @stats[:maintenance_vehicles] %></h2>
+          <small>Being serviced</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-danger text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Active Alerts</h6>
+          <h2 class="mb-0"><%= @stats[:active_alerts] %></h2>
+          <small>Need attention</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Links -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Quick Actions</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <%= link_to vehicles_path, class: "btn btn-outline-primary" do %>
+              <i class="fas fa-list me-2"></i> Manage Vehicles
+            <% end %>
+            <%= link_to new_vehicle_path, class: "btn btn-outline-success" do %>
+              <i class="fas fa-plus-circle me-2"></i> Add Vehicle
+            <% end %>
+            <%= link_to alerts_path, class: "btn btn-outline-warning" do %>
+              <i class="fas fa-bell me-2"></i> View Alerts
+              <% if @stats[:active_alerts] > 0 %>
+                <span class="badge bg-danger ms-2"><%= @stats[:active_alerts] %></span>
+              <% end %>
+            <% end %>
+            <%= link_to ptsc_maintenance_dashboard_path, class: "btn btn-outline-secondary" do %>
+              <i class="fas fa-tools me-2"></i> Maintenance Schedule
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Alerts -->
+  <% if @active_alerts.any? %>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Active Alerts</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          <% @active_alerts.each do |alert| %>
+            <%= link_to alert_path(alert), class: "list-group-item list-group-item-action" do %>
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="badge bg-<%= alert.severity == 'critical' ? 'danger' : 'warning' %> me-2">
+                    <%= alert.severity.titleize %>
+                  </span>
+                  <%= alert.title %>
+                  <small class="text-muted ms-2">
+                    <%= alert.vehicle&.license_plate %>
+                  </small>
+                </div>
+                <small class="text-muted"><%= time_ago_in_words(alert.created_at) %> ago</small>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Upcoming Maintenance -->
+  <% if @maintenance_schedule.any? %>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Upcoming Maintenance</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Service Type</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @maintenance_schedule.each do |m| %>
+              <tr>
+                <td><%= m.vehicle&.license_plate %></td>
+                <td><%= m.service_type %></td>
+                <td>
+                  <%= m.due_date.strftime("%b %d, %Y") %>
+                  <% if m.due_date < Date.today %>
+                    <span class="badge bg-danger ms-2">Overdue</span>
+                  <% end %>
+                </td>
+                <td><span class="badge bg-<%= m.status == 'pending' ? 'warning' : 'info' %>"><%= m.status.titleize %></span></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+</div>

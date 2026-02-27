@@ -1,8 +1,9 @@
+<%# app/views/drivers/index.html.erb %>
 <div class="container py-4">
   <!-- Header Section -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Drivers</h1>
-    <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary" %>
+    <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary", data: { turbo_frame: "_top" } %>
   </div>
 
   <!-- Search & Stats -->
@@ -10,7 +11,7 @@
     <div class="card-body">
       <div class="row">
         <div class="col-md-8">
-          <%= form_with url: drivers_path, method: :get, data: { turbo_frame: "drivers_table" }, local: true, class: "row g-2" do |f| %>
+          <%= form_with url: drivers_path, method: :get, data: { turbo_frame: "drivers_table" }, class: "row g-2" do |f| %>
             <div class="col-md-8">
               <div class="input-group">
                 <%= f.text_field :query, 
@@ -23,7 +24,7 @@
               </div>
             </div>
             <div class="col-md-4">
-              <%= link_to "Clear Search", drivers_path, class: "btn btn-outline-secondary w-100" %>
+              <%= link_to "Clear Search", drivers_path, class: "btn btn-outline-secondary w-100", data: { turbo_frame: "drivers_table" } %>
             </div>
           <% end %>
         </div>
@@ -64,7 +65,7 @@
                         <i class="bi bi-person-circle text-muted"></i>
                       </div>
                       <div>
-                        <%= link_to driver.name, driver_path(driver), class: "text-decoration-none fw-medium" %>
+                        <%= link_to driver.name, driver_path(driver), class: "text-decoration-none fw-medium", data: { turbo_frame: "_top" } %>
                         <% if driver.employee_id.present? %>
                           <br><small class="text-muted"><%= driver.employee_id %></small>
                         <% end %>
@@ -90,7 +91,10 @@
                       <div class="d-flex flex-wrap gap-1">
                         <% driver.vehicles.limit(2).each do |vehicle| %>
                           <span class="badge bg-info text-dark">
-                            <%= link_to vehicle.registration_number, vehicle_path(vehicle), class: "text-decoration-none text-dark" %>
+                            <%= link_to vehicle.registration_number.presence || vehicle.license_plate, 
+                                  vehicle_path(vehicle), 
+                                  class: "text-decoration-none text-dark",
+                                  data: { turbo_frame: "_top" } %>
                           </span>
                         <% end %>
                         <% if driver.vehicles.count > 2 %>
@@ -118,17 +122,20 @@
                   <!-- Actions -->
                   <td class="text-end">
                     <div class="btn-group btn-group-sm" role="group">
-                      <%= link_to "View", driver_path(driver), class: "btn btn-outline-primary" %>
-                      <%= link_to "Edit", edit_driver_path(driver), class: "btn btn-outline-secondary" %>
+                      <%= link_to "View", driver_path(driver), class: "btn btn-outline-primary", data: { turbo_frame: "_top" } %>
+                      <%= link_to "Edit", edit_driver_path(driver), class: "btn btn-outline-secondary", data: { turbo_frame: "_top" } %>
                       
                       <% if driver.trips.none? && driver.vehicles.none? %>
-                        <%= link_to "Delete", 
+                        <%= button_to "Delete", 
                               driver_path(driver), 
-                              method: :get,
-                              data: { turbo_confirm: "Delete #{driver.name}?" },
-                              class: "btn btn-outline-danger" %>
+                              method: :delete,
+                              data: { 
+                                turbo_confirm: "Delete #{driver.name}?",
+                                turbo_frame: "_top"
+                              },
+                              class: "btn btn-outline-danger btn-sm" %>
                       <% else %>
-                        <button class="btn btn-outline-danger" disabled title="Cannot delete driver with trips or assigned vehicles">
+                        <button class="btn btn-outline-danger btn-sm" disabled title="Cannot delete driver with trips or assigned vehicles">
                           Delete
                         </button>
                       <% end %>
@@ -144,7 +151,7 @@
         <% if @drivers.total_pages > 1 %>
           <div class="card-footer">
             <div class="d-flex justify-content-center">
-              <%= paginate @drivers %>
+              <%= paginate @drivers, data: { turbo_frame: "drivers_table" } %>
             </div>
           </div>
         <% end %>
@@ -156,10 +163,10 @@
           <h4 class="text-muted">No drivers found</h4>
           <% if params[:query].present? %>
             <p class="text-muted">No drivers match your search for "<%= params[:query] %>"</p>
-            <%= link_to "Clear search", drivers_path, class: "btn btn-outline-primary mt-2" %>
+            <%= link_to "Clear search", drivers_path, class: "btn btn-outline-primary mt-2", data: { turbo_frame: "drivers_table" } %>
           <% else %>
             <p class="text-muted">Get started by adding your first driver</p>
-            <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary mt-2" %>
+            <%= link_to "Add New Driver", new_driver_path, class: "btn btn-primary mt-2", data: { turbo_frame: "_top" } %>
           <% end %>
         </div>
       </div>

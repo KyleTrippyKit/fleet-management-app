@@ -1,4 +1,4 @@
-<%# app/views/shared/_navigation.html.erb - ROLE DROPDOWN NAV (Role-based access) %>
+<%# app/views/shared/_navigation.html.erb - ROLE-BASED DASHBOARD NAVIGATION %>
 
 <% return unless current_user.present? %>
 
@@ -54,16 +54,55 @@
 <%# Only VMCOTT can write maintenance - PTSC users cannot add maintenance even if admin %>
 <% can_write_maintenance = agency_code == "VMCOTT" %>
 
+<%# ROLE-BASED DASHBOARD PATH - MATCHES HOMECONTROLLER LOGIC %>
 <%
-  dashboard_path =
-    case agency_code
-    when "PTSC"   then ptsc_dashboard_path
-    when "TTPS"   then ttps_dashboard_path
-    when "TTDF"   then ttdf_dashboard_path
-    when "VMCOTT" then vmcott_dashboard_path
+  # PTSC Admin goes to PTSC dashboard
+  if agency_code == "PTSC" && current_user.admin?
+    dashboard_path = ptsc_dashboard_path
+  # PTSC users by role
+  elsif agency_code == "PTSC"
+    case current_user.role
+    when 'fleet_manager'
+      dashboard_path = ptsc_fleet_dashboard_path
+    when 'finance'
+      dashboard_path = ptsc_finance_dashboard_path
+    when 'driver'
+      dashboard_path = ptsc_driver_dashboard_path
+    when 'maintenance_supervisor', 'maintenance'
+      dashboard_path = ptsc_maintenance_dashboard_path
     else
-      main_dashboard_path
+      dashboard_path = ptsc_dashboard_path
     end
+  # VMCOTT users (including admins) always go to VMCOTT dashboard
+  elsif agency_code == "VMCOTT"
+    dashboard_path = vmcott_dashboard_path
+  else
+    # For other agencies, use role-based routing
+    case current_user.role
+    when 'admin'
+      dashboard_path = main_dashboard_path
+    when 'fleet_manager'
+      if agency.present?
+        dashboard_path = agency_vehicles_path(agency)
+      else
+        dashboard_path = main_dashboard_path
+      end
+    when 'finance'
+      dashboard_path = main_dashboard_path
+    when 'driver'
+      dashboard_path = driver_dashboard_path
+    when 'maintenance_supervisor', 'maintenance'
+      dashboard_path = maintenance_dashboard_path
+    else
+      # Legacy agency-based dashboards as fallback
+      case agency_code
+      when "TTPS"   then ttps_dashboard_path
+      when "TTDF"   then ttdf_dashboard_path
+      else
+        main_dashboard_path
+      end
+    end
+  end
 %>
 
 <div class="mb-4">
@@ -74,10 +113,39 @@
         <!-- LEFT -->
         <div class="d-flex flex-wrap gap-2 align-items-center">
 
-          <!-- Dashboard -->
+          <!-- Dashboard - Role-based -->
           <%= link_to dashboard_path,
             class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill #{current_page?(dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
             <i class="bi bi-speedometer2 me-1"></i> Dashboard
+          <% end %>
+
+          <!-- ================= Admin Section - PTSC ONLY ================= -->
+          <% if current_user.admin? && agency_code == "PTSC" %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-shield-lock me-1"></i> Admin
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float">
+                <li class="dropdown-section">USER MANAGEMENT</li>
+                <li>
+                  <%= link_to admin_users_path, class: "dropdown-item" do %>
+                    <i class="bi bi-people me-2"></i> Manage Users
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to new_admin_user_path, class: "dropdown-item" do %>
+                    <i class="bi bi-person-plus me-2"></i> Create New User
+                  <% end %>
+                </li>
+                <!-- MANAGE AGENCIES LINK REMOVED - PTSC only manages its own users -->
+              </ul>
+            </div>
           <% end %>
 
           <!-- ================= Fleet Manager ================= -->
@@ -127,7 +195,7 @@
                   </li>
                 <% end %>
 
-                <!-- ✅ DRIVERS SECTION - ADDED HERE FOR FLEET MANAGERS AND ADMINS -->
+                <!-- DRIVERS SECTION -->
                 <li><hr class="dropdown-divider"></li>
                 <li class="dropdown-section">DRIVERS</li>
                 <li>
@@ -141,7 +209,7 @@
                   <% end %>
                 </li>
 
-                <%# ✅ Hide Alerts for VMCOTT users (remove Alerts section entirely) %>
+                <%# Hide Alerts for VMCOTT users %>
                 <% if agency_code != "VMCOTT" %>
                   <li><hr class="dropdown-divider"></li>
                   <li class="dropdown-section">ALERTS</li>
@@ -172,14 +240,26 @@
                 <li class="dropdown-section">MAINTENANCE</li>
 
                 <li>
-                  <%= link_to maintenance_dashboard_vehicles_path, class: "dropdown-item" do %>
-                    <i class="bi bi-wrench me-2"></i> Dashboard
+                  <% if agency_code == "PTSC" %>
+                    <%= link_to ptsc_maintenance_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-wrench me-2"></i> Dashboard
+                    <% end %>
+                  <% else %>
+                    <%= link_to maintenance_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-wrench me-2"></i> Dashboard
+                    <% end %>
                   <% end %>
                 </li>
 
                 <li>
                   <%= link_to gantt_path, class: "dropdown-item" do %>
                     <i class="bi bi-bar-chart-steps me-2"></i> Timeline (Gantt)
+                  <% end %>
+                </li>
+
+                <li>
+                  <%= link_to maintenances_path, class: "dropdown-item" do %>
+                    <i class="bi bi-list me-2"></i> View All
                   <% end %>
                 </li>
 
@@ -385,6 +465,15 @@
                     <% end %>
                   <% end %>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="dropdown-section">FINANCE DASHBOARD</li>
+                <li>
+                  <%= link_to vmcott_dashboard_path, class: "dropdown-item" do %>
+                    <i class="bi bi-graph-up me-2"></i> VMCOTT Dashboard
+                  <% end %>
+                </li>
               </ul>
             </div>
 
@@ -421,6 +510,21 @@
                     <i class="bi bi-bell me-2"></i> View All Alerts
                   <% end %>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li class="dropdown-section">FINANCE DASHBOARD</li>
+                <li>
+                  <% if agency_code == "PTSC" %>
+                    <%= link_to ptsc_finance_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-graph-up me-2"></i> Finance Dashboard
+                    <% end %>
+                  <% else %>
+                    <%= link_to main_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-graph-up me-2"></i> Main Dashboard
+                    <% end %>
+                  <% end %>
+                </li>
               </ul>
             </div>
           <% end %>
@@ -439,6 +543,18 @@
 
               <ul class="dropdown-menu dropdown-menu-float">
                 <li class="dropdown-section">DRIVER</li>
+
+                <li>
+                  <% if agency_code == "PTSC" %>
+                    <%= link_to ptsc_driver_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-speedometer2 me-2"></i> Driver Dashboard
+                    <% end %>
+                  <% else %>
+                    <%= link_to driver_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-speedometer2 me-2"></i> Driver Dashboard
+                    <% end %>
+                  <% end %>
+                </li>
 
                 <li>
                   <%= link_to my_vehicle_drivers_path, class: "dropdown-item" do %>

@@ -1,0 +1,196 @@
+<%# app/views/ptsc/maintenance_dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">
+        <i class="fas fa-tools me-2"></i>
+        PTSC Maintenance Dashboard
+      </h1>
+      <p class="text-muted">Manage vehicle maintenance and repairs</p>
+    </div>
+    <div class="col-auto">
+      <!-- Schedule Maintenance button removed -->
+    </div>
+  </div>
+
+  <!-- Quick Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-warning text-dark">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Pending</h6>
+          <h2 class="mb-0"><%= @stats[:pending] %></h2>
+          <small>Awaiting service</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-info text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">In Progress</h6>
+          <h2 class="mb-0"><%= @stats[:in_progress] %></h2>
+          <small>Currently being worked on</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-success text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Completed (Week)</h6>
+          <h2 class="mb-0"><%= @stats[:completed_this_week] %></h2>
+          <small>Last 7 days</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-danger text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Overdue</h6>
+          <h2 class="mb-0"><%= @stats[:overdue] %></h2>
+          <small>Past due date</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Quick Actions</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <!-- Schedule New button removed -->
+            <%= link_to maintenances_path, class: "btn btn-outline-primary" do %>
+              <i class="fas fa-list me-2"></i> View All
+            <% end %>
+            <%= link_to gantt_path, class: "btn btn-outline-secondary" do %>
+              <i class="fas fa-chart-gantt me-2"></i> Timeline View
+            <% end %>
+            <%= link_to vehicles_path(status: 'maintenance'), class: "btn btn-outline-warning" do %>
+              <i class="fas fa-bus me-2"></i> Vehicles in Maintenance
+              <% if @vehicles_in_maintenance.any? %>
+                <span class="badge bg-warning ms-2"><%= @vehicles_in_maintenance.count %></span>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending Maintenance -->
+  <% if @pending_maintenance.any? %>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Pending Maintenance</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Service Type</th>
+              <th>Due Date</th>
+              <th>Priority</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @pending_maintenance.each do |m| %>
+              <tr class="<%= 'table-danger' if m.due_date < Date.today %>">
+                <td>
+                  <strong><%= m.vehicle&.license_plate %></strong>
+                  <br><small class="text-muted"><%= m.vehicle&.make %> <%= m.vehicle&.model %></small>
+                </td>
+                <td><%= m.service_type %></td>
+                <td>
+                  <%= m.due_date.strftime("%b %d, %Y") %>
+                  <% if m.due_date < Date.today %>
+                    <span class="badge bg-danger">Overdue</span>
+                  <% end %>
+                </td>
+                <td>
+                  <span class="badge bg-<%= m.priority == 'high' ? 'danger' : (m.priority == 'medium' ? 'warning' : 'info') %>">
+                    <%= m.priority.titleize %>
+                  </span>
+                </td>
+                <td>
+                  <%= link_to "Start", start_maintenance_path(m), method: :post, class: "btn btn-sm btn-success" %>
+                  <%= link_to "View", m, class: "btn btn-sm btn-outline-secondary" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- In Progress -->
+  <% if @in_progress.any? %>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">In Progress</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Service Type</th>
+              <th>Started</th>
+              <th>Assigned To</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @in_progress.each do |m| %>
+              <tr>
+                <td><strong><%= m.vehicle&.license_plate %></strong></td>
+                <td><%= m.service_type %></td>
+                <td><%= m.started_at&.strftime("%b %d, %H:%M") %></td>
+                <td><%= m.assigned_to&.name || 'Unassigned' %></td>
+                <td>
+                  <%= link_to "Complete", complete_maintenance_path(m), method: :post, class: "btn btn-sm btn-success" %>
+                  <%= link_to "View", m, class: "btn btn-sm btn-outline-secondary" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Recent Completed -->
+  <% if @recent_completed.any? %>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Recently Completed</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Vehicle</th>
+              <th>Service Type</th>
+              <th>Completed</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @recent_completed.each do |m| %>
+              <tr>
+                <td><%= m.vehicle&.license_plate %></td>
+                <td><%= m.service_type %></td>
+                <td><%= m.completed_at&.strftime("%b %d, %Y") %></td>
+                <td><%= number_to_currency(m.cost) if m.cost %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+</div>

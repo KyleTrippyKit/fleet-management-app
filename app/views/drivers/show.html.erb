@@ -1,3 +1,4 @@
+<%# app/views/drivers/show.html.erb %>
 <div class="container py-4">
   <!-- ============================================================
        Header Section
@@ -5,8 +6,8 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">Driver: <%= @driver.name %></h1>
     <div>
-      <%= link_to "Edit Driver", edit_driver_path(@driver), class: "btn btn-warning" %>
-      <%= link_to "Back to Drivers", drivers_path, class: "btn btn-secondary" %>
+      <%= link_to "Edit Driver", edit_driver_path(@driver), class: "btn btn-warning", data: { turbo_frame: "_top" } %>
+      <%= link_to "Back to Drivers", drivers_path, class: "btn btn-secondary", data: { turbo_frame: "_top" } %>
     </div>
   </div>
 
@@ -37,7 +38,7 @@
             </tr>
             <tr>
               <th>Contact:</th>
-              <td><%= @driver.contact_number || "Not provided" %></td>
+              <td><%= @driver.contact_number.presence || @driver.phone.presence || "Not provided" %></td>
             </tr>
             <tr>
               <th>Emergency Contact:</th>
@@ -63,13 +64,13 @@
       <div class="card shadow-sm h-100">
         <div class="card-body">
           <h5 class="card-title">Current Assignment</h5>
-          <% if @assigned_vehicles.present? %>
+          <% if @assigned_vehicles.present? && @assigned_vehicles.any? %>
             <div class="mb-3">
               <strong>Currently Driving:</strong>
               <ul class="list-group mt-2">
                 <% @assigned_vehicles.each do |vehicle| %>
                   <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <%= link_to vehicle.display_name, vehicle_path(vehicle), class: "text-decoration-none" %>
+                    <%= link_to vehicle.display_name, vehicle_path(vehicle), class: "text-decoration-none", data: { turbo_frame: "_top" } %>
                     <span class="badge <%= vehicle.status == 'active' ? 'bg-success' : 'bg-warning' %>">
                       <%= vehicle.status&.titleize || 'Unknown' %>
                     </span>
@@ -93,106 +94,14 @@
   </div>
 
   <!-- ============================================================
-       Maintenance Performance Metrics
-       ============================================================ -->
-  <div class="card mb-4 shadow-sm">
-    <div class="card-body">
-      <h5 class="card-title">Maintenance Performance</h5>
-      <div class="row text-center">
-        <div class="col-md-3 col-6 mb-3">
-          <div class="card bg-light">
-            <div class="card-body">
-              <h2 class="text-primary"><%= @maintenance_stats[:reports_submitted] %></h2>
-              <small class="text-muted">Issues Reported</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3 col-6 mb-3">
-          <div class="card bg-light">
-            <div class="card-body">
-              <h2 class="<%= @maintenance_stats[:open_issues] > 0 ? 'text-warning' : 'text-success' %>">
-                <%= @maintenance_stats[:open_issues] %>
-              </h2>
-              <small class="text-muted">Open Issues</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3 col-6 mb-3">
-          <div class="card bg-light">
-            <div class="card-body">
-              <h2 class="text-success"><%= @maintenance_stats[:resolved_issues] %></h2>
-              <small class="text-muted">Resolved Issues</small>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3 col-6 mb-3">
-          <div class="card bg-light">
-            <div class="card-body">
-              <h2 class="<%= @performance_metrics[:avg_response_time_hours].to_f > 48 ? 'text-danger' : 'text-success' %>">
-                <%= @performance_metrics[:avg_response_time_hours] || 0 %>
-              </h2>
-              <small class="text-muted">Avg Response (hours)</small>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================
-       Damage Reports
-       ============================================================ -->
-  <% if @damage_reports && @damage_reports.any? %>
-    <div class="card mb-4 shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title">Damage Reports</h5>
-        <div class="table-responsive">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Vehicle</th>
-                <th>Damage Type</th>
-                <th>Severity</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @damage_reports.each do |report| %>
-                <tr>
-                  <td><%= report.created_at.strftime("%b %d, %Y") %></td>
-                  <td><%= report.vehicle.display_name %></td>
-                  <td><%= report.damage_type %></td>
-                  <td>
-                    <span class="badge bg-<%= case report.severity
-                                             when 'minor' then 'success'
-                                             when 'moderate' then 'warning'
-                                             when 'major' then 'danger'
-                                             else 'secondary'
-                                             end %>">
-                      <%= report.severity&.titleize || 'Unknown' %>
-                    </span>
-                  </td>
-                  <td><%= report.status&.titleize || 'Unknown' %></td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-        <%= paginate @damage_reports, param_name: :damage_page if @damage_reports.respond_to?(:total_pages) %>
-      </div>
-    </div>
-  <% end %>
-
-  <!-- ============================================================
-       Recent Trips (Maintenance Context)
+       Recent Trips
        ============================================================ -->
   <div class="card mb-4 shadow-sm">
     <div class="card-body">
       <h5 class="card-title">Recent Trips</h5>
-      <% if @trips.any? %>
+      <% if @trips.present? && @trips.any? %>
         <p class="text-muted mb-3">
-          <small>Recent driving activity can help identify patterns in maintenance issues.</small>
+          <small>Recent driving activity recorded for this driver.</small>
         </p>
         <div class="table-responsive">
           <table class="table table-sm">
@@ -207,16 +116,16 @@
             <tbody>
               <% @trips.each do |trip| %>
                 <tr>
-                  <td><%= trip.start_time.strftime("%b %d") %></td>
-                  <td><%= trip.vehicle.display_name %></td>
-                  <td><%= "%.1f" % trip.duration_hours %> hrs</td>
-                  <td><%= trip.distance_km %> km</td>
+                  <td><%= trip.start_time.strftime("%b %d, %Y") %></td>
+                  <td><%= trip.vehicle&.display_name || "Unknown" %></td>
+                  <td><%= "%.1f" % (trip.duration_hours || 0) %> hrs</td>
+                  <td><%= number_with_delimiter(trip.distance_km || 0) %> km</td>
                 </tr>
               <% end %>
             </tbody>
           </table>
         </div>
-        <%= paginate @trips, param_name: :trip_page %>
+        <%= paginate @trips, param_name: :trip_page if @trips.respond_to?(:total_pages) && @trips.total_pages > 1 %>
       <% else %>
         <p class="text-muted">No trips recorded for this driver.</p>
       <% end %>
@@ -233,9 +142,9 @@
         <p class="text-muted small mb-3">
           This will permanently remove the driver record. Only available if driver has no trips or vehicles.
         </p>
-        <%= link_to "Delete Driver", 
+        <%= button_to "Delete Driver", 
               driver_path(@driver), 
-              method: :get,
+              method: :delete,
               data: { 
                 turbo_confirm: "Are you sure you want to delete #{@driver.name}? This action cannot be undone.",
                 turbo_frame: "_top"

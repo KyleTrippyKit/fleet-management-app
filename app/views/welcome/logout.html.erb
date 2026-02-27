@@ -1,6 +1,11 @@
 <%# app/views/welcome/logout.html.erb %>
 <%= stylesheet_link_tag "agencies", media: "all", "data-turbo-track": "reload" %>
 
+<%
+  # Safely get agency, with fallback
+  @agency = current_user&.agency || Agency.find_by(code: 'PTSC') || Agency.first
+%>
+
 <div class="logout-confirmation-container min-vh-100 d-flex align-items-center justify-content-center bg-light">
   <div class="container-fluid py-5">
     <div class="row justify-content-center">
@@ -19,10 +24,17 @@
             <!-- Current Session Info -->
             <div class="session-info mb-6">
               <div class="agency-badge mb-4">
-                <span class="badge badge-<%= @agency.code.downcase %> fs-5 p-3 px-4 rounded-pill shadow-sm">
-                  <i class="bi bi-building me-2"></i>
-                  <%= @agency.name %>
-                </span>
+                <% if @agency %>
+                  <span class="badge badge-<%= @agency.code&.downcase || 'default' %> fs-5 p-3 px-4 rounded-pill shadow-sm">
+                    <i class="bi bi-building me-2"></i>
+                    <%= @agency.name || 'System' %>
+                  </span>
+                <% else %>
+                  <span class="badge bg-secondary fs-5 p-3 px-4 rounded-pill shadow-sm">
+                    <i class="bi bi-building me-2"></i>
+                    System
+                  </span>
+                <% end %>
               </div>
               
               <div class="user-info">
@@ -30,10 +42,10 @@
                   <div class="avatar-wrapper bg-primary bg-opacity-10 rounded-circle p-4 d-inline-block mb-3">
                     <i class="bi bi-person-circle fa-2x text-primary"></i>
                   </div>
-                  <h4 class="mb-2 fw-bold"><%= current_user.name || current_user.email %></h4>
+                  <h4 class="mb-2 fw-bold"><%= current_user&.name || current_user&.email || 'User' %></h4>
                   <p class="text-muted mb-0">
                     <i class="bi bi-envelope me-1"></i>
-                    <%= current_user.email %>
+                    <%= current_user&.email %>
                   </p>
                 </div>
                 
@@ -46,7 +58,7 @@
                           Last Login
                         </small>
                         <p class="mb-0 fw-semibold fs-5">
-                          <%= current_user.current_sign_in_at&.strftime("%b %d, %Y") || "First login" %>
+                          <%= current_user&.current_sign_in_at&.strftime("%b %d, %Y") || "First login" %>
                         </p>
                       </div>
                     </div>
@@ -57,7 +69,7 @@
                           Session Duration
                         </small>
                         <p class="mb-0 fw-semibold fs-5">
-                          <%= time_ago_in_words(current_user.current_sign_in_at || Time.current) %>
+                          <%= current_user&.current_sign_in_at ? time_ago_in_words(current_user.current_sign_in_at) : "New session" %>
                         </p>
                       </div>
                     </div>
@@ -102,14 +114,12 @@
                 </div>
                 
                 <div class="col-md-6">
-                  <%= button_to "/users/sign_out", 
+                  <%= button_to destroy_user_session_path, 
                       method: :delete,
                       class: "btn btn-lg btn-danger w-100 py-3 px-4 logout-action-btn",
                       form: { 
                         class: "w-100 m-0",
-                        data: { 
-                          turbo: "false"  # Disable Turbo for traditional redirect
-                        }
+                        data: { turbo: "false" }
                       } do %>
                     <div class="d-flex align-items-center justify-content-center gap-2">
                       <i class="bi bi-box-arrow-right fa-lg"></i>
@@ -150,7 +160,9 @@
               <div class="col-md-4">
                 <div class="d-flex align-items-center justify-content-center gap-2">
                   <i class="bi bi-building text-primary"></i>
-                  <small class="text-muted fw-medium"><%= @agency.code %> Portal</small>
+                  <small class="text-muted fw-medium">
+                    <%= @agency&.code || 'System' %> Portal
+                  </small>
                 </div>
               </div>
             </div>

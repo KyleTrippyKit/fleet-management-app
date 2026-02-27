@@ -1,3 +1,4 @@
+<%# app/views/devise/sessions/new.html.erb %>
 <div class="container-fluid min-vh-100 d-flex align-items-center justify-content-center auth-page">
   <div class="card shadow border-0 auth-container" style="max-width: 480px; width: 100%;">
     
@@ -23,18 +24,32 @@
         </p>
       </div>
 
-      <!-- TEST ENVIRONMENT BANNER -->
-      <% if Rails.env.development? || Rails.env.test? %>
-        <div class="alert alert-warning alert-dismissible fade show mb-3 py-2" role="alert">
+      <!-- Flash Messages -->
+      <% if flash[:alert].present? %>
+        <div class="alert alert-danger alert-dismissible fade show mb-3 py-2" role="alert">
           <div class="d-flex align-items-center">
-            <i class="fas fa-flask me-2"></i>
+            <i class="fas fa-exclamation-triangle me-2"></i>
             <div class="small">
-              <strong>Test Environment</strong> – This is a demonstration system
+              <%= flash[:alert] %>
             </div>
           </div>
           <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
       <% end %>
+
+      <% if flash[:notice].present? %>
+        <div class="alert alert-success alert-dismissible fade show mb-3 py-2" role="alert">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle me-2"></i>
+            <div class="small">
+              <%= flash[:notice] %>
+            </div>
+          </div>
+          <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% end %>
+
+      <!-- TEST ENVIRONMENT BANNER - REMOVED -->
 
       <hr>
 
@@ -78,10 +93,8 @@
         </div>
       <% end %>
 
-      <!-- Login Form -->
-      <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
-        <!-- CRITICAL: Add CSRF token manually -->
-        <%= token_tag nil %>
+      <!-- Login Form - FIXED -->
+      <%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { data: { turbo: false } }) do |f| %>
         
         <div class="mb-3">
           <%= f.label :email, "Email Address", class: "form-label fw-semibold" %>
@@ -116,7 +129,7 @@
       <% end %>
 
       <div class="text-center small mb-4">
-        <%= link_to "Forgot your password?", new_password_path(resource_name) %>
+        <%= link_to "Forgot your password?", new_password_path(resource_name), class: "text-decoration-none" %>
       </div>
 
       <!-- TEST CREDENTIALS CARD (Development/Test only) -->
@@ -232,6 +245,8 @@
 </div>
 
 <!-- Add FontAwesome for icons if not already included -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
 <script>
   // Auto-fill on dropdown select
   document.addEventListener('DOMContentLoaded', function() {
@@ -274,5 +289,10 @@
   #test-user-select:focus {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+  }
+  
+  /* Fix for Bootstrap active states */
+  .bg-success-subtle {
+    background-color: rgba(25, 135, 84, 0.15) !important;
   }
 </style>

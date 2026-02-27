@@ -1,0 +1,135 @@
+<%# app/views/agencies/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0"><%= @agency.name %></h1>
+      <p class="text-muted mb-0">Code: <span class="badge bg-primary"><%= @agency.code %></span></p>
+    </div>
+    <%= link_to "Back to Agencies", agencies_path, class: "btn btn-outline-secondary" %>
+  </div>
+
+  <div class="row">
+    <!-- Agency Info Card -->
+    <div class="col-md-4 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Agency Information</h5>
+          <table class="table table-sm">
+            <tr>
+              <th>Name:</th>
+              <td><%= @agency.name %></td>
+            </tr>
+            <tr>
+              <th>Code:</th>
+              <td><span class="badge bg-primary"><%= @agency.code %></span></td>
+            </tr>
+            <tr>
+              <th>Created:</th>
+              <td><%= @agency.created_at.strftime("%b %d, %Y") %></td>
+            </tr>
+            <tr>
+              <th>Total Users:</th>
+              <td><%= @agency.users.count %></td>
+            </tr>
+            <tr>
+              <th>Total Vehicles:</th>
+              <td><%= @agency.vehicles.count %></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users List -->
+    <div class="col-md-8 mb-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-transparent">
+          <h5 class="mb-0">Users</h5>
+        </div>
+        <div class="card-body p-0">
+          <% if @users.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @users.each do |user| %>
+                    <tr>
+                      <td><%= user.name.presence || "—" %></td>
+                      <td><%= user.email %></td>
+                      <td>
+                        <span class="badge <%= role_badge_color(user.role) %>">
+                          <%= user.role.titleize %>
+                        </span>
+                      </td>
+                      <td>
+                        <% if user.is_active %>
+                          <span class="badge bg-success">Active</span>
+                        <% else %>
+                          <span class="badge bg-secondary">Inactive</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            <%= paginate @users %>
+          <% else %>
+            <p class="text-muted text-center py-4">No users found for this agency.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Vehicles -->
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Recent Vehicles</h5>
+          <%= link_to "View All", agency_vehicles_path(@agency), class: "btn btn-sm btn-outline-primary" %>
+        </div>
+        <div class="card-body p-0">
+          <% if @vehicles.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>License Plate</th>
+                    <th>Make/Model</th>
+                    <th>Year</th>
+                    <th>Status</th>
+                    <th>Service Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @vehicles.each do |vehicle| %>
+                    <tr>
+                      <td><%= vehicle.license_plate %></td>
+                      <td><%= vehicle.make %> <%= vehicle.model %></td>
+                      <td><%= vehicle.year_of_manufacture %></td>
+                      <td>
+                        <span class="badge <%= vehicle.status == 'active' ? 'bg-success' : 'bg-warning' %>">
+                          <%= vehicle.status.titleize %>
+                        </span>
+                      </td>
+                      <td><%= vehicle.service_owner || "—" %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-4">No vehicles found for this agency.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

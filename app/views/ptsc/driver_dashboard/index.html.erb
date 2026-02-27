@@ -1,0 +1,172 @@
+<%# app/views/ptsc/driver_dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h3 mb-0">
+        <i class="fas fa-id-card me-2"></i>
+        PTSC Driver Dashboard
+      </h1>
+      <p class="text-muted">
+        Welcome back, 
+        <% if current_user.employee_id.present? %>
+          Employee <%= current_user.employee_id %>
+        <% else %>
+          <%= current_user.name %>
+        <% end %>
+      </p>
+    </div>
+  </div>
+
+  <!-- Assigned Vehicle -->
+  <% if @assigned_vehicle %>
+    <div class="card border-0 shadow-sm mb-4 bg-primary text-white">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <i class="fas fa-truck fa-3x"></i>
+          </div>
+          <div class="col">
+            <h5 class="mb-1">Your Assigned Vehicle</h5>
+            <h3 class="mb-0"><%= @assigned_vehicle.license_plate %></h3>
+            <small><%= @assigned_vehicle.make %> <%= @assigned_vehicle.model %> (<%= @assigned_vehicle.year_of_manufacture %>)</small>
+          </div>
+          <div class="col-auto">
+            <%= link_to vehicle_path(@assigned_vehicle), class: "btn btn-light" do %>
+              View Details <i class="fas fa-arrow-right ms-2"></i>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      No vehicle currently assigned to you.
+    </div>
+  <% end %>
+
+  <!-- Quick Stats -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-info text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Total Trips</h6>
+          <h2 class="mb-0"><%= @stats[:total_trips] %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-success text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Completed</h6>
+          <h2 class="mb-0"><%= @stats[:completed_trips] %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm bg-primary text-white">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Total Distance</h6>
+          <h2 class="mb-0"><%= number_with_delimiter(@stats[:total_distance]) %> km</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm <%= @stats[:pending_alerts] > 0 ? 'bg-warning text-dark' : 'bg-secondary text-white' %>">
+        <div class="card-body">
+          <h6 class="text-uppercase mb-2">Alerts</h6>
+          <h2 class="mb-0"><%= @stats[:pending_alerts] %></h2>
+          <small><%= @stats[:pending_alerts] > 0 ? 'Action needed' : 'All clear' %></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">Quick Actions</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <!-- Redirect to coming soon page for trips -->
+            <%= link_to coming_soon_path(feature: "Start New Trip"), class: "btn btn-success" do %>
+              <i class="fas fa-plus-circle me-2"></i> Start New Trip
+            <% end %>
+            
+            <%= link_to my_trips_drivers_path, class: "btn btn-outline-primary" do %>
+              <i class="fas fa-list me-2"></i> My Trips
+            <% end %>
+            
+            <%= link_to new_issue_drivers_path, class: "btn btn-outline-warning" do %>
+              <i class="fas fa-exclamation-triangle me-2"></i> Report Issue
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upcoming Trips -->
+  <% if @upcoming_trips.any? %>
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Upcoming Trips</h5>
+      </div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Date/Time</th>
+              <th>Destination</th>
+              <th>Vehicle</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @upcoming_trips.each do |trip| %>
+              <tr>
+                <td><%= trip.start_time.strftime("%b %d, %I:%M %p") %></td>
+                <td><%= trip.destination %></td>
+                <td><%= trip.vehicle&.license_plate %></td>
+                <td>
+                  <% if trip.end_time.present? %>
+                    <span class="badge bg-success">Completed</span>
+                  <% else %>
+                    <span class="badge bg-warning">In Progress</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Recent Alerts -->
+  <% if @recent_alerts.any? %>
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent">
+        <h5 class="mb-0">Recent Alerts</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          <% @recent_alerts.each do |alert| %>
+            <%= link_to alert_path(alert), class: "list-group-item list-group-item-action" do %>
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="badge bg-<%= alert.severity == 'critical' ? 'danger' : 'warning' %> me-2">
+                    <%= alert.severity.titleize %>
+                  </span>
+                  <%= alert.title %>
+                </div>
+                <small class="text-muted"><%= time_ago_in_words(alert.created_at) %> ago</small>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

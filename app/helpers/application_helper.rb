@@ -1,6 +1,96 @@
 module ApplicationHelper
   include Ransack::Helpers::FormHelper
   
+  # ============================================================
+  # ROLE BADGE COLOR HELPER - ADDED TO FIX THE ERROR
+  # ============================================================
+  def role_badge_color(role)
+    case role.to_s
+    when 'admin'
+      'bg-danger'
+    when 'fleet_manager'
+      'bg-primary'
+    when 'finance'
+      'bg-success'
+    when 'maintenance_supervisor', 'maintenance'
+      'bg-warning text-dark'
+    when 'driver'
+      'bg-info'
+    when 'supervisor'
+      'bg-secondary'
+    when 'clerk'
+      'bg-light text-dark'
+    when 'vmcott_staff'
+      'bg-dark'
+    else
+      'bg-secondary'
+    end
+  end
+
+  # ============================================================
+  # AGENCY BADGE COLOR HELPER
+  # ============================================================
+  def agency_badge_color(agency_code)
+    case agency_code.to_s.upcase
+    when 'PTSC'
+      'bg-primary'
+    when 'VMCOTT'
+      'bg-dark'
+    when 'TTPS'
+      'bg-danger'
+    when 'TTDF'
+      'bg-success'
+    else
+      'bg-secondary'
+    end
+  end
+
+  # ============================================================
+  # STATUS BADGE COLOR HELPER
+  # ============================================================
+  def status_badge_color(status)
+    case status.to_s
+    when 'active', 'completed', 'paid', 'success'
+      'bg-success'
+    when 'inactive', 'draft', 'pending'
+      'bg-warning text-dark'
+    when 'cancelled', 'rejected', 'failed', 'error'
+      'bg-danger'
+    when 'processing', 'in_progress'
+      'bg-info'
+    else
+      'bg-secondary'
+    end
+  end
+
+  # ============================================================
+  # RFQ STATUS BADGE HELPER
+  # ============================================================
+  def rfq_status_badge(status)
+    case status.to_s
+    when 'draft'
+      'secondary'
+    when 'submitted'
+      'info'
+    when 'under_review'
+      'warning'
+    when 'quoted'
+      'primary'
+    when 'converted'
+      'success'
+    when 'accepted'
+      'success'
+    when 'rejected'
+      'danger'
+    else
+      'secondary'
+    end
+  end
+
+  # ============================================================
+  # SORTABLE HELPERS
+  # ============================================================
+  
   # Generate a sortable link for table headers with Turbo support
   def sortable(column, title = nil)
     title ||= column.titleize
@@ -30,6 +120,10 @@ module ApplicationHelper
             params.permit(:trip_page).merge(trip_sort: column, trip_direction: direction),
             data: { turbo_frame: "driver_trips" }
   end
+  
+  # ============================================================
+  # VEHICLE DISPLAY HELPERS
+  # ============================================================
   
   # Format vehicle display name with optional badge
   def vehicle_display_name(vehicle, with_badge: false)
@@ -165,33 +259,9 @@ module ApplicationHelper
     end
   end
 
-  # ========================
-  # RFQ STATUS BADGE HELPER - NEW
-  # ========================
-  def rfq_status_badge(status)
-    case status.to_s
-    when 'draft'
-      'secondary'
-    when 'submitted'
-      'info'
-    when 'under_review'
-      'warning'
-    when 'quoted'
-      'primary'
-    when 'converted'
-      'success'
-    when 'accepted'
-      'success'
-    when 'rejected'
-      'danger'
-    else
-      'secondary'
-    end
-  end
-
-  # ========================
-  # POS SYSTEM HELPERS - NEW
-  # ========================
+  # ============================================================
+  # POS SYSTEM HELPERS
+  # ============================================================
 
   # Get current agency (cached for performance)
   def current_agency
@@ -427,7 +497,7 @@ module ApplicationHelper
   end
   
   # ============================================================
-  # ROLE-BASED ACCESS HELPERS - NEW (ADDED)
+  # ROLE-BASED ACCESS HELPERS
   # ============================================================
   
   # Check if user can access dashboard

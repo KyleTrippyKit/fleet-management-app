@@ -15,6 +15,11 @@ class ApplicationController < ActionController::Base
   skip_before_action :verify_authenticity_token, if: :devise_controller?
 
   # =====================================================
+  # Authentication - ADDED THIS LINE
+  # =====================================================
+  before_action :authenticate_user!
+
+  # =====================================================
   # Callbacks
   # =====================================================
   before_action :set_current_user
@@ -30,7 +35,17 @@ class ApplicationController < ActionController::Base
   around_action :set_pos_transaction_current_user, unless: :skip_pos_transaction_callback?
 
   # =====================================================
-  # AFTER SIGN IN REDIRECT - THE FIX!
+  # AFTER SIGN OUT - ADD THIS METHOD
+  # =====================================================
+  def after_sign_out_path_for(resource_or_scope)
+    # Clear any flash messages
+    flash.clear
+    # Redirect to root path with no flash message
+    root_path
+  end
+
+  # =====================================================
+  # AFTER SIGN IN REDIRECT - FIXED TO MATCH HOMECONTROLLER
   # =====================================================
   def after_sign_in_path_for(resource)
     # Debug logging
@@ -48,7 +63,7 @@ class ApplicationController < ActionController::Base
     # Check if we have a valid user object
     if user.nil? || !user.respond_to?(:email)
       Rails.logger.error "No valid user object found. Resource: #{resource.inspect}"
-      return '/main-dashboard' # Default fallback
+      return main_dashboard_path
     end
     
     Rails.logger.info "User: #{user.email}"
@@ -56,22 +71,59 @@ class ApplicationController < ActionController::Base
     Rails.logger.info "Agency Code: #{user.agency&.code}"
     Rails.logger.info "Role: #{user.role}"
     Rails.logger.info "=============================="
-    
-    # Use string paths instead of route helpers to avoid NameError
-    agency_code = user.agency&.code
-    
-    case agency_code
-    when 'PTSC'
-      '/ptsc-dashboard'
-    when 'VMCOTT'
-      '/vmcott-dashboard'
-    when 'TTPS'
-      '/ttps-dashboard'
-    when 'TTDF'
-      '/ttdf-dashboard'
+
+    # PTSC Admin goes to PTSC dashboard
+    if user.agency&.code == 'PTSC' && user.admin?
+      return ptsc_dashboard_path
+    end
+
+    # PTSC users by role
+    if user.agency&.code == 'PTSC'
+      case user.role
+      when 'fleet_manager'
+        return ptsc_fleet_dashboard_path
+      when 'finance'
+        return ptsc_finance_dashboard_path
+      when 'driver'
+        return ptsc_driver_dashboard_path
+      when 'maintenance_supervisor', 'maintenance'
+        return ptsc_maintenance_dashboard_path
+      else
+        return ptsc_dashboard_path
+      end
+    end
+
+    # VMCOTT users (including admins) always go to VMCOTT dashboard
+    if user.agency&.code == 'VMCOTT'
+      return vmcott_dashboard_path
+    end
+
+    # For other agencies, use role-based routing
+    case user.role
+    when 'admin'
+      main_dashboard_path
+    when 'fleet_manager'
+      if user.agency.present?
+        agency_vehicles_path(user.agency)
+      else
+        main_dashboard_path
+      end
+    when 'finance'
+      main_dashboard_path
+    when 'driver'
+      main_dashboard_path
+    when 'maintenance_supervisor', 'maintenance'
+      main_dashboard_path
     else
-      # Default to main dashboard
-      '/main-dashboard'
+      # Legacy agency-based dashboards as fallback
+      case user.agency&.code
+      when "TTPS"
+        ttps_dashboard_path
+      when "TTDF"
+        ttdf_dashboard_path
+      else
+        main_dashboard_path
+      end
     end
   end
 

@@ -33,12 +33,29 @@ Rails.application.routes.draw do
   get "invoices/test_pdf", to: "invoices#test_pdf"
 
   # ========================
-  # Root
+  # ROOT - Role-based dashboard routing
   # ========================
-  root to: "welcome#index"
+  root to: "home#index"
 
   # ========================
-  # Dashboards
+  # PTSC Namespace - All PTSC-specific dashboards
+  # ========================
+  namespace :ptsc do
+    # Fleet Manager Dashboard
+    get "fleet-dashboard", to: "fleet_dashboard#index", as: :fleet_dashboard
+
+    # Finance Dashboard
+    get "finance-dashboard", to: "finance_dashboard#index", as: :finance_dashboard
+
+    # Driver Dashboard
+    get "driver-dashboard", to: "driver_dashboard#index", as: :driver_dashboard
+
+    # Maintenance Dashboard
+    get "maintenance-dashboard", to: "maintenance_dashboard#index", as: :maintenance_dashboard
+  end
+
+  # ========================
+  # Agency-Specific Dashboards (Legacy)
   # ========================
   get "ptsc-dashboard",   to: "ptsc_dashboard#index",   as: :ptsc_dashboard
   get "vmcott-dashboard", to: "vmcott_dashboard#index", as: :vmcott_dashboard
@@ -531,8 +548,7 @@ Rails.application.routes.draw do
 
       # VMCOTT Acceptance Workflow (SIMPLE VERSION - Accept/Reject entire PO)
       post :acknowledge_acceptance, to: "purchase_orders#acknowledge_acceptance", as: :acknowledge_acceptance
-      post :accept_entire_po, to: "purchase_orders#accept_entire_po", as: :accept_entire_po  # ← ADD THIS LINE
-      # Note: reject action is already defined above in Agency Workflow
+      post :accept_entire_po, to: "purchase_orders#accept_entire_po", as: :accept_entire_po
       
       # VMCOTT Work Progress (after acceptance)
       post :mark_work_in_progress
@@ -815,11 +831,28 @@ Rails.application.routes.draw do
       get :my_vehicle
       get :my_trips
       get :new_issue
+      post :create_issue
     end
   end
 
-  resources :transactions, only: [:new, :create, :index, :show]
-  resources :trips
+  # ========================
+  # COMING SOON - Trips feature under development
+  # ========================
+  # Create a simple coming soon controller for trips
+  get "coming-soon/:feature", to: "coming_soon#index", as: :coming_soon
+  
+  # Redirect all trips routes to coming soon page
+  get "trips", to: redirect("/coming-soon/Trips")
+  get "trips/new", to: redirect("/coming-soon/Trips")
+  get "trips/:id", to: redirect("/coming-soon/Trips")
+  get "trips/:id/edit", to: redirect("/coming-soon/Trips")
+  post "trips", to: redirect("/coming-soon/Trips")
+  patch "trips/:id", to: redirect("/coming-soon/Trips")
+  put "trips/:id", to: redirect("/coming-soon/Trips")
+  delete "trips/:id", to: redirect("/coming-soon/Trips")
+  
+  # Comment out the original trips resource since we're redirecting
+  # resources :trips
 
   resources :maintenances do
     member do
@@ -862,9 +895,18 @@ Rails.application.routes.draw do
   get "analytics", to: "analytics#index", as: :analytics
   get "ptsc-dashboard/vehicle_locations", to: "ptsc_dashboard#vehicle_locations", as: :ptsc_vehicle_locations
 
+  # ========================
+  # ADMIN NAMESPACE - User Management
+  # ========================
   namespace :admin do
-    resources :users, only: [:index, :edit, :update, :destroy] do
+    resources :users do
+      member do
+        post :impersonate
+        post :reset_password
+      end
+      
       collection do
+        post :stop_impersonating
         get  :dashboard
         post :bulk_update
       end

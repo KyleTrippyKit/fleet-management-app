@@ -5,6 +5,93 @@ class DriversController < ApplicationController
   before_action :set_driver, only: [:show, :edit, :update, :destroy]
 
   # ============================================================
+  # Driver's own vehicle page (for driver role)
+  # GET /drivers/my_vehicle
+  # ============================================================
+  def my_vehicle
+    # For driver role - show their assigned vehicle
+    @driver = current_user
+    @assigned_vehicle = Vehicle.find_by(driver_id: current_user.id)
+    
+    if @assigned_vehicle
+      redirect_to vehicle_path(@assigned_vehicle)
+    else
+      # Redirect to driver's home page (driver dashboard) when no vehicle assigned
+      if current_user.agency&.code == 'PTSC'
+        redirect_to ptsc_driver_dashboard_path, alert: "No vehicle is currently assigned to you."
+      else
+        redirect_to driver_dashboard_path, alert: "No vehicle is currently assigned to you."
+      end
+    end
+  end
+
+  # ============================================================
+  # Driver's trips (for driver role)
+  # GET /drivers/my_trips
+  # ============================================================
+  def my_trips
+    @trips = Trip.where(driver_id: current_user.id)
+                 .includes(:vehicle)
+                 .order(start_time: :desc)
+                 .page(params[:page]).per(10)
+  end
+
+  # ============================================================
+  # New issue report (for driver role)
+  # GET /drivers/new_issue
+  # ============================================================
+  def new_issue
+    @driver = current_user
+    @vehicles = Vehicle.where(driver_id: current_user.id)
+    
+    # If no vehicles assigned, redirect to dashboard with message
+    if @vehicles.empty?
+      if current_user.agency&.code == 'PTSC'
+        redirect_to ptsc_driver_dashboard_path, alert: "You don't have any assigned vehicles to report issues for."
+      else
+        redirect_to driver_dashboard_path, alert: "You don't have any assigned vehicles to report issues for."
+      end
+    end
+  end
+
+  # ============================================================
+  # Create issue report (for driver role)
+  # POST /drivers/create_issue
+  # ============================================================
+  def create_issue
+    @driver = current_user
+    vehicle = Vehicle.find_by(id: params[:vehicle_id], driver_id: current_user.id)
+    
+    if vehicle.nil?
+      redirect_to new_issue_drivers_path, alert: "You can only report issues for your assigned vehicles."
+      return
+    end
+
+    # Create alert for the issue
+    alert = Alert.new(
+      title: params[:title],
+      description: params[:description],
+      severity: params[:severity] || "medium",
+      priority: params[:priority] || "medium",
+      status: "active",
+      alert_type: "driver_issue",
+      vehicle_id: vehicle.id,
+      driver_id: current_user.id,
+      agency_id: vehicle.agency_id,
+      created_by: current_user.name || current_user.email,
+      location: vehicle.current_location
+    )
+
+    if alert.save
+      redirect_to my_vehicle_drivers_path, notice: "Issue reported successfully. Maintenance has been notified."
+    else
+      @vehicles = Vehicle.where(driver_id: current_user.id)
+      flash.now[:alert] = "Failed to report issue: #{alert.errors.full_messages.join(', ')}"
+      render :new_issue, status: :unprocessable_entity
+    end
+  end
+
+  # ============================================================
   # ✅ Driver JSON Search for Alerts modal/autocomplete
   # GET /drivers/search?q=xxx
   # (accepts q, term, query, search)
@@ -82,18 +169,21 @@ class DriversController < ApplicationController
                     .page(params[:trip_page]).per(10)
 
     @assigned_vehicles = @driver.vehicles || []
-    @maintenance_stats = @driver.maintenance_stats
-    @performance_metrics = @driver.maintenance_performance
 
-    @maintenance_requests = []
-    @damage_reports = if @driver.respond_to?(:damage_reports)
-      @driver.damage_reports
-             .includes(:vehicle)
-             .order(created_at: :desc)
-             .page(params[:damage_page]).per(5)
-    else
-      []
-    end
+    # Maintenance stats - without damage reports
+    @maintenance_stats = {
+      reports_submitted: 0,
+      open_issues: 0,
+      resolved_issues: 0
+    }
+
+    # Performance metrics
+    @performance_metrics = {
+      avg_response_time_hours: 0
+    }
+
+    # Damage reports - disabled since table doesn't exist
+    @damage_reports = []
   end
 
   def new
