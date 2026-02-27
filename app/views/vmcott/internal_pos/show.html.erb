@@ -16,11 +16,11 @@
 
       <div class="col-12 col-lg-5">
         <div class="hero-actions">
-          <%= link_to vmcott_internal_pos_index_path, class: "btn btn-outline-secondary" do %>
+          <%= link_to vmcott_internal_pos_path, class: "btn btn-outline-secondary" do %>
             <i class="bi bi-arrow-left me-1"></i> Back
           <% end %>
 
-          <%= link_to edit_vmcott_internal_pos_path(@internal_pos), class: "btn btn-primary" do %>
+          <%= link_to edit_vmcott_internal_po_path(@internal_pos), class: "btn btn-primary" do %>
             <i class="bi bi-pencil me-1"></i> Edit
           <% end %>
         </div>
@@ -44,16 +44,16 @@
     </div>
 
     <div class="kpi-tile">
-      <div class="kpi-label">Assigned</div>
+      <div class="kpi-label">Work Section</div>
       <p class="kpi-value" style="font-size: 1.15rem;">
-        <%= @internal_pos.assigned_to&.try(:full_name).presence || @internal_pos.assigned_to&.email || "Unassigned" %>
+        <%= @internal_pos.extracted_work_section || "—" %>
       </p>
     </div>
 
     <div class="kpi-tile">
-      <div class="kpi-label">Completed</div>
+      <div class="kpi-label">Work Role</div>
       <p class="kpi-value" style="font-size: 1.15rem;">
-        <%= @internal_pos.completed_at.present? ? @internal_pos.completed_at.strftime("%b %d, %Y") : "—" %>
+        <%= @internal_pos.extracted_work_role || "—" %>
       </p>
     </div>
   </div>
@@ -72,15 +72,28 @@
         <div class="col-12 col-lg-6">
           <div class="card border-0 bg-light">
             <div class="card-body">
-              <div class="fw-bold mb-1">Description</div>
-              <div class="text-muted">
-                <%= @internal_pos.description.presence || "—" %>
+              <div class="fw-bold mb-1">Work Details</div>
+              <div class="mb-3">
+                <% if @internal_pos.extracted_work_section.present? || @internal_pos.extracted_work_role.present? %>
+                  <div class="mb-2">
+                    <span class="badge bg-primary me-2"><%= @internal_pos.extracted_work_section %></span>
+                    <span class="badge bg-info"><%= @internal_pos.extracted_work_role %></span>
+                  </div>
+                <% end %>
               </div>
-              <hr>
-              <div class="fw-bold mb-1">Notes</div>
-              <div class="text-muted">
+
+              <div class="fw-bold mb-1 mt-3">Notes</div>
+              <div class="text-muted" style="white-space: pre-line;">
                 <%= @internal_pos.notes.presence || "—" %>
               </div>
+
+              <% if @internal_pos.po_number.present? %>
+                <hr>
+                <div class="fw-bold mb-1">Related Purchase Order</div>
+                <div>
+                  <%= link_to @internal_pos.po_number, purchase_order_path(@internal_pos.purchase_order), class: "text-decoration-none" %>
+                </div>
+              <% end %>
             </div>
           </div>
         </div>
@@ -88,6 +101,33 @@
         <div class="col-12 col-lg-6">
           <div class="card border-0 bg-light">
             <div class="card-body">
+              <div class="fw-bold mb-1">Assignment</div>
+              <div class="small">
+                <div class="d-flex justify-content-between mb-2">
+                  <span class="muted">Created By</span>
+                  <span><%= @internal_pos.created_by&.name || @internal_pos.created_by&.email || "System" %></span>
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="fw-bold mb-1">Vehicle</div>
+              <% if @internal_pos.vehicle.present? %>
+                <div>
+                  <strong><%= @internal_pos.vehicle.license_plate %></strong>
+                  <div class="text-muted">
+                    <%= @internal_pos.vehicle.make %> <%= @internal_pos.vehicle.model %>
+                    <% if @internal_pos.vehicle.respond_to?(:year_of_manufacture) && @internal_pos.vehicle.year_of_manufacture.present? %>
+                      (<%= @internal_pos.vehicle.year_of_manufacture %>)
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <div class="text-muted">No vehicle assigned</div>
+              <% end %>
+
+              <hr>
+
               <div class="fw-bold mb-1">Dates</div>
               <div class="small">
                 <div class="d-flex justify-content-between">
@@ -108,8 +148,20 @@
 
               <div class="fw-bold mb-2">Quick actions</div>
               <div class="d-flex flex-wrap gap-2">
-                <%= link_to edit_vmcott_internal_pos_path(@internal_pos), class: "btn btn-outline-primary" do %>
-                  <i class="bi bi-pencil me-1"></i> Edit Work Order
+                <% if @internal_pos.status == 'pending' %>
+                  <%= button_to mark_in_progress_vmcott_internal_po_path(@internal_pos), method: :post, class: "btn btn-success" do %>
+                    <i class="bi bi-play-fill me-1"></i> Start Work
+                  <% end %>
+                <% end %>
+
+                <% if @internal_pos.status == 'in_progress' %>
+                  <%= button_to mark_completed_vmcott_internal_po_path(@internal_pos), method: :post, class: "btn btn-success" do %>
+                    <i class="bi bi-check-circle me-1"></i> Mark Complete
+                  <% end %>
+                <% end %>
+
+                <%= link_to edit_vmcott_internal_po_path(@internal_pos), class: "btn btn-outline-primary" do %>
+                  <i class="bi bi-pencil me-1"></i> Edit
                 <% end %>
 
                 <%= link_to vmcott_inventory_dashboard_path, class: "btn btn-outline-secondary" do %>
@@ -120,8 +172,6 @@
           </div>
         </div>
       </div>
-
-      <%# Optional: If you have parts usage/lines, we can add a table here later %>
     </div>
   </div>
 </div>

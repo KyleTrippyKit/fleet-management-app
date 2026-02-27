@@ -59,7 +59,7 @@
       <span class="muted small">Use filters to show the story during your demo.</span>
     </div>
     <div class="section-card-body">
-      <%= form_with url: vmcott_internal_pos_path, method: :get, local: true, class: "row g-2 align-items-end" do %>
+      <%= form_with url: vmcott_internal_pos_path, method: :get, local: true, class: "row g-2 align-items-end" do |form| %>
         <div class="col-12 col-md-4">
           <label class="form-label mb-1">Search</label>
           <%= text_field_tag :q, params[:q], class: "form-control", placeholder: "Work order #, description, assigned..." %>
@@ -111,7 +111,7 @@
                 <th>Description</th>
                 <th style="width: 150px;">Status</th>
                 <th style="width: 140px;">Priority</th>
-                <th style="width: 200px;">Assigned</th>
+                <th style="width: 200px;">Created By / Vehicle</th>
                 <th style="width: 140px;" class="text-end">Actions</th>
               </tr>
             </thead>
@@ -125,9 +125,30 @@
                   </td>
 
                   <td>
-                    <div class="fw-semibold"><%= pos.description.presence || "—" %></div>
+                    <%# Using extracted_work_section and notes instead of description %>
+                    <div class="fw-semibold">
+                      <% if pos.extracted_work_section.present? %>
+                        <%= pos.extracted_work_section %>
+                        <% if pos.extracted_work_role.present? %>
+                          <span class="badge bg-light text-dark ms-1"><%= pos.extracted_work_role %></span>
+                        <% end %>
+                      <% else %>
+                        Work Order
+                      <% end %>
+                    </div>
+                    
                     <% if pos.notes.present? %>
-                      <div class="small muted text-truncate"><%= pos.notes %></div>
+                      <%# Show first line of notes as description %>
+                      <div class="small muted text-truncate" title="<%= pos.notes %>">
+                        <%= pos.notes.split("\n").first.truncate(50) %>
+                      </div>
+                    <% end %>
+                    
+                    <%# Show PO reference if available %>
+                    <% if pos.po_number.present? %>
+                      <div class="small text-muted">
+                        <i class="bi bi-link-45deg me-1"></i>PO: <%= pos.po_number %>
+                      </div>
                     <% end %>
                   </td>
 
@@ -160,10 +181,30 @@
                   </td>
 
                   <td>
-                    <% if pos.assigned_to.present? %>
-                      <strong><%= pos.assigned_to.try(:full_name).presence || pos.assigned_to.email %></strong>
+                    <%# Using created_by instead of assigned_to %>
+                    <% if pos.created_by.present? %>
+                      <div>
+                        <i class="bi bi-person-circle me-1"></i>
+                        <strong><%= pos.created_by.name || pos.created_by.email %></strong>
+                      </div>
                     <% else %>
-                      <span class="muted">Unassigned</span>
+                      <span class="muted">
+                        <i class="bi bi-person-x me-1"></i>No creator
+                      </span>
+                    <% end %>
+                    
+                    <%# Show vehicle info if available %>
+                    <% if pos.vehicle.present? %>
+                      <div class="small text-muted mt-1">
+                        <i class="bi bi-truck me-1"></i><%= pos.vehicle.license_plate %>
+                        <% if pos.vehicle.make.present? && pos.vehicle.model.present? %>
+                          <span class="ms-1">(<%= pos.vehicle.make %> <%= pos.vehicle.model %>)</span>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <div class="small text-muted mt-1">
+                        <i class="bi bi-question-circle me-1"></i>No vehicle
+                      </div>
                     <% end %>
                   </td>
 
@@ -191,4 +232,5 @@
       <% end %>
     </div>
   </div>
+
 </div>

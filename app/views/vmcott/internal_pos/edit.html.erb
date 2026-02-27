@@ -19,7 +19,7 @@
             <i class="bi bi-arrow-left me-1"></i> Back to Details
           <% end %>
 
-          <%= link_to vmcott_internal_pos_index_path, class: "btn btn-outline-secondary" do %>
+          <%= link_to vmcott_internal_pos_path, class: "btn btn-outline-secondary" do %>
             <i class="bi bi-list-ul me-1"></i> All Work Orders
           <% end %>
         </div>
@@ -37,7 +37,7 @@
     </div>
 
     <div class="section-card-body">
-      <%= form_with model: @internal_pos, url: vmcott_internal_pos_path(@internal_pos), local: true do |f| %>
+      <%= form_with model: @internal_pos, url: vmcott_internal_pos_path(@internal_pos), method: :patch, local: true do |f| %>
         <% if @internal_pos.errors.any? %>
           <div class="alert alert-danger">
             <h5><%= pluralize(@internal_pos.errors.count, "error") %> prohibited this POS from being saved:</h5>
@@ -51,7 +51,7 @@
 
         <div class="row g-3">
           <div class="col-md-6">
-            <%= f.label :work_order_number, class: 'form-label' %>
+            <%= f.label :work_order_number, 'Work Order Number', class: 'form-label' %>
             <%= f.text_field :work_order_number, class: 'form-control', readonly: true %>
           </div>
 
@@ -66,10 +66,17 @@
           </div>
 
           <div class="col-md-6">
-            <%= f.label :assigned_to_id, 'Assigned To', class: 'form-label' %>
-            <%= f.select :assigned_to_id,
-                  options_for_select(User.all.map { |u| [u.full_name || u.email, u.id] }, @internal_pos.assigned_to_id),
+            <%= f.label :created_by_id, 'Created By', class: 'form-label' %>
+            <%= f.select :created_by_id,
+                  options_from_collection_for_select(User.all, :id, :name, @internal_pos.created_by_id),
                   { include_blank: 'Select User...' },
+                  class: 'form-select' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :purchase_order_id, 'Related Purchase Order', class: 'form-label' %>
+            <%= f.collection_select :purchase_order_id, PurchaseOrder.all, :id, :po_number, 
+                  { include_blank: 'Select PO...' }, 
                   class: 'form-select' %>
           </div>
 
@@ -84,20 +91,29 @@
             <small class="form-text text-muted">Auto-filled when marked completed</small>
           </div>
 
-          <div class="col-12">
-            <%= f.label :description, class: 'form-label' %>
-            <%= f.text_area :description, class: 'form-control', rows: 3 %>
+          <div class="col-md-6">
+            <%= f.label :work_section, class: 'form-label' %>
+            <%= f.select :work_section, InternalPos::WORK_SECTIONS, 
+                  { include_blank: 'Select Section...' }, 
+                  class: 'form-select' %>
+          </div>
+
+          <div class="col-md-6">
+            <%= f.label :work_role, class: 'form-label' %>
+            <%= f.select :work_role, InternalPos::WORK_ROLES, 
+                  { include_blank: 'Select Role...' }, 
+                  class: 'form-select' %>
           </div>
 
           <div class="col-12">
             <%= f.label :notes, class: 'form-label' %>
-            <%= f.text_area :notes, class: 'form-control', rows: 3 %>
+            <%= f.text_area :notes, class: 'form-control', rows: 5 %>
           </div>
         </div>
 
         <div class="d-flex justify-content-between mt-4">
           <%= link_to 'Cancel', vmcott_internal_pos_path(@internal_pos), class: 'btn btn-outline-secondary' %>
-          <%= f.submit 'Update POS', class: 'btn btn-primary' %>
+          <%= f.submit 'Update Work Order', class: 'btn btn-primary' %>
         </div>
       <% end %>
     </div>

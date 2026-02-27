@@ -1,5 +1,5 @@
 # app/controllers/purchase_orders_controller.rb
-# COMPLETE REVISED VERSION with all improvements
+# COMPLETE REVISED VERSION with VMCOTT filtering fix
 
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
@@ -291,7 +291,7 @@ class PurchaseOrdersController < ApplicationController
 
   def approve
     if @purchase_order.approve!(current_user)
-      @purchase_order.payable
+      @purchase_order.create_payable! unless @purchase_order.payable.present?
       redirect_to @purchase_order, notice: 'Approved successfully and payable created.'
     else
       redirect_to @purchase_order, alert: 'Could not approve purchase order.'
@@ -309,7 +309,7 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def cancel
-    if @purchase_order.cancel!(params[:reason])
+    if @purchase_order.cancel!(params[:cancellation_reason])
       @purchase_order.payable&.update(status: 'cancelled') if @purchase_order.respond_to?(:payable)
       redirect_to @purchase_order, notice: 'Cancelled successfully.'
     else
@@ -657,7 +657,7 @@ class PurchaseOrdersController < ApplicationController
       next unless purchase_order && purchase_order.pending_approval?
 
       if purchase_order.approve!(current_user)
-        purchase_order.ensure_payable!
+        purchase_order.create_payable! unless purchase_order.payable.present?
         approved_count += 1
       else
         failed_count += 1
@@ -704,19 +704,21 @@ class PurchaseOrdersController < ApplicationController
     base_scope = base_scope.includes(:payable) if PurchaseOrder.reflect_on_association(:payable)
 
     if current_user.admin?
+      # Admins see everything
       base_scope = base_scope.all
     elsif current_user.agency&.code == 'VMCOTT'
-      # VMCOTT sees ALL purchase orders (from all agencies)
-      base_scope = base_scope.all
+      # FIXED: VMCOTT only sees purchase orders sent TO them (vendor = 'VMCOTT')
+      # This prevents them from seeing drafts from PTSC, TTPS, etc.
+      base_scope = base_scope.where(vendor: 'VMCOTT')
     else
-      # Regular agencies only see their own
+      # Regular agencies only see purchase orders they created (via their vehicles)
       base_scope = base_scope.joins(:vehicle).where(vehicles: { agency_id: current_user.agency_id })
     end
 
     # Apply filters
     base_scope = base_scope.where(status: params[:status]) if params[:status].present?
     base_scope = base_scope.where(payment_status: params[:payment_status]) if params[:payment_status].present?
-    base_scope = base_scope.by_creator(params[:created_by]) if params[:created_by].present? && PurchaseOrder.respond_to?(:by_creator)
+    base_scope = base_scope.where(created_by_id: params[:created_by]) if params[:created_by].present?
     base_scope = base_scope.where(payment_method: params[:payment_method]) if params[:payment_method].present?
     base_scope = base_scope.where('created_at >= ?', params[:date_from]) if params[:date_from].present?
     base_scope = base_scope.where('created_at <= ?', params[:date_to]) if params[:date_to].present?

@@ -1,3 +1,4 @@
+# app/models/purchase_order.rb
 # frozen_string_literal: true
 
 class PurchaseOrder < ApplicationRecord
@@ -9,6 +10,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :approved_by, class_name: 'User', optional: true
   belongs_to :rejected_by, class_name: 'User', optional: true
   belongs_to :payment_authorized_by, class_name: 'User', optional: true
+  belongs_to :payment_processed_by, class_name: 'User', optional: true
 
   belongs_to :quotation, optional: true
   belongs_to :supplier, optional: true
@@ -100,7 +102,6 @@ class PurchaseOrder < ApplicationRecord
   validates :payment_status, presence: true
   
   # Custom validations
-  # REMOVED: must_have_payable_when_approved - payable should come from invoice, not PO approval
   validate :cannot_cancel_if_paid, if: :cancelled?
 
   # -------------------------
@@ -109,6 +110,7 @@ class PurchaseOrder < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   
   scope :for_agency, ->(agency_id) { joins(:vehicle).where(vehicles: { agency_id: agency_id }) }
+  scope :by_creator, ->(user_id) { where(created_by_id: user_id) if user_id.present? }
 
   # Acceptance scopes
   scope :awaiting_acceptance, -> { where(acceptance_status: 'pending_acceptance') }
@@ -196,9 +198,112 @@ class PurchaseOrder < ApplicationRecord
         acceptance_acknowledged_at: Time.current
       )
       
-      # Automatically start work when accepted
-      mark_work_in_progress!(user) if user
+      # 🔥 NEW: Automatically create work orders
+      create_auto_work_orders(user)
+      
+      # 🔥 NEW: Auto-start work if eligible
+      auto_start_work(user) if should_auto_start?
     end
+  end
+
+  # 🔥 NEW: Auto-create work orders
+  def create_auto_work_orders(user)
+    return unless defined?(InternalPos)
+    return if internal_pos.exists? # Don't create duplicates
+    
+    # Create main workshop work order
+    workshop_po = internal_pos.create!(
+      work_order_number: InternalPos.generate_work_order_number,
+      created_by: user,
+      status: 'pending',
+      priority: determine_priority,
+      notes: "[Work Section: Workshop]\n[Work Role: Technician]\nMain repair work for PO #{po_number}\nVehicle: #{vehicle&.license_plate}"
+    )
+    
+    # Create QC inspection work order (always)
+    qc_po = internal_pos.create!(
+      work_order_number: InternalPos.generate_work_order_number,
+      created_by: user,
+      status: 'pending',
+      priority: 'normal',
+      notes: "[Work Section: QC / Inspection]\n[Work Role: QC Inspector]\nQuality inspection required for PO #{po_number}"
+    )
+    
+    # Create billing work order for larger jobs
+    if amount > 2000
+      internal_pos.create!(
+        work_order_number: InternalPos.generate_work_order_number,
+        created_by: user,
+        status: 'pending',
+        priority: 'normal',
+        notes: "[Work Section: Billing]\n[Work Role: Billing Officer]\nPrepare final invoice for PO #{po_number}"
+      )
+    end
+    
+    # Send notification to workshop
+    notify_workshop("New work orders created for PO #{po_number}")
+    
+    Rails.logger.info "✅ Created #{internal_pos.count} work orders for PO #{po_number}"
+  end
+
+  # 🔥 NEW: Auto-start work
+  def auto_start_work(user)
+    # Find the workshop work order and start it
+    workshop_po = internal_pos.find_by('notes LIKE ?', '%[Work Section: Workshop]%')
+    
+    if workshop_po
+      workshop_po.update!(status: 'in_progress')
+      update!(vmcott_status: 'work_in_progress')
+      
+      notify_workshop("Work started on PO #{po_number}")
+      Rails.logger.info "▶️ Auto-started work on PO #{po_number}"
+    end
+  end
+
+  # 🔥 NEW: Determine if work should auto-start
+  def should_auto_start?
+    # Auto-start jobs under $3000, manual for larger ones
+    amount < 3000
+  end
+
+  # 🔥 NEW: Determine priority based on amount
+  def determine_priority
+    if amount >= 5000
+      'high'
+    elsif amount >= 2000
+      'normal'
+    else
+      'low'
+    end
+  end
+
+  # 🔥 NEW: Notify workshop
+  def notify_workshop(message)
+    Rails.logger.info "📢 WORKSHOP: #{message}"
+    
+    # If you have a Notification model, uncomment:
+    # Notification.create!(
+    #   recipient_type: 'workshop',
+    #   title: 'Work Order Update',
+    #   message: message,
+    #   link: "/vmcott/internal_pos",
+    #   priority: 'medium'
+    # )
+  end
+
+  # 🔥 NEW: Notify agency
+  def notify_agency(message)
+    return unless agency_id
+    
+    Rails.logger.info "📢 AGENCY #{agency&.code}: #{message}"
+    
+    # If you have agency notifications:
+    # AgencyNotification.create!(
+    #   agency_id: agency_id,
+    #   title: 'Purchase Order Update',
+    #   message: message,
+    #   link: "/purchase_orders/#{id}"
+    # )
   end
 
   # Method for VMCOTT to reject entire PO (rare - only if parts missing or can't do work)
@@ -297,7 +402,7 @@ class PurchaseOrder < ApplicationRecord
         approved_at: Time.current,
         due_date: calculate_due_date
       )
-      # REMOVED: ensure_payable! - payable should be created from invoice, not PO approval
+      # Payable will be created when needed
     end
   end
 
@@ -389,6 +494,68 @@ class PurchaseOrder < ApplicationRecord
     auto_create_invoice_if_paid
   end
 
+  def initiate_trinidad_card_payment!(user, card_details, billing_address)
+    return false unless can_initiate_payment?
+    
+    # Use mock payment service for development
+    update!(
+      payment_method: card_details[:card_type] == 'debit' ? 'trinidad_debit_card' : 'trinidad_credit_card',
+      card_type: card_details[:card_brand],
+      last_four_digits: card_details[:last_four],
+      payment_reference: "TRN-#{SecureRandom.hex(8).upcase}",
+      billing_address: billing_address.to_json,
+      payment_status: 'pending',
+      payment_initiated_at: Time.current,
+      payment_processed_by_id: user.id
+    )
+    
+    # Create payment history
+    payment_histories.create!(
+      amount: amount,
+      payment_date: Time.current,
+      payment_method: card_details[:card_type] == 'debit' ? 'trinidad_debit_card' : 'trinidad_credit_card',
+      reference_number: payment_reference,
+      status: 'processing',
+      notes: "Trinidad card payment initiated for PO #{po_number}"
+    )
+    
+    true
+  rescue => e
+    errors.add(:base, "Payment initiation failed: #{e.message}")
+    false
+  end
+
+  def authorize_trinidad_payment!(user)
+    return false unless payment_status == 'pending'
+    
+    update!(
+      payment_status: 'authorized',
+      payment_authorized_at: Time.current,
+      payment_authorized_by_id: user.id
+    )
+    
+    true
+  end
+
+  def complete_trinidad_payment!
+    return false unless payment_status == 'authorized'
+    
+    update!(
+      payment_status: 'completed',
+      status: 'paid',
+      payment_date: Time.current,
+      paid_at: Time.current
+    )
+    
+    # Update payment history
+    payment_histories.update_all(status: 'completed')
+    
+    # Create invoice
+    auto_create_invoice_if_paid
+    
+    true
+  end
+
   # -------------------------
   # Payable-related methods
   # -------------------------
@@ -414,6 +581,7 @@ class PurchaseOrder < ApplicationRecord
 
   def create_payable!
     return payable if payable.present?
+    return nil unless defined?(Payable)
 
     agency_id_value = vehicle&.agency_id
     
@@ -485,7 +653,10 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def billing_address_hash
-    billing_address.is_a?(Hash) ? billing_address : {}
+    return {} if billing_address.blank?
+    JSON.parse(billing_address)
+  rescue JSON::ParserError
+    {}
   end
 
   def notify_vendor_of_acceptance
@@ -529,6 +700,30 @@ class PurchaseOrder < ApplicationRecord
   def self.search(query)
     return all if query.blank?
     where("po_number ILIKE :q OR vendor ILIKE :q", q: "%#{query}%")
+  end
+
+  # -------------------------
+  # CSV Export Methods
+  # -------------------------
+  def self.to_csv
+    attributes = %w[
+      po_number vendor amount status payment_status acceptance_status 
+      vmcott_status created_at updated_at payment_method payment_reference
+    ]
+    
+    CSV.generate(headers: true) do |csv|
+      csv << attributes.map(&:humanize)
+      
+      all.find_each do |po|
+        csv << attributes.map { |attr| po.send(attr) }
+      end
+    end
+  end
+
+  def self.to_xlsx
+    # For now, return nil or raise a helpful error
+    # If you want Excel support, add 'axlsx' gem to Gemfile
+    raise "Excel export requires the 'axlsx' gem. Please add it to your Gemfile or use CSV export instead."
   end
 
   # -------------------------
@@ -1002,6 +1197,28 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # -------------------------
+  # Recompute acceptance status
+  # -------------------------
+
+  def recompute_acceptance_status!
+    total_items = purchase_order_items.count
+    return if total_items == 0
+
+    accepted_count = purchase_order_items.where(is_accepted: true).count
+    rejected_count = purchase_order_items.where(is_accepted: false).count
+    
+    new_status = if accepted_count == total_items
+                   'fully_accepted'
+                 elsif rejected_count == total_items
+                   'fully_rejected'
+                 else
+                   'pending_acceptance'
+                 end
+    
+    update!(acceptance_status: new_status) unless acceptance_status == new_status
+  end
+
+  # -------------------------
   # Callbacks
   # -------------------------
 
@@ -1009,7 +1226,6 @@ class PurchaseOrder < ApplicationRecord
   before_validation :set_default_statuses, on: :create
   before_validation :calculate_amount_from_items, if: -> { purchase_order_items.present? }
   before_save :link_supplier
-  # REMOVED: ensure_payable_for_approved_status - payable comes from invoice
 
   after_update :auto_create_invoice_if_paid
   after_update :create_payment_audit_trail, if: :saved_change_to_payment_status?

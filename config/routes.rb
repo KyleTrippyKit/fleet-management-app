@@ -496,7 +496,7 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # PURCHASE ORDERS - COMPLETE ROUTES
+  # PURCHASE ORDERS - COMPLETE ROUTES WITH ALL MISSING ROUTES ADDED
   # ========================
   resources :purchase_orders do
     collection do
