@@ -1,0 +1,312 @@
+<%# app/views/vmcott/billing/invoices/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">💰 Invoice Details</h1>
+          <p class="text-muted"><%= @invoice.invoice_number %></p>
+        </div>
+        <div>
+          <%= link_to "← Back to Invoices", vmcott_billing_invoices_path, class: "btn btn-outline-secondary me-2" %>
+          <%= link_to "Print PDF", print_vmcott_billing_invoice_path(@invoice, format: :pdf), class: "btn btn-outline-info me-2", target: "_blank" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Banner -->
+  <div class="alert <%= 
+    case @invoice.status
+    when 'paid' then 'alert-success'
+    when 'pending' then 'alert-warning'
+    when 'overdue' then 'alert-danger'
+    else 'alert-secondary'
+    end %> mb-4">
+    <div class="d-flex align-items-center">
+      <i class="bi <%= 
+        case @invoice.status
+        when 'paid' then 'bi-check-circle-fill'
+        when 'pending' then 'bi-clock-fill'
+        when 'overdue' then 'bi-exclamation-triangle-fill'
+        else 'bi-info-circle-fill'
+        end %> fs-3 me-3"></i>
+      <div>
+        <strong>Status:</strong> <%= @invoice.status.humanize %>
+        <% if @invoice.paid_at %>
+          <br><small>Paid: <%= @invoice.paid_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+        <% end %>
+        <% if @invoice.due_date %>
+          <br><small>Due Date: <%= @invoice.due_date.strftime("%B %d, %Y") %></small>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <!-- Invoice Information Card -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Invoice Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th>Invoice Number:</th>
+                  <td><strong><%= @invoice.invoice_number %></strong></td>
+                </tr>
+                <tr>
+                  <th>Vendor/Agency:</th>
+                  <td><%= @invoice.vendor %></td>
+                </tr>
+                <tr>
+                  <th>Invoice Date:</th>
+                  <td><%= @invoice.invoice_date.strftime("%B %d, %Y") %></td>
+                </tr>
+                <tr>
+                  <th>Due Date:</th>
+                  <td><%= @invoice.due_date.strftime("%B %d, %Y") %></td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th>Amount:</th>
+                  <td><strong class="fs-5"><%= number_to_currency(@invoice.amount) %></strong></td>
+                </tr>
+                <tr>
+                  <th>Created By:</th>
+                  <td><%= @invoice.created_by&.name || 'System' %></td>
+                </tr>
+                <tr>
+                  <th>Created:</th>
+                  <td><%= time_ago_in_words(@invoice.created_at) %> ago</td>
+                </tr>
+                <tr>
+                  <th>Category:</th>
+                  <td><%= @invoice.category&.humanize || 'Maintenance' %></td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle Information Card -->
+      <% if @vehicle.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Vehicle Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr>
+                    <th>Make/Model:</th>
+                    <td><%= @vehicle.make %> <%= @vehicle.model %></td>
+                  </tr>
+                  <tr>
+                    <th>License Plate:</th>
+                    <td><strong><%= @vehicle.license_plate %></strong></td>
+                  </tr>
+                  <tr>
+                    <th>Year:</th>
+                    <td><%= @vehicle.year_of_manufacture %></td>
+                  </tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr>
+                    <th>Vehicle Type:</th>
+                    <td><%= @vehicle.vehicle_type %></td>
+                  </tr>
+                  <tr>
+                    <th>Agency:</th>
+                    <td><%= @agency&.name || 'N/A' %></td>
+                  </tr>
+                  <tr>
+                    <th>Mileage:</th>
+                    <td><%= number_with_delimiter(@vehicle.mileage) %> km</td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Purchase Order Information -->
+      <% if @purchase_order.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Purchase Order Details</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr>
+                    <th>PO Number:</th>
+                    <td><%= link_to @purchase_order.po_number, purchase_order_path(@purchase_order) %></td>
+                  </tr>
+                  <tr>
+                    <th>PO Amount:</th>
+                    <td><%= number_to_currency(@purchase_order.amount) %></td>
+                  </tr>
+                  <tr>
+                    <th>PO Status:</th>
+                    <td><span class="badge bg-<%= @purchase_order.status_badge_color %>"><%= @purchase_order.display_status %></span></td>
+                  </tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr>
+                    <th>VMCOTT Status:</th>
+                    <td><span class="badge bg-<%= @purchase_order.vmcott_status_badge_color %>"><%= @purchase_order.display_vmcott_status %></span></td>
+                  </tr>
+                  <tr>
+                    <th>Work Orders:</th>
+                    <td><%= @work_orders&.count || 0 %></td>
+                  </tr>
+                </table>
+              </div>
+            </div>
+            
+            <% if @work_orders.present? && @work_orders.any? %>
+              <h6 class="fw-bold mt-3 mb-2">Work Orders</h6>
+              <ul class="list-group">
+                <% @work_orders.each do |wo| %>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <%= wo.work_order_number %>
+                    <span class="badge bg-<%= wo.status == 'completed' ? 'success' : 'warning' %>">
+                      <%= wo.status.humanize %>
+                    </span>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Notes Card -->
+      <% if @invoice.notes.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-chat-text me-2"></i>Notes</h5>
+          </div>
+          <div class="card-body">
+            <%= simple_format(@invoice.notes, class: "mb-0") %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="col-md-4">
+      <!-- Actions Card -->
+      <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Actions</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <% if @invoice.status == 'pending' %>
+              <%= button_to "Process Payment", process_payment_vmcott_billing_invoice_path(@invoice), 
+                    method: :post, 
+                    class: "btn btn-success btn-lg",
+                    data: { confirm: "Mark this invoice as paid?" } %>
+            <% end %>
+            
+            <%= link_to "Print PDF", print_vmcott_billing_invoice_path(@invoice, format: :pdf), 
+                  class: "btn btn-outline-primary btn-lg",
+                  target: "_blank" %>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🔥 NEW: Payable Information Card (VMCOTT sees receivables) -->
+      <% if @invoice.payable.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Receivable Information</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-borderless mb-0">
+              <tbody>
+                <tr>
+                  <td class="text-muted">Receivable ID:</td>
+                  <td class="fw-bold">#<%= @invoice.payable.id %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Status:</td>
+                  <td>
+                    <span class="badge bg-<%= @invoice.payable.status == 'paid' ? 'success' : 'warning' %>">
+                      <%= @invoice.payable.status.humanize %>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Amount Due:</td>
+                  <td class="fw-bold"><%= number_to_currency(@invoice.payable.amount_due) %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Due Date:</td>
+                  <td><%= @invoice.payable.due_date.strftime("%d %b %Y") %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Agency:</td>
+                  <td><%= @invoice.payable.vendor_name %></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Reference:</td>
+                  <td><%= @invoice.payable.reference_number %></td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <div class="mt-3">
+              <%= link_to "View Receivable", accounts_payable_path(@invoice.payable), class: "btn btn-sm btn-outline-info w-100" %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Timeline Card -->
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Timeline</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled">
+            <li class="mb-3">
+              <i class="bi bi-plus-circle text-primary me-2"></i>
+              <strong>Created:</strong><br>
+              <small class="text-muted"><%= @invoice.created_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+            </li>
+            <% if @invoice.paid_at %>
+              <li class="mb-3">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                <strong>Paid:</strong><br>
+                <small class="text-muted"><%= @invoice.paid_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @invoice.payable.present? && @invoice.payable.created_at %>
+              <li class="mb-3">
+                <i class="bi bi-cash-stack text-info me-2"></i>
+                <strong>Payable Created:</strong><br>
+                <small class="text-muted"><%= @invoice.payable.created_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

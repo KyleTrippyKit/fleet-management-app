@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_28_021202) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -342,7 +342,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_021202) do
     t.date "due_date", null: false
     t.date "invoice_date", null: false
     t.string "invoice_number", null: false
+    t.datetime "last_reminder_sent_at"
     t.datetime "last_sync_at"
+    t.decimal "late_fee_amount"
+    t.boolean "late_fee_applied"
     t.bigint "maintenance_id"
     t.text "notes"
     t.datetime "paid_at"
@@ -629,11 +632,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_021202) do
     t.string "reference_number"
     t.string "status", default: "completed"
     t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
     t.index ["invoice_id"], name: "index_payment_histories_on_invoice_id"
     t.index ["payment_date"], name: "index_payment_histories_on_payment_date"
     t.index ["payment_transaction_id"], name: "index_payment_histories_on_payment_transaction_id", unique: true
     t.index ["reference_number"], name: "index_payment_histories_on_reference_number"
     t.index ["status"], name: "index_payment_histories_on_status"
+    t.index ["user_id"], name: "index_payment_histories_on_user_id"
   end
 
   create_table "payment_schedules", force: :cascade do |t|
@@ -1414,6 +1419,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_021202) do
   add_foreign_key "payment_audits", "users"
   add_foreign_key "payment_histories", "invoices"
   add_foreign_key "payment_histories", "transactions", column: "payment_transaction_id"
+  add_foreign_key "payment_histories", "users"
   add_foreign_key "pos_transactions", "agencies"
   add_foreign_key "pos_transactions", "cashier_sessions"
   add_foreign_key "pos_transactions", "invoices"

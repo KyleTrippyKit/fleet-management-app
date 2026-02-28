@@ -73,3 +73,4 @@ gem 'axlsx_rails'
 gem "ransack"
 gem "csv"
 gem "redis", "~> 5.0"  # Required for Action Cable in production
+gem 'whenever', require: false

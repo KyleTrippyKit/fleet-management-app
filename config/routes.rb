@@ -84,6 +84,7 @@ Rails.application.routes.draw do
       
       resources :inspections, only: [:index, :show] do
         member do
+          patch :complete_inspection
           post :create_po
           get :print_report
         end
@@ -94,6 +95,7 @@ Rails.application.routes.draw do
     namespace :parts_coordinator do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "rfq/:part_id/new", to: "dashboard#create_rfq", as: :new_rfq
+      post "rfq/create", to: "dashboard#create_and_send_rfq", as: :create_rfq
       post "rfq/:id/send", to: "dashboard#send_rfq", as: :send_rfq
       get "rfq/:id/compare", to: "dashboard#compare_quotations", as: :compare_rfq
       post "quotation/:id/accept", to: "dashboard#accept_quotation", as: :accept_quotation
@@ -149,7 +151,11 @@ Rails.application.routes.draw do
     # 6. BILLING - Invoicing and payments
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
-      resources :invoices, only: [:index, :show] do
+      
+      # ✅ NEW: PO Details endpoint for JSON
+      get "po_details/:id", to: "invoices#po_details", as: :po_details
+      
+      resources :invoices, only: [:index, :show, :new, :create] do
         member do
           post :process_payment
           get :print
@@ -570,6 +576,7 @@ Rails.application.routes.draw do
       get  :dashboard
       get  :summary
       get  :bulk_actions
+      get  :bulk_payment
       post :process_bulk
       post :sync_quickbooks
       get  :aging_report

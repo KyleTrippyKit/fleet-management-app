@@ -51,9 +51,31 @@
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td colspan="6" class="text-center text-muted">No recent invoices</td>
-          </tr>
+          <% if @recent_invoices&.any? %>
+            <% @recent_invoices.each do |invoice| %>
+              <tr>
+                <td><strong><%= invoice.invoice_number %></strong></td>
+                <td>
+                  <%= invoice.vehicle&.license_plate %><br>
+                  <small class="text-muted"><%= invoice.vehicle&.make %> <%= invoice.vehicle&.model %></small>
+                </td>
+                <td><%= number_to_currency(invoice.amount) %></td>
+                <td>
+                  <span class="badge bg-<%= invoice.status == 'paid' ? 'success' : 'warning' %>">
+                    <%= invoice.status.humanize %>
+                  </span>
+                </td>
+                <td><%= invoice.due_date.strftime("%b %d, %Y") %></td>
+                <td>
+                  <%= link_to "View", vmcott_billing_invoice_path(invoice), class: "btn btn-sm btn-outline-primary" %>
+                </td>
+              </tr>
+            <% end %>
+          <% else %>
+            <tr>
+              <td colspan="6" class="text-center text-muted">No recent invoices</td>
+            </tr>
+          <% end %>
         </tbody>
       </table>
     </div>
@@ -64,9 +86,9 @@
       <h5>Quick Actions</h5>
     </div>
     <div class="card-body">
-      <%= link_to "View All Pending Invoices", billing_invoices_path(status: 'pending'), class: "btn btn-outline-warning me-2" %>
-      <%= link_to "View All Paid Invoices", billing_invoices_path(status: 'paid'), class: "btn btn-outline-success me-2" %>
-      <%= link_to "Generate Invoice", new_invoice_path, class: "btn btn-outline-primary" %>
+      <%= link_to "View All Pending Invoices", vmcott_billing_invoices_path(status: 'pending'), class: "btn btn-outline-warning me-2" %>
+      <%= link_to "View All Paid Invoices", vmcott_billing_invoices_path(status: 'paid'), class: "btn btn-outline-success me-2" %>
+      <%= link_to "Generate Invoice", new_vmcott_billing_invoice_path, class: "btn btn-outline-primary" %>
     </div>
   </div>
 </div>

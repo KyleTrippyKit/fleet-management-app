@@ -1,5 +1,5 @@
 # app/controllers/purchase_orders_controller.rb
-# COMPLETE REVISED VERSION with VMCOTT filtering fix
+# COMPLETE REVISED VERSION with JSON endpoint in show action
 
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
@@ -202,6 +202,8 @@ class PurchaseOrdersController < ApplicationController
     end
   end
 
+  # GET /purchase_orders/:id
+  # GET /purchase_orders/:id.json
   def show
     if request.format.pdf?
       return redirect_to print_purchase_order_path(@purchase_order, format: :pdf)
@@ -216,6 +218,24 @@ class PurchaseOrdersController < ApplicationController
 
     @vendor_invoice = VendorInvoice.find_by(purchase_order_id: @purchase_order.id)
     @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
+
+    respond_to do |format|
+      format.html
+      format.json do
+        render json: {
+          id: @purchase_order.id,
+          po_number: @purchase_order.po_number,
+          vendor: @purchase_order.agency&.name || @purchase_order.vendor,
+          amount: @purchase_order.amount,
+          vehicle: {
+            make: @purchase_order.vehicle&.make,
+            model: @purchase_order.vehicle&.model,
+            license_plate: @purchase_order.vehicle&.license_plate,
+            year: @purchase_order.vehicle&.year_of_manufacture
+          }
+        }
+      end
+    end
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.warn "Payment histories association failed: #{e.message}"
     @payment_histories = []

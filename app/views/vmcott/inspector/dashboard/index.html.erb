@@ -7,6 +7,7 @@
     </div>
   </div>
 
+  <!-- KPI Cards -->
   <div class="row">
     <div class="col-md-3 mb-3">
       <div class="card bg-warning text-dark">
@@ -25,15 +26,15 @@
       </div>
     </div>
     <div class="col-md-3 mb-3">
-      <div class="card bg-success text-white">
+      <div class="card bg-info text-white">
         <div class="card-body">
           <h5 class="card-title">QC Pending</h5>
-          <h2 class="display-4">0</h2>
+          <h2 class="display-4"><%= InternalPos.where(status: 'pending').where("notes LIKE ?", "%QC%").count %></h2>
         </div>
       </div>
     </div>
     <div class="col-md-3 mb-3">
-      <div class="card bg-info text-white">
+      <div class="card bg-success text-white">
         <div class="card-body">
           <h5 class="card-title">Completed Today</h5>
           <h2 class="display-4"><%= @recent_completed&.count || 0 %></h2>
@@ -43,47 +44,113 @@
   </div>
 
   <div class="row mt-4">
+    <!-- Vehicles Waiting for Inspection -->
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5>Vehicles Waiting for Inspection</h5>
+        <div class="card-header bg-warning">
+          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Vehicles Waiting for Inspection</h5>
         </div>
         <div class="card-body">
           <% if @pending_inspections && @pending_inspections.any? %>
             <% @pending_inspections.each do |log| %>
               <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
                 <div>
-                  <strong><%= log.vehicle.license_plate %></strong>
-                  <div class="small text-muted"><%= log.vehicle.make %> <%= log.vehicle.model %></div>
+                  <strong><%= log.vehicle&.license_plate || "Unknown" %></strong>
+                  <div class="small text-muted">
+                    <%= log.vehicle&.make %> <%= log.vehicle&.model %>
+                    <br>
+                    <small>Received: <%= time_ago_in_words(log.received_at) %> ago</small>
+                  </div>
                 </div>
-                <%= link_to "Start Inspection", vmcott_inspector_new_inspection_path(log.vehicle_id), class: "btn btn-sm btn-primary" %>
+                <%= link_to "Start Inspection", vmcott_inspector_new_inspection_path(log.vehicle_id), 
+                      class: "btn btn-sm btn-primary" %>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted">No vehicles waiting for inspection</p>
+            <p class="text-muted text-center py-3">No vehicles waiting for inspection</p>
           <% end %>
         </div>
       </div>
     </div>
     
+    <!-- QC Pending Jobs -->
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5>Recent Inspections</h5>
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>QC Pending Jobs</h5>
         </div>
         <div class="card-body">
-          <% if @recent_completed && @recent_completed.any? %>
-            <% @recent_completed.each do |inspection| %>
+          <% qc_pending = InternalPos.where(status: 'pending').where("notes LIKE ?", "%QC%") %>
+          <% if qc_pending.any? %>
+            <% qc_pending.each do |job| %>
               <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
                 <div>
-                  <strong><%= inspection.vehicle.license_plate %></strong>
-                  <div class="small text-muted"><%= time_ago_in_words(inspection.completed_at) %> ago</div>
+                  <strong>Work Order: <%= job.work_order_number %></strong>
+                  <div class="small text-muted">
+                    Vehicle: <%= job.vehicle&.license_plate || "Unknown" %>
+                    <br>
+                    <small>Created: <%= time_ago_in_words(job.created_at) %> ago</small>
+                  </div>
                 </div>
-                <%= link_to "View", vmcott_inspector_inspection_path(inspection), class: "btn btn-sm btn-outline-primary" %>
+                <%= link_to "Start QC", vmcott_inspector_qc_path(job), 
+                      class: "btn btn-sm btn-warning" %>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted">No recent inspections</p>
+            <p class="text-muted text-center py-3">No QC pending jobs</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Inspections -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Recent Inspections</h5>
+        </div>
+        <div class="card-body">
+          <% if @recent_completed && @recent_completed.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Date</th>
+                    <th>Jobs Found</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @recent_completed.each do |inspection| %>
+                    <tr>
+                      <td>
+                        <strong><%= inspection.vehicle&.license_plate || "Unknown" %></strong>
+                        <div class="small text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></div>
+                      </td>
+                      <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
+                      <td><%= inspection.inspection_jobs.count %></td>
+                      <td>
+                        <% if inspection.purchase_order.present? %>
+                          <span class="badge bg-success">PO Created</span>
+                        <% else %>
+                          <span class="badge bg-warning">Pending PO</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
+                              class: "btn btn-sm btn-outline-primary" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No recent inspections</p>
           <% end %>
         </div>
       </div>

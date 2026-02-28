@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Weekly Overdue Digest</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+  <div style="background: #17a2b8; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
+    <h1 style="margin: 0;">📊 Weekly Overdue Summary</h1>
+  </div>
+  
+  <div style="background: #f8f9fa; padding: 30px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px;">
+    <p>Finance Team,</p>
+    
+    <p>Here is your weekly summary of overdue invoices for <strong><%= @agency.code %></strong>.</p>
+    
+    <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #17a2b8;">Summary</h3>
+      <table style="width: 100%;">
+        <tr>
+          <td><strong>Total Overdue:</strong></td>
+          <td><strong style="color: #dc3545;">$<%= number_with_delimiter(@total_overdue) %></strong></td>
+        </tr>
+        <tr>
+          <td><strong>Number of Invoices:</strong></td>
+          <td><%= @invoices.count %></td>
+        </tr>
+        <tr>
+          <td><strong>Oldest Invoice:</strong></td>
+          <td><%= @oldest_invoice.due_date.strftime("%B %d, %Y") %> (<%= @oldest_invoice.days_overdue %> days)</td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="background: white; padding: 20px; border-radius: 5px; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #17a2b8;">Overdue Invoices</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #e9ecef;">
+            <th style="padding: 10px; text-align: left;">Invoice #</th>
+            <th style="padding: 10px; text-align: left;">Due Date</th>
+            <th style="padding: 10px; text-align: left;">Days</th>
+            <th style="padding: 10px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @invoices.each do |invoice| %>
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 10px;"><%= link_to invoice.invoice_number, invoice_url(invoice) %></td>
+              <td style="padding: 10px;"><%= invoice.due_date.strftime("%b %d, %Y") %></td>
+              <td style="padding: 10px; color: #dc3545;"><%= invoice.days_overdue %></td>
+              <td style="padding: 10px; text-align: right;">$<%= number_with_delimiter(invoice.amount) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px;">
+      <a href="<%= aging_report_invoices_url %>" style="background: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Full Aging Report</a>
+    </div>
+  </div>
+</body>
+</html>

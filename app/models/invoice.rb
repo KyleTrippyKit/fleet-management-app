@@ -2,6 +2,8 @@
 # FIX: Added before_save callback to auto-update aging_bucket
 # FIX: Added after_create callback to create payable from invoice
 # FIX: Added can_approve? method for test compatibility
+# FIX: Added has_one :payable association
+# FIX: Enhanced create_payable_from_invoice with proper account lookup
 # FIX: Commented out ActivityLog references (model doesn't exist)
 
 class Invoice < ApplicationRecord
@@ -24,6 +26,9 @@ class Invoice < ApplicationRecord
   belongs_to :paid_by,     class_name: "User", optional: true
   belongs_to :disputed_by, class_name: "User", optional: true
 
+  # ✅ ADDED: Payable association (matches payable_id column)
+  has_one :payable, dependent: :nullify
+  
   has_many :ledger_entries, dependent: :destroy
   has_many :transactions, dependent: :destroy
   has_many :payment_histories, dependent: :destroy
@@ -825,13 +830,29 @@ class Invoice < ApplicationRecord
   end
 
   # ==========================================================
-  # PAYABLE CREATION - NEW METHOD
+  # 🔥 PAYABLE CREATION - ENHANCED VERSION (FIXED)
   # ==========================================================
   def create_payable_from_invoice
     return if purchase_order.nil?
-    return if purchase_order.payable.present?
+    return if payable.present?  # ✅ Check if payable already exists
     
     begin
+      agency = purchase_order.vehicle&.agency
+      return unless agency
+      
+      # Find or create the accounts payable account for this agency
+      payable_account = Account.find_or_create_by!(
+        account_number: '2000',
+        agency_id: agency.id
+      ) do |account|
+        account.name = 'Accounts Payable'
+        account.account_type = 'liability'
+        account.sub_type = 'accounts_payable'
+        account.currency = 'TTD'
+        account.is_active = true
+        account.balance = 0
+      end
+      
       payable = Payable.create!(
         purchase_order: purchase_order,
         invoice: self,
@@ -839,16 +860,22 @@ class Invoice < ApplicationRecord
         amount: amount,
         amount_due: amount,
         due_date: due_date,
-        agency_id: purchase_order.vehicle&.agency_id,
+        agency_id: agency.id,
+        account_id: payable_account.id,  # ✅ Now properly set!
         description: "Invoice #{invoice_number} for PO #{purchase_order.po_number}",
         category: 'purchase_order',
         status: 'open',
         reference_number: "INV-#{invoice_number}"
       )
       
+      # Update the invoice with the payable_id
+      update_column(:payable_id, payable.id)
+      
       Rails.logger.info "✅ Payable #{payable.id} created from Invoice #{invoice_number}"
+      
     rescue => e
       Rails.logger.error "❌ Failed to create payable from Invoice #{invoice_number}: #{e.message}"
+      # Don't raise - we want invoice creation to succeed even if payable creation fails
     end
   end
 
@@ -857,10 +884,11 @@ class Invoice < ApplicationRecord
   # ==========================================================
   before_save :update_overdue_status
   before_save :link_supplier
-  before_save :update_aging_bucket  # ← NEW: Auto-update aging bucket before save
+  before_save :update_aging_bucket  # Auto-update aging bucket before save
+  after_commit :update_aging_bucket, on: [:update]
   after_save :check_aging_bucket_change, if: :saved_change_to_aging_bucket?
   # after_save :check_status_change_for_logs, if: :saved_change_to_status?  # Commented out - uses ActivityLog
-  after_create :create_payable_from_invoice, if: -> { purchase_order.present? }  # ← NEW: Create payable when invoice is created
+  after_create :create_payable_from_invoice, if: -> { purchase_order.present? }  # Create payable when invoice is created
 
   private
 
@@ -874,9 +902,7 @@ class Invoice < ApplicationRecord
     self.supplier = Supplier.find_by(name: vendor) if vendor.present? && supplier.nil?
   end
 
-  # ==========================================================
-  # NEW METHOD: Auto-update aging bucket based on days overdue
-  # ==========================================================
+  # Auto-update aging bucket based on days overdue
   def update_aging_bucket
     self.aging_bucket = calculate_aging_bucket
   end

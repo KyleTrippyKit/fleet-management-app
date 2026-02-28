@@ -22,7 +22,7 @@ class InvoicesController < ApplicationController
     safe_initialize_quickbooks
 
     @invoices = policy_scope(Invoice)
-      .includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by)
+      .includes(:vehicle, :transactions, :purchase_order, :pos_transaction, :created_by, :received_by, :payable)
 
     @invoices = apply_filters(@invoices)
     @invoices = apply_integration_filters(@invoices)
@@ -53,8 +53,21 @@ class InvoicesController < ApplicationController
         render pdf: "invoice-#{@invoice.invoice_number}",
                template: "invoices/show",
                layout: "pdf",
-               page_size: "A4",
-               disposition: "inline"
+               formats: [:html],
+               encoding: 'UTF-8',
+               page_size: 'A4',
+               margin: { top: 20, bottom: 20, left: 15, right: 15 },
+               show_as_html: params[:debug].present?,
+               header: {
+                  html: {
+                    content: render_to_string(partial: 'shared/pdf/header', formats: [:html], layout: false)
+                  }
+                },
+                footer: {
+                  html: {
+                    content: render_to_string(partial: 'shared/pdf/footer', formats: [:html], layout: false)
+                  }
+                }
       end
     end
   end
@@ -261,10 +274,23 @@ class InvoicesController < ApplicationController
     respond_to do |format|
       format.pdf do
         render pdf: "invoice-#{@invoice.invoice_number}",
-               template: "invoices/show",
+               template: "invoices/print",
                layout: "pdf",
-               page_size: "A4",
-               disposition: "inline"
+               formats: [:html],
+               encoding: 'UTF-8',
+               page_size: 'A4',
+               margin: { top: 20, bottom: 20, left: 15, right: 15 },
+               show_as_html: params[:debug].present?,
+               header: {
+                  html: {
+                    content: render_to_string(partial: 'shared/pdf/header', formats: [:html], layout: false)
+                  }
+                },
+                footer: {
+                  html: {
+                    content: render_to_string(partial: 'shared/pdf/footer', formats: [:html], layout: false)
+                  }
+                }
       end
       format.html { render :print, layout: false }
     end
@@ -429,11 +455,19 @@ class InvoicesController < ApplicationController
           payment_date: payment_date,
           reference_number: tx.reference_number,
           notes: notes,
-          status: "completed"
+          status: "completed",
+          user: current_user,
+          payment_transaction: tx
         )
       end
 
       @invoice.update_payment_status if @invoice.respond_to?(:update_payment_status)
+
+      # Send payment confirmation email
+      if @invoice.paid? && @invoice.created_by&.email.present?
+        InvoiceMailer.payment_confirmation(@invoice, @invoice.created_by).deliver_later
+        Rails.logger.info "📧 Payment confirmation email queued for invoice #{@invoice.invoice_number}"
+      end
 
       log_activity(
         user: current_user,
@@ -722,7 +756,7 @@ class InvoicesController < ApplicationController
       csv << [
         "Invoice #", "Date", "Vendor", "Vehicle", "Agency", "Amount",
         "Status", "Due Date", "Aging", "Category", "QuickBooks ID",
-        "POS Payment", "Purchase Order"
+        "POS Payment", "Purchase Order", "Payable ID"
       ]
 
       invoices.find_each do |invoice|
@@ -739,7 +773,8 @@ class InvoicesController < ApplicationController
           invoice.category,
           invoice.quickbooks_id,
           invoice.pos_transaction_id.present? ? "Yes" : "No",
-          invoice.purchase_order_id
+          invoice.purchase_order_id,
+          invoice.payable_id
         ]
       end
     end

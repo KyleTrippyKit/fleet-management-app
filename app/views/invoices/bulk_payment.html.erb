@@ -1,0 +1,105 @@
+<%# app/views/invoices/bulk_payment.html.erb %>
+<div class="container-fluid py-4">
+  <h1 class="h2 mb-4">💰 Bulk Payment Processing</h1>
+  
+  <%= form_with url: process_bulk_payment_invoices_path, method: :post, local: true do |f| %>
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Select Invoices to Pay</h5>
+      </div>
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all"></th>
+              <th>Invoice #</th>
+              <th>Vendor</th>
+              <th>Due Date</th>
+              <th class="text-end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @invoices.each do |invoice| %>
+              <tr>
+                <td>
+                  <%= check_box_tag "invoice_ids[]", invoice.id, 
+                        @selected_ids.include?(invoice.id.to_s),
+                        class: "invoice-checkbox" %>
+                </td>
+                <td><%= invoice.invoice_number %></td>
+                <td><%= invoice.vendor %></td>
+                <td><%= invoice.due_date.strftime("%b %d, %Y") %></td>
+                <td class="text-end"><%= number_to_currency(invoice.amount) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+          <tfoot>
+            <tr class="table-info">
+              <th colspan="4" class="text-end">Total Selected:</th>
+              <th class="text-end" id="total-selected">$0.00</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-header bg-success text-white">
+        <h5 class="mb-0">Payment Details</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Payment Method</label>
+            <%= f.select :payment_method, 
+                  options_for_select([['Bank Transfer', 'bank_transfer'], 
+                                     ['Cheque', 'cheque']]),
+                  {}, class: "form-select" %>
+          </div>
+          
+          <div class="col-md-4 mb-3">
+            <label class="form-label">Payment Date</label>
+            <%= f.date_field :payment_date, value: Date.current, class: "form-control" %>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-end gap-2">
+          <%= link_to "Cancel", invoices_path, class: "btn btn-outline-secondary" %>
+          <%= f.submit "Process Bulk Payment", class: "btn btn-success", 
+                data: { confirm: "Process payment for selected invoices?" } %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = document.querySelectorAll('.invoice-checkbox');
+    const totalEl = document.getElementById('total-selected');
+    
+    function updateTotal() {
+      let total = 0;
+      document.querySelectorAll('.invoice-checkbox:checked').forEach(cb => {
+        const row = cb.closest('tr');
+        const amount = parseFloat(row.querySelector('td:last-child').textContent.replace(/[$,]/g, ''));
+        total += amount;
+      });
+      totalEl.textContent = '$' + total.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    }
+    
+    selectAll?.addEventListener('change', function() {
+      checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+      });
+      updateTotal();
+    });
+    
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', updateTotal);
+    });
+    
+    updateTotal();
+  });
+</script>

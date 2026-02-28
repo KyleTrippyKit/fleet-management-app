@@ -1,42 +1,34 @@
-<%# app/views/vmcott/parts_coordinator/dashboard/index.html.erb %>
+<%# app/views/vmcott/mechanic/dashboard/index.html.erb %>
 <div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
-      <h1 class="h2">📦 Welcome, <%= current_user.name %></h1>
-      <p class="text-muted">VMCOTT Parts Coordinator - Inventory & RFQs</p>
+      <h1 class="h2">🔧 Welcome, <%= current_user.name %></h1>
+      <p class="text-muted">VMCOTT Mechanic - Repairs & Work Orders</p>
     </div>
   </div>
 
   <div class="row">
-    <div class="col-md-3 mb-3">
-      <div class="card bg-danger text-white">
+    <div class="col-md-4 mb-3">
+      <div class="card bg-primary text-white">
         <div class="card-body">
-          <h5 class="card-title">Low Stock Items</h5>
-          <h2 class="display-4"><%= @low_stock_parts&.count || 0 %></h2>
+          <h5 class="card-title">My Assigned Jobs</h5>
+          <h2 class="display-4"><%= @assigned_jobs&.count || 0 %></h2>
         </div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-warning text-dark">
-        <div class="card-body">
-          <h5 class="card-title">Active RFQs</h5>
-          <h2 class="display-4"><%= @active_rfqs&.count || 0 %></h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-info text-white">
-        <div class="card-body">
-          <h5 class="card-title">Pending Receipts</h5>
-          <h2 class="display-4"><%= @pending_receipts&.count || 0 %></h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
+    <div class="col-md-4 mb-3">
       <div class="card bg-success text-white">
         <div class="card-body">
-          <h5 class="card-title">Jobs Needing Parts</h5>
-          <h2 class="display-4"><%= @pending_parts&.count || 0 %></h2>
+          <h5 class="card-title">Available Jobs</h5>
+          <h2 class="display-4"><%= @available_jobs&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Completed Today</h5>
+          <h2 class="display-4"><%= @completed_today || 0 %></h2>
         </div>
       </div>
     </div>
@@ -45,33 +37,51 @@
   <div class="row mt-4">
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5>Low Stock Alerts</h5>
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-tools me-2"></i>My Assigned Jobs</h5>
         </div>
         <div class="card-body">
-          <% if @low_stock_parts && @low_stock_parts.any? %>
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Part</th>
-                  <th>Stock</th>
-                  <th>Reorder Point</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% @low_stock_parts.each do |part| %>
-                  <tr>
-                    <td><%= part.name %></td>
-                    <td class="text-danger"><%= part.current_stock %></td>
-                    <td><%= part.reorder_point %></td>
-                    <td><%= link_to "Create RFQ", parts_coordinator_new_rfq_path(part), class: "btn btn-sm btn-warning" %></td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+          <% if @assigned_jobs && @assigned_jobs.any? %>
+            <% @assigned_jobs.each do |job| %>
+              <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
+                <div>
+                  <strong><%= job.work_order_number %></strong>
+                  <div class="small">
+                    <!-- FIXED: Using extracted_work_section and notes instead of description -->
+                    <% if job.extracted_work_section.present? %>
+                      <span class="badge bg-info"><%= job.extracted_work_section %></span>
+                    <% end %>
+                    <% if job.extracted_work_role.present? %>
+                      <span class="badge bg-secondary"><%= job.extracted_work_role %></span>
+                    <% end %>
+                    <br>
+                    <%= job.notes&.split("\n")&.first&.truncate(50) %><br>
+                    <span class="text-muted">
+                      <%= job.vehicle&.make %> <%= job.vehicle&.model %> - 
+                      <%= job.vehicle&.license_plate %>
+                    </span>
+                  </div>
+                  <div class="mt-2">
+                    <span class="badge bg-<%= job.status == 'in_progress' ? 'warning' : 'secondary' %>">
+                      <%= job.status.humanize %>
+                    </span>
+                    <span class="badge bg-<%= 
+                      case job.priority
+                      when 'high' then 'danger'
+                      when 'normal' then 'info'
+                      else 'secondary'
+                      end %>">
+                      <%= job.priority.humanize %>
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <%= link_to "View", vmcott_mechanic_job_path(job), class: "btn btn-sm btn-primary" %>
+                </div>
+              </div>
+            <% end %>
           <% else %>
-            <p class="text-muted">No low stock items</p>
+            <p class="text-muted text-center py-3">No assigned jobs</p>
           <% end %>
         </div>
       </div>
@@ -79,22 +89,51 @@
     
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header">
-          <h5>Active RFQs</h5>
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-list-task me-2"></i>Available Jobs</h5>
         </div>
         <div class="card-body">
-          <% if @active_rfqs && @active_rfqs.any? %>
-            <% @active_rfqs.each do |rfq| %>
-              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+          <% if @available_jobs && @available_jobs.any? %>
+            <% @available_jobs.each do |job| %>
+              <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
                 <div>
-                  <strong>RFQ #<%= rfq.id %></strong>
-                  <div class="small text-muted"><%= rfq.vendor_quotations.count %> quotations</div>
+                  <strong><%= job.work_order_number %></strong>
+                  <div class="small">
+                    <!-- FIXED: Using extracted_work_section and notes instead of description -->
+                    <% if job.extracted_work_section.present? %>
+                      <span class="badge bg-info"><%= job.extracted_work_section %></span>
+                    <% end %>
+                    <% if job.extracted_work_role.present? %>
+                      <span class="badge bg-secondary"><%= job.extracted_work_role %></span>
+                    <% end %>
+                    <br>
+                    <%= job.notes&.split("\n")&.first&.truncate(50) %><br>
+                    <span class="text-muted">
+                      <%= job.vehicle&.make %> <%= job.vehicle&.model %> - 
+                      <%= job.vehicle&.license_plate %>
+                    </span>
+                  </div>
+                  <div class="mt-2">
+                    <span class="badge bg-<%= 
+                      case job.priority
+                      when 'high' then 'danger'
+                      when 'normal' then 'info'
+                      else 'secondary'
+                      end %>">
+                      <%= job.priority.humanize %>
+                    </span>
+                  </div>
                 </div>
-                <%= link_to "Compare", parts_coordinator_compare_rfq_path(rfq), class: "btn btn-sm btn-primary" %>
+                <div>
+                  <%= button_to "Assign to Me", vmcott_mechanic_assign_job_path(job), 
+                        method: :post, 
+                        class: "btn btn-sm btn-success",
+                        data: { confirm: "Assign this job to yourself?" } %>
+                </div>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted">No active RFQs</p>
+            <p class="text-muted text-center py-3">No available jobs</p>
           <% end %>
         </div>
       </div>

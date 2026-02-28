@@ -1,0 +1,89 @@
+<%# app/views/vmcott/parts_coordinator/dashboard/receive_parts.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">📦 Receive Parts</h1>
+          <p class="text-muted">Purchase Order #<%= @po.po_number %></p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_parts_coordinator_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">Receive Shipment</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with url: vmcott_parts_coordinator_receive_parts_path, method: :post, local: true do |f| %>
+            
+            <%= hidden_field_tag :purchase_order_id, @po.id %>
+
+            <div class="mb-4">
+              <h6 class="fw-bold">Purchase Order Details</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <p><strong>PO Number:</strong> <%= @po.po_number %></p>
+                  <p><strong>Vendor:</strong> <%= @po.vendor %></p>
+                </div>
+                <div class="col-md-6">
+                  <p><strong>Order Date:</strong> <%= @po.created_at.strftime("%b %d, %Y") %></p>
+                  <p><strong>Total Amount:</strong> <%= number_to_currency(@po.amount) %></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <h6 class="fw-bold">Items to Receive</h6>
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th class="text-end">Ordered</th>
+                    <th class="text-end">Received</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @po.purchase_order_items.each do |item| %>
+                    <tr>
+                      <td><%= item.description %></td>
+                      <td class="text-end"><%= item.quantity %></td>
+                      <td class="text-end">
+                        <%= number_field_tag "received_quantities[#{item.id}]", item.quantity, 
+                              class: "form-control form-control-sm", 
+                              style: "width: 100px; display: inline-block;",
+                              min: 0, max: item.quantity %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mb-4">
+              <%= label_tag :invoice_number, "Vendor Invoice Number", class: "form-label fw-bold" %>
+              <%= text_field_tag :invoice_number, nil, class: "form-control", required: true,
+                    placeholder: "e.g., INV-2025-001" %>
+            </div>
+
+            <div class="mb-4">
+              <%= label_tag :notes, "Receiving Notes", class: "form-label fw-bold" %>
+              <%= text_area_tag :notes, nil, class: "form-control", rows: 2,
+                    placeholder: "Any issues or notes about this shipment?" %>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <%= link_to "Cancel", vmcott_parts_coordinator_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Receive Parts", class: "btn btn-success", 
+                    data: { confirm: "Confirm receipt of these parts? Stock will be updated." } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

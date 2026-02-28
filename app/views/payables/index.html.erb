@@ -1,0 +1,48 @@
+<%# app/views/payables/index.html.erb %>
+<div class="container-fluid py-4">
+  <h1 class="h2 mb-4">💰 Accounts Payable</h1>
+  
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Invoice #</th>
+              <th>Vendor</th>
+              <th>Amount</th>
+              <th>Amount Due</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @payables.each do |payable| %>
+              <tr>
+                <td><%= payable.id %></td>
+                <td><%= payable.invoice&.invoice_number || 'N/A' %></td>
+                <td><%= payable.vendor_name %></td>
+                <td>$<%= number_with_delimiter(payable.amount) %></td>
+                <td>$<%= number_with_delimiter(payable.amount_due) %></td>
+                <td><%= payable.due_date.strftime("%b %d, %Y") %></td>
+                <td>
+                  <span class="badge bg-<%= payable.status == 'paid' ? 'success' : 'warning' %>">
+                    <%= payable.status.humanize %>
+                  </span>
+                </td>
+                <td>
+                  <%= link_to "View", accounts_payable_path(payable), class: "btn btn-sm btn-outline-primary" %>
+                  <% if payable.invoice.present? %>
+                    <%= link_to "Invoice", invoice_path(payable.invoice), class: "btn btn-sm btn-outline-info" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

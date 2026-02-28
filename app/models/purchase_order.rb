@@ -290,13 +290,24 @@ class PurchaseOrder < ApplicationRecord
     # )
   end
 
-  # 🔥 NEW: Notify agency
+  # ============================================================
+  # 🔥 NOTIFY AGENCY METHOD - Added for InternalPos callbacks
+  # ============================================================
   def notify_agency(message)
     return unless agency_id
     
     Rails.logger.info "📢 AGENCY #{agency&.code}: #{message}"
     
-    # If you have agency notifications:
+    # If you have a Notification model for agencies, uncomment:
+    # Notification.create!(
+    #   agency_id: agency_id,
+    #   title: 'Purchase Order Update',
+    #   message: message,
+    #   link: "/purchase_orders/#{id}",
+    #   priority: 'medium'
+    # )
+    
+    # If you have an AgencyNotification model:
     # AgencyNotification.create!(
     #   agency_id: agency_id,
     #   title: 'Purchase Order Update',
@@ -798,6 +809,20 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # ============================================
+  # HELPER METHODS FOR FORMS AND DISPLAY
+  # ============================================
+  
+  # Helper method to get agency name safely (for forms and JSON)
+  def agency_name
+    agency&.name
+  end
+  
+  # Helper method to get agency code safely
+  def agency_code
+    agency&.code
+  end
+
+  # ============================================
   # DISPLAY METHODS & BADGES
   # ============================================
 
@@ -980,7 +1005,7 @@ class PurchaseOrder < ApplicationRecord
     vehicle ? "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model}" : 'No Vehicle'
   end
 
-  # NEW: Helper method for receptionist dropdown - shows PO number with vehicle info
+  # Helper method for dropdown - shows PO number with vehicle info
   def po_number_with_vehicle_info
     vehicle_info = if vehicle.present?
       year_display = vehicle.year_of_manufacture.present? ? "(#{vehicle.year_of_manufacture})" : ""

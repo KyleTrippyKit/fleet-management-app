@@ -1,0 +1,157 @@
+<% @page_title = "Invoice #{@invoice.invoice_number}" %>
+
+<!-- Document Header -->
+<div class="document-header">
+  <h1>VMCOTT - Vehicle Maintenance Company of Trinidad and Tobago</h1>
+  <h2>INVOICE</h2>
+  <p><%= @invoice.invoice_number %></p>
+</div>
+
+<!-- Invoice Details Grid -->
+<div class="details-grid">
+  <div class="detail-item">
+    <span class="detail-label">Invoice Number</span>
+    <span class="detail-value"><strong><%= @invoice.invoice_number %></strong></span>
+  </div>
+  <div class="detail-item">
+    <span class="detail-label">Status</span>
+    <span class="detail-value">
+      <span class="badge bg-<%= @invoice.status == 'paid' ? 'success' : (@invoice.status == 'overdue' ? 'danger' : 'warning') %>">
+        <%= @invoice.status.upcase %>
+      </span>
+    </span>
+  </div>
+  <div class="detail-item">
+    <span class="detail-label">Invoice Date</span>
+    <span class="detail-value"><%= @invoice.invoice_date.strftime("%B %d, %Y") %></span>
+  </div>
+  <div class="detail-item">
+    <span class="detail-label">Due Date</span>
+    <span class="detail-value"><%= @invoice.due_date.strftime("%B %d, %Y") %></span>
+  </div>
+  <div class="detail-item">
+    <span class="detail-label">Vendor/Agency</span>
+    <span class="detail-value"><%= @invoice.vendor %></span>
+  </div>
+  <div class="detail-item">
+    <span class="detail-label">Created By</span>
+    <span class="detail-value"><%= @invoice.created_by&.name || 'System' %></span>
+  </div>
+</div>
+
+<% if @vehicle.present? %>
+<!-- Vehicle Details Section -->
+<div class="section no-break">
+  <div class="section-header">
+    <h3>Vehicle Details</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">Make/Model</th>
+        <td width="25%"><%= @vehicle.make %> <%= @vehicle.model %></td>
+        <th width="25%">License Plate</th>
+        <td width="25%"><strong><%= @vehicle.license_plate %></strong></td>
+      </tr>
+      <tr>
+        <th>Year</th>
+        <td><%= @vehicle.year_of_manufacture %></td>
+        <th>Agency</th>
+        <td><%= @agency&.name || @invoice.vendor %></td>
+      </tr>
+      <tr>
+        <th>Vehicle Type</th>
+        <td><%= @vehicle.vehicle_type %></td>
+        <th>Mileage</th>
+        <td><%= number_with_delimiter(@vehicle.mileage) %> km</td>
+      </tr>
+    </table>
+  </div>
+</div>
+<% end %>
+
+<% if @purchase_order.present? %>
+<!-- Purchase Order Section -->
+<div class="section no-break">
+  <div class="section-header">
+    <h3>Purchase Order Reference</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">PO Number</th>
+        <td width="25%"><%= @purchase_order.po_number %></td>
+        <th width="25%">PO Amount</th>
+        <td width="25%"><%= number_to_currency(@purchase_order.amount) %></td>
+      </tr>
+      <tr>
+        <th>PO Status</th>
+        <td><%= @purchase_order.display_status %></td>
+        <th>VMCOTT Status</th>
+        <td><%= @purchase_order.display_vmcott_status %></td>
+      </tr>
+    </table>
+  </div>
+</div>
+<% end %>
+
+<!-- Amount Section -->
+<div class="section no-break">
+  <div class="section-header">
+    <h3>Amount Details</h3>
+  </div>
+  <div class="section-body">
+    <table class="table-sm">
+      <tr>
+        <th width="70%">Description</th>
+        <th width="30%" class="text-end">Amount (TTD)</th>
+      </tr>
+      <tr>
+        <td>Vehicle maintenance and repair services as per PO <%= @purchase_order&.po_number %></td>
+        <td class="text-end"><%= number_to_currency(@invoice.amount) %></td>
+      </tr>
+      <% if @invoice.notes.present? %>
+      <tr>
+        <td colspan="2" class="text-muted small">
+          <strong>Notes:</strong> <%= @invoice.notes %>
+        </td>
+      </tr>
+      <% end %>
+      <tr>
+        <td class="text-end"><strong>Total Amount:</strong></td>
+        <td class="text-end total"><strong><%= number_to_currency(@invoice.amount) %></strong></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Payment Status -->
+<div class="section no-break">
+  <div class="section-header">
+    <h3>Payment Status</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="30%">Status</th>
+        <td>
+          <span class="badge bg-<%= @invoice.status == 'paid' ? 'success' : (@invoice.status == 'overdue' ? 'danger' : 'warning') %>">
+            <%= @invoice.status.upcase %>
+          </span>
+        </td>
+      </tr>
+      <% if @invoice.paid_at %>
+      <tr>
+        <th>Paid Date</th>
+        <td><%= @invoice.paid_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+      </tr>
+      <% end %>
+    </table>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="document-footer">
+  <p>This is a system-generated invoice from VMCOTT - Vehicle Maintenance Company of Trinidad and Tobago</p>
+  <p>Generated on: <%= Time.current.strftime("%B %d, %Y at %I:%M %p") %></p>
+</div>

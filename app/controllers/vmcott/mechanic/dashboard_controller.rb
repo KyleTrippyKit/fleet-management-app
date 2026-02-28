@@ -6,10 +6,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def index
     @assigned_jobs = InternalPos.where(assigned_to_id: current_user.id)
                                 .where(status: ['pending', 'in_progress'])
-                                .includes(:purchase_order => :vehicle)
+                                .includes(purchase_order: :vehicle)
+                                .order(priority: :desc, created_at: :asc)
     
     @available_jobs = InternalPos.where(status: 'pending', assigned_to_id: nil)
-                                .includes(:purchase_order => :vehicle)
+                                .includes(purchase_order: :vehicle)
                                 .order(priority: :desc, created_at: :asc)
     
     @completed_today = InternalPos.where(assigned_to_id: current_user.id)
@@ -17,12 +18,19 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                   .where('updated_at >= ?', Date.current.beginning_of_day)
                                   .count
     
-    # Automatically looks for: app/views/vmcott/mechanic/dashboard/index.html.erb
+    @recently_completed = InternalPos.where(assigned_to_id: current_user.id)
+                                     .where(status: 'completed')
+                                     .order(updated_at: :desc)
+                                     .limit(10)
+                                     .includes(purchase_order: :vehicle)
+    
+    @pending_qc = InternalPos.where(status: 'pending')
+                            .where("notes LIKE ?", "%QC%")
+                            .count
   end
   
   def show_job
-    @job = InternalPos.find(params[:id])
-    # Automatically looks for: app/views/vmcott/mechanic/dashboard/show_job.html.erb
+    @job = InternalPos.includes(purchase_order: :vehicle).find(params[:id])
   end
   
   def assign_self
@@ -39,54 +47,79 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @job = InternalPos.find(params[:id])
     
     if @job.update(status: 'in_progress', started_at: Time.current)
-      if defined?(VehicleStatus)
+      if defined?(VehicleStatus) && @job.vehicle.present?
         VehicleStatus.create!(
           vehicle: @job.vehicle,
           status: 'repair_in_progress',
           notes: "Work started by #{current_user.name}",
+          created_by: current_user,
           current: true
         )
       end
       
-      redirect_to vmcott_mechanic_job_path(@job), notice: "Job started"
+      if @job.purchase_order.present?
+        @job.purchase_order.update(vmcott_status: 'work_in_progress')
+      end
+      
+      redirect_to vmcott_mechanic_job_path(@job), notice: "Job started successfully"
     else
       redirect_to vmcott_mechanic_dashboard_path, alert: "Could not start job"
     end
   end
   
+  # FIXED: Updated to append to notes instead of using non-existent attribute
   def update_progress
     @job = InternalPos.find(params[:id])
     
-    if @job.update(progress_update: params[:progress_update])
-      @job.notes += "\n[#{Time.current.strftime('%H:%M')}] #{current_user.name}: #{params[:progress_update]}"
-      @job.save
+    if params[:progress_update].present?
+      # Format: [HH:MM] User Name: Progress message
+      timestamp = Time.current.strftime('%H:%M')
+      new_note = "\n[#{timestamp}] #{current_user.name}: #{params[:progress_update]}"
       
-      redirect_to vmcott_mechanic_job_path(@job), notice: "Progress updated"
+      # Append to existing notes
+      @job.notes = @job.notes.to_s + new_note
+      
+      if @job.save
+        redirect_to vmcott_mechanic_job_path(@job), notice: "Progress updated successfully"
+      else
+        redirect_to vmcott_mechanic_job_path(@job), alert: "Could not update progress"
+      end
     else
-      redirect_to vmcott_mechanic_job_path(@job), alert: "Could not update progress"
+      redirect_to vmcott_mechanic_job_path(@job), alert: "Progress update cannot be blank"
     end
   end
   
   def request_qc
     @job = InternalPos.find(params[:id])
     
-    if @job.update(status: 'completed')
-      if defined?(VehicleStatus)
+    if @job.update(status: 'completed', completed_at: Time.current)
+      if defined?(VehicleStatus) && @job.vehicle.present?
         VehicleStatus.create!(
           vehicle: @job.vehicle,
           status: 'qc_pending',
           notes: "Work completed, awaiting QC inspection",
+          created_by: current_user,
           current: true
         )
       end
       
-      if defined?(Notification)
-        Notification.create!(
-          title: "QC Inspection Required",
-          message: "Work completed on #{@job.vehicle.license_plate}",
-          link: vmcott_inspector_qc_path(@job),
-          recipient_type: 'inspector'
-        )
+      if @job.purchase_order.present?
+        qc_exists = InternalPos.where(purchase_order_id: @job.purchase_order_id)
+                              .where("notes LIKE ?", "%QC%")
+                              .exists?
+        
+        unless qc_exists
+          InternalPos.create!(
+            purchase_order: @job.purchase_order,
+            work_order_number: InternalPos.generate_work_order_number,
+            status: 'pending',
+            priority: 'normal',
+            notes: "[Work Section: QC / Inspection]\n[Work Role: QC Inspector]\nQuality inspection required for work order #{@job.work_order_number}",
+            created_by: current_user
+          )
+        end
+        
+        @job.purchase_order.update(vmcott_status: 'internal_work_completed')
       end
       
       redirect_to vmcott_mechanic_dashboard_path, notice: "QC requested"
@@ -103,7 +136,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     if part.current_stock >= quantity
       part.update!(current_stock: part.current_stock - quantity)
       
-      @job.notes += "\n[#{Time.current.strftime('%H:%M')}] Used #{quantity}x #{part.name}"
+      # Log parts usage to notes
+      @job.notes += "\n[#{Time.current.strftime('%H:%M')}] Used #{quantity}x #{part.name} (Stock: #{part.current_stock + quantity} → #{part.current_stock})"
       @job.save
       
       render json: { success: true, message: "Parts logged" }

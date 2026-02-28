@@ -1,0 +1,107 @@
+<%# app/views/vmcott/parts_coordinator/dashboard/create_rfq.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">📋 Create New RFQ</h1>
+          <p class="text-muted">Request for Quotation - <%= @part.name %></p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_parts_coordinator_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">RFQ Details</h5>
+        </div>
+        <div class="card-body">
+          <!-- FIXED: Using the new route without :id parameter -->
+          <%= form_with url: vmcott_parts_coordinator_create_rfq_path, method: :post, local: true do |f| %>
+            
+            <%= hidden_field_tag :part_id, @part.id %>
+            
+            <!-- Part Information -->
+            <div class="mb-4">
+              <h6 class="fw-bold">Part Information</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <p><strong>Part Name:</strong> <%= @part.name %></p>
+                  <p><strong>Part Number:</strong> <%= @part.part_number || 'N/A' %></p>
+                </div>
+                <div class="col-md-6">
+                  <p><strong>Current Stock:</strong> <%= @part.current_stock %></p>
+                  <p><strong>Suggested Order:</strong> <%= @part.suggested_reorder_quantity %></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quantity -->
+            <div class="mb-4">
+              <%= label_tag :quantity, "Quantity Needed", class: "form-label fw-bold" %>
+              <%= number_field_tag :quantity, @part.suggested_reorder_quantity, 
+                    class: "form-control", min: 1, required: true %>
+              <div class="form-text">Suggested: <%= @part.suggested_reorder_quantity %></div>
+            </div>
+
+            <!-- Unit of Measure -->
+            <div class="mb-4">
+              <%= label_tag :unit_of_measure, "Unit of Measure", class: "form-label fw-bold" %>
+              <%= text_field_tag :unit_of_measure, @part.unit_of_measure || 'each', 
+                    class: "form-control", required: true %>
+            </div>
+
+            <!-- Supplier Selection -->
+            <div class="mb-4">
+              <h6 class="fw-bold">Select Suppliers</h6>
+              <div class="row">
+                <% Supplier.active.each do |supplier| %>
+                  <div class="col-md-6 mb-2">
+                    <div class="form-check">
+                      <%= check_box_tag "supplier_ids[]", supplier.id, 
+                            @part.vendor_parts.where(supplier: supplier, is_preferred: true).exists?,
+                            class: "form-check-input", 
+                            id: "supplier_#{supplier.id}" %>
+                      <%= label_tag "supplier_#{supplier.id}", supplier.name, 
+                            class: "form-check-label fw-bold" %>
+                      <% if @part.vendor_parts.where(supplier: supplier, is_preferred: true).exists? %>
+                        <span class="badge bg-info ms-2">Preferred</span>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+              <div class="form-text text-warning mt-2">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                At least one supplier must be selected.
+              </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="mb-4">
+              <%= label_tag :notes, "Additional Notes", class: "form-label fw-bold" %>
+              <%= text_area_tag :notes, nil, class: "form-control", rows: 3, 
+                    placeholder: "Any special requirements or notes for suppliers..." %>
+            </div>
+
+            <!-- Due Date -->
+            <div class="mb-4">
+              <%= label_tag :due_date, "Response Due Date", class: "form-label fw-bold" %>
+              <%= date_field_tag :due_date, Date.current + 7.days, class: "form-control" %>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex justify-content-end gap-2">
+              <%= link_to "Cancel", vmcott_parts_coordinator_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Send RFQ", class: "btn btn-primary", 
+                    data: { confirm: "Send this RFQ to selected suppliers?" } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

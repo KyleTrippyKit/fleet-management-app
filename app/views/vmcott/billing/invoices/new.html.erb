@@ -1,0 +1,257 @@
+<%# app/views/vmcott/billing/invoices/new.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">💰 Create New Invoice</h1>
+          <p class="text-muted">VMCOTT Billing - Generate invoice for completed work</p>
+        </div>
+        <%= link_to "← Back to Invoices", vmcott_billing_invoices_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Invoice Details</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with model: @invoice, url: vmcott_billing_invoices_path, local: true, data: { turbo: false } do |f| %>
+            <% if @invoice.errors.any? %>
+              <div class="alert alert-danger">
+                <h6><%= pluralize(@invoice.errors.count, "error") %> prohibited this invoice:</h6>
+                <ul class="mb-0">
+                  <% @invoice.errors.full_messages.each do |msg| %>
+                    <li><%= msg %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <!-- Purchase Order Selection with Search -->
+            <div class="mb-4">
+              <%= f.label :purchase_order_id, "Select Purchase Order", class: "form-label fw-bold fs-5" %>
+              <div class="text-muted small mb-2">All invoice details will be automatically populated from the selected PO</div>
+              
+              <!-- Search input for filtering POs -->
+              <div class="mb-2">
+                <input type="text" 
+                       id="po-search" 
+                       class="form-control" 
+                       placeholder="🔍 Search by PO number, vehicle license plate, or vendor..."
+                       autocomplete="off">
+              </div>
+              
+              <!-- PO Dropdown -->
+              <%= f.collection_select :purchase_order_id, 
+                    @purchase_orders, 
+                    :id, 
+                    :po_number_with_vehicle_info, 
+                    { include_blank: "Choose a purchase order..." }, 
+                    { 
+                      class: "form-select", 
+                      id: "po_select",
+                      required: true,
+                      style: "max-height: 200px; overflow-y: auto;"
+                    } %>
+              
+              <div class="form-text mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Only completed POs (work finished, ready for invoicing) are shown
+              </div>
+            </div>
+
+            <!-- Auto-filled Information Display (Read-only) - NOW SHOWS ALL DETAILS -->
+            <div class="row mb-4" id="po-details" style="display: none;">
+              <div class="col-12">
+                <div class="card bg-light">
+                  <div class="card-body">
+                    <h6 class="fw-bold border-bottom pb-2 mb-3">Purchase Order Details</h6>
+                    <div class="row">
+                      <div class="col-md-6">
+                        <p class="mb-1"><strong>Vehicle:</strong> <span id="po-vehicle"></span></p>
+                        <p class="mb-1"><strong>License Plate:</strong> <span id="po-license"></span></p>
+                        <p class="mb-1"><strong>Year:</strong> <span id="po-year"></span></p>
+                      </div>
+                      <div class="col-md-6">
+                        <p class="mb-1"><strong>Vendor/Agency:</strong> <span id="po-vendor"></span></p>
+                        <p class="mb-1"><strong>PO Amount:</strong> <span id="po-amount"></span></p>
+                        <p class="mb-1"><strong>PO Number:</strong> <span id="po-number"></span></p>
+                      </div>
+                    </div>
+                    <div class="alert alert-success mt-3 mb-0 py-2">
+                      <i class="bi bi-check-circle-fill me-2"></i>
+                      These details will be used for the invoice. No additional input needed.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hidden fields to pass data to controller -->
+            <%= f.hidden_field :vendor, id: "hidden_vendor" %>
+            <%= f.hidden_field :amount, id: "hidden_amount" %>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <%= f.label :invoice_date, "Invoice Date", class: "form-label fw-bold" %>
+                <%= f.date_field :invoice_date, class: "form-control", required: true, value: Date.current %>
+              </div>
+              
+              <div class="col-md-6 mb-3">
+                <%= f.label :due_date, "Due Date", class: "form-label fw-bold" %>
+                <%= f.date_field :due_date, class: "form-control", required: true, value: Date.current + 30.days %>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <%= f.label :notes, "Notes", class: "form-label fw-bold" %>
+              <%= f.text_area :notes, class: "form-control", rows: 3, 
+                    placeholder: "Any additional details about this invoice..." %>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <%= link_to "Cancel", vmcott_billing_invoices_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Create Invoice", class: "btn btn-primary", id: "submit-btn" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for dynamic PO selection and search -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const poSelect = document.getElementById('po_select');
+    const poSearch = document.getElementById('po-search');
+    const poDetails = document.getElementById('po-details');
+    const poVehicle = document.getElementById('po-vehicle');
+    const poLicense = document.getElementById('po-license');
+    const poYear = document.getElementById('po-year');
+    const poVendor = document.getElementById('po-vendor');
+    const poAmount = document.getElementById('po-amount');
+    const poNumber = document.getElementById('po-number');
+    
+    // Hidden fields
+    const hiddenVendor = document.getElementById('hidden_vendor');
+    const hiddenAmount = document.getElementById('hidden_amount');
+    
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Debug: Log that JavaScript loaded
+    console.log('Invoice form JavaScript loaded');
+    
+    // Store all options for searching
+    const poOptions = Array.from(poSelect.options).map(opt => ({
+      value: opt.value,
+      text: opt.text,
+      element: opt
+    }));
+    
+    // Filter POs based on search input
+    if (poSearch) {
+      poSearch.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        
+        poOptions.forEach(opt => {
+          if (opt.value === "") return; // Skip the "Choose..." option
+          
+          if (opt.text.toLowerCase().includes(searchTerm) || searchTerm === '') {
+            opt.element.style.display = '';
+          } else {
+            opt.element.style.display = 'none';
+          }
+        });
+        
+        // If nothing matches, show message
+        const visibleCount = poOptions.filter(opt => opt.element.style.display !== 'none').length;
+        if (visibleCount === 0 && searchTerm !== '') {
+          console.log('No matching POs found');
+        }
+      });
+    }
+    
+    // Handle PO selection
+    if (poSelect) {
+      poSelect.addEventListener('change', function() {
+        console.log('PO selected:', this.value);
+        
+        if (this.value) {
+          // Fetch PO details using the correct VMCOTT billing endpoint
+          fetchPoDetails(this.value);
+        } else {
+          poDetails.style.display = 'none';
+          // Clear hidden fields
+          if (hiddenVendor) hiddenVendor.value = '';
+          if (hiddenAmount) hiddenAmount.value = '';
+        }
+      });
+    }
+    
+    // Fetch PO details via AJAX
+    function fetchPoDetails(poId) {
+      console.log('Fetching PO details for ID:', poId);
+      
+      // Use the vmcott billing po_details path
+      fetch(`/vmcott/billing/po_details/${poId}.json`, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('PO details received:', data);
+          
+          // Update hidden fields with PO data
+          if (hiddenVendor) hiddenVendor.value = data.vendor || '';
+          if (hiddenAmount) hiddenAmount.value = data.amount || '';
+          
+          // Show and populate PO details
+          if (poDetails) {
+            poDetails.style.display = 'block';
+            if (poVehicle) poVehicle.textContent = `${data.vehicle?.make || ''} ${data.vehicle?.model || ''}`.trim() || 'N/A';
+            if (poLicense) poLicense.textContent = data.vehicle?.license_plate || 'N/A';
+            if (poYear) poYear.textContent = data.vehicle?.year || 'N/A';
+            if (poVendor) poVendor.textContent = data.vendor || 'N/A';
+            if (poAmount) poAmount.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'TTD' }).format(data.amount || 0);
+            if (poNumber) poNumber.textContent = data.po_number || 'N/A';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching PO details:', error);
+          alert('Could not load purchase order details. Please try again.');
+        });
+    }
+    
+    // Add form submit event listener for debugging
+    const form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        console.log('Form submitted');
+        console.log('Form data:', new FormData(form));
+      });
+    }
+  });
+</script>
+
+<!-- Add this for debugging if needed -->
+<% if Rails.env.development? %>
+<script>
+  // Check for JavaScript errors
+  window.onerror = function(msg, url, line) {
+    console.error('JavaScript error:', msg, 'at', url, 'line', line);
+    alert('JavaScript error: ' + msg);
+  };
+</script>
+<% end %>

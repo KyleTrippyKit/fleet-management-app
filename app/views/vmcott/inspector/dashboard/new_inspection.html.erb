@@ -1,0 +1,231 @@
+<%# app/views/vmcott/inspector/dashboard/new_inspection.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">🔍 New Vehicle Inspection</h1>
+          <p class="text-muted">VMCOTT Inspector - Initial Diagnostic Check</p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Vehicle: <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %></h5>
+        </div>
+        <div class="card-body">
+          <%= form_with url: vmcott_inspector_inspections_path, method: :post, local: true, id: "inspection-form" do |f| %>
+            
+            <%= hidden_field_tag :vehicle_id, @vehicle.id %>
+
+            <!-- Vehicle Information (Read-only) -->
+            <div class="row mb-4">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">License Plate</label>
+                <p class="form-control-plaintext"><%= @vehicle.license_plate %></p>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Current Mileage</label>
+                <%= number_field_tag :mileage, @vehicle.mileage, class: "form-control", required: true, 
+                      placeholder: "Enter current mileage", min: 0 %>
+              </div>
+            </div>
+
+            <!-- Inspection Notes -->
+            <div class="mb-4">
+              <label for="inspection_notes" class="form-label fw-bold">Inspection Notes</label>
+              <%= text_area_tag :notes, nil, 
+                    class: "form-control", 
+                    rows: 3, 
+                    placeholder: "Enter any initial observations or notes about the vehicle..." %>
+            </div>
+
+            <!-- Job Templates Section -->
+            <div class="mb-4">
+              <h5 class="border-bottom pb-2">Select Job Templates</h5>
+              <p class="text-muted small">Select templates that apply to this vehicle</p>
+              
+              <% applicable_templates = JobTemplate.for_vehicle(@vehicle).active %>
+              <% if applicable_templates.any? %>
+                <div class="row">
+                  <% applicable_templates.each do |template| %>
+                    <div class="col-md-6 mb-2">
+                      <div class="card">
+                        <div class="card-body">
+                          <div class="form-check">
+                            <%= check_box_tag "job_template_ids[]", template.id, false, 
+                                  class: "form-check-input template-checkbox", 
+                                  id: "template_#{template.id}",
+                                  data: { 
+                                    labor: template.total_labor_cost,
+                                    parts: template.total_parts_cost,
+                                    name: template.name
+                                  } %>
+                            <%= label_tag "template_#{template.id}", template.name, class: "form-check-label fw-bold" %>
+                          </div>
+                          <p class="small text-muted mt-1 mb-1"><%= truncate(template.description, length: 100) %></p>
+                          <p class="small mb-0">
+                            <span class="badge bg-info">Labor: <%= number_to_currency(template.total_labor_cost) %></span>
+                            <span class="badge bg-warning">Parts: <%= number_to_currency(template.total_parts_cost) %></span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle me-2"></i>
+                  No job templates found for this vehicle. You can create custom jobs below.
+                </div>
+              <% end %>
+            </div>
+
+            <!-- Custom Jobs Section -->
+            <div class="mb-4">
+              <h5 class="border-bottom pb-2">Custom Jobs</h5>
+              <div id="custom-jobs">
+                <div class="custom-job-item border p-3 mb-2 rounded bg-light">
+                  <div class="row">
+                    <div class="col-md-12 mb-2">
+                      <input type="text" name="custom_jobs[][description]" 
+                             class="form-control" placeholder="Job description (e.g., 'Replace brake pads')">
+                    </div>
+                    <div class="col-md-6 mb-2">
+                      <div class="input-group">
+                        <span class="input-group-text">Labor $</span>
+                        <input type="number" name="custom_jobs[][estimated_labor_cost]" 
+                               class="form-control" placeholder="0.00" step="0.01" min="0">
+                      </div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                      <div class="input-group">
+                        <span class="input-group-text">Parts $</span>
+                        <input type="number" name="custom_jobs[][estimated_parts_cost]" 
+                               class="form-control" placeholder="0.00" step="0.01" min="0">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-custom-job">
+                <i class="bi bi-plus-circle me-1"></i> Add Another Custom Job
+              </button>
+            </div>
+
+            <!-- Next Service Recommendation -->
+            <div class="mb-4">
+              <h5 class="border-bottom pb-2">Next Service Recommendation</h5>
+              <div class="row">
+                <div class="col-md-6">
+                  <label for="next_service_mileage" class="form-label">Service at (km)</label>
+                  <%= number_field_tag :next_service_mileage, @vehicle.mileage.to_i + 5000, 
+                        class: "form-control", min: 0, step: 1000 %>
+                </div>
+                <div class="col-md-6">
+                  <label for="next_service_date" class="form-label">or by date</label>
+                  <%= date_field_tag :next_service_date, 6.months.from_now.to_date, class: "form-control" %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="mb-4 p-3 bg-light rounded">
+              <h6 class="fw-bold">Estimated Total: <span id="estimated-total">$0.00</span></h6>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-end gap-2">
+              <%= link_to "Cancel", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Complete Inspection", 
+                    class: "btn btn-primary",
+                    data: { confirm: "Save this inspection and create jobs?" } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for dynamic features -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Add custom job
+  document.getElementById('add-custom-job').addEventListener('click', function() {
+    const container = document.getElementById('custom-jobs');
+    const newJob = document.createElement('div');
+    newJob.className = 'custom-job-item border p-3 mb-2 rounded bg-light';
+    newJob.innerHTML = `
+      <div class="row">
+        <div class="col-md-12 mb-2">
+          <input type="text" name="custom_jobs[][description]" 
+                 class="form-control" placeholder="Job description">
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="input-group">
+            <span class="input-group-text">Labor $</span>
+            <input type="number" name="custom_jobs[][estimated_labor_cost]" 
+                   class="form-control" placeholder="0.00" step="0.01" min="0">
+          </div>
+        </div>
+        <div class="col-md-6 mb-2">
+          <div class="input-group">
+            <span class="input-group-text">Parts $</span>
+            <input type="number" name="custom_jobs[][estimated_parts_cost]" 
+                   class="form-control" placeholder="0.00" step="0.01" min="0">
+          </div>
+        </div>
+        <div class="col-12 text-end mt-2">
+          <button type="button" class="btn btn-sm btn-outline-danger remove-job">
+            <i class="bi bi-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+    `;
+    container.appendChild(newJob);
+    
+    // Add remove functionality
+    newJob.querySelector('.remove-job').addEventListener('click', function() {
+      newJob.remove();
+      updateTotal();
+    });
+  });
+
+  // Update estimated total
+  function updateTotal() {
+    let total = 0;
+    
+    // Add template costs
+    document.querySelectorAll('.template-checkbox:checked').forEach(cb => {
+      total += parseFloat(cb.dataset.labor || 0) + parseFloat(cb.dataset.parts || 0);
+    });
+    
+    // Add custom job costs
+    document.querySelectorAll('.custom-job-item').forEach(job => {
+      const labor = parseFloat(job.querySelector('input[name$="[estimated_labor_cost]"]')?.value || 0);
+      const parts = parseFloat(job.querySelector('input[name$="[estimated_parts_cost]"]')?.value || 0);
+      total += labor + parts;
+    });
+    
+    document.getElementById('estimated-total').textContent = '$' + total.toFixed(2);
+  }
+
+  // Add event listeners
+  document.querySelectorAll('.template-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateTotal);
+  });
+  
+  document.addEventListener('input', function(e) {
+    if (e.target.name?.includes('estimated_labor_cost') || 
+        e.target.name?.includes('estimated_parts_cost')) {
+      updateTotal();
+    }
+  });
+});
+</script>
