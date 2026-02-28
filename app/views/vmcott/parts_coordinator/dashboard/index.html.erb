@@ -1,0 +1,103 @@
+<%# app/views/vmcott/parts_coordinator/dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">📦 Welcome, <%= current_user.name %></h1>
+      <p class="text-muted">VMCOTT Parts Coordinator - Inventory & RFQs</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3 mb-3">
+      <div class="card bg-danger text-white">
+        <div class="card-body">
+          <h5 class="card-title">Low Stock Items</h5>
+          <h2 class="display-4"><%= @low_stock_parts&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-warning text-dark">
+        <div class="card-body">
+          <h5 class="card-title">Active RFQs</h5>
+          <h2 class="display-4"><%= @active_rfqs&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Pending Receipts</h5>
+          <h2 class="display-4"><%= @pending_receipts&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">Jobs Needing Parts</h5>
+          <h2 class="display-4"><%= @pending_parts&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Low Stock Alerts</h5>
+        </div>
+        <div class="card-body">
+          <% if @low_stock_parts && @low_stock_parts.any? %>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Part</th>
+                  <th>Stock</th>
+                  <th>Reorder Point</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @low_stock_parts.each do |part| %>
+                  <tr>
+                    <td><%= part.name %></td>
+                    <td class="text-danger"><%= part.current_stock %></td>
+                    <td><%= part.reorder_point %></td>
+                    <td><%= link_to "Create RFQ", parts_coordinator_new_rfq_path(part), class: "btn btn-sm btn-warning" %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="text-muted">No low stock items</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Active RFQs</h5>
+        </div>
+        <div class="card-body">
+          <% if @active_rfqs && @active_rfqs.any? %>
+            <% @active_rfqs.each do |rfq| %>
+              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+                <div>
+                  <strong>RFQ #<%= rfq.id %></strong>
+                  <div class="small text-muted"><%= rfq.vendor_quotations.count %> quotations</div>
+                </div>
+                <%= link_to "Compare", parts_coordinator_compare_rfq_path(rfq), class: "btn btn-sm btn-primary" %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted">No active RFQs</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

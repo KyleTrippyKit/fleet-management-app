@@ -12,6 +12,7 @@
 import "@hotwired/turbo-rails"
 import "controllers"
 import "polish"
+import "channels"
 
 console.log("✅ app/javascript/application.js loaded (PRODUCTION MODE)")
 

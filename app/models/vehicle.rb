@@ -1,5 +1,5 @@
 # app/models/vehicle.rb
-# COMPLETE REVISED VERSION with comprehensive location fix
+# COMPLETE REVISED VERSION with comprehensive location fix and vehicle_statuses association
 
 class Vehicle < ApplicationRecord
   has_many :alerts, dependent: :destroy
@@ -20,6 +20,7 @@ class Vehicle < ApplicationRecord
   has_many :maintenances, dependent: :destroy
   has_many :trips, dependent: :destroy
   has_many :vehicle_documents, dependent: :destroy
+  has_many :vehicle_statuses, dependent: :destroy  # <-- ADDED THIS LINE
 
   # ✅ ActiveStorage attachments for real photo uploads
   has_one_attached :primary_photo  # Main vehicle photo

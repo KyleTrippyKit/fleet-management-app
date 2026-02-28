@@ -1,0 +1,101 @@
+<div class="container-fluid py-4" data-controller="alert-search">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">📷 Scan QR Code</h1>
+      <%= link_to "← Back to Dashboard", vmcott_receptionist_dashboard_path, class: "btn btn-outline-secondary" %>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-body text-center py-5">
+          <div class="display-1 mb-4">📱</div>
+          <h3>Scan Vehicle QR Code</h3>
+          <p class="text-muted">Position the QR code in front of the camera</p>
+          
+          <div id="qr-scanner" class="bg-light p-5 mb-4" style="min-height: 250px; border: 2px dashed #ccc; border-radius: 10px;">
+            <p class="text-muted mt-4">Camera access would be here</p>
+            <p class="small text-muted">QR scanner functionality coming soon</p>
+          </div>
+          
+          <hr class="my-4">
+          
+          <h5 class="mb-3 text-start">Or Enter Vehicle Details Manually</h5>
+          
+          <%= form_tag vmcott_receptionist_receive_vehicle_path, method: :post, id: "vehicle-reception-form" do %>
+            
+            <!-- Vehicle Search - Exactly like alerts -->
+            <div class="mb-4 position-relative text-start">
+              <label class="form-label fw-bold">🔍 Vehicle Search</label>
+              
+              <input type="text"
+                     class="form-control form-control-lg"
+                     placeholder="Search by license plate, make, or model..."
+                     autocomplete="off"
+                     data-alert-search-target="vehicleInput"
+                     data-action="input->alert-search#vehicleInput"
+                     data-search-url="<%= search_vehicles_path(format: :json) %>">
+
+              <%= hidden_field_tag :vehicle_id, nil, data: { alert_search_target: "vehicleHidden" } %>
+
+              <!-- Search results dropdown -->
+              <div class="list-group position-absolute w-100 shadow"
+                   style="z-index: 1055; display:none;"
+                   data-alert-search-target="vehicleResults">
+                <div data-alert-search-target="vehicleList"></div>
+              </div>
+
+              <!-- Selected vehicle chip -->
+              <div class="mt-2" style="display:none;" data-alert-search-target="vehicleSelected">
+                <div class="alert alert-success py-2 mb-0">
+                  <i class="bi bi-check-circle-fill me-2"></i>
+                  <span data-alert-search-target="vehicleSelectedText"></span>
+                  <button type="button"
+                          class="btn btn-sm btn-outline-danger float-end"
+                          data-action="click->alert-search#clearVehicle">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-center my-4">
+              <span class="badge bg-secondary p-3 rounded-circle">OR</span>
+            </div>
+
+            <!-- Purchase Order Selection -->
+            <div class="mb-4 text-start">
+              <label class="form-label fw-bold">📋 Select Purchase Order with Vehicle</label>
+              <%= select_tag :purchase_order_id, 
+                  options_from_collection_for_select(PurchaseOrder.where(vendor: 'VMCOTT', status: 'ordered').where.not(vehicle_id: nil), :id, :po_number_with_vehicle_info), 
+                  include_blank: "-- Select a Purchase Order --", 
+                  class: "form-select form-select-lg" %>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Driver Name (Always Required) -->
+            <div class="mb-4 text-start">
+              <label for="driver_name" class="form-label fw-bold">👤 Driver Name <span class="text-danger">*</span></label>
+              <%= text_field_tag :driver_name, nil, 
+                  class: "form-control form-control-lg", 
+                  required: true, 
+                  placeholder: "Enter driver's full name" %>
+            </div>
+
+            <!-- Notes (Optional) -->
+            <div class="mb-4 text-start">
+              <label for="notes" class="form-label fw-bold">📝 Notes (optional)</label>
+              <%= text_area_tag :notes, nil, class: "form-control", rows: 2 %>
+            </div>
+            
+            <%= submit_tag "Receive Vehicle", 
+                class: "btn btn-primary btn-lg px-5 mt-3",
+                data: { disable_with: "Processing..." } %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

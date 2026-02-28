@@ -18,6 +18,8 @@ application.register("fleet-index", FleetIndexController)
 import AlertSearchController from "./alert_search_controller"
 application.register("alert-search", AlertSearchController)
 
+import "channels"
+
 import QuotationVehicleSearchController from "./quotation_vehicle_search_controller"
 application.register("quotation-vehicle-search", QuotationVehicleSearchController)
 

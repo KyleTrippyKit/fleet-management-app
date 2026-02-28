@@ -1,0 +1,115 @@
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">👋 Welcome, <%= current_user.name %></h1>
+      <p class="text-muted">VMCOTT Receptionist - Vehicle Check-in</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-4 mb-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">Pending Check-ins</h5>
+          <h2 class="display-4"><%= @pending_receptions || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">Today's Check-ins</h5>
+          <h2 class="display-4"><%= @todays_count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Quick Actions</h5>
+          <%= link_to "Scan QR Code", vmcott_receptionist_scan_path, class: "btn btn-light mt-2" %>
+          <%= link_to "Manual Entry", vmcott_receptionist_manual_entry_path, class: "btn btn-light mt-2 ms-2" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header">
+      <h5>Recent Check-ins</h5>
+    </div>
+    <div class="card-body">
+      <% if @recent_receptions && @recent_receptions.any? %>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @recent_receptions.each do |log| %>
+              <tr data-vehicle-id="<%= log.vehicle&.id %>">
+                <td><%= log.received_at&.strftime("%H:%M") || "N/A" %></td>
+                <td><%= log.vehicle&.license_plate || "Unknown" %></td>
+                <td><%= log.driver_name %></td>
+                <td class="vehicle-status-cell">
+                  <% if log.inspected? %>
+                    <span class="badge bg-success">Inspected</span>
+                  <% else %>
+                    <span class="badge bg-warning">Pending Inspection</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      <% else %>
+        <p class="text-muted">No recent check-ins</p>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Subscribe to vehicle status updates for recent check-ins -->
+<% if @recent_receptions && @recent_receptions.any? %>
+  <% @recent_receptions.each do |log| %>
+    <% if log.vehicle.present? %>
+      <div data-subscribe-to-vehicle="true" 
+           data-vehicle-id="<%= log.vehicle.id %>"
+           style="display: none;"></div>
+    <% end %>
+  <% end %>
+<% end %>
+
+<!-- Add a toast container for notifications -->
+<div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>
+
+<!-- Add a script to handle status badge updates in the table -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Listen for vehicle status updates
+    document.addEventListener('vehicle-status-update', function(event) {
+      const data = event.detail;
+      console.log('Vehicle status update received:', data);
+      
+      // Find all rows with this vehicle
+      const rows = document.querySelectorAll(`tr[data-vehicle-id="${data.vehicle_id}"]`);
+      rows.forEach(row => {
+        const statusCell = row.querySelector('.vehicle-status-cell');
+        if (statusCell) {
+          // Update the status badge based on the new status
+          if (data.status === 'vehicle_received') {
+            statusCell.innerHTML = '<span class="badge bg-warning">Pending Inspection</span>';
+          } else if (data.status === 'inspected' || data.status.includes('complete')) {
+            statusCell.innerHTML = '<span class="badge bg-success">Inspected</span>';
+          } else {
+            statusCell.innerHTML = `<span class="badge bg-${data.status_badge_color}">${data.status_display}</span>`;
+          }
+        }
+      });
+    });
+  });
+</script>

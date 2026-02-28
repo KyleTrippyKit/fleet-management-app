@@ -1,4 +1,3 @@
-# app/models/purchase_order.rb
 # frozen_string_literal: true
 
 class PurchaseOrder < ApplicationRecord
@@ -979,6 +978,20 @@ class PurchaseOrder < ApplicationRecord
 
   def display_vehicle
     vehicle ? "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model}" : 'No Vehicle'
+  end
+
+  # NEW: Helper method for receptionist dropdown - shows PO number with vehicle info
+  def po_number_with_vehicle_info
+    vehicle_info = if vehicle.present?
+      year_display = vehicle.year_of_manufacture.present? ? "(#{vehicle.year_of_manufacture})" : ""
+    "#{vehicle.license_plate} - #{vehicle.make} #{vehicle.model} #{year_display}".strip
+    else
+      "⚠️ No vehicle assigned"
+    end
+    
+    amount_formatted = ActionController::Base.helpers.number_to_currency(amount)
+    
+    "#{po_number} | #{vehicle_info} | #{amount_formatted}"
   end
 
   def acceptance_summary

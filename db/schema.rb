@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_28_021202) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -244,6 +244,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
     t.datetime "updated_at", null: false
     t.index ["agency_id", "route_code", "fare_class"], name: "index_fare_rules_on_agency_route_class", unique: true
     t.index ["agency_id"], name: "index_fare_rules_on_agency_id"
+  end
+
+  create_table "inspection_jobs", force: :cascade do |t|
+    t.bigint "assigned_mechanic_id"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.text "description", null: false
+    t.decimal "estimated_labor_cost", precision: 10, scale: 2
+    t.decimal "estimated_parts_cost", precision: 10, scale: 2
+    t.bigint "inspection_id", null: false
+    t.bigint "job_template_id"
+    t.text "notes"
+    t.string "priority"
+    t.datetime "updated_at", null: false
+    t.index ["assigned_mechanic_id"], name: "index_inspection_jobs_on_assigned_mechanic_id"
+    t.index ["inspection_id"], name: "index_inspection_jobs_on_inspection_id"
+    t.index ["job_template_id"], name: "index_inspection_jobs_on_job_template_id"
+  end
+
+  create_table "inspections", force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "inspector_id", null: false
+    t.integer "mileage_at_inspection"
+    t.date "next_service_date"
+    t.integer "next_service_mileage"
+    t.text "notes"
+    t.bigint "purchase_order_id"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["inspector_id"], name: "index_inspections_on_inspector_id"
+    t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
+    t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
   end
 
   create_table "internal_pos", force: :cascade do |t|
@@ -887,6 +920,43 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
     t.index ["vehicle_id"], name: "index_quotations_on_vehicle_id"
   end
 
+  create_table "reception_logs", force: :cascade do |t|
+    t.bigint "agency_id"
+    t.string "badge_number"
+    t.datetime "check_in_time", null: false
+    t.datetime "check_out_time"
+    t.string "company"
+    t.string "contact_number"
+    t.datetime "created_at", null: false
+    t.string "driver_name"
+    t.string "email"
+    t.string "id_number"
+    t.string "id_type"
+    t.datetime "inspected_at"
+    t.bigint "inspector_id"
+    t.jsonb "metadata", default: {}
+    t.text "notes"
+    t.string "person_to_visit"
+    t.bigint "purchase_order_id"
+    t.string "purpose"
+    t.datetime "received_at"
+    t.string "status", default: "checked_in"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.bigint "vehicle_id"
+    t.string "visitor_name", null: false
+    t.index ["agency_id"], name: "index_reception_logs_on_agency_id"
+    t.index ["check_in_time", "status"], name: "index_reception_logs_on_check_in_time_and_status"
+    t.index ["check_in_time"], name: "index_reception_logs_on_check_in_time"
+    t.index ["inspected_at"], name: "index_reception_logs_on_inspected_at"
+    t.index ["inspector_id"], name: "index_reception_logs_on_inspector_id"
+    t.index ["purchase_order_id"], name: "index_reception_logs_on_purchase_order_id"
+    t.index ["received_at"], name: "index_reception_logs_on_received_at"
+    t.index ["status"], name: "index_reception_logs_on_status"
+    t.index ["user_id"], name: "index_reception_logs_on_user_id"
+    t.index ["visitor_name"], name: "index_reception_logs_on_visitor_name"
+  end
+
   create_table "rfq_line_items", force: :cascade do |t|
     t.string "category"
     t.datetime "created_at", null: false
@@ -1110,6 +1180,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
     t.index ["vehicle_id"], name: "index_vehicle_documents_on_vehicle_id"
   end
 
+  create_table "vehicle_statuses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_by_id"
+    t.boolean "current", default: false
+    t.text "notes"
+    t.string "status", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["created_at"], name: "index_vehicle_statuses_on_created_at"
+    t.index ["created_by_id"], name: "index_vehicle_statuses_on_created_by_id"
+    t.index ["status"], name: "index_vehicle_statuses_on_status"
+    t.index ["vehicle_id", "current"], name: "index_vehicle_statuses_on_vehicle_id_and_current"
+    t.index ["vehicle_id"], name: "index_vehicle_statuses_on_vehicle_id"
+  end
+
   create_table "vehicles", force: :cascade do |t|
     t.bigint "agency_id", null: false
     t.string "body_style"
@@ -1295,6 +1380,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "drivers_vehicles", "drivers"
   add_foreign_key "drivers_vehicles", "vehicles"
+  add_foreign_key "inspection_jobs", "inspections"
+  add_foreign_key "inspection_jobs", "job_templates"
+  add_foreign_key "inspection_jobs", "users", column: "assigned_mechanic_id"
+  add_foreign_key "inspections", "purchase_orders"
+  add_foreign_key "inspections", "users", column: "inspector_id"
+  add_foreign_key "inspections", "vehicles"
   add_foreign_key "inventory_transactions", "agencies"
   add_foreign_key "inventory_transactions", "users", name: "inventory_transactions_user_id_fkey"
   add_foreign_key "inventory_transactions", "vendor_invoices"
@@ -1353,6 +1444,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
   add_foreign_key "quotations", "rfqs"
   add_foreign_key "quotations", "users", column: "created_by_id"
   add_foreign_key "quotations", "vehicles"
+  add_foreign_key "reception_logs", "purchase_orders"
+  add_foreign_key "reception_logs", "users", column: "inspector_id"
   add_foreign_key "rfq_line_items", "rfqs"
   add_foreign_key "rfqs", "agencies", column: "processing_agency_id"
   add_foreign_key "rfqs", "agencies", column: "requesting_agency_id"
@@ -1365,6 +1458,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_064907) do
   add_foreign_key "trips", "drivers"
   add_foreign_key "trips", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
+  add_foreign_key "vehicle_statuses", "users", column: "created_by_id"
+  add_foreign_key "vehicle_statuses", "vehicles"
   add_foreign_key "vehicles", "drivers"
   add_foreign_key "vendor_invoice_items", "parts"
   add_foreign_key "vendor_invoice_items", "vendor_invoices"

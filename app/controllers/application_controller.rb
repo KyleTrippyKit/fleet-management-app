@@ -15,7 +15,7 @@ class ApplicationController < ActionController::Base
   skip_before_action :verify_authenticity_token, if: :devise_controller?
 
   # =====================================================
-  # Authentication - ADDED THIS LINE
+  # Authentication
   # =====================================================
   before_action :authenticate_user!
 
@@ -29,23 +29,21 @@ class ApplicationController < ActionController::Base
   before_action :set_agency_theme
   before_action :prevent_real_payments_in_dev
   
-  # ✅ ADDED: Set Current context for POS transactions
+  # Set Current context for POS transactions
   around_action :set_current_context
-  # ✅ ADDED: POS transaction current user setup
+  # POS transaction current user setup
   around_action :set_pos_transaction_current_user, unless: :skip_pos_transaction_callback?
 
   # =====================================================
-  # AFTER SIGN OUT - ADD THIS METHOD
+  # AFTER SIGN OUT
   # =====================================================
   def after_sign_out_path_for(resource_or_scope)
-    # Clear any flash messages
     flash.clear
-    # Redirect to root path with no flash message
     root_path
   end
 
   # =====================================================
-  # AFTER SIGN IN REDIRECT - FIXED TO MATCH HOMECONTROLLER
+  # AFTER SIGN IN REDIRECT - UPDATED WITH VMCOTT NAMESPACED ROUTES
   # =====================================================
   def after_sign_in_path_for(resource)
     # Debug logging
@@ -54,7 +52,6 @@ class ApplicationController < ActionController::Base
     # Handle case where resource might be an array
     user = if resource.is_a?(Array)
             Rails.logger.info "Resource is an array: #{resource.inspect}"
-            # Try to find the user in the array
             resource.find { |r| r.respond_to?(:email) }
           else
             resource
@@ -72,12 +69,34 @@ class ApplicationController < ActionController::Base
     Rails.logger.info "Role: #{user.role}"
     Rails.logger.info "=============================="
 
-    # PTSC Admin goes to PTSC dashboard
-    if user.agency&.code == 'PTSC' && user.admin?
-      return ptsc_dashboard_path
+    # ============================================
+    # VMCOTT ROLE-BASED DASHBOARDS (Namespaced under vmcott)
+    # ============================================
+    if user.agency&.code == 'VMCOTT'
+      case user.role
+      when 'receptionist'
+        return vmcott_receptionist_dashboard_path
+      when 'inspector'
+        return vmcott_inspector_dashboard_path
+      when 'parts_coordinator'
+        return vmcott_parts_coordinator_dashboard_path
+      when 'mechanic'
+        return vmcott_mechanic_dashboard_path
+      when 'maintenance_supervisor'
+        return vmcott_workshop_supervisor_dashboard_path
+      when 'finance'
+        return vmcott_billing_dashboard_path
+      when 'admin'
+        return vmcott_dashboard_path
+      else
+        # Fallback for any other VMCOTT staff
+        return vmcott_dashboard_path
+      end
     end
 
-    # PTSC users by role
+    # ============================================
+    # PTSC ROLE-BASED DASHBOARDS
+    # ============================================
     if user.agency&.code == 'PTSC'
       case user.role
       when 'fleet_manager'
@@ -88,17 +107,32 @@ class ApplicationController < ActionController::Base
         return ptsc_driver_dashboard_path
       when 'maintenance_supervisor', 'maintenance'
         return ptsc_maintenance_dashboard_path
+      when 'admin'
+        return ptsc_dashboard_path
       else
         return ptsc_dashboard_path
       end
     end
 
-    # VMCOTT users (including admins) always go to VMCOTT dashboard
-    if user.agency&.code == 'VMCOTT'
-      return vmcott_dashboard_path
+    # ============================================
+    # OTHER AGENCY DASHBOARDS
+    # ============================================
+    case user.agency&.code
+    when "TTPS"
+      return ttps_dashboard_path
+    when "TTDF"
+      return ttdf_dashboard_path
+    when "FIRE"
+      return fire_dashboard_path if respond_to?(:fire_dashboard_path)
+    when "HEALTH"
+      return health_dashboard_path if respond_to?(:health_dashboard_path)
+    when "EDUCATION"
+      return education_dashboard_path if respond_to?(:education_dashboard_path)
     end
 
-    # For other agencies, use role-based routing
+    # ============================================
+    # FALLBACK
+    # ============================================
     case user.role
     when 'admin'
       main_dashboard_path
@@ -108,32 +142,24 @@ class ApplicationController < ActionController::Base
       else
         main_dashboard_path
       end
-    when 'finance'
-      main_dashboard_path
-    when 'driver'
-      main_dashboard_path
-    when 'maintenance_supervisor', 'maintenance'
-      main_dashboard_path
     else
-      # Legacy agency-based dashboards as fallback
-      case user.agency&.code
-      when "TTPS"
-        ttps_dashboard_path
-      when "TTDF"
-        ttdf_dashboard_path
-      else
-        main_dashboard_path
-      end
+      main_dashboard_path
     end
   end
 
   # =====================================================
-  # Helper Methods (KEEP THESE!)
+  # Helper Methods
   # =====================================================
   helper_method :current_agency, 
                 :admin?, 
                 :manager?, 
                 :vmcott?,
+                :receptionist?,
+                :inspector?,
+                :parts_coordinator?,
+                :mechanic?,
+                :workshop_supervisor?,
+                :billing_officer?,
                 :current_user_role,
                 :owner_color,
                 :urgency_badge_class,
@@ -146,41 +172,68 @@ class ApplicationController < ActionController::Base
                 :is_ptsc?,
                 :can_view_reports?,
                 :can_close_register?,
-                :invoice_status_badge_color
+                :invoice_status_badge_color,
+                # VMCOTT Namespaced Route Helpers
+                :vmcott_receptionist_dashboard_path,
+                :vmcott_inspector_dashboard_path,
+                :vmcott_parts_coordinator_dashboard_path,
+                :vmcott_mechanic_dashboard_path,
+                :vmcott_workshop_supervisor_dashboard_path,
+                :vmcott_billing_dashboard_path,
+                :vmcott_dashboard_path
 
   # =====================================================
   # Public Methods
   # =====================================================
 
-  # Get current agency/organization
   def current_agency
     @current_agency ||= current_user&.agency
   end
 
-  # Check if user is an admin
   def admin?
     return false unless current_user
     current_user.admin? || current_user.role == 'admin'
   end
 
-  # Check if user is a manager
   def manager?
     return false unless current_user
     current_user.manager? || current_user.role == 'manager' || admin?
   end
 
-  # Check if user belongs to VMCOTT agency
   def vmcott?
     current_agency&.code == 'VMCOTT'
   end
   alias_method :is_vmcott?, :vmcott?
 
-  # Check if user belongs to PTSC agency
+  # New role check methods
+  def receptionist?
+    current_user&.receptionist? || false
+  end
+
+  def inspector?
+    current_user&.inspector? || false
+  end
+
+  def parts_coordinator?
+    current_user&.parts_coordinator? || false
+  end
+
+  def mechanic?
+    current_user&.mechanic? || false
+  end
+
+  def workshop_supervisor?
+    current_user&.maintenance_supervisor? || false
+  end
+
+  def billing_officer?
+    current_user&.finance? || false
+  end
+
   def is_ptsc?
     current_agency&.code == 'PTSC'
   end
 
-  # Get current user role
   def current_user_role
     current_user&.role || 'guest'
   end
@@ -253,7 +306,7 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # Format date consistently - FIXED VERSION
+  # Format date consistently
   def format_date(date, format = "%Y-%m-%d")
     return "—" if date.blank?
 
@@ -278,6 +331,43 @@ class ApplicationController < ActionController::Base
   def require_vmcott_user
     return if current_user&.admin?
     redirect_to root_path, alert: "Access denied. VMCOTT users only." unless vmcott?
+  end
+
+  # Role-specific authorization methods
+  def require_receptionist
+    unless receptionist? || admin?
+      redirect_to root_path, alert: "Access denied. Receptionist access only."
+    end
+  end
+
+  def require_inspector
+    unless inspector? || admin?
+      redirect_to root_path, alert: "Access denied. Inspector access only."
+    end
+  end
+
+  def require_parts_coordinator
+    unless parts_coordinator? || admin?
+      redirect_to root_path, alert: "Access denied. Parts Coordinator access only."
+    end
+  end
+
+  def require_mechanic
+    unless mechanic? || admin?
+      redirect_to root_path, alert: "Access denied. Mechanic access only."
+    end
+  end
+
+  def require_workshop_supervisor
+    unless workshop_supervisor? || admin?
+      redirect_to root_path, alert: "Access denied. Workshop Supervisor access only."
+    end
+  end
+
+  def require_billing_officer
+    unless billing_officer? || admin?
+      redirect_to root_path, alert: "Access denied. Billing Officer access only."
+    end
   end
   
   # POS Authorization Methods
@@ -323,45 +413,39 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # Authorization Shortcuts (KEEP THESE!)
+  # Authorization Shortcuts
   # =====================================================
   
-  # Authorize admin access
   def authorize_admin!
     return if admin?
     flash[:alert] = "You are not authorized to perform this action."
     redirect_back(fallback_location: root_path)
   end
 
-  # Authorize manager access
   def authorize_manager!
     return if manager?
     flash[:alert] = "You are not authorized to perform this action."
     redirect_back(fallback_location: root_path)
   end
 
-  # Authorize fleet manager access
   def authorize_fleet_manager!
     return if current_user&.fleet_manager? || manager?
     flash[:alert] = "You must be a fleet manager to perform this action."
     redirect_back(fallback_location: root_path)
   end
 
-  # Authorize maintenance supervisor access
   def authorize_maintenance_supervisor!
     return if current_user&.maintenance_supervisor? || manager?
     flash[:alert] = "You must be a maintenance supervisor to perform this action."
     redirect_back(fallback_location: root_path)
   end
 
-  # Authorize finance access
   def authorize_finance!
     return if current_user&.finance? || manager?
     flash[:alert] = "You must have finance access to perform this action."
     redirect_back(fallback_location: root_path)
   end
 
-  # Check if user can manage a specific resource
   def authorize_owner!(resource)
     return if admin?
     return if resource.user_id == current_user.id
@@ -371,7 +455,6 @@ class ApplicationController < ActionController::Base
     redirect_back(fallback_location: root_path)
   end
 
-  # Check if user can view a specific resource
   def authorize_viewer!(resource)
     return if admin? || manager?
     
@@ -413,30 +496,24 @@ class ApplicationController < ActionController::Base
   # =====================================================
   private
 
-  # NEW: Check if we should skip POS transaction callback
   def skip_pos_transaction_callback?
-    # Skip for vmcott parts edit action to prevent template errors
     controller_path == 'vmcott/parts' && action_name == 'edit'
   end
 
-  # Set Current context
   def set_current_context
     Current.with(current_user, request) do
       yield
     end
   end
 
-  # Set current user
   def set_current_user
     Current.user = current_user
   end
 
-  # Set current request
   def set_current_request
     Current.set_request(request)
   end
   
-  # ✅ ADDED: Set current user for POS transactions
   def set_pos_transaction_current_user
     if defined?(PosTransaction)
       PosTransaction.with_current_user(current_user) do
@@ -447,42 +524,33 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # Set timezone based on user preference
   def set_timezone
-    # Check if user exists and responds to time_zone
     if current_user && current_user.respond_to?(:time_zone)
-      # Use the time_zone value if it exists, otherwise default to UTC
       time_zone = current_user.time_zone.presence || "UTC"
     else
-      # If user doesn't exist or doesn't have time_zone, use UTC
       time_zone = "UTC"
     end
     
     Time.zone = time_zone
   end
 
-  # Set agency theme in session
   def set_agency_theme
     return unless current_agency && current_agency.theme
     session[:agency_theme] = current_agency.theme
   end
 
-  # Check for Turbo frame requests
   def check_for_turbo_frame
     @turbo_frame_request = request.headers["Turbo-Frame"].present?
   end
   
-  # Prevent real payments in development environment
   def prevent_real_payments_in_dev
     if Rails.env.development? && params[:controller] == 'purchase_orders' && 
        ['process_payment', 'authorize_payment'].include?(params[:action])
-      # Log but don't process real payments
       Rails.logger.info "MOCK PAYMENT: #{params.inspect}"
       @mock_result = { success: true, transaction_id: "MOCK-#{SecureRandom.hex(8)}" }
     end
   end
 
-  # Handle record not found errors
   def handle_record_not_found
     respond_to do |format|
       format.html { redirect_to root_path, alert: "Record not found." }
@@ -490,7 +558,6 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # Handle missing parameters
   def handle_parameter_missing(exception)
     respond_to do |format|
       format.html { 
@@ -504,11 +571,6 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # =====================================================
-  # Strong Parameters Helper
-  # =====================================================
-  
-  # Helper for permitting nested attributes
   def permit_nested_attributes_for(model_class, attributes)
     params.require(model_class).permit(attributes)
   end

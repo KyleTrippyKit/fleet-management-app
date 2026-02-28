@@ -1,0 +1,92 @@
+<%# app/views/vmcott/inspector/dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">🔍 Welcome, <%= current_user.name %></h1>
+      <p class="text-muted">VMCOTT Inspector - Diagnostics & QC</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3 mb-3">
+      <div class="card bg-warning text-dark">
+        <div class="card-body">
+          <h5 class="card-title">Pending Inspections</h5>
+          <h2 class="display-4"><%= @pending_inspections&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">In Progress</h5>
+          <h2 class="display-4"><%= @in_progress&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">QC Pending</h5>
+          <h2 class="display-4">0</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Completed Today</h5>
+          <h2 class="display-4"><%= @recent_completed&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Vehicles Waiting for Inspection</h5>
+        </div>
+        <div class="card-body">
+          <% if @pending_inspections && @pending_inspections.any? %>
+            <% @pending_inspections.each do |log| %>
+              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+                <div>
+                  <strong><%= log.vehicle.license_plate %></strong>
+                  <div class="small text-muted"><%= log.vehicle.make %> <%= log.vehicle.model %></div>
+                </div>
+                <%= link_to "Start Inspection", vmcott_inspector_new_inspection_path(log.vehicle_id), class: "btn btn-sm btn-primary" %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted">No vehicles waiting for inspection</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h5>Recent Inspections</h5>
+        </div>
+        <div class="card-body">
+          <% if @recent_completed && @recent_completed.any? %>
+            <% @recent_completed.each do |inspection| %>
+              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+                <div>
+                  <strong><%= inspection.vehicle.license_plate %></strong>
+                  <div class="small text-muted"><%= time_ago_in_words(inspection.completed_at) %> ago</div>
+                </div>
+                <%= link_to "View", vmcott_inspector_inspection_path(inspection), class: "btn btn-sm btn-outline-primary" %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted">No recent inspections</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

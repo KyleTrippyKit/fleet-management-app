@@ -1,5 +1,3 @@
-# config/importmap.rb
-
 # Pin application entry point
 pin "application", preload: true
 
@@ -10,6 +8,12 @@ pin "@hotwired/stimulus-loading", to: "stimulus-loading.js", preload: true
 
 # Pin all controllers (this creates the "controllers" entry)
 pin_all_from "app/javascript/controllers", under: "controllers"
+
+# Pin all channels for Action Cable
+pin_all_from "app/javascript/channels", under: "channels"
+
+# Pin Action Cable
+pin "@rails/actioncable", to: "actioncable.esm.js", preload: true
 
 # ✅ Temporarily DISABLE polish while testing Stimulus start-up
 # (we will re-enable this after we confirm window.Stimulus exists)

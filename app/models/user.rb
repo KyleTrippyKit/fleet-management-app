@@ -1,11 +1,5 @@
 # app/models/user.rb
-# Replace the ENTIRE file with this (copy/paste).
-#
-# ✅ Fixes the dangerous "def role" override (removed)
-# ✅ Keeps your existing permissions + helpers
-# ✅ Makes role checks consistent + safe (uses self[:role])
-# ✅ Fixes system_user selecting admins correctly
-# ✅ Keeps your ROLES constants + compatibility .roles hash
+# Complete revised version with all 4 new workflow roles
 
 class User < ApplicationRecord
   # Include default devise modules. Others available are:
@@ -21,6 +15,12 @@ class User < ApplicationRecord
   has_many :quotations, foreign_key: :created_by_id
   has_many :created_purchase_orders, class_name: "PurchaseOrder", foreign_key: :created_by_id
   has_many :approved_purchase_orders, class_name: "PurchaseOrder", foreign_key: :approved_by_id
+  
+  # NEW: Associations for workflow roles
+  has_many :reception_logs, foreign_key: :receptionist_id, dependent: :nullify
+  has_many :inspections, foreign_key: :inspector_id, dependent: :nullify
+  has_many :inspection_jobs, foreign_key: :assigned_mechanic_id, dependent: :nullify
+  has_many :assigned_internal_pos, class_name: "InternalPos", foreign_key: :assigned_to_id, dependent: :nullify
 
   # ========================
   # ROLE (Rails 8 safe, simple)
@@ -36,6 +36,14 @@ class User < ApplicationRecord
   ROLE_MAINTENANCE           = "maintenance" # legacy alias you already support
   ROLE_DRIVER                = "driver"
   ROLE_VMCOTT_STAFF          = "vmcott_staff"
+  
+  # ========================
+  # NEW WORKFLOW ROLES (4 Roles)
+  # ========================
+  ROLE_RECEPTIONIST          = "receptionist"
+  ROLE_INSPECTOR             = "inspector"
+  ROLE_PARTS_COORDINATOR     = "parts_coordinator"
+  ROLE_MECHANIC              = "mechanic"
 
   ROLES = [
     ROLE_CLERK,
@@ -46,7 +54,12 @@ class User < ApplicationRecord
     ROLE_MAINTENANCE_SUPERVISOR,
     ROLE_MAINTENANCE,
     ROLE_DRIVER,
-    ROLE_VMCOTT_STAFF
+    ROLE_VMCOTT_STAFF,
+    # NEW ROLES
+    ROLE_RECEPTIONIST,
+    ROLE_INSPECTOR,
+    ROLE_PARTS_COORDINATOR,
+    ROLE_MECHANIC
   ].freeze
 
   # Optional: normalize role assignment
@@ -65,7 +78,12 @@ class User < ApplicationRecord
       maintenance_supervisor: ROLE_MAINTENANCE_SUPERVISOR,
       maintenance: ROLE_MAINTENANCE,
       driver: ROLE_DRIVER,
-      vmcott_staff: ROLE_VMCOTT_STAFF
+      vmcott_staff: ROLE_VMCOTT_STAFF,
+      # NEW ROLES
+      receptionist: ROLE_RECEPTIONIST,
+      inspector: ROLE_INSPECTOR,
+      parts_coordinator: ROLE_PARTS_COORDINATOR,
+      mechanic: ROLE_MECHANIC
     }
   end
 
@@ -124,6 +142,25 @@ class User < ApplicationRecord
 
   def vmcott_staff?
     self[:role] == ROLE_VMCOTT_STAFF || (agency&.central? && !admin?) || false
+  end
+
+  # ========================
+  # NEW WORKFLOW ROLE CHECKS
+  # ========================
+  def receptionist?
+    self[:role] == ROLE_RECEPTIONIST || vmcott_staff? || admin?
+  end
+
+  def inspector?
+    self[:role] == ROLE_INSPECTOR || maintenance_supervisor? || vmcott_staff? || admin?
+  end
+
+  def parts_coordinator?
+    self[:role] == ROLE_PARTS_COORDINATOR || vmcott_staff? || admin?
+  end
+
+  def mechanic?
+    self[:role] == ROLE_MECHANIC || self[:role] == ROLE_MAINTENANCE || vmcott_staff? || admin?
   end
 
   # ========================
@@ -213,6 +250,31 @@ class User < ApplicationRecord
   end
 
   # ========================
+  # DASHBOARD PATH HELPERS
+  # ========================
+  def role_dashboard_path
+    if receptionist?
+      "/receptionist/dashboard"
+    elsif inspector?
+      "/inspector/dashboard"
+    elsif parts_coordinator?
+      "/parts_coordinator/dashboard"
+    elsif mechanic?
+      "/mechanic/dashboard"
+    elsif vmcott_staff?
+      "/vmcott/dashboard"
+    elsif ptsc_staff?
+      "/ptsc/dashboard"
+    elsif ttps_staff?
+      "/ttps/dashboard"
+    elsif ttdf_staff?
+      "/ttdf/dashboard"
+    else
+      "/main-dashboard"
+    end
+  end
+
+  # ========================
   # POS PERMISSIONS
   # ========================
   def can_access_pos?
@@ -282,31 +344,31 @@ class User < ApplicationRecord
   # NEW INVOICE PERMISSIONS (Added for new controller)
   # ========================
   def can_create_invoices?
-    vmcott_staff? || admin? || finance?
+    vmcott_staff? || admin? || finance? || parts_coordinator? || inspector?
   end
 
   def can_edit_invoices?
-    vmcott_staff? || admin? || finance?
+    vmcott_staff? || admin? || finance? || parts_coordinator?
   end
 
   def can_review_invoices?
     ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? ||
       health_staff? || education_staff? || other_agency_staff? ||
-      fleet_manager? || finance? || admin?
+      fleet_manager? || finance? || admin? || inspector?
   end
 
   def can_pay_invoices?
-    finance? || admin?
+    finance? || admin? || parts_coordinator?
   end
 
   def can_dispute_invoices?
     ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? ||
       health_staff? || education_staff? || other_agency_staff? ||
-      fleet_manager? || admin?
+      fleet_manager? || admin? || inspector?
   end
 
   def can_view_invoice_reports?
-    finance? || fleet_manager? || admin?
+    finance? || fleet_manager? || admin? || parts_coordinator?
   end
 
   def can_sync_quickbooks?
@@ -321,20 +383,20 @@ class User < ApplicationRecord
   # NEW QUOTATION PERMISSIONS (Added for quotations controller)
   # ========================
   def can_manage_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff?
+    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator?
   end
 
   def can_view_quotations?
     finance? || admin? || fleet_manager? || maintenance_supervisor? ||
-      ptsc_staff? || ttps_staff? || ttdf_staff?
+      ptsc_staff? || ttps_staff? || ttdf_staff? || parts_coordinator?
   end
 
   def can_create_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff?
+    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator?
   end
 
   def can_edit_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff?
+    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator?
   end
 
   def can_delete_quotations?
@@ -342,27 +404,27 @@ class User < ApplicationRecord
   end
 
   def can_accept_quotations?
-    finance? || admin?
+    finance? || admin? || parts_coordinator?
   end
 
   def can_reject_quotations?
-    finance? || admin? || fleet_manager?
+    finance? || admin? || fleet_manager? || parts_coordinator?
   end
 
   def can_convert_quotations_to_po?
-    finance? || admin?
+    finance? || admin? || parts_coordinator?
   end
 
   def can_export_quotations?
-    finance? || admin? || fleet_manager?
+    finance? || admin? || fleet_manager? || parts_coordinator?
   end
 
   def can_view_quotation_reports?
-    finance? || admin? || fleet_manager?
+    finance? || admin? || fleet_manager? || parts_coordinator?
   end
 
   def can_send_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff?
+    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator?
   end
 
   # ========================
@@ -413,7 +475,7 @@ class User < ApplicationRecord
   end
 
   def agency_invoices
-    if admin? || finance? || fleet_manager?
+    if admin? || finance? || fleet_manager? || parts_coordinator?
       Invoice.all
     elsif vmcott_staff?
       Invoice.all
@@ -430,7 +492,7 @@ class User < ApplicationRecord
   end
 
   def agency_quotations
-    if admin? || finance? || fleet_manager?
+    if admin? || finance? || fleet_manager? || parts_coordinator?
       Quotation.all
     elsif vmcott_staff?
       Quotation.all
@@ -445,19 +507,19 @@ class User < ApplicationRecord
   # DASHBOARD PERMISSIONS
   # ========================
   def can_see_financial_data?
-    finance? || fleet_manager? || admin?
+    finance? || fleet_manager? || admin? || parts_coordinator?
   end
 
   def can_see_maintenance_data?
-    maintenance_supervisor? || fleet_manager? || admin?
+    maintenance_supervisor? || fleet_manager? || admin? || inspector? || mechanic?
   end
 
   def can_see_live_locations?
-    fleet_manager? || driver? || admin?
+    fleet_manager? || driver? || admin? || inspector? || mechanic?
   end
 
   def can_see_analytics?
-    fleet_manager? || admin?
+    fleet_manager? || admin? || parts_coordinator? || inspector?
   end
 
   def can_manage_drivers?
@@ -473,7 +535,7 @@ class User < ApplicationRecord
   end
 
   def can_schedule_maintenance?
-    maintenance_supervisor? || fleet_manager? || admin?
+    maintenance_supervisor? || fleet_manager? || admin? || inspector?
   end
 
   # Check if user has is_system_admin attribute
@@ -502,7 +564,7 @@ class User < ApplicationRecord
   end
 
   def accessible_agencies
-    if admin? || finance? || fleet_manager?
+    if admin? || finance? || fleet_manager? || parts_coordinator?
       Agency.all
     elsif agency.present?
       [agency]
@@ -512,7 +574,7 @@ class User < ApplicationRecord
   end
 
   def can_access_agency?(agency_to_check)
-    return true if admin? || finance? || fleet_manager?
+    return true if admin? || finance? || fleet_manager? || parts_coordinator?
     agency == agency_to_check
   end
 
@@ -525,7 +587,7 @@ class User < ApplicationRecord
   end
 
   def can_access_vehicle?(vehicle)
-    return true if admin? || finance? || fleet_manager?
+    return true if admin? || finance? || fleet_manager? || inspector? || mechanic? || parts_coordinator?
     return false unless agency && vehicle.agency_id
 
     if driver?
@@ -687,6 +749,14 @@ class User < ApplicationRecord
       "Maintenance Supervisor - Vehicle maintenance and scheduling"
     elsif vmcott_staff?
       "VMCOTT Staff - Service provider with quotation and invoice creation"
+    elsif receptionist?
+      "Receptionist - Vehicle reception and check-in"
+    elsif inspector?
+      "Inspector - Vehicle diagnostics and QC inspection"
+    elsif parts_coordinator?
+      "Parts Coordinator - Inventory, RFQs, and vendor management"
+    elsif mechanic?
+      "Mechanic - Vehicle repairs and maintenance"
     elsif ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? || health_staff? || education_staff?
       "#{agency_display_name} Staff - Agency vehicle management and invoice review"
     elsif driver?
