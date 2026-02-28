@@ -1,4 +1,4 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH PROPER VMCOTT NAMESPACING
+# config/routes.rb - COMPLETE REVISED VERSION WITH PROPER VMCOTT NAMESPACING AND PAYABLES
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
@@ -152,7 +152,7 @@ Rails.application.routes.draw do
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
-      # ✅ NEW: PO Details endpoint for JSON
+      # PO Details endpoint for JSON
       get "po_details/:id", to: "invoices#po_details", as: :po_details
       
       resources :invoices, only: [:index, :show, :new, :create] do
@@ -578,10 +578,10 @@ Rails.application.routes.draw do
       get  :bulk_actions
       get  :bulk_payment
       post :process_bulk
+      post :process_bulk_payment
       post :sync_quickbooks
       get  :aging_report
       get  :bulk_payment_view
-      post :process_bulk_payment
       get  :payment_schedule
       post :schedule_payments
       get  :overdue_summary
@@ -605,6 +605,25 @@ Rails.application.routes.draw do
       get  :payment_schedule_options
     end
   end
+
+  # ========================
+  # 🔥 FIXED: Payables (matches PayablesController)
+  # ========================
+  resources :payables do
+    collection do
+      get :monthly_statement
+      get :reconciliation
+    end
+    member do
+      post :record_payment
+      get :payment_history
+      get :account_transactions
+    end
+  end
+
+  # Keep accounts_payable for backward compatibility (redirect to payables)
+  get "accounts_payable", to: redirect("/payables")
+  get "accounts_payable/:id", to: redirect("/payables/%{id}")
 
   # ========================
   # PURCHASE ORDERS - COMPLETE ROUTES
@@ -752,29 +771,6 @@ Rails.application.routes.draw do
       get  :statement
       post :close_period
       get  :activity
-    end
-  end
-
-  resources :accounts_payable, only: [:index, :show] do
-    collection do
-      get  :monthly_statement
-      get  :reconciliation
-      get  :aged_payables
-      get  :vendor_analysis
-      post :bulk_payment
-      get  :export
-      get  :dashboard
-      get  :overdue
-      get  :pay_statement
-      post :process_statement_payment
-    end
-    member do
-      post :record_payment
-      get  :payment_history
-      post :schedule_payment
-      post :void_payment
-      get  :account_transactions
-      get  :print_statement
     end
   end
 

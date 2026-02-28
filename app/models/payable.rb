@@ -3,7 +3,7 @@ class Payable < ApplicationRecord
   # -------------------------
   # Associations
   # -------------------------
-  belongs_to :vendor, optional: true
+  belongs_to :vendor, class_name: 'Supplier', foreign_key: 'vendor_id', optional: true
   belongs_to :purchase_order, optional: true
   belongs_to :invoice, optional: true
   belongs_to :agency, optional: true
@@ -11,7 +11,7 @@ class Payable < ApplicationRecord
 
   has_many :account_transactions, dependent: :restrict_with_error
   has_many :payment_histories, as: :payment_transaction, dependent: :destroy
-  # has_one :payment_schedule, dependent: :destroy  # COMMENTED OUT - PaymentSchedule model doesn't exist
+  # has_one :payment_schedule, dependent: :destroy  # COMMENTED OUT
 
   # -------------------------
   # Validations
@@ -45,17 +45,24 @@ class Payable < ApplicationRecord
   after_update :update_status_if_paid
 
   # -------------------------
-  # Scopes
+  # Scopes - FIXED with fully qualified column names
   # -------------------------
   scope :open, -> { where(status: 'open') }
-  scope :overdue, -> { where('due_date < ? AND status IN (?)', Date.current, %w[open partially_paid]) }
+  
+  # FIXED: Use table_name to avoid ambiguous column errors
+  scope :overdue, -> { 
+    where("#{table_name}.due_date < ? AND #{table_name}.status IN (?)", 
+          Date.current, %w[open partially_paid]) 
+  }
+  
   scope :due_this_month, -> {
-    where('due_date BETWEEN ? AND ? AND status IN (?)',
+    where("#{table_name}.due_date BETWEEN ? AND ? AND #{table_name}.status IN (?)",
       Date.current.beginning_of_month,
       Date.current.end_of_month,
       %w[open partially_paid]
     )
   }
+  
   scope :by_vendor, ->(vendor_id) { where(vendor_id: vendor_id) }
   scope :by_agency, ->(agency_id) { where(agency_id: agency_id) }
 
@@ -94,6 +101,23 @@ class Payable < ApplicationRecord
       description: "Invoice #{invoice.invoice_number}",
       category: 'invoice'
     )
+  end
+
+  # -------------------------
+  # Instance Methods
+  # -------------------------
+  
+  def vendor_info
+    return nil unless vendor_id.present?
+    Supplier.find_by(id: vendor_id)
+  end
+
+  def vendor_name_with_details
+    if vendor.present?
+      "#{vendor_name} (#{vendor.contact_person})"
+    else
+      vendor_name
+    end
   end
 
   # -------------------------
@@ -144,6 +168,49 @@ class Payable < ApplicationRecord
   end
 
   # -------------------------
+  # Status Helpers
+  # -------------------------
+  def overdue?
+    due_date < Date.current && ['open', 'partially_paid'].include?(status)
+  end
+
+  def paid_in_full?
+    amount_due <= 0.01
+  end
+
+  def status_badge_color
+    case status
+    when 'paid' then 'success'
+    when 'open' then 'warning'
+    when 'overdue' then 'danger'
+    when 'partially_paid' then 'info'
+    when 'cancelled' then 'secondary'
+    else 'dark'
+    end
+  end
+
+  def status_display
+    status.humanize
+  end
+
+  def days_overdue
+    return 0 unless overdue?
+    (Date.current - due_date).to_i
+  end
+
+  # -------------------------
+  # Payment Progress
+  # -------------------------
+  def payment_percentage
+    return 0 if amount.zero?
+    ((amount - amount_due) / amount * 100).round
+  end
+
+  def paid_amount
+    amount - amount_due
+  end
+
+  # -------------------------
   # Private
   # -------------------------
   private
@@ -169,11 +236,6 @@ class Payable < ApplicationRecord
   def create_account_transaction
     raise "Payable #{id} missing agency_id" if agency_id.blank?
 
-    # NOTE:
-    # Your Account model only allows these expense sub_types:
-    # payroll_expense, rent_expense, utilities_expense
-    #
-    # Until you add a dedicated maintenance subtype, use utilities_expense as a catch-all.
     expense_account = Account.where(
       agency_id: agency_id,
       sub_type: 'utilities_expense'
@@ -187,8 +249,8 @@ class Payable < ApplicationRecord
     AccountTransaction.create!(
       transaction_number: "TRX-#{reference_number}",
       transaction_date: Date.current,
-      debit_account_id: expense_account.id,  # Debit expense
-      credit_account_id: account_id,         # Credit accounts payable
+      debit_account_id: expense_account.id,
+      credit_account_id: account_id,
       amount: amount,
       transaction_type: 'journal',
       reference_type: 'Payable',

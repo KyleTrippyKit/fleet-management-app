@@ -1,21 +1,21 @@
 # app/controllers/payables_controller.rb
 class PayablesController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_payable, only: [:show, :edit, :update, :destroy, :record_payment, :payment_history, :account_transactions]
-  before_action :check_permissions, only: [:edit, :update, :destroy, :record_payment]
+  before_action :set_payable, only: [:show, :destroy, :record_payment, :payment_history, :account_transactions]
+  before_action :check_permissions, only: [:destroy, :record_payment]
   
   def index
     @payables = fetch_payables
     @total_open = @payables.open.sum(:amount_due)
     @total_overdue = @payables.overdue.sum(:amount_due)
     
-    # Monthly breakdown
+    # Monthly breakdown - FIXED: Use Arel.sql for DATE_TRUNC
     @monthly_breakdown = Payable
       .where(agency_id: current_user.agency_id)
-      .where('due_date BETWEEN ? AND ?', Date.current.beginning_of_year, Date.current.end_of_year)
+      .where("#{Payable.table_name}.due_date BETWEEN ? AND ?", Date.current.beginning_of_year, Date.current.end_of_year)
       .where(status: ['open', 'partially_paid'])
-      .group("DATE_TRUNC('month', due_date)")
-      .order("DATE_TRUNC('month', due_date)")
+      .group(Arel.sql("DATE_TRUNC('month', #{Payable.table_name}.due_date)"))
+      .order(Arel.sql("DATE_TRUNC('month', #{Payable.table_name}.due_date)"))
       .sum(:amount_due)
       .transform_keys { |date| date.strftime('%B %Y') }
   end
@@ -27,11 +27,13 @@ class PayablesController < ApplicationController
     # Add related purchase order and invoice if they exist
     @purchase_order = @payable.purchase_order if @payable.purchase_order_id
     @invoice = @payable.invoice if @payable.invoice_id
+    @vendor = @payable.vendor_info if @payable.vendor_id.present?
   end
   
   def new
     @payable = Payable.new
     @accounts = Account.for_agency(current_user.agency_id).active
+    @suppliers = Supplier.where(is_active: true).order(:name) # For vendor selection
     
     # Pre-fill from purchase order if provided
     if params[:purchase_order_id].present?
@@ -41,6 +43,10 @@ class PayablesController < ApplicationController
         @payable.vendor_name = @purchase_order.vendor
         @payable.amount = @purchase_order.amount
         @payable.description = "Purchase Order #{@purchase_order.po_number}"
+        
+        # Try to find matching supplier
+        supplier = Supplier.find_by(name: @purchase_order.vendor)
+        @payable.vendor_id = supplier.id if supplier
       end
     end
     
@@ -52,6 +58,10 @@ class PayablesController < ApplicationController
         @payable.vendor_name = @invoice.vendor
         @payable.amount = @invoice.amount
         @payable.description = "Invoice #{@invoice.invoice_number}"
+        
+        # Try to find matching supplier
+        supplier = Supplier.find_by(name: @invoice.vendor)
+        @payable.vendor_id = supplier.id if supplier
       end
     end
   end
@@ -64,9 +74,15 @@ class PayablesController < ApplicationController
       redirect_to @payable, notice: 'Payable created successfully.'
     else
       @accounts = Account.for_agency(current_user.agency_id).active
+      @suppliers = Supplier.where(is_active: true).order(:name)
       flash.now[:alert] = @payable.errors.full_messages.to_sentence
       render :new, status: :unprocessable_entity
     end
+  end
+  
+  def destroy
+    @payable.destroy
+    redirect_to payables_path, notice: 'Payable deleted successfully.'
   end
   
   def record_payment
@@ -85,6 +101,11 @@ class PayablesController < ApplicationController
     end
   end
   
+  def payment_history
+    @payment_histories = @payable.payment_histories.order(payment_date: :desc)
+    render partial: 'payment_history' if request.xhr?
+  end
+  
   def account_transactions
     @account_transactions = @payable.account_transactions.order(transaction_date: :desc)
     render partial: 'account_transactions' if request.xhr?
@@ -98,17 +119,23 @@ class PayablesController < ApplicationController
     
     @payables = Payable
       .by_agency(current_user.agency_id)
-      .where(vendor_id: @vendor_id)
-      .where('due_date BETWEEN ? AND ?', @start_date, @end_date)
-      .order(:due_date)
+    
+    if @vendor_id.present?
+      @payables = @payables.where(vendor_id: @vendor_id)
+      @vendor = Supplier.find_by(id: @vendor_id)
+    end
+    
+    # FIXED: Use table_name to avoid ambiguity
+    @payables = @payables
+      .where("#{Payable.table_name}.due_date BETWEEN ? AND ?", @start_date, @end_date)
+      .order("#{Payable.table_name}.due_date")
     
     @total_amount_due = @payables.sum(:amount_due)
-    @vendor = Vendor.find(@vendor_id) if @vendor_id.present?
     
     respond_to do |format|
       format.html
       format.pdf do
-        render pdf: "statement-#{@vendor&.name}-#{@month}",
+        render pdf: "statement-#{@vendor&.name || 'all'}-#{@month}",
                template: 'payables/monthly_statement',
                layout: 'pdf',
                formats: [:html],
@@ -129,7 +156,7 @@ class PayablesController < ApplicationController
     @payables_paid = Payable
       .by_agency(current_user.agency_id)
       .where(status: 'paid')
-      .where('paid_at BETWEEN ? AND ?', @start_date, @end_date)
+      .where("#{Payable.table_name}.paid_at BETWEEN ? AND ?", @start_date, @end_date)
     
     @total_payments = @payables_paid.sum(:amount)
   end
@@ -149,8 +176,9 @@ class PayablesController < ApplicationController
   
   def fetch_payables
     payables = Payable.by_agency(current_user.agency_id)
-                      .includes(:vendor, :purchase_order, :invoice, :account)
+                      .includes(:purchase_order, :invoice, :account)
     
+    # We'll load vendor info separately to avoid association issues
     if params[:status].present?
       payables = payables.where(status: params[:status])
     end
@@ -159,12 +187,13 @@ class PayablesController < ApplicationController
       payables = payables.where(vendor_id: params[:vendor_id])
     end
     
+    # FIXED: Use table_name for all date columns
     if params[:date_from].present?
-      payables = payables.where('due_date >= ?', params[:date_from])
+      payables = payables.where("#{Payable.table_name}.due_date >= ?", params[:date_from])
     end
     
     if params[:date_to].present?
-      payables = payables.where('due_date <= ?', params[:date_to])
+      payables = payables.where("#{Payable.table_name}.due_date <= ?", params[:date_to])
     end
     
     if params[:search].present?
@@ -173,7 +202,8 @@ class PayablesController < ApplicationController
                                 search_term, search_term, search_term)
     end
     
-    payables.order(due_date: :asc).page(params[:page]).per(50)
+    # FIXED: Use table_name for order clause
+    payables.order("#{Payable.table_name}.due_date ASC").page(params[:page]).per(50)
   end
   
   def check_permissions

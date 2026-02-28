@@ -1,0 +1,368 @@
+<%# app/views/payables/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">💰 Payable Details</h1>
+          <p class="text-muted"><%= @payable.reference_number %></p>
+        </div>
+        <div>
+          <%= link_to "← Back to Payables", payables_path, class: "btn btn-outline-secondary me-2" %>
+          <% if @payable.open? && (current_user.finance? || current_user.admin?) %>
+            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#paymentModal">
+              <i class="bi bi-cash me-1"></i> Record Payment
+            </button>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Banner -->
+  <div class="alert <%= 
+    case @payable.status
+    when 'paid' then 'alert-success'
+    when 'open' then 'alert-warning'
+    when 'overdue' then 'alert-danger'
+    when 'partially_paid' then 'alert-info'
+    else 'alert-secondary'
+    end %> mb-4">
+    <div class="d-flex align-items-center">
+      <i class="bi <%= 
+        case @payable.status
+        when 'paid' then 'bi-check-circle-fill'
+        when 'open' then 'bi-clock-fill'
+        when 'overdue' then 'bi-exclamation-triangle-fill'
+        when 'partially_paid' then 'bi-pie-chart-fill'
+        else 'bi-info-circle-fill'
+        end %> fs-3 me-3"></i>
+      <div>
+        <strong>Status:</strong> <%= @payable.status.humanize %>
+        <% if @payable.overdue? %>
+          <span class="badge bg-danger ms-2"><%= @payable.days_overdue %> days overdue</span>
+        <% end %>
+        <br><small>Last updated: <%= time_ago_in_words(@payable.updated_at) %> ago</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Main Details -->
+    <div class="col-md-8">
+      <!-- Payable Information Card -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Payable Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th>Reference Number:</th>
+                  <td><strong><%= @payable.reference_number %></strong></td>
+                </tr>
+                <tr>
+                  <th>Vendor:</th>
+                  <td>
+                    <%= @payable.vendor_name %>
+                    <% if @vendor %>
+                      <br><small class="text-muted"><%= @vendor.contact_person %></small>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Category:</th>
+                  <td><%= @payable.category&.humanize || 'N/A' %></td>
+                </tr>
+                <tr>
+                  <th>Created:</th>
+                  <td><%= @payable.created_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th>Original Amount:</th>
+                  <td><%= number_to_currency(@payable.amount) %></td>
+                </tr>
+                <tr>
+                  <th>Amount Due:</th>
+                  <td><strong class="fs-5"><%= number_to_currency(@payable.amount_due) %></strong></td>
+                </tr>
+                <tr>
+                  <th>Due Date:</th>
+                  <td class="<%= 'text-danger fw-bold' if @payable.overdue? %>">
+                    <%= @payable.due_date.strftime("%B %d, %Y") %>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Account:</th>
+                  <td><%= @payable.account&.name %> (<%= @payable.account&.account_number %>)</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          
+          <% if @payable.description.present? %>
+            <div class="mt-3">
+              <h6 class="fw-bold">Description</h6>
+              <p class="mb-0"><%= @payable.description %></p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Linked Documents -->
+      <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-link-45deg me-2"></i>Linked Documents</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <% if @purchase_order %>
+              <div class="col-md-6 mb-3">
+                <div class="card border">
+                  <div class="card-body">
+                    <h6 class="fw-bold">Purchase Order</h6>
+                    <p class="mb-1"><strong>PO #:</strong> <%= link_to @purchase_order.po_number, @purchase_order %></p>
+                    <p class="mb-1"><strong>Amount:</strong> <%= number_to_currency(@purchase_order.amount) %></p>
+                    <p class="mb-0"><strong>Status:</strong> 
+                      <span class="badge bg-<%= @purchase_order.status_badge_color %>">
+                        <%= @purchase_order.display_status %>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+
+            <% if @invoice %>
+              <div class="col-md-6 mb-3">
+                <div class="card border">
+                  <div class="card-body">
+                    <h6 class="fw-bold">Invoice</h6>
+                    <p class="mb-1"><strong>Invoice #:</strong> <%= link_to @invoice.invoice_number, @invoice %></p>
+                    <p class="mb-1"><strong>Amount:</strong> <%= number_to_currency(@invoice.amount) %></p>
+                    <p class="mb-0"><strong>Status:</strong> 
+                      <span class="badge bg-<%= @invoice.status_badge_class %>">
+                        <%= @invoice.status.humanize %>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment History -->
+      <% if @payment_histories.any? %>
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Payment History</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Method</th>
+                    <th>Reference</th>
+                    <th class="text-end">Amount</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @payment_histories.each do |ph| %>
+                    <tr>
+                      <td><%= ph.payment_date.strftime("%b %d, %Y") %></td>
+                      <td><span class="badge bg-info"><%= ph.payment_method.humanize %></span></td>
+                      <td><%= ph.reference_number %></td>
+                      <td class="text-end fw-bold"><%= number_to_currency(ph.amount) %></td>
+                      <td><%= truncate(ph.notes, length: 30) %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+                <tfoot>
+                  <tr class="table-info">
+                    <th colspan="3" class="text-end">Total Paid:</th>
+                    <th class="text-end"><%= number_to_currency(@payment_histories.sum(:amount)) %></th>
+                    <th></th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Account Transactions - FIXED VERSION -->
+      <% if @account_transactions.any? %>
+        <div class="card mb-4">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-journal me-2"></i>Account Transactions</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Transaction #</th>
+                    <th>Description</th>
+                    <th>Debit Account</th>
+                    <th>Credit Account</th>
+                    <th class="text-end">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @account_transactions.each do |tx| %>
+                    <tr>
+                      <td><%= tx.transaction_date.strftime("%b %d, %Y") %></td>
+                      <td><%= tx.transaction_number %></td>
+                      <td><%= tx.description %></td>
+                      <td>
+                        <% if tx.debit_account %>
+                          <%= tx.debit_account.name %><br>
+                          <small class="text-muted"><%= tx.debit_account.account_number %></small>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if tx.credit_account %>
+                          <%= tx.credit_account.name %><br>
+                          <small class="text-muted"><%= tx.credit_account.account_number %></small>
+                        <% end %>
+                      </td>
+                      <td class="text-end fw-bold"><%= number_to_currency(tx.amount) %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-md-4">
+      <!-- Payment Progress -->
+      <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Payment Progress</h5>
+        </div>
+        <div class="card-body">
+          <% paid_percentage = @payable.payment_percentage %>
+          <div class="progress mb-3" style="height: 25px;">
+            <div class="progress-bar bg-success" 
+                 role="progressbar" 
+                 style="width: <%= paid_percentage %>%;" 
+                 aria-valuenow="<%= paid_percentage %>" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+              <%= paid_percentage %>%
+            </div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>Paid:</span>
+            <span class="fw-bold"><%= number_to_currency(@payable.paid_amount) %></span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>Balance Due:</span>
+            <span class="fw-bold text-danger"><%= number_to_currency(@payable.amount_due) %></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Timeline</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled">
+            <li class="mb-3">
+              <i class="bi bi-plus-circle text-primary me-2"></i>
+              <strong>Created:</strong><br>
+              <small class="text-muted"><%= @payable.created_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+            </li>
+            <% @payment_histories.each do |ph| %>
+              <li class="mb-3">
+                <i class="bi bi-cash-stack text-success me-2"></i>
+                <strong>Payment Recorded:</strong><br>
+                <small class="text-muted">
+                  <%= number_to_currency(ph.amount) %> on <%= ph.payment_date.strftime("%B %d, %Y") %>
+                </small>
+              </li>
+            <% end %>
+            <% if @payable.paid? %>
+              <li class="mb-3">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                <strong>Fully Paid:</strong><br>
+                <small class="text-muted"><%= @payable.updated_at.strftime("%B %d, %Y") %></small>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Modal -->
+  <% if @payable.open? || @payable.partially_paid? %>
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title">Record Payment</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <%= form_with url: record_payment_payable_path(@payable), method: :post, local: true do |f| %>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">Payment Amount</label>
+                <%= f.number_field :amount, class: "form-control", 
+                      value: @payable.amount_due, 
+                      max: @payable.amount_due, 
+                      step: 0.01, 
+                      required: true %>
+                <small class="text-muted">Maximum: <%= number_to_currency(@payable.amount_due) %></small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Payment Method</label>
+                <%= f.select :payment_method, 
+                      options_for_select([['Bank Transfer', 'bank_transfer'], 
+                                         ['Cheque', 'cheque'], 
+                                         ['Cash', 'cash'], 
+                                         ['Credit Card', 'credit_card']]),
+                      {}, class: "form-select" %>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Reference Number</label>
+                <%= f.text_field :reference_number, class: "form-control", 
+                      placeholder: "e.g., Cheque #, Transaction ID" %>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Payment Date</label>
+                <%= f.date_field :payment_date, value: Date.current, class: "form-control" %>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Notes</label>
+                <%= f.text_area :notes, class: "form-control", rows: 2 %>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <%= f.submit "Record Payment", class: "btn btn-success" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

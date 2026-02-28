@@ -1,4 +1,5 @@
-<%# app/views/shared/_navigation.html.erb - ROLE-BASED DASHBOARD NAVIGATION %>
+<%# app/views/shared/_navigation.html.erb - COMPLETE ROLE-BASED DASHBOARD NAVIGATION %>
+<%# Includes all VMCOTT workflow roles: Receptionist, Inspector, Parts Coordinator, Mechanic, Workshop Supervisor, Billing %>
 
 <% return unless current_user.present? %>
 
@@ -16,6 +17,13 @@
 <% is_vmcott_finance         = user_role == 'finance' && agency_code == "VMCOTT" %>
 <% is_vmcott_workshop_manager = user_role == 'workshop_manager' %>
 <% is_vmcott_inventory_clerk  = user_role == 'inventory_clerk' %>
+
+<%# NEW: Explicit VMCOTT workflow roles %>
+<% is_vmcott_receptionist     = user_role == 'receptionist' && agency_code == "VMCOTT" %>
+<% is_vmcott_inspector        = user_role == 'inspector' && agency_code == "VMCOTT" %>
+<% is_vmcott_parts_coordinator = user_role == 'parts_coordinator' && agency_code == "VMCOTT" %>
+<% is_vmcott_mechanic         = user_role == 'mechanic' && agency_code == "VMCOTT" %>
+<% is_vmcott_billing          = user_role == 'finance' && agency_code == "VMCOTT" %>
 
 <%# Regular users see only their specific role %>
 <% is_fleet_manager          = user_role == 'fleet_manager' %>
@@ -39,6 +47,11 @@
     <% is_vmcott_staff = true %>
     <% is_vmcott_workshop_manager = true %>
     <% is_vmcott_inventory_clerk = true %>
+    <% is_vmcott_receptionist = true %>
+    <% is_vmcott_inspector = true %>
+    <% is_vmcott_parts_coordinator = true %>
+    <% is_vmcott_mechanic = true %>
+    <% is_vmcott_billing = true %>
   <% else %>
     <% is_fleet_manager = true %>
     <% is_maintenance_supervisor = true %>
@@ -342,8 +355,8 @@
             </div>
           <% end %>
 
-          <!-- ================= WORKFLOW (VMCOTT Internal) ================= -->
-          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_staff || is_vmcott_workshop_manager || is_vmcott_inventory_clerk) %>
+          <!-- ================= WORKFLOW (VMCOTT Internal) - COMPLETE ================= -->
+          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_staff || is_vmcott_workshop_manager || is_vmcott_inventory_clerk || is_vmcott_receptionist || is_vmcott_inspector || is_vmcott_parts_coordinator || is_vmcott_mechanic) %>
             <div class="dropdown nav-dd">
               <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
                       type="button"
@@ -356,15 +369,67 @@
 
               <ul class="dropdown-menu dropdown-menu-float dropdown-scroll">
                 
-                <%# RFQ Processing - Admin, Staff, Workshop Manager %>
+                <%# RECEPTION %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_receptionist %>
+                  <li class="dropdown-section">🚪 RECEPTION</li>
+                  <li>
+                    <%= link_to vmcott_receptionist_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-person-badge me-2"></i> Vehicle Reception
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_receptionist_scan_path, class: "dropdown-item" do %>
+                      <i class="bi bi-qr-code-scan me-2"></i> Scan QR Code
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# INSPECTION %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_inspector %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">🔍 INSPECTION</li>
+                  <li>
+                    <%= link_to vmcott_inspector_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-search me-2"></i> Inspections Dashboard
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_inspector_inspections_path, class: "dropdown-item" do %>
+                      <i class="bi bi-list-check me-2"></i> All Inspections
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# PARTS COORDINATOR %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_parts_coordinator %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">📦 PARTS</li>
+                  <li>
+                    <%= link_to vmcott_parts_coordinator_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-box-seam me-2"></i> Parts Dashboard
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_parts_path, class: "dropdown-item" do %>
+                      <i class="bi bi-gear me-2"></i> Parts Catalog
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_parts_coordinator_new_rfq_path(part_id: 0), class: "dropdown-item" do %>
+                      <i class="bi bi-file-earmark-plus me-2"></i> Create RFQ
+                    <% end %>
+                  </li>
+                <% end %>
+                
+                <%# RFQ PROCESSING %>
                 <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
-                  <li class="dropdown-section">RFQ PROCESSING</li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">📋 RFQ PROCESSING</li>
                   <li>
                     <%= link_to vmcott_rfq_inbox_path, class: "dropdown-item" do %>
                       <i class="bi bi-inbox me-2"></i> RFQ Inbox
                     <% end %>
                   </li>
-
                   <li>
                     <%= link_to vmcott_quotation_workspace_path, class: "dropdown-item" do %>
                       <i class="bi bi-clipboard-data me-2"></i> Quotation Workspace
@@ -372,21 +437,33 @@
                   </li>
                 <% end %>
 
-                <%# Workshop Operations - Admin, Workshop Manager only %>
-                <% if is_admin || is_vmcott_workshop_manager %>
+                <%# WORKSHOP OPERATIONS %>
+                <% if is_admin || is_vmcott_workshop_manager || is_vmcott_mechanic %>
                   <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">WORKSHOP OPS</li>
+                  <li class="dropdown-section">🔧 WORKSHOP</li>
                   <li>
-                    <%= link_to active_work_vmcott_internal_pos_path, class: "dropdown-item" do %>
-                      <i class="bi bi-play-circle me-2"></i> Internal POS — Active Work
+                    <%= link_to vmcott_mechanic_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-tools me-2"></i> Mechanic Dashboard
                     <% end %>
                   </li>
+                  <li>
+                    <%= link_to active_work_vmcott_internal_pos_path, class: "dropdown-item" do %>
+                      <i class="bi bi-play-circle me-2"></i> Active Work Orders
+                    <% end %>
+                  </li>
+                  <% if is_admin || is_vmcott_workshop_manager %>
+                    <li>
+                      <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "dropdown-item" do %>
+                        <i class="bi bi-clipboard-check me-2"></i> Supervisor View
+                      <% end %>
+                    </li>
+                  <% end %>
                 <% end %>
 
-                <%# Orders - Admin, Staff, Workshop Manager %>
+                <%# ORDERS %>
                 <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
                   <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">ORDERS</li>
+                  <li class="dropdown-section">📦 ORDERS</li>
                   <li>
                     <%= link_to purchase_orders_path, class: "dropdown-item" do %>
                       <i class="bi bi-bag-check me-2"></i> Purchase Orders
@@ -394,34 +471,44 @@
                   </li>
                 <% end %>
 
-                <%# Inventory - Admin, Inventory Clerk, Staff %>
+                <%# INVENTORY %>
                 <% if is_admin || is_vmcott_inventory_clerk || is_vmcott_staff %>
                   <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">INVENTORY</li>
+                  <li class="dropdown-section">📦 INVENTORY</li>
                   <li>
                     <%= link_to vmcott_inventory_dashboard_path, class: "dropdown-item" do %>
                       <i class="bi bi-box-seam me-2"></i> Inventory Dashboard
                     <% end %>
                   </li>
-
                   <li>
                     <%= link_to vmcott_parts_path, class: "dropdown-item" do %>
-                      <i class="bi bi-gear me-2"></i> Parts
+                      <i class="bi bi-gear me-2"></i> Parts Catalog
                     <% end %>
                   </li>
-
                   <li>
                     <%= link_to suppliers_path, class: "dropdown-item" do %>
                       <i class="bi bi-building me-2"></i> Suppliers
                     <% end %>
                   </li>
                 <% end %>
+
+                <%# MONITORING %>
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">📊 MONITORING</li>
+                <li>
+                  <%= link_to alerts_path, class: "dropdown-item" do %>
+                    <i class="bi bi-bell me-2"></i> System Alerts
+                    <% if Alert.active.count > 0 %>
+                      <span class="badge bg-danger ms-2"><%= Alert.active.count %></span>
+                    <% end %>
+                  <% end %>
+                </li>
               </ul>
             </div>
           <% end %>
 
-          <!-- ================= FINANCE (VMCOTT Finance only) - UPDATED WITH CORRECT LINKS ================= -->
-          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_finance) %>
+          <!-- ================= FINANCE (VMCOTT) - COMPLETE ================= -->
+          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_finance || is_vmcott_billing) %>
             <div class="dropdown nav-dd">
               <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
                       type="button"
@@ -433,10 +520,10 @@
               </button>
 
               <ul class="dropdown-menu dropdown-menu-float">
-                <li class="dropdown-section">BILLING</li>
+                <li class="dropdown-section">💰 BILLING</li>
                 <li>
                   <%= link_to vmcott_billing_invoices_path, class: "dropdown-item" do %>
-                    <i class="bi bi-receipt me-2"></i> Invoices
+                    <i class="bi bi-receipt me-2"></i> All Invoices
                   <% end %>
                 </li>
                 <li>
@@ -449,10 +536,36 @@
                     <i class="bi bi-plus-circle me-2"></i> Create Invoice
                   <% end %>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">📊 REPORTS</li>
+                <li>
+                  <%= link_to aging_report_invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-hourglass-split me-2"></i> Invoice Aging
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to reports_invoices_path, class: "dropdown-item" do %>
+                    <i class="bi bi-graph-up me-2"></i> Financial Reports
+                  <% end %>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">📋 ACCOUNTING</li>
+                <li>
+                  <%= link_to accounts_path, class: "dropdown-item" do %>
+                    <i class="bi bi-journal me-2"></i> Chart of Accounts
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to account_transactions_path, class: "dropdown-item" do %>
+                    <i class="bi bi-list me-2"></i> Transactions
+                  <% end %>
+                </li>
               </ul>
             </div>
 
-          <!-- ================= FINANCE (Agencies) ================= -->
+          <!-- ================= FINANCE (Agencies) - COMPLETE ================= -->
           <% elsif is_financial_officer && agency_code.present? && agency_code != "VMCOTT" %>
             <div class="dropdown nav-dd">
               <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
@@ -465,7 +578,7 @@
               </button>
 
               <ul class="dropdown-menu dropdown-menu-float">
-                <li class="dropdown-section">BILLING</li>
+                <li class="dropdown-section">💰 BILLING</li>
                 <li>
                   <%= link_to invoices_path, class: "dropdown-item" do %>
                     <i class="bi bi-receipt me-2"></i> Invoices
@@ -478,8 +591,15 @@
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">💳 PAYABLES</li>
+                <li>
+                  <%= link_to payables_path, class: "dropdown-item" do %>
+                    <i class="bi bi-cash-stack me-2"></i> Accounts Payable
+                  <% end %>
+                </li>
 
-                <li class="dropdown-section">ALERTS</li>
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">⚠️ ALERTS</li>
                 <li>
                   <%= link_to alerts_path, class: "dropdown-item" do %>
                     <i class="bi bi-bell me-2"></i> View All Alerts
@@ -487,8 +607,7 @@
                 </li>
 
                 <li><hr class="dropdown-divider"></li>
-
-                <li class="dropdown-section">FINANCE DASHBOARD</li>
+                <li class="dropdown-section">📊 DASHBOARD</li>
                 <li>
                   <% if agency_code == "PTSC" %>
                     <%= link_to ptsc_finance_dashboard_path, class: "dropdown-item" do %>
