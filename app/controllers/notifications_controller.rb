@@ -7,23 +7,26 @@ class NotificationsController < ApplicationController
     @notifications = Notification.where(user: current_user)
                                  .order(created_at: :desc)
                                  .page(params[:page]).per(20)
+    @unread_count = Notification.where(user: current_user, read_at: nil).count
   end
 
   def show
     @notification.mark_as_read! unless @notification.read?
-    redirect_to @notification.action_url.presence || notifications_path
+    redirect_to @notification.link.presence || notifications_path
   end
 
   def mark_as_read
-    @notification.update(read: true)
+    @notification.mark_as_read!
+    
     respond_to do |format|
-      format.html { redirect_back fallback_location: notifications_path }
+      format.html { redirect_back fallback_location: notifications_path, notice: 'Notification marked as read.' }
       format.json { render json: { success: true } }
+      format.turbo_stream { render turbo_stream: turbo_stream.replace(@notification, partial: 'notifications/notification', locals: { notification: @notification }) }
     end
   end
 
   def mark_all_as_read
-    Notification.where(user: current_user, read: false).update_all(read: true)
+    Notification.where(user: current_user, read_at: nil).update_all(read_at: Time.current)
     redirect_back fallback_location: notifications_path, notice: "All notifications marked as read."
   end
 

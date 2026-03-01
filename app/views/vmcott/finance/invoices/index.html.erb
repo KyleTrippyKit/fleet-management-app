@@ -1,0 +1,108 @@
+<%# app/views/vmcott/finance/invoices/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">💰 Finance - Invoices</h1>
+      <p class="text-muted">Manage and review customer invoices</p>
+    </div>
+    <div class="col-auto">
+      <%= link_to vmcott_finance_dashboard_path, class: "btn btn-outline-secondary" do %>
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Status Tabs -->
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <%= link_to "All Invoices", vmcott_finance_invoices_path, 
+          class: "nav-link #{'active' if action_name == 'index' && !params[:status]}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Pending", pending_vmcott_finance_invoices_path, 
+          class: "nav-link #{'active' if action_name == 'pending'}" %>
+      <% if @pending_count.to_i > 0 %>
+        <span class="badge bg-warning ms-1"><%= @pending_count %></span>
+      <% end %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Paid", paid_vmcott_finance_invoices_path, 
+          class: "nav-link #{'active' if action_name == 'paid'}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Overdue", overdue_vmcott_finance_invoices_path, 
+          class: "nav-link #{'active' if action_name == 'overdue'}" %>
+    </li>
+    <li class="nav-item">
+      <%= link_to "Aging Report", aging_report_vmcott_finance_invoices_path, 
+          class: "nav-link #{'active' if action_name == 'aging_report'}" %>
+    </li>
+  </ul>
+
+  <!-- Invoices Table -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <% if @invoices.present? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Vehicle</th>
+                <th>Vendor</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @invoices.each do |invoice| %>
+                <tr>
+                  <td><strong><%= invoice.invoice_number %></strong></td>
+                  <td>
+                    <% if invoice.vehicle.present? %>
+                      <%= invoice.vehicle.license_plate %>
+                      <br><small class="text-muted"><%= invoice.vehicle.make %> <%= invoice.vehicle.model %></small>
+                    <% else %>
+                      <span class="text-muted">No vehicle</span>
+                    <% end %>
+                  </td>
+                  <td><%= invoice.vendor %></td> <!-- vendor is a string column, safe to use -->
+                  <td><%= number_to_currency(invoice.amount) %></td>
+                  <td><%= invoice.invoice_date&.strftime("%b %d, %Y") %></td>
+                  <td>
+                    <%= invoice.due_date&.strftime("%b %d, %Y") %>
+                    <% if invoice.due_date.present? && invoice.due_date < Date.today && invoice.status != 'paid' %>
+                      <span class="badge bg-danger ms-1">Overdue</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <span class="badge bg-<%= invoice.status == 'paid' ? 'success' : (invoice.status == 'pending' ? 'warning' : 'secondary') %>">
+                      <%= invoice.status&.titleize || 'Pending' %>
+                    </span>
+                  </td>
+                  <td>
+                    <%= link_to "View", vmcott_finance_invoice_path(invoice), class: "btn btn-sm btn-outline-primary" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        
+        <% if @invoices.respond_to?(:total_pages) %>
+          <div class="mt-3">
+            <%= paginate @invoices %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-receipt fs-1 text-muted mb-3"></i>
+          <p class="text-muted">No invoices found</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

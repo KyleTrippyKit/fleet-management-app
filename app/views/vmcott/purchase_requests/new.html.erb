@@ -1,0 +1,345 @@
+<%# app/views/vmcott/purchase_requests/new.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">📝 New Purchase Request</h1>
+          <p class="text-muted">Create a purchase request - this will be sent to the billing team for RFQ creation</p>
+        </div>
+        <%= link_to "← Back to Purchase Requests", vmcott_purchase_requests_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">Purchase Request Details</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with model: @purchase_request, url: vmcott_purchase_requests_path, local: true, html: { id: "purchase-request-form" } do |f| %>
+            <% if @purchase_request.errors.any? %>
+              <div class="alert alert-danger">
+                <h6><%= pluralize(@purchase_request.errors.count, "error") %> prohibited this purchase request from being saved:</h6>
+                <ul class="mb-0">
+                  <% @purchase_request.errors.full_messages.each do |message| %>
+                    <li><%= message %></li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+
+            <!-- Part Search Section - REPLACES the dropdown -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Search for Part</label>
+              <div class="position-relative" style="position: relative; z-index: 1000;">
+                <input type="text" 
+                       id="part-search" 
+                       class="form-control form-control-lg" 
+                       placeholder="Type part name, number, or keyword..." 
+                       autocomplete="off"
+                       data-search-url="<%= search_vmcott_parts_path %>">
+                
+                <!-- Hidden field for part_id -->
+                <input type="hidden" name="purchase_request[part_id]" id="purchase_request_part_id">
+                
+                <!-- Search Results Dropdown -->
+                <div id="search-results" class="dropdown-menu w-100" style="display: none; max-height: 400px; overflow-y: auto; position: absolute; z-index: 9999;"></div>
+              </div>
+              <small class="text-muted" id="selected-part-display"></small>
+              <div id="search-loading" class="text-muted small mt-1" style="display: none;">
+                <i class="bi bi-arrow-repeat me-1 spin"></i> Searching...
+              </div>
+            </div>
+
+            <!-- Stock Info Card - Shows when part is selected -->
+            <div id="part-stock-card" class="card mb-4 bg-light" style="display: none;">
+              <div class="card-body py-3">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h6 id="selected-part-name" class="fw-bold mb-2"></h6>
+                    <div id="selected-part-number" class="text-muted small mb-2"></div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <span>Current Stock:</span>
+                      <span id="selected-part-stock" class="badge bg-secondary fs-6"></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <span>Min / Reorder:</span>
+                      <span id="selected-part-minmax" class="small"></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <span>Supplier:</span>
+                      <span id="selected-part-supplier" class="small"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-6">
+                <%= f.label :quantity, "Quantity", class: "form-label fw-bold" %>
+                <%= f.number_field :quantity, class: "form-control", min: 1, value: 1, required: true %>
+              </div>
+              
+              <div class="col-md-6">
+                <%= f.label :urgency, "Urgency", class: "form-label fw-bold" %>
+                <%= f.select :urgency, 
+                    options_for_select([
+                      ['Normal', 'normal'],
+                      ['High', 'high'],
+                      ['Critical', 'critical']
+                    ], 'normal'), 
+                    {}, 
+                    { class: "form-select", required: true } %>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <%= f.label :needed_by_date, "Needed By Date", class: "form-label fw-bold" %>
+              <%= f.date_field :needed_by_date, class: "form-control", value: 7.days.from_now.to_date %>
+              <small class="text-muted">When is this part needed?</small>
+            </div>
+
+            <div class="mb-3">
+              <%= f.label :notes, "Notes", class: "form-label fw-bold" %>
+              <%= f.text_area :notes, class: "form-control", rows: 3, 
+                    placeholder: "Add any additional information or special requirements..." %>
+            </div>
+
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              After creation, this request will be sent to the <strong>billing team</strong> who will create RFQs to multiple vendors.
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <%= link_to "Cancel", vmcott_purchase_requests_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Create Purchase Request", class: "btn btn-primary", id: "submit-btn", disabled: true %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-header bg-light">
+          <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Purchase Requests</h6>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            <% PurchaseRequest.order(created_at: :desc).limit(3).each do |pr| %>
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong><%= pr.part&.name || 'Unknown Part' %></strong>
+                    <br><small class="text-muted">
+                      Quantity: <%= pr.quantity %> | 
+                      Status: <span class="badge bg-<%= pr.status == 'pending' ? 'warning' : 'info' %>"><%= pr.status.titleize %></span>
+                    </small>
+                  </div>
+                  <span class="badge bg-<%= pr.urgency == 'critical' ? 'danger' : (pr.urgency == 'high' ? 'warning' : 'info') %>">
+                    <%= pr.urgency.titleize %>
+                  </span>
+                </div>
+                <small class="text-muted">
+                  Requested by: <%= pr.requested_by&.name || 'System' %> • 
+                  <%= time_ago_in_words(pr.created_at) %> ago
+                </small>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add this CSS for spinning animation -->
+<style>
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+.search-result-item {
+  cursor: pointer;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s;
+}
+.search-result-item:hover {
+  background-color: #f8f9fa;
+}
+.search-result-item.selected {
+  background-color: #e7f1ff;
+}
+.part-number {
+  font-size: 0.85em;
+  color: #6c757d;
+}
+.stock-indicator {
+  font-size: 0.8em;
+}
+</style>
+
+<!-- JavaScript for search functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const searchInput = document.getElementById('part-search');
+  const searchResults = document.getElementById('search-results');
+  const partIdField = document.getElementById('purchase_request_part_id');
+  const selectedPartDisplay = document.getElementById('selected-part-display');
+  const partStockCard = document.getElementById('part-stock-card');
+  const selectedPartName = document.getElementById('selected-part-name');
+  const selectedPartNumber = document.getElementById('selected-part-number');
+  const selectedPartStock = document.getElementById('selected-part-stock');
+  const selectedPartMinMax = document.getElementById('selected-part-minmax');
+  const selectedPartSupplier = document.getElementById('selected-part-supplier');
+  const searchLoading = document.getElementById('search-loading');
+  const submitBtn = document.getElementById('submit-btn');
+  
+  let searchTimeout;
+  let selectedPart = null;
+  
+  // Function to fetch and display search results
+  function performSearch(query) {
+    if (query.length < 2) {
+      searchResults.style.display = 'none';
+      searchLoading.style.display = 'none';
+      return;
+    }
+    
+    searchLoading.style.display = 'block';
+    searchResults.style.display = 'none';
+    
+    const searchUrl = searchInput.dataset.searchUrl + '?q=' + encodeURIComponent(query);
+    
+    fetch(searchUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(parts => {
+      searchLoading.style.display = 'none';
+      searchResults.innerHTML = '';
+      
+      if (parts.length === 0) {
+        searchResults.innerHTML = '<div class="dropdown-item text-muted">No parts found</div>';
+        searchResults.style.display = 'block';
+        return;
+      }
+      
+      parts.forEach(part => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item search-result-item';
+        if (selectedPart && selectedPart.id === part.id) {
+          item.classList.add('selected');
+        }
+        
+        const stockClass = part.current_stock > part.minimum_stock ? 'success' : 
+                          (part.current_stock > 0 ? 'warning' : 'danger');
+        const stockText = part.current_stock > 0 ? `${part.current_stock} units` : 'Out of Stock';
+        
+        item.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${part.name}</strong>
+              ${part.part_number ? `<div class="part-number">${part.part_number}</div>` : ''}
+              ${part.supplier ? `<small class="text-muted">${part.supplier.name}</small>` : ''}
+            </div>
+            <div>
+              <span class="badge bg-${stockClass} stock-indicator">${stockText}</span>
+            </div>
+          </div>
+        `;
+        
+        item.addEventListener('click', function() {
+          selectPart(part);
+          searchResults.style.display = 'none';
+          searchInput.value = part.name;
+        });
+        
+        searchResults.appendChild(item);
+      });
+      
+      searchResults.style.display = 'block';
+    })
+    .catch(error => {
+      console.error('Error searching parts:', error);
+      searchLoading.style.display = 'none';
+      searchResults.innerHTML = '<div class="dropdown-item text-danger">Error searching parts</div>';
+      searchResults.style.display = 'block';
+    });
+  }
+  
+  // Function to select a part
+  function selectPart(part) {
+    selectedPart = part;
+    partIdField.value = part.id;
+    searchInput.value = part.name;
+    selectedPartDisplay.innerHTML = `<i class="bi bi-check-circle-fill text-success me-1"></i>Selected: ${part.name}`;
+    
+    // Show and populate stock card
+    partStockCard.style.display = 'block';
+    selectedPartName.textContent = part.name;
+    selectedPartNumber.textContent = part.part_number || 'No part number';
+    
+    const stockClass = part.current_stock > part.minimum_stock ? 'bg-success' : 
+                      (part.current_stock > 0 ? 'bg-warning' : 'bg-danger');
+    selectedPartStock.innerHTML = `<span class="badge ${stockClass}">${part.current_stock} units</span>`;
+    
+    selectedPartMinMax.textContent = `${part.minimum_stock || 0} / ${part.reorder_point || 10}`;
+    selectedPartSupplier.textContent = part.supplier ? part.supplier.name : 'No supplier';
+    
+    // Enable submit button
+    submitBtn.disabled = false;
+    
+    // Hide results
+    searchResults.style.display = 'none';
+  }
+  
+  // Search input handler with debounce
+  searchInput.addEventListener('input', function(e) {
+    clearTimeout(searchTimeout);
+    const query = this.value.trim();
+    
+    if (query.length < 2) {
+      searchResults.style.display = 'none';
+      searchLoading.style.display = 'none';
+      return;
+    }
+    
+    searchTimeout = setTimeout(() => performSearch(query), 300);
+  });
+  
+  // Handle keyboard navigation
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      searchResults.style.display = 'none';
+    }
+  });
+  
+  // Close search results when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+      searchResults.style.display = 'none';
+    }
+  });
+  
+  // Prevent form submission if no part selected
+  document.getElementById('purchase-request-form').addEventListener('submit', function(e) {
+    if (!partIdField.value) {
+      e.preventDefault();
+      alert('Please select a part from the search results');
+    }
+  });
+});
+</script>

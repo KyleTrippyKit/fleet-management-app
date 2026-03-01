@@ -5,7 +5,7 @@ class PartsRequest < ApplicationRecord
   belongs_to :vendor_invoice, optional: true
   belongs_to :purchase_order, optional: true
   
-  # NEW: Add association to VendorRfq through part's vendor_rfq_items
+  # Association to VendorRfq through part's vendor_rfq_items
   has_many :vendor_rfq_items, through: :part
   has_many :rfqs, through: :vendor_rfq_items, source: :vendor_rfq
 
@@ -36,7 +36,7 @@ class PartsRequest < ApplicationRecord
   scope :inventory_parts, -> { where.not(part_id: nil) }
 
   def part_name
-    part&.name || custom_part_name
+    part&.name || custom_part_name || "Unknown Part"
   end
 
   def custom?
@@ -95,7 +95,7 @@ class PartsRequest < ApplicationRecord
     inspection.check_parts_availability! if inspection.respond_to?(:check_parts_availability!)
   end
   
-  # FIXED: Helper method to get the most recent RFQ for this parts request
+  # Helper method to get the most recent RFQ for this parts request
   def latest_rfq
     return nil unless part.present?
     return nil unless rfqs.any?
@@ -106,7 +106,7 @@ class PartsRequest < ApplicationRecord
     nil
   end
   
-  # FIXED: Helper method to check if there are any RFQs
+  # Helper method to check if there are any RFQs
   def has_rfqs?
     return false unless part.present?
     rfqs.exists?
@@ -118,5 +118,22 @@ class PartsRequest < ApplicationRecord
   # Helper method to get RFQ number if available
   def rfq_number
     latest_rfq&.rfq_number
+  end
+  
+  # NEW: Helper method to get the part number (for inventory parts)
+  def part_number
+    part&.part_number
+  end
+  
+  # NEW: Helper method to get the part's current stock
+  def current_stock
+    return 0 if custom? || part.nil?
+    part.current_stock
+  end
+  
+  # NEW: Helper method to get the shortfall quantity
+  def shortfall_quantity
+    return quantity if custom? || part.nil?
+    [quantity - part.current_stock, 0].max
   end
 end

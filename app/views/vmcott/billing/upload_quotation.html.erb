@@ -1,66 +1,101 @@
-<%# app/views/vmcott/billing/upload_quotation.html.erb %>
+<%# app/views/vmcott/billing/upload_quotation.html.erb - ENHANCED VERSION %>
 <div class="container-fluid py-4">
   <div class="row">
-    <div class="col-md-8 mx-auto">
+    <div class="col-md-10 mx-auto">
       <div class="card">
         <div class="card-header bg-primary text-white">
-          <h5 class="mb-0">📄 Upload Vendor Quotation</h5>
+          <h5 class="mb-0">📄 Upload Vendor Quotations for RFQ #<%= @rfq.rfq_number %></h5>
         </div>
         <div class="card-body">
-          <%= form_with url: upload_quotation_billing_path, multipart: true, local: true do |f| %>
+          
+          <!-- Display RFQ Info -->
+          <div class="alert alert-info mb-4">
+            <h6>RFQ Details:</h6>
+            <p class="mb-0">
+              <strong>Parts:</strong>
+              <ul>
+                <% @rfq.vendor_rfq_items.each do |item| %>
+                  <li><%= item.part&.name || item.description %> (Qty: <%= item.quantity %>)</li>
+                <% end %>
+              </ul>
+            </p>
+          </div>
+
+          <%= form_with url: vmcott_billing_create_quotation_path(@rfq), multipart: true, local: true do |f| %>
             
-            <div class="mb-3">
-              <label class="form-label fw-bold">Select Request</label>
-              <%= f.collection_select :parts_request_id, @pending_requests, :id, :reference, 
-                    { include_blank: "Choose request..." }, class: "form-select" %>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-bold">Supplier</label>
-              <%= f.collection_select :supplier_id, Supplier.active, :id, :name, 
-                    { include_blank: "Select supplier..." }, class: "form-select" %>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-bold">Upload Quotation (PDF/Image)</label>
-              <%= f.file_field :quotation_file, class: "form-control", accept: ".pdf,.jpg,.jpeg,.png" %>
-            </div>
-
-            <h6 class="fw-bold mt-4 mb-3">Quotation Items</h6>
-            <div id="items">
-              <div class="row mb-2 item-row">
-                <div class="col-md-5">
-                  <input type="text" name="items[][part_name]" class="form-control" placeholder="Part name">
+            <!-- Multiple Quotations Container -->
+            <div id="quotations-container">
+              <!-- Template for first supplier -->
+              <div class="quotation-card border p-3 mb-4 rounded">
+                <h6 class="fw-bold mb-3">Supplier 1</h6>
+                
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Supplier</label>
+                    <%= collection_select "quotations[][supplier_id]", nil, Supplier.active, :id, :name, 
+                          { prompt: "Select supplier..." }, 
+                          { class: "form-select supplier-select", required: true } %>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Upload Quotation (PDF/Image)</label>
+                    <input type="file" name="quotations[][attachment]" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                  </div>
                 </div>
-                <div class="col-md-2">
-                  <input type="number" name="items[][quantity]" class="form-control" placeholder="Qty" min="1">
+
+                <div class="row mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Quotation Reference #</label>
+                    <input type="text" name="quotations[][reference_number]" class="form-control" placeholder="e.g., QUOTE-12345">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Valid Until</label>
+                    <input type="date" name="quotations[][valid_until]" class="form-control" value="<%= Date.current + 30.days %>">
+                  </div>
                 </div>
-                <div class="col-md-3">
-                  <input type="number" name="items[][unit_price]" class="form-control" placeholder="Unit price" step="0.01">
+
+                <div class="mb-3">
+                  <label class="form-label fw-bold">Notes</label>
+                  <textarea name="quotations[][notes]" class="form-control" rows="2"></textarea>
                 </div>
-                <div class="col-md-2">
-                  <button type="button" class="btn btn-outline-danger remove-item">×</button>
+
+                <h6 class="fw-bold mb-3">Quotation Items</h6>
+                
+                <% @rfq.vendor_rfq_items.each_with_index do |item, index| %>
+                  <div class="row mb-2 align-items-end item-row">
+                    <div class="col-md-4">
+                      <label class="form-label">Part</label>
+                      <input type="text" class="form-control" value="<%= item.part&.name || item.description %>" readonly>
+                      <input type="hidden" name="quotations[][items][<%= index %>][part_id]" value="<%= item.part_id %>">
+                      <input type="hidden" name="quotations[][items][<%= index %>][description]" value="<%= item.part&.name || item.description %>">
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Qty</label>
+                      <input type="number" name="quotations[][items][<%= index %>][quantity]" class="form-control" value="<%= item.quantity %>" readonly>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Unit Price ($)</label>
+                      <input type="number" name="quotations[][items][<%= index %>][unit_price]" class="form-control unit-price" step="0.01" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Total</label>
+                      <input type="number" name="quotations[][items][<%= index %>][total_price]" class="form-control total-price" step="0.01" readonly>
+                    </div>
+                  </div>
+                <% end %>
+
+                <div class="text-end mt-2">
+                  <button type="button" class="btn btn-outline-danger btn-sm remove-quotation">Remove Supplier</button>
                 </div>
               </div>
             </div>
 
-            <button type="button" class="btn btn-sm btn-outline-primary mb-4" id="add-item">
-              <i class="bi bi-plus-circle"></i> Add Another Item
+            <button type="button" class="btn btn-outline-primary mb-4" id="add-supplier">
+              <i class="bi bi-plus-circle"></i> Add Another Supplier
             </button>
 
-            <div class="mb-3">
-              <label class="form-label fw-bold">Quotation Reference #</label>
-              <%= f.text_field :reference_number, class: "form-control", placeholder: "e.g., QUOTE-12345" %>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-bold">Valid Until</label>
-              <%= f.date_field :valid_until, value: Date.current + 30.days, class: "form-control" %>
-            </div>
-
             <div class="d-flex justify-content-end gap-2">
-              <%= link_to "Cancel", billing_dashboard_path, class: "btn btn-outline-secondary" %>
-              <%= f.submit "Upload Quotation", class: "btn btn-primary" %>
+              <%= link_to "Cancel", vmcott_billing_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Upload All Quotations", class: "btn btn-primary" %>
             </div>
           <% end %>
         </div>
@@ -70,14 +105,56 @@
 </div>
 
 <script>
-document.getElementById('add-item').addEventListener('click', function() {
-  const container = document.getElementById('items');
-  const newRow = document.querySelector('.item-row').cloneNode(true);
-  newRow.querySelectorAll('input').forEach(input => input.value = '');
-  container.appendChild(newRow);
+document.addEventListener('DOMContentLoaded', function() {
+  let supplierCount = 1;
   
-  newRow.querySelector('.remove-item').addEventListener('click', function() {
-    newRow.remove();
+  // Add new supplier quotation card
+  document.getElementById('add-supplier').addEventListener('click', function() {
+    supplierCount++;
+    const container = document.getElementById('quotations-container');
+    const template = document.querySelector('.quotation-card').cloneNode(true);
+    
+    // Clear all input values
+    template.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type !== 'hidden') {
+        el.value = '';
+      }
+      if (el.classList.contains('supplier-select')) {
+        el.selectedIndex = 0;
+      }
+    });
+    
+    // Update the heading
+    const heading = template.querySelector('h6');
+    if (heading) {
+      heading.textContent = `Supplier ${supplierCount}`;
+    }
+    
+    container.appendChild(template);
+  });
+  
+  // Remove supplier card
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-quotation')) {
+      const card = e.target.closest('.quotation-card');
+      if (document.querySelectorAll('.quotation-card').length > 1) {
+        card.remove();
+      } else {
+        alert('You need at least one supplier quotation.');
+      }
+    }
+  });
+  
+  // Calculate total when unit price changes
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('unit-price')) {
+      const row = e.target.closest('.item-row');
+      const quantity = row.querySelector('input[name*="[quantity]"]').value;
+      const unitPrice = parseFloat(e.target.value) || 0;
+      const totalField = row.querySelector('.total-price');
+      
+      totalField.value = (unitPrice * quantity).toFixed(2);
+    }
   });
 });
 </script>

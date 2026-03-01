@@ -3,7 +3,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h1>Purchase Requests</h1>
-      <p class="text-muted">Manage and track purchase requests for inventory items</p>
+      <p class="text-muted">Track parts that need to be ordered - sent to billing team for RFQ creation</p>
     </div>
     <div>
       <%= link_to 'New Purchase Request', new_vmcott_purchase_request_path, class: 'btn btn-primary me-2' %>
@@ -11,37 +11,70 @@
     </div>
   </div>
 
-  <%# Filters %>
+  <%# Status Summary Cards %>
+  <div class="row mb-4">
+    <% 
+      pending_count = @purchase_requests.where(status: 'pending').count
+      rfq_sent_count = @purchase_requests.where(status: 'rfq_sent').count
+      quotes_received_count = @purchase_requests.where(status: 'quotations_received').count
+      po_created_count = @purchase_requests.where(status: 'purchase_order_created').count
+    %>
+    
+    <div class="col-md-3">
+      <div class="card bg-warning text-white">
+        <div class="card-body">
+          <h5 class="card-title">Pending</h5>
+          <h2><%= pending_count %></h2>
+          <p class="card-text"><small>Waiting for billing team</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">RFQ Sent</h5>
+          <h2><%= rfq_sent_count %></h2>
+          <p class="card-text"><small>Billing sent to vendors</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">Quotes Received</h5>
+          <h2><%= quotes_received_count %></h2>
+          <p class="card-text"><small>Awaiting finance review</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">PO Created</h5>
+          <h2><%= po_created_count %></h2>
+          <p class="card-text"><small>Order placed</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Filters - STATUS FILTER REMOVED %>
   <div class="card mb-4">
     <div class="card-body">
       <%= form_with url: vmcott_inventory_purchase_requests_path, method: :get, class: 'row g-3' do |f| %>
-        <div class="col-md-3">
-          <%= label_tag :status, 'Status', class: 'form-label' %>
-          <%= select_tag :status, 
-                options_for_select([
-                  ['All', ''],
-                  ['Pending', 'pending'],
-                  ['Approved', 'approved'],
-                  ['Rejected', 'rejected'],
-                  ['Ordered', 'ordered'],
-                  ['Received', 'received']
-                ], params[:status]),
-                class: 'form-control' %>
-        </div>
-        
-        <div class="col-md-3">
+        <div class="col-md-4">
           <%= label_tag :urgency, 'Urgency', class: 'form-label' %>
           <%= select_tag :urgency,
                 options_for_select([
-                  ['All', ''],
+                  ['All Urgencies', ''],
                   ['Normal', 'normal'],
                   ['High', 'high'],
-                  ['Urgent', 'urgent']
+                  ['Critical', 'critical']
                 ], params[:urgency]),
-                class: 'form-control' %>
+                class: 'form-select' %>
         </div>
         
-        <div class="col-md-3">
+        <div class="col-md-6">
           <%= label_tag :part_id, 'Part', class: 'form-label' %>
           <%= select_tag :part_id,
                 options_for_select(
@@ -49,11 +82,11 @@
                   params[:part_id]
                 ),
                 include_blank: 'All Parts',
-                class: 'form-control' %>
+                class: 'form-select' %>
         </div>
         
-        <div class="col-md-3 d-flex align-items-end">
-          <%= submit_tag 'Filter', class: 'btn btn-primary me-2' %>
+        <div class="col-md-2 d-flex align-items-end">
+          <%= submit_tag 'Filter', class: 'btn btn-primary me-2 w-100' %>
           <%= link_to 'Clear', vmcott_inventory_purchase_requests_path, class: 'btn btn-outline-secondary' %>
         </div>
       <% end %>
@@ -66,8 +99,6 @@
         <h5 class="mb-0">All Purchase Requests</h5>
         <div>
           <span class="badge bg-secondary"><%= @purchase_requests.total_count %> total</span>
-          <span class="badge bg-warning ms-1"><%= @purchase_requests.where(status: 'pending').count %> pending</span>
-          <span class="badge bg-success ms-1"><%= @purchase_requests.where(status: 'approved').count %> approved</span>
         </div>
       </div>
       <div class="card-body">
@@ -81,99 +112,74 @@
                 <th>Status</th>
                 <th>Urgency</th>
                 <th>Requested By</th>
-                <th>Due Date</th>
-                <th>Created At</th>
-                <th>Actions</th>
+                <th>Created</th>
+                <th>Billing Status</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
               <% @purchase_requests.each do |pr| %>
                 <tr>
                   <td>
-                    <strong>PR#<%= pr.id %></strong>
-                    <% if pr.pr_number.present? %>
-                      <br><small class="text-muted"><%= pr.pr_number %></small>
-                    <% end %>
+                    <strong>#<%= pr.id %></strong>
                   </td>
                   <td>
                     <%= link_to pr.part&.name || 'Unknown', 
                           vmcott_part_path(pr.part), 
-                          class: 'text-decoration-none' if pr.part.present? %>
+                          class: 'text-decoration-none fw-bold' if pr.part.present? %>
                     <% if pr.part&.part_number %>
                       <br><small class="text-muted"><%= pr.part.part_number %></small>
                     <% end %>
                     <% if pr.part&.supplier %>
-                      <br><small class="text-muted">Supplier: <%= pr.part.supplier.name %></small>
+                      <br><small class="text-muted"><i class="bi bi-building"></i> <%= pr.part.supplier.name %></small>
                     <% end %>
                   </td>
-                  <td><%= pr.quantity %></td>
+                  <td><span class="badge bg-secondary"><%= pr.quantity %> units</span></td>
                   <td>
-                    <% badge_class = case pr.status
-                       when 'approved' then 'success'
-                       when 'rejected' then 'danger'
-                       when 'pending' then 'warning'
-                       when 'ordered' then 'info'
-                       when 'received' then 'secondary'
-                       else 'secondary'
-                       end %>
-                    <span class="badge bg-<%= badge_class %>">
-                      <%= pr.status.titleize %>
+                    <% status_config = {
+                      'pending' => ['warning', 'Pending'],
+                      'rfq_sent' => ['info', 'RFQ Sent'],
+                      'quotations_received' => ['primary', 'Quotes Received'],
+                      'finance_review' => ['dark', 'Finance Review'],
+                      'purchase_order_created' => ['success', 'PO Created']
+                    } %>
+                    <% config = status_config[pr.status] || ['secondary', pr.status&.titleize || 'Unknown'] %>
+                    <span class="badge bg-<%= config[0] %>">
+                      <%= config[1] %>
                     </span>
                   </td>
                   <td>
-                    <% urgency_badge = case pr.urgency
-                       when 'high' then 'danger'
-                       when 'urgent' then 'danger'
-                       when 'normal' then 'warning'
-                       else 'secondary'
-                       end %>
-                    <span class="badge bg-<%= urgency_badge %>">
-                      <%= pr.urgency.titleize %>
+                    <% urgency_config = {
+                      'critical' => ['danger', 'Critical'],
+                      'high' => ['warning', 'High'],
+                      'normal' => ['info', 'Normal']
+                    } %>
+                    <% urgency = urgency_config[pr.urgency] || ['secondary', pr.urgency&.titleize || 'Normal'] %>
+                    <span class="badge bg-<%= urgency[0] %>">
+                      <%= urgency[1] %>
                     </span>
                   </td>
                   <td>
-                    <%= pr.requested_by&.name || pr.requested_by&.email || 'System' %>
-                    <br><small class="text-muted"><%= pr.created_at.strftime('%Y-%m-%d') %></small>
+                    <%= pr.requested_by&.name || 'System' %>
+                    <br><small class="text-muted"><%= time_ago_in_words(pr.created_at) %> ago</small>
                   </td>
+                  <td><%= pr.created_at.strftime("%b %d, %Y") %></td>
                   <td>
-                    <% if pr.respond_to?(:needed_by_date) && pr.needed_by_date.present? %>
-                      <%= pr.needed_by_date.strftime('%Y-%m-%d') %>
-                      <% if pr.needed_by_date < Date.today && pr.status != 'received' %>
-                        <span class="badge bg-danger ms-1">Overdue</span>
-                      <% elsif pr.needed_by_date <= Date.today + 3.days && pr.status != 'received' %>
-                        <span class="badge bg-warning ms-1">Due Soon</span>
-                      <% end %>
-                    <% else %>
-                      <span class="text-muted">Not set</span>
+                    <% if pr.status == 'pending' %>
+                      <span class="badge bg-warning">Waiting for Billing</span>
+                    <% elsif pr.status == 'rfq_sent' %>
+                      <span class="badge bg-info">Billing sent RFQ</span>
+                    <% elsif pr.status == 'quotations_received' %>
+                      <span class="badge bg-primary">Quotes in</span>
+                    <% elsif pr.status == 'finance_review' %>
+                      <span class="badge bg-dark">Finance reviewing</span>
+                    <% elsif pr.status == 'purchase_order_created' %>
+                      <span class="badge bg-success">PO Created</span>
                     <% end %>
                   </td>
-                  <td><%= time_ago_in_words(pr.created_at) %> ago</td>
                   <td>
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to 'View', vmcott_purchase_request_path(pr), 
-                            class: 'btn btn-outline-primary' %>
-                      
-                      <% if pr.pending? %>
-                        <%= link_to 'Approve', approve_vmcott_purchase_request_path(pr), 
-                              method: :post, 
-                              class: 'btn btn-sm btn-success',
-                              data: { confirm: 'Approve this purchase request?' } %>
-                        <%= link_to 'Reject', reject_vmcott_purchase_request_path(pr), 
-                              method: :post, 
-                              class: 'btn btn-sm btn-danger',
-                              data: { confirm: 'Reject this purchase request?' } %>
-                      <% elsif pr.approved? %>
-                        <%= link_to 'Mark Ordered', mark_ordered_vmcott_purchase_request_path(pr), 
-                              method: :post, 
-                              class: 'btn btn-sm btn-info',
-                              data: { confirm: 'Mark as ordered?' } %>
-                      <% elsif pr.ordered? %>
-                        <%= link_to 'Mark Received', mark_received_vmcott_purchase_request_path(pr), 
-                              method: :post, 
-                              class: 'btn btn-sm btn-warning',
-                              data: { confirm: 'Mark as received and update stock?' } %>
-                      <% end %>
-                    </div>
+                    <%= link_to 'View', vmcott_purchase_request_path(pr), 
+                          class: 'btn btn-sm btn-outline-primary' %>
                   </td>
                 </tr>
               <% end %>
@@ -188,11 +194,27 @@
   <% else %>
     <div class="card">
       <div class="card-body text-center py-5">
-        <h4 class="text-muted mb-3">No Purchase Requests</h4>
-        <p class="text-muted mb-4">No purchase requests have been created yet.</p>
-        <%= link_to 'Create Purchase Request', new_vmcott_purchase_request_path, class: 'btn btn-primary me-2' %>
+        <i class="bi bi-clipboard-check fs-1 text-muted mb-3"></i>
+        <h4 class="text-muted mb-3">No Purchase Requests Found</h4>
+        <p class="text-muted mb-4">Create a purchase request from the inventory dashboard when parts need reordering.</p>
         <%= link_to 'Back to Inventory', vmcott_inventory_dashboard_path, class: 'btn btn-secondary' %>
       </div>
     </div>
   <% end %>
 </div>
+
+<style>
+.card {
+  border: none;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+.badge {
+  font-size: 0.85em;
+  padding: 0.35em 0.65em;
+}
+</style>

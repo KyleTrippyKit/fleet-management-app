@@ -1,0 +1,60 @@
+<%# app/views/vmcott/mechanic/jobs/available.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">📋 Available Jobs</h1>
+          <p class="text-muted">Jobs waiting to be assigned</p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Available Jobs (<%= @jobs.count %>)</h5>
+    </div>
+    <div class="card-body">
+      <% if @jobs.any? %>
+        <div class="row">
+          <% @jobs.each do |job| %>
+            <div class="col-md-6 col-lg-4 mb-3">
+              <div class="card h-100">
+                <div class="card-header bg-light">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold">Job #<%= job.id %></h6>
+                    <span class="badge bg-<%= job.priority == 'high' ? 'danger' : 'info' %>">
+                      <%= job.priority&.humanize || 'Normal' %>
+                    </span>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p class="card-text"><%= job.description&.truncate(60) %></p>
+                  <p class="small text-muted mb-2">
+                    <i class="bi bi-truck me-1"></i>
+                    <%= job.inspection&.vehicle&.license_plate || 'Unknown' %>
+                    <br>
+                    <%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %>
+                  </p>
+                  <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                      <%= time_ago_in_words(job.created_at) %> ago
+                    </small>
+                    <%= button_to "Take Job", vmcott_mechanic_assign_job_path(job), 
+                          method: :post, 
+                          class: "btn btn-sm btn-success",
+                          data: { confirm: "Assign this job to yourself?" } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-4">No available jobs at the moment.</p>
+      <% end %>
+    </div>
+  </div>
+</div>

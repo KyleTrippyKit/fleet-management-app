@@ -1,97 +1,93 @@
+<%# app/views/vmcott/billing/dashboard/index.html.erb - REVISED WITH CLEAR ROLE SEPARATION %>
 <div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
       <h1 class="h2">💰 Billing Dashboard</h1>
-      <p class="text-muted">VMCOTT Billing - Invoices, RFQs and Purchase Orders</p>
+      <p class="text-muted">VMCOTT Billing - Create RFQs and upload vendor quotations</p>
     </div>
   </div>
 
-  <!-- KPI Cards -->
+  <!-- KPI Cards - Billing Team Only -->
   <div class="row">
-    <div class="col-md-3 mb-3">
+    <div class="col-md-4 mb-3">
       <div class="card bg-primary text-white">
         <div class="card-body">
-          <h5 class="card-title">Pending RFQs</h5>
-          <h2 class="display-4"><%= @pending_rfqs_count || 0 %></h2>
+          <h5 class="card-title">Parts to Quote</h5>
+          <h2 class="display-4"><%= @parts_to_quote_count || 0 %></h2>
+          <p class="card-text"><small>Need RFQ creation</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-success text-white">
-        <div class="card-body">
-          <h5 class="card-title">Quotations Received</h5>
-          <h2 class="display-4"><%= @quotations_received_count || 0 %></h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
+    <div class="col-md-4 mb-3">
       <div class="card bg-info text-white">
         <div class="card-body">
-          <h5 class="card-title">Pending Finance Review</h5>
-          <h2 class="display-4"><%= @pending_finance_review_count || 0 %></h2>
+          <h5 class="card-title">Active RFQs</h5>
+          <h2 class="display-4"><%= @active_rfqs_count || 0 %></h2>
+          <p class="card-text"><small>Waiting for vendor responses</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-warning text-dark">
+    <div class="col-md-4 mb-3">
+      <div class="card bg-success text-white">
         <div class="card-body">
-          <h5 class="card-title">Pending POs</h5>
-          <h2 class="display-4"><%= @pending_pos_count || 0 %></h2>
+          <h5 class="card-title">Quotes to Review</h5>
+          <h2 class="display-4"><%= @quotes_received_count || 0 %></h2>
+          <p class="card-text"><small>Ready to send to Finance</small></p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Parts Requests Needing Billing Action -->
+  <!-- PARTS REQUESTS NEEDING RFQ CREATION -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Parts Requests Needing RFQ Creation</h5>
+          <h5 class="mb-0"><i class="bi bi-envelope-paper me-2"></i>Parts Requests Needing RFQ Creation</h5>
           <span class="badge bg-light text-dark"><%= @pending_parts_requests&.count || 0 %> pending</span>
         </div>
         <div class="card-body">
-          <% if @pending_parts_requests && @pending_parts_requests.any? %>
+          <% if @pending_parts_requests&.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
-                    <th>Inspection #</th>
+                    <th>Request #</th>
                     <th>Vehicle</th>
                     <th>Part</th>
                     <th>Quantity</th>
-                    <th>Status</th>
-                    <th>Notified At</th>
+                    <th>Urgency</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @pending_parts_requests.each do |pr| %>
                     <tr>
-                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) if pr.inspection %></td>
-                      <td><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></td>
-                      <td><%= pr.part&.name || 'Unknown Part' %></td>
-                      <td><%= pr.quantity %></td>
+                      <td><strong>#<%= pr.id %></strong></td>
                       <td>
-                        <span class="badge bg-<%= 
-                          case pr.status
-                          when 'billing_notified' then 'info'
-                          when 'rfq_sent' then 'primary'
-                          when 'quotations_received' then 'success'
-                          else 'secondary'
-                          end %>">
-                          <%= pr.status&.humanize || 'Unknown' %>
-                        </span>
+                        <%= pr.inspection&.vehicle&.license_plate || 'N/A' %>
+                        <br><small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
                       </td>
-                      <td><%= pr.notified_billing_at&.strftime("%b %d, %Y") || 'N/A' %></td>
                       <td>
-                        <% if pr.status == 'billing_notified' %>
-                          <%= link_to "Create RFQ", new_vmcott_vendor_rfq_path(parts_request_id: pr.id), class: "btn btn-sm btn-primary" %>
-                        <% elsif pr.status == 'rfq_sent' && pr.vendor_rfq.present? %>
-                          <span class="badge bg-info">Awaiting Quotes</span>
-                        <% elsif pr.status == 'quotations_received' && pr.vendor_rfq.present? %>
-                          <%= link_to "View Quotes", vmcott_vendor_rfq_path(pr.vendor_rfq), class: "btn btn-sm btn-success" %>
+                        <%= pr.part&.name || pr.custom_part_name || 'Unknown Part' %>
+                        <% if pr.part&.part_number %>
+                          <br><small class="text-muted"><%= pr.part.part_number %></small>
                         <% end %>
+                      </td>
+                      <td><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                      <td>
+                        <% if pr.part&.current_stock.to_i <= 0 %>
+                          <span class="badge bg-danger">Critical - Out of Stock</span>
+                        <% elsif pr.part&.current_stock.to_i <= pr.part&.minimum_stock.to_i %>
+                          <span class="badge bg-warning">High - Low Stock</span>
+                        <% else %>
+                          <span class="badge bg-info">Normal</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <%= link_to "Create RFQ", vmcott_billing_new_rfq_path(parts_request_id: pr.id), 
+                              class: "btn btn-sm btn-primary",
+                              title: "Create a new Request for Quotation" %>
                       </td>
                     </tr>
                   <% end %>
@@ -99,59 +95,115 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No parts requests needing RFQ creation</p>
+            <div class="text-center py-5">
+              <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+              <p class="text-muted mb-0">No parts requests pending</p>
+              <small class="text-muted">All caught up!</small>
+            </div>
           <% end %>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Active RFQs Waiting for Vendor Responses -->
+  <!-- ACTIVE RFQS WAITING FOR VENDOR RESPONSES -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="bi bi-send me-2"></i>Active RFQs - Waiting for Vendor Responses</h5>
-          <span class="badge bg-light text-dark"><%= @active_rfqs&.count || 0 %> pending</span>
+          <span class="badge bg-light text-dark"><%= @active_rfqs&.count || 0 %> active</span>
         </div>
         <div class="card-body">
-          <% if @active_rfqs && @active_rfqs.any? %>
+          <% if @active_rfqs&.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>RFQ #</th>
-                    <th>Due Date</th>
                     <th>Parts</th>
-                    <th>Days Left</th>
+                    <th>Suppliers</th>
+                    <th>Sent</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @active_rfqs.each do |rfq| %>
+                    <% 
+                      quotes_count = rfq.vendor_quotations.count
+                      has_quotations = quotes_count > 0
+                    %>
                     <tr>
-                      <td><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></td>
-                      <td><%= rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %></td>
-                      <td><%= rfq.vendor_rfq_items.count %> items</td>
+                      <td><strong><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq), title: "View RFQ details" %></strong></td>
                       <td>
-                        <% if rfq.due_date.present? %>
-                          <% days_left = (rfq.due_date - Date.today).to_i %>
-                          <% if days_left < 0 %>
-                            <span class="badge bg-danger">Overdue</span>
-                          <% elsif days_left <= 3 %>
-                            <span class="badge bg-warning"><%= days_left %> days</span>
-                          <% else %>
-                            <span class="badge bg-success"><%= days_left %> days</span>
+                        <% if rfq.vendor_rfq_items.present? %>
+                          <% rfq.vendor_rfq_items.limit(2).each do |item| %>
+                            <div><%= item.part&.name || item.description || 'Unknown Part' %></div>
+                          <% end %>
+                          <% if rfq.vendor_rfq_items.count > 2 %>
+                            <span class="badge bg-secondary">+<%= rfq.vendor_rfq_items.count - 2 %> more</span>
                           <% end %>
                         <% else %>
-                          <span class="badge bg-secondary">N/A</span>
+                          <span class="text-muted">No parts</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if rfq.vendor_quotations.present? %>
+                          <% rfq.vendor_quotations.limit(2).each do |quote| %>
+                            <div><%= quote.supplier&.name || 'Unknown' %></div>
+                          <% end %>
+                          <% if rfq.vendor_quotations.count > 2 %>
+                            <span class="badge bg-secondary">+<%= rfq.vendor_quotations.count - 2 %> more</span>
+                          <% end %>
+                        <% else %>
+                          <span class="text-muted">No suppliers yet</span>
+                        <% end %>
+                      </td>
+                      <td><%= rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %></td>
+                      <td>
+                        <% if rfq.due_date.present? %>
+                          <%= rfq.due_date.strftime("%b %d, %Y") %>
+                          <% days_left = (rfq.due_date - Date.today).to_i %>
+                          <% if days_left < 0 %>
+                            <span class="badge bg-danger ms-1" title="Overdue by <%= days_left.abs %> days">Overdue</span>
+                          <% elsif days_left <= 3 %>
+                            <span class="badge bg-warning ms-1"><%= days_left %> days left</span>
+                          <% else %>
+                            <span class="badge bg-success ms-1"><%= days_left %> days left</span>
+                          <% end %>
+                        <% else %>
+                          <span class="text-muted">Not set</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if has_quotations %>
+                          <span class="badge bg-success">Quotes Received</span>
+                        <% else %>
+                          <span class="badge bg-warning">Awaiting Quotes</span>
                         <% end %>
                       </td>
                       <td>
                         <div class="btn-group btn-group-sm">
-                          <%= link_to "View", vmcott_vendor_rfq_path(rfq), class: "btn btn-outline-primary" %>
-                          <% if rfq.vendor_quotations.any? %>
-                            <%= link_to "Quotes (#{rfq.vendor_quotations.count})", vmcott_vendor_rfq_path(rfq), class: "btn btn-outline-success" %>
+                          <%= link_to "Manage", vmcott_vendor_rfq_path(rfq), class: "btn btn-outline-primary", title: "View and manage RFQ" %>
+                          
+                          <% if has_quotations %>
+                            <%= link_to "View Quotes", vmcott_vendor_rfq_path(rfq, anchor: 'quotations'), 
+                                  class: "btn btn-outline-success",
+                                  title: "View received quotations" %>
+                          <% else %>
+                            <%= link_to "Upload Quotes", vmcott_billing_upload_quotation_path(rfq_id: rfq.id), 
+                                  class: "btn btn-success",
+                                  title: "Upload quotations from suppliers" %>
+                          <% end %>
+                          
+                          <% if rfq.status == 'draft' %>
+                            <%= link_to "Send RFQ", vmcott_billing_send_rfq_path(rfq), 
+                                  method: :post,
+                                  class: "btn btn-info",
+                                  data: { confirm: "Send this RFQ to selected suppliers?" },
+                                  title: "Send to suppliers" %>
                           <% end %>
                         </div>
                       </td>
@@ -161,20 +213,24 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No active RFQs waiting for vendor responses</p>
+            <div class="text-center py-5">
+              <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+              <p class="text-muted mb-0">No active RFQs</p>
+              <small class="text-muted">Create RFQs from parts requests above</small>
+            </div>
           <% end %>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Quotations Received Needing Finance Review -->
+  <!-- QUOTATIONS READY FOR FINANCE REVIEW -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Received - Ready for Finance Review</h5>
-          <span class="badge bg-light text-dark"><%= @quotations_received&.count || 0 %> pending</span>
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Ready for Finance Review</h5>
+          <span class="badge bg-light text-dark"><%= @quotations_received&.count || 0 %> ready</span>
         </div>
         <div class="card-body">
           <% if @quotations_received.present? && @quotations_received.any? %>
@@ -183,114 +239,78 @@
                 <thead>
                   <tr>
                     <th>RFQ #</th>
-                    <th>Vehicle</th>
                     <th>Parts</th>
+                    <th>Quotes Received</th>
+                    <th>Price Range</th>
                     <th>Suppliers</th>
-                    <th># of Quotes</th>
-                    <th>Received</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @quotations_received.compact.each do |rfq| %>
-                    <% next if rfq.nil? %>
+                    <% 
+                      quotes = rfq.vendor_quotations || []
+                      prices = quotes.map { |q| q.total_amount }.compact
+                      min_price = prices.min if prices.any?
+                      max_price = prices.max if prices.any?
+                      forwarded = rfq.finance_review_ready
+                    %>
                     <tr>
-                      <td><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></td>
+                      <td><strong><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq), title: "View RFQ details" %></strong></td>
                       <td>
-                        <% 
-                          # Safely navigate the association chain
-                          vehicle = nil
-                          if rfq.vendor_rfq_items.present? && rfq.vendor_rfq_items.any?
-                            first_item = rfq.vendor_rfq_items.first
-                            if first_item && first_item.part
-                              inspection = first_item.part.inspection
-                              vehicle = inspection.vehicle if inspection
-                            end
-                          end
-                        %>
-                        <%= vehicle&.license_plate || 'Multiple Vehicles' %>
-                      </td>
-                      <td>
-                        <% if rfq.vendor_rfq_items.present? && rfq.vendor_rfq_items.any? %>
-                          <% rfq.vendor_rfq_items.limit(2).each do |item| %>
-                            <%= item.part&.name || 'Unknown Part' %>
-                            <%= ',' unless item == rfq.vendor_rfq_items.last %>
-                          <% end %>
-                          <% if rfq.vendor_rfq_items.count > 2 %>
-                            <br><span class="badge bg-secondary">+<%= rfq.vendor_rfq_items.count - 2 %> more</span>
+                        <% if rfq.vendor_rfq_items.present? %>
+                          <% rfq.vendor_rfq_items.each do |item| %>
+                            <div><%= item.part&.name || item.description || 'Unknown' %> (x<%= item.quantity %>)</div>
                           <% end %>
                         <% else %>
                           <span class="text-muted">No parts</span>
                         <% end %>
                       </td>
+                      <td><span class="badge bg-primary"><%= quotes.count %> quotes</span></td>
                       <td>
-                        <% if rfq.vendor_quotations.present? && rfq.vendor_quotations.any? %>
-                          <% suppliers = rfq.vendor_quotations.map { |q| q.supplier }.compact.uniq %>
-                          <% suppliers_list = suppliers.map { |s| s&.name || 'Unknown Supplier' } %>
-                          <%= suppliers_list.join('<br>').html_safe %>
+                        <% if min_price && max_price %>
+                          <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                        <% elsif min_price %>
+                          <%= number_to_currency(min_price) %>
                         <% else %>
-                          <span class="text-muted">No quotations</span>
+                          <span class="text-muted">N/A</span>
                         <% end %>
                       </td>
                       <td>
-                        <% if rfq.vendor_quotations.present? %>
-                          <span class="badge bg-info"><%= rfq.vendor_quotations.count %> quotes</span>
+                        <% if quotes.any? %>
+                          <% quotes.limit(2).each do |quote| %>
+                            <div><%= quote.supplier&.name || 'Unknown' %></div>
+                          <% end %>
+                          <% if quotes.count > 2 %>
+                            <span class="badge bg-secondary">+<%= quotes.count - 2 %> more</span>
+                          <% end %>
                         <% else %>
-                          <span class="badge bg-secondary">0 quotes</span>
+                          <span class="text-muted">No suppliers</span>
                         <% end %>
                       </td>
-                      <td><%= rfq.updated_at&.strftime("%b %d, %Y") %></td>
                       <td>
-                        <%= link_to "Review Quotes", vmcott_vendor_rfq_path(rfq), class: "btn btn-sm btn-warning" %>
+                        <% if forwarded %>
+                          <span class="badge bg-info">Forwarded to Finance</span>
+                        <% else %>
+                          <span class="badge bg-warning">Pending Forward</span>
+                        <% end %>
                       </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-3">No quotations ready for finance review</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Purchase Orders Pending Finance Approval -->
-  <div class="row mt-4">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Purchase Orders Pending Finance Approval</h5>
-          <span class="badge bg-dark text-white"><%= @pending_pos&.count || 0 %> pending</span>
-        </div>
-        <div class="card-body">
-          <% if @pending_pos && @pending_pos.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>PO #</th>
-                    <th>Vendor</th>
-                    <th>Amount</th>
-                    <th>Items</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% @pending_pos.each do |po| %>
-                    <tr>
-                      <td><%= link_to po.po_number, purchase_order_path(po) %></td>
-                      <td><%= po.vendor %></td>
-                      <td><%= number_to_currency(po.amount) %></td>
-                      <td><%= po.purchase_order_items.count %></td>
-                      <td><%= po.created_at.strftime("%b %d, %Y") %></td>
                       <td>
                         <div class="btn-group btn-group-sm">
-                          <%= link_to "Review", purchase_order_path(po), class: "btn btn-outline-primary" %>
-                          <%= link_to "Approve", approve_purchase_order_path(po), method: :post, class: "btn btn-outline-success", data: { confirm: "Approve this purchase order?" } %>
-                          <%= link_to "Reject", reject_purchase_order_path(po), method: :post, class: "btn btn-outline-danger", data: { confirm: "Reject this purchase order?" } %>
+                          <%= link_to "View Quotes", vmcott_vendor_rfq_path(rfq, anchor: 'quotations'), 
+                                class: "btn btn-outline-secondary",
+                                title: "View all received quotations" %>
+                          
+                          <% unless forwarded %>
+                            <%= link_to "Forward to Finance", vmcott_billing_forward_to_finance_path(rfq_id: rfq.id), 
+                                  method: :post,
+                                  class: "btn btn-success",
+                                  data: { confirm: "Forward these quotations to Finance team for review and selection?" },
+                                  title: "Send to Finance for quotation comparison" %>
+                          <% else %>
+                            <span class="text-muted">✓ Forwarded</span>
+                          <% end %>
                         </div>
                       </td>
                     </tr>
@@ -298,15 +318,25 @@
                 </tbody>
               </table>
             </div>
+            
+            <div class="alert alert-info mt-3 mb-0">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Note:</strong> The Finance team will review these quotations, compare prices, and select the best option to create a Purchase Order.
+            </div>
+            
           <% else %>
-            <p class="text-muted text-center py-3">No purchase orders pending finance approval</p>
+            <div class="text-center py-5">
+              <i class="bi bi-file-earmark-text fs-1 text-muted mb-3"></i>
+              <p class="text-muted mb-0">No quotations ready for finance review</p>
+              <small class="text-muted">Upload quotations from the Active RFQs section above</small>
+            </div>
           <% end %>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Parts Received (Ready for Stock Update) -->
+  <!-- PARTS RECEIVED - READY FOR STOCK UPDATE -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
@@ -315,7 +345,7 @@
           <span class="badge bg-light text-dark"><%= @parts_received&.count || 0 %> pending</span>
         </div>
         <div class="card-body">
-          <% if @parts_received && @parts_received.any? %>
+          <% if @parts_received&.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -325,6 +355,7 @@
                     <th>Part</th>
                     <th>Quantity</th>
                     <th>PO #</th>
+                    <th>Vendor</th>
                     <th>Received At</th>
                     <th>Actions</th>
                   </tr>
@@ -332,21 +363,34 @@
                 <tbody>
                   <% @parts_received.each do |pr| %>
                     <tr>
-                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) if pr.inspection %></td>
+                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection), title: "View inspection" if pr.inspection %></td>
                       <td><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></td>
-                      <td><%= pr.part&.name || 'Unknown Part' %></td>
+                      <td><%= pr.part&.name || pr.custom_part_name || 'Unknown Part' %></td>
                       <td><%= pr.quantity %></td>
-                      <td><%= link_to pr.purchase_order&.po_number, purchase_order_path(pr.purchase_order) if pr.purchase_order %></td>
+                      <td>
+                        <% if pr.purchase_order.present? %>
+                          <%= link_to pr.purchase_order.po_number, purchase_order_path(pr.purchase_order), title: "View purchase order" %>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if pr.purchase_order.present? %>
+                          <%= pr.purchase_order.vendor %>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
+                      </td>
                       <td><%= pr.parts_received_at&.strftime("%b %d, %Y") %></td>
                       <td>
                         <% if pr.status == 'parts_received' && !pr.in_stock %>
-                          <td>
-                            <% if pr.status == 'parts_received' && !pr.in_stock %>
-                              <%= button_to "Update Stock", update_stock_vmcott_parts_request_path(pr), method: :post, class: "btn btn-sm btn-success", data: { confirm: "Add #{pr.quantity} #{pr.part&.name} to inventory?" } %>
-                            <% else %>
-                              <span class="badge bg-success">Stock Updated</span>
-                            <% end %>
-                          </td>
+                          <%= button_to "Update Stock", update_stock_vmcott_parts_request_path(pr), 
+                                method: :post, 
+                                class: "btn btn-sm btn-success", 
+                                data: { confirm: "Add #{pr.quantity} #{pr.part&.name || pr.custom_part_name} to inventory?" },
+                                title: "Add to inventory" %>
+                        <% else %>
+                          <span class="badge bg-success">Stock Updated</span>
                         <% end %>
                       </td>
                     </tr>
@@ -355,7 +399,10 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No parts received awaiting stock update</p>
+            <div class="text-center py-5">
+              <i class="bi bi-box-seam fs-1 text-muted mb-3"></i>
+              <p class="text-muted mb-0">No parts received awaiting stock update</p>
+            </div>
           <% end %>
         </div>
       </div>

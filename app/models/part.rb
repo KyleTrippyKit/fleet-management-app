@@ -54,6 +54,16 @@ class Part < ApplicationRecord
     name_with_number
   end
 
+  # FIXED: Add name_with_details method for dropdowns
+  def name_with_details
+    stock_info = current_stock.to_i > 0 ? "Stock: #{current_stock}" : "Out of Stock"
+    if part_number.present?
+      "#{name} - #{part_number} (#{stock_info})"
+    else
+      "#{name} (#{stock_info})"
+    end
+  end
+
   # Pricing
   def selling_price
     return nil if cost_price.nil?

@@ -1,0 +1,32 @@
+<%# app/views/vmcott/inventory/export_report.csv.erb %>
+<%# CSV Export for Inventory Report %>
+<%# This template generates a CSV file with inventory data %>
+<% headers = [
+  "Part Number",
+  "Part Name",
+  "Category",
+  "Current Stock",
+  "Minimum Stock",
+  "Reorder Point",
+  "Unit of Measure",
+  "Cost Price",
+  "Sale Price",
+  "Supplier",
+  "Location",
+  "Last Updated"
+] %><%= CSV.generate_line(headers).strip %>
+<% @parts.each do |part| %><%= CSV.generate_line([
+  part.part_number,
+  part.name,
+  part.category,
+  part.current_stock,
+  part.minimum_stock,
+  part.reorder_point,
+  part.unit_of_measure,
+  part.cost_price,
+  part.sale_price,
+  part.supplier&.name,
+  part.location_in_warehouse,
+  part.updated_at.strftime("%Y-%m-%d")
+]).strip %>
+<% end %>

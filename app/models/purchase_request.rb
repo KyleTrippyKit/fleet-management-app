@@ -2,6 +2,7 @@
 class PurchaseRequest < ApplicationRecord
   belongs_to :requested_by, class_name: 'User', optional: true
   belongs_to :approved_by, class_name: 'User', optional: true
+  belongs_to :rejected_by, class_name: 'User', optional: true
   belongs_to :part, optional: true
   belongs_to :quotation, optional: true
   
@@ -28,6 +29,7 @@ class PurchaseRequest < ApplicationRecord
   validates :quantity, presence: true, numericality: { greater_than: 0 }
   validates :urgency, presence: true
   validates :status, presence: true
+  validates :needed_by_date, presence: true  # Add validation if you want it required
   
   # Add a display name method
   def display_name
@@ -193,6 +195,7 @@ class PurchaseRequest < ApplicationRecord
   def set_defaults
     self.status ||= 'pending'
     self.urgency ||= 'normal'
+    self.needed_by_date ||= 7.days.from_now.to_date  # Set default needed_by_date
     self.requested_by ||= User.current if defined?(User.current)
   end
 end

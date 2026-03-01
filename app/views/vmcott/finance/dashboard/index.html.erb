@@ -1,0 +1,229 @@
+<%# app/views/vmcott/finance/dashboard/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">💰 Finance Dashboard</h1>
+      <p class="text-muted">VMCOTT Finance - Review quotations, approve POs, and manage invoices</p>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="row">
+    <div class="col-md-4 mb-3">
+      <div class="card bg-warning text-white">
+        <div class="card-body">
+          <h5 class="card-title">Quotations to Review</h5>
+          <h2 class="display-4"><%= @quotations_to_review_count || 0 %></h2>
+          <p class="card-text"><small>From Billing Team</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Pending PO Approval</h5>
+          <h2 class="display-4"><%= @pending_po_approval_count || 0 %></h2>
+          <p class="card-text"><small>Awaiting finance approval</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">Ready for Pickup</h5>
+          <h2 class="display-4"><%= @ready_for_pickup_count || 0 %></h2>
+          <p class="card-text"><small>Vehicles to invoice</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUOTATIONS FOR REVIEW -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Ready for Review</h5>
+          <span class="badge bg-light text-dark"><%= @quotations_for_review&.count || 0 %> pending</span>
+        </div>
+        <div class="card-body">
+          <% if @quotations_for_review&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>RFQ #</th>
+                    <th>Parts</th>
+                    <th>Quotes Received</th>
+                    <th>Price Range</th>
+                    <th>Vendors</th>
+                    <th>Received</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @quotations_for_review.each do |rfq| %>
+                    <% 
+                      quotes = rfq.vendor_quotations || []
+                      prices = quotes.map { |q| q.total_amount }.compact
+                      min_price = prices.min if prices.any?
+                      max_price = prices.max if prices.any?
+                    %>
+                    <tr>
+                      <td><strong><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></strong></td>
+                      <td>
+                        <% rfq.vendor_rfq_items.each do |item| %>
+                          <div><%= item.part&.name || 'Unknown' %> (x<%= item.quantity %>)</div>
+                        <% end %>
+                      </td>
+                      <td><span class="badge bg-primary"><%= quotes.count %> quotes</span></td>
+                      <td>
+                        <% if min_price && max_price %>
+                          <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                          <% if prices.size > 1 %>
+                            <br><small class="text-success">Save <%= number_to_currency(max_price - min_price) %></small>
+                          <% end %>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if quotes.any? %>
+                          <% quotes.first(2).each do |quote| %>
+                            <div><%= quote.supplier&.name || 'Unknown' %></div>
+                          <% end %>
+                          <% if quotes.count > 2 %>
+                            <span class="badge bg-secondary">+<%= quotes.count - 2 %> more</span>
+                          <% end %>
+                        <% else %>
+                          <span class="text-muted">No vendors</span>
+                        <% end %>
+                      </td>
+                      <td><%= rfq.updated_at&.strftime("%b %d, %Y") %></td>
+                      <td>
+                        <%= link_to "Compare & Select", vmcott_vendor_rfq_path(rfq), 
+                              class: "btn btn-sm btn-warning" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No quotations pending review</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PURCHASE ORDERS PENDING APPROVAL -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Purchase Orders Pending Approval</h5>
+          <span class="badge bg-light text-dark"><%= @pending_pos&.count || 0 %> pending</span>
+        </div>
+        <div class="card-body">
+          <% if @pending_pos&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>PO #</th>
+                    <th>Vendor</th>
+                    <th>Amount</th>
+                    <th>Items</th>
+                    <th>Created</th>
+                    <th>Payment Terms</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @pending_pos.each do |po| %>
+                    <tr>
+                      <td><strong><%= link_to po.po_number, purchase_order_path(po) %></strong></td>
+                      <td><%= po.vendor %></td>
+                      <td><%= number_to_currency(po.amount) %></td>
+                      <td><%= po.purchase_order_items.count %></td>
+                      <td><%= po.created_at.strftime("%b %d, %Y") %></td>
+                      <td><%= po.payment_terms || 'Net 30' %></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to "Review", purchase_order_path(po), class: "btn btn-outline-primary" %>
+                          <%= link_to "Approve", approve_purchase_order_path(po), 
+                                method: :post, 
+                                class: "btn btn-outline-success", 
+                                data: { confirm: "Approve this purchase order?" } %>
+                          <%= link_to "Reject", reject_purchase_order_path(po), 
+                                method: :post, 
+                                class: "btn btn-outline-danger", 
+                                data: { confirm: "Reject this purchase order?" } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No purchase orders pending approval</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VEHICLES READY FOR PICKUP -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Vehicles Ready for Pickup</h5>
+          <span class="badge bg-light text-dark"><%= @ready_for_pickup&.count || 0 %> ready</span>
+        </div>
+        <div class="card-body">
+          <% if @ready_for_pickup&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Inspection #</th>
+                    <th>Vehicle</th>
+                    <th>Jobs Completed</th>
+                    <th>Parts Used</th>
+                    <th>Completed</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @ready_for_pickup.each do |inspection| %>
+                    <tr>
+                      <td><strong>#<%= inspection.id %></strong></td>
+                      <td>
+                        <%= inspection.vehicle.license_plate %>
+                        <br><small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                      </td>
+                      <td><%= inspection.inspection_jobs.count %></td>
+                      <td><%= inspection.parts_requests.count %></td>
+                      <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
+                      <td>
+                        <%= link_to "Create Invoice", new_vmcott_billing_invoice_path(inspection_id: inspection.id), 
+                              class: "btn btn-sm btn-success" %>
+                        <%= link_to "View Details", vmcott_inspector_inspection_path(inspection), 
+                              class: "btn btn-sm btn-outline-secondary" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No vehicles ready for pickup</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

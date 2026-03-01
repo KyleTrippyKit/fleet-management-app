@@ -67,7 +67,7 @@ Rails.application.routes.draw do
   # ========================
   namespace :vmcott do
     # ========================
-    # VMCOTT ROLE-SPECIFIC DASHBOARDS (6 Roles)
+    # VMCOTT ROLE-SPECIFIC DASHBOARDS
     # ========================
     
     # 1. RECEPTIONIST - Vehicle check-in
@@ -76,6 +76,7 @@ Rails.application.routes.draw do
       get "scan", to: "dashboard#scan"
       get "manual_entry", to: "dashboard#manual_entry"
       post "receive_vehicle", to: "dashboard#receive_vehicle"
+      get "parts/search", to: "parts#search", as: :search_parts
       
       resources :reception_logs, only: [:index, :show] do
         collection do
@@ -163,20 +164,24 @@ Rails.application.routes.draw do
       end
     end
 
-    # 6. BILLING - Invoicing and payments (UPDATED WITH ALL ROUTES)
+    # 6. BILLING TEAM - RFQs and vendor communication (FULLY REVISED)
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
       # RFQ Management Routes
-      get "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
-      post "send_rfq", to: "dashboard#send_rfq", as: :send_rfq
-      get "upload_quotation", to: "dashboard#upload_quotation", as: :upload_quotation
-      post "create_quotation", to: "dashboard#create_quotation", as: :create_quotation
+      get "new_rfq/:parts_request_id", to: "dashboard#new_rfq", as: :new_rfq
+      post "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
+      post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
+      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
+      post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
+      
+      # Forward quotations to Finance
+      post "forward_to_finance/:rfq_id", to: "dashboard#forward_to_finance", as: :forward_to_finance
       
       # PO Details endpoint for JSON
       get "po_details/:id", to: "invoices#po_details", as: :po_details
       
-      # Invoice Management
+      # Invoice Management (shared with Finance, but Billing can view)
       resources :invoices, only: [:index, :show, :new, :create] do
         member do
           post :process_payment
@@ -188,6 +193,45 @@ Rails.application.routes.draw do
           get :overdue
         end
       end
+    end
+
+    # 7. FINANCE TEAM - Quotations review, PO approval, invoicing (SEPARATE ROLE)
+    namespace :finance do
+      get "dashboard", to: "dashboard#index", as: :dashboard
+      
+      # Quotation comparison and review
+      get "quotations", to: "quotations#index", as: :quotations
+      get "quotations/:id", to: "quotations#show", as: :quotation
+      get "compare/:rfq_id", to: "quotations#compare", as: :compare_quotations
+      post "quotations/:id/select", to: "quotations#select", as: :select_quotation
+      
+      # PO approval actions
+      resources :purchase_orders, only: [:index, :show] do
+        member do
+          post :approve
+          post :reject
+          post :create_po_from_quotation
+        end
+        collection do
+          get :pending_approval
+          get :approved
+        end
+      end
+      
+      # Invoice Management
+      resources :invoices, only: [:index, :show] do
+        collection do
+          get :pending
+          get :paid
+          get :overdue
+          get :aging_report
+        end
+      end
+      
+      # Financial Reports
+      get "reports", to: "reports#index", as: :reports
+      get "reports/aging", to: "reports#aging", as: :aging_report
+      get "reports/monthly", to: "reports#monthly", as: :monthly_report
     end
 
     # ========================

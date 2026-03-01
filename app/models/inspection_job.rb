@@ -34,4 +34,14 @@ class InspectionJob < ApplicationRecord
   def parts_approved?
     inspection_job_parts.all?(&:customer_approved)
   end
+  
+  # Helper method to check if job has any custom parts
+  def has_custom_parts?
+    inspection_job_parts.any?(&:custom?)
+  end
+  
+  # Helper method to get all parts (both inventory and custom)
+  def all_parts
+    inspection_job_parts.map(&:part_name).join(', ')
+  end
 end

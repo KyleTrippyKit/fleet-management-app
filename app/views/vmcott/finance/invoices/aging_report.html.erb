@@ -1,0 +1,113 @@
+<%# app/views/vmcott/finance/invoices/aging_report.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">📊 Accounts Receivable Aging Report</h1>
+      <p class="text-muted">As of <%= Date.today.strftime("%B %d, %Y") %></p>
+    </div>
+    <div class="col-auto">
+      <%= link_to "Back to Invoices", vmcott_finance_invoices_path, class: "btn btn-outline-secondary" %>
+    </div>
+  </div>
+
+  <!-- Aging Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h6>Current</h6>
+          <h3><%= number_to_currency(@invoices_by_age[:current]) %></h3>
+          <small>Not due yet</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark">
+        <div class="card-body">
+          <h6>1-30 Days</h6>
+          <h3><%= number_to_currency(@invoices_by_age[:thirty_days]) %></h3>
+          <small>Overdue by 1-30 days</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card" style="background-color: #fd7e14; color: white;">
+        <div class="card-body">
+          <h6>31-60 Days</h6>
+          <h3><%= number_to_currency(@invoices_by_age[:sixty_days]) %></h3>
+          <small>Overdue by 31-60 days</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-danger text-white">
+        <div class="card-body">
+          <h6>90+ Days</h6>
+          <h3><%= number_to_currency(@invoices_by_age[:ninety_plus]) %></h3>
+          <small>Overdue by 90+ days</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aging Invoices List -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">Overdue Invoices</h5>
+    </div>
+    <div class="card-body">
+      <% if @aging_invoices.present? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Vehicle</th>
+                <th>Vendor</th>
+                <th>Amount</th>
+                <th>Due Date</th>
+                <th>Days Overdue</th>
+                <th>Aging Bucket</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @aging_invoices.each do |invoice| %>
+                <% days_overdue = (Date.today - invoice.due_date).to_i %>
+                <% bucket = case days_overdue
+                   when 0..30 then "1-30 Days"
+                   when 31..60 then "31-60 Days"
+                   else "90+ Days"
+                   end
+                %>
+                <tr>
+                  <td><strong><%= invoice.invoice_number %></strong></td>
+                  <td>
+                    <% if invoice.vehicle.present? %>
+                      <%= invoice.vehicle.license_plate %>
+                    <% else %>
+                      <span class="text-muted">N/A</span>
+                    <% end %>
+                  </td>
+                  <td><%= invoice.vendor %></td>
+                  <td><%= number_to_currency(invoice.amount) %></td>
+                  <td><%= invoice.due_date&.strftime("%b %d, %Y") %></td>
+                  <td><span class="badge bg-danger"><%= days_overdue %> days</span></td>
+                  <td><%= bucket %></td>
+                  <td>
+                    <%= link_to "View", vmcott_finance_invoice_path(invoice), class: "btn btn-sm btn-outline-primary" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-4">
+          <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+          <p class="text-muted">No overdue invoices. All caught up!</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

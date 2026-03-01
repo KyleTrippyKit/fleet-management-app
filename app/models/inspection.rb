@@ -26,7 +26,7 @@ class Inspection < ApplicationRecord
   validates :mileage_at_inspection, numericality: { greater_than: 0 }, allow_nil: true
 
   # Scopes for notifications
-  scope :needing_parts_coordinator, -> { where(status: :inspection_completed) }
+  scope :needing_parts_coordinator, -> { where(status: :parts_coordinator_review) }
   scope :needing_billing_review, -> { where(status: :parts_coordinator_review) }
   scope :needing_mechanic_notification, -> { where(status: :approved_for_repair) }
   scope :ready_for_final_qc, -> { where(status: :ready_for_qc) }
@@ -41,6 +41,30 @@ class Inspection < ApplicationRecord
 
   def all_parts_available?
     parts_requests.where(status: ['pending', 'ordered']).none?
+  end
+
+  def has_jobs?
+    inspection_jobs.any?
+  end
+
+  def has_parts?
+    parts_requests.any?
+  end
+
+  def parts_need_ordering?
+    parts_requests.where(in_stock: false).any?
+  end
+
+  def inspection_only?
+    !has_jobs? && !has_parts?
+  end
+
+  def needs_parts_coordinator?
+    has_parts? && parts_need_ordering?
+  end
+
+  def can_go_directly_to_workshop?
+    has_jobs? && (!has_parts? || !parts_need_ordering?)
   end
 
   def check_parts_availability!
@@ -78,10 +102,15 @@ class Inspection < ApplicationRecord
     end
   end
 
+  def notify_receptionist_for_pickup!
+    # Notify receptionist that vehicle is ready for customer pickup
+    Rails.logger.info "Would notify receptionist that vehicle #{vehicle.license_plate} is ready for pickup"
+  end
+
   private
 
   def notify_parts_coordinator_if_needed
-    if status == 'inspection_completed' && parts_requests.any?
+    if status == 'parts_coordinator_review' && parts_requests.any?
       notify_parts_coordinator!
     end
   end

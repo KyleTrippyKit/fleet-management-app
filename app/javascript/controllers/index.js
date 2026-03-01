@@ -23,4 +23,8 @@ import "channels"
 import QuotationVehicleSearchController from "./quotation_vehicle_search_controller"
 application.register("quotation-vehicle-search", QuotationVehicleSearchController)
 
+// Import and register the supplier select controller
+import SupplierSelectController from "./supplier_select_controller"
+application.register("supplier-select", SupplierSelectController)
+
 console.log("✅ Controllers registered:", window.Stimulus?.router?.modules?.map(m => m.identifier))

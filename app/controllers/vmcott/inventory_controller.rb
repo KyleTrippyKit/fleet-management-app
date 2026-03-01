@@ -167,6 +167,7 @@ module Vmcott
       render 'vmcott/inventory/new_purchase_request_single'
     end
     
+    # FIXED: create_purchase_request with proper notifications
     def create_purchase_request
       begin
         @part = Part.find(params[:id])
@@ -180,12 +181,23 @@ module Vmcott
           quantity: quantity,
           urgency: urgency,
           notes: notes,
-          requested_by: current_user,
-          status: 'pending',
-          due_date: calculate_due_date(urgency)
+          requested_by: current_user,  # This is a single user, correct!
+          status: 'pending'
+          # due_date: calculate_due_date(urgency)  ← REMOVED - field doesn't exist
         )
         
-        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name}"
+        # NOTIFY BILLING TEAM - Iterate through each billing user
+        User.where(role: 'billing').each do |billing_user|
+          Notification.create!(
+            user: billing_user,
+            title: "New Purchase Request: #{@part.name}",
+            message: "#{current_user.name} requested #{quantity} units of #{@part.name}. Please create RFQ.",
+            notifiable: purchase_request,
+            link: vmcott_billing_dashboard_path
+          )
+        end
+
+        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name} and sent to billing team"
         
       rescue ActiveRecord::RecordNotFound
         flash[:alert] = "Part not found"

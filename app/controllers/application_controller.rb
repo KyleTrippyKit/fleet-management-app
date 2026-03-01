@@ -28,7 +28,7 @@ class ApplicationController < ActionController::Base
   before_action :check_for_turbo_frame
   before_action :set_agency_theme
   before_action :prevent_real_payments_in_dev
-  before_action :set_notification_counts, if: :user_signed_in?  # ADD THIS
+  before_action :set_notification_counts, if: :user_signed_in?
   
   # Set Current context for POS transactions
   around_action :set_current_context
@@ -44,7 +44,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # AFTER SIGN IN REDIRECT - UPDATED WITH VMCOTT NAMESPACED ROUTES
+  # AFTER SIGN IN REDIRECT - FIXED WITH SEPARATE BILLING & FINANCE
   # =====================================================
   def after_sign_in_path_for(resource)
     # Debug logging
@@ -83,14 +83,17 @@ class ApplicationController < ActionController::Base
         return vmcott_parts_coordinator_dashboard_path
       when 'mechanic'
         return vmcott_mechanic_dashboard_path
-      when 'maintenance_supervisor'
+      when 'maintenance_supervisor', 'workshop_supervisor'
         return vmcott_workshop_supervisor_dashboard_path
-      when 'finance'
+      when 'billing'  # ← FIXED: Billing officer goes to billing dashboard
         return vmcott_billing_dashboard_path
+      when 'finance'   # ← FIXED: Finance officer goes to finance dashboard
+        return vmcott_finance_dashboard_path
       when 'admin'
         return vmcott_dashboard_path
       else
         # Fallback for any other VMCOTT staff
+        Rails.logger.warn "Unknown VMCOTT role: #{user.role}, redirecting to main dashboard"
         return vmcott_dashboard_path
       end
     end
@@ -149,14 +152,36 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES
+  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES - FIXED for read_at
   # =====================================================
   def set_notification_counts
     return unless current_user.present?
     
+    # Initialize all variables to avoid nil errors
+    @unread_notifications_count = 0
+    @recent_notifications = []
+    @pending_inspections_count = 0
+    @pending_qc_count = 0
+    @pending_parts_count = 0
+    @pending_parts_review_count = 0
+    @parts_received_count = 0
+    @available_jobs_count = 0
+    @my_assigned_jobs_count = 0
+    @pending_quotations_count = 0
+    @pending_rfqs_count = 0
+    @ready_for_pickup_count = 0
+    @pending_invoices_count = 0
+    @overdue_jobs_count = 0
+    @pending_supervisor_review_count = 0
+    @alerts_count = 0
+    @pending_parts_requests_count = 0
+    @quotations_to_review_count = 0
+    @pending_po_approval_count = 0
+    
     # General notifications for all users
     if defined?(Notification)
-      @unread_notifications_count = Notification.where(user: current_user, read: false).count
+      # Use read_at: nil for unread notifications (not read: false)
+      @unread_notifications_count = Notification.where(user: current_user, read_at: nil).count
       @recent_notifications = Notification.where(user: current_user)
                                           .order(created_at: :desc)
                                           .limit(5)
@@ -187,26 +212,41 @@ class ApplicationController < ActionController::Base
         @my_assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id, completed_at: nil).count
       end
       
-      # Billing/Finance counts
+      # Billing Team counts (SEPARATE from Finance)
+      if current_user.billing? || current_user.admin?
+        @pending_parts_requests_count = PartsRequest.where(status: 'billing_notified').count
+        @pending_rfqs_count = VendorRfq.where(status: 'draft').count if defined?(VendorRfq)
+      end
+      
+      # Finance Team counts (SEPARATE from Billing)
       if current_user.finance? || current_user.admin?
-        @pending_quotations_count = VendorQuotation.where(status: 'received').count
-        @pending_rfqs_count = VendorRfq.where(status: 'draft').count
+        @quotations_to_review_count = VendorQuotation.where(status: 'received').count if defined?(VendorQuotation)
+        @pending_po_approval_count = PurchaseOrder.where(status: 'pending_approval').count if defined?(PurchaseOrder)
         @ready_for_pickup_count = Inspection.where(status: 'ready_for_pickup').count
-        @pending_invoices_count = Invoice.where(status: 'pending').count
+        @pending_invoices_count = Invoice.where(status: 'pending').count if defined?(Invoice)
       end
       
       # Workshop Supervisor counts
       if current_user.maintenance_supervisor? || current_user.admin?
-        @overdue_jobs_count = InspectionJob.where('estimated_completion_date < ?', Date.today)
-                                          .where(completed_at: nil)
+        # Count overdue internal POS work orders
+        if defined?(InternalPos)
+          @overdue_jobs_count = InternalPos.where('estimated_completion_date < ?', Date.today)
+                                          .where.not(status: ['completed', 'cancelled'])
                                           .count
+        end
         @pending_supervisor_review_count = Inspection.where(status: 'ready_for_qc').count
       end
       
     else
       # Non-VMCOTT users (agencies) see alerts
-      @alerts_count = Alert.where(agency_id: current_user.agency_id, status: 'active').count if defined?(Alert)
+      if defined?(Alert)
+        @alerts_count = Alert.where(agency_id: current_user.agency_id, status: 'active').count
+      end
     end
+  rescue => e
+    Rails.logger.error "Error in set_notification_counts: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    # Don't re-raise - we want the app to continue even if notifications fail
   end
 
   # =====================================================
@@ -222,6 +262,7 @@ class ApplicationController < ActionController::Base
                 :mechanic?,
                 :workshop_supervisor?,
                 :billing_officer?,
+                :finance_officer?,
                 :current_user_role,
                 :owner_color,
                 :urgency_badge_class,
@@ -245,6 +286,9 @@ class ApplicationController < ActionController::Base
                 :ready_for_pickup_count,
                 :my_assigned_jobs_count,
                 :alerts_count,
+                :pending_parts_requests_count,
+                :quotations_to_review_count,
+                :pending_po_approval_count,
                 # VMCOTT Namespaced Route Helpers
                 :vmcott_receptionist_dashboard_path,
                 :vmcott_inspector_dashboard_path,
@@ -252,6 +296,7 @@ class ApplicationController < ActionController::Base
                 :vmcott_mechanic_dashboard_path,
                 :vmcott_workshop_supervisor_dashboard_path,
                 :vmcott_billing_dashboard_path,
+                :vmcott_finance_dashboard_path,
                 :vmcott_dashboard_path
 
   # =====================================================
@@ -299,6 +344,10 @@ class ApplicationController < ActionController::Base
   end
 
   def billing_officer?
+    current_user&.billing? || false
+  end
+
+  def finance_officer?
     current_user&.finance? || false
   end
 
@@ -345,6 +394,18 @@ class ApplicationController < ActionController::Base
 
   def alerts_count
     @alerts_count || 0
+  end
+
+  def pending_parts_requests_count
+    @pending_parts_requests_count || 0
+  end
+
+  def quotations_to_review_count
+    @quotations_to_review_count || 0
+  end
+
+  def pending_po_approval_count
+    @pending_po_approval_count || 0
   end
 
   # POS permissions
@@ -476,6 +537,12 @@ class ApplicationController < ActionController::Base
   def require_billing_officer
     unless billing_officer? || admin?
       redirect_to root_path, alert: "Access denied. Billing Officer access only."
+    end
+  end
+
+  def require_finance_officer
+    unless finance_officer? || admin?
+      redirect_to root_path, alert: "Access denied. Finance Officer access only."
     end
   end
   

@@ -1,0 +1,366 @@
+<%# app/views/vmcott/purchase_requests/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">Purchase Request #<%= @purchase_request.id %></h1>
+          <p class="text-muted">View purchase request details</p>
+        </div>
+        <div>
+          <%= link_to "← Back to Purchase Requests", vmcott_purchase_requests_path, class: "btn btn-outline-secondary me-2" %>
+          <%= link_to "Edit", edit_vmcott_purchase_request_path(@purchase_request), class: "btn btn-primary" if @purchase_request.pending? %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8">
+      <!-- Main Details Card -->
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Request Details</h5>
+          <span class="badge bg-<%= @purchase_request.status == 'pending' ? 'warning' : 
+                                       @purchase_request.status == 'approved' ? 'success' : 
+                                       @purchase_request.status == 'rejected' ? 'danger' : 'info' %>">
+            <%= @purchase_request.status.titleize %>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th style="width: 40%">Part:</th>
+                  <td>
+                    <% if @purchase_request.part.present? %>
+                      <%= link_to @purchase_request.part.name, vmcott_part_path(@purchase_request.part), class: "fw-bold" %>
+                      <% if @purchase_request.part.part_number.present? %>
+                        <br><small class="text-muted">Part #: <%= @purchase_request.part.part_number %></small>
+                      <% end %>
+                    <% else %>
+                      <span class="text-muted">Unknown Part</span>
+                    <% end %>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Quantity:</th>
+                  <td><span class="badge bg-secondary fs-6"><%= @purchase_request.quantity %> units</span></td>
+                </tr>
+                <tr>
+                  <th>Urgency:</th>
+                  <td>
+                    <span class="badge bg-<%= 
+                      case @purchase_request.urgency
+                      when 'critical' then 'danger'
+                      when 'high' then 'warning'
+                      else 'info'
+                      end %>">
+                      <%= @purchase_request.urgency.titleize %>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Status:</th>
+                  <td>
+                    <% status_config = {
+                      'pending' => ['warning', 'Pending - Waiting for Billing'],
+                      'approved' => ['success', 'Approved'],
+                      'rejected' => ['danger', 'Rejected'],
+                      'ordered' => ['info', 'Ordered'],
+                      'received' => ['secondary', 'Received']
+                    } %>
+                    <% config = status_config[@purchase_request.status] || ['secondary', @purchase_request.status.titleize] %>
+                    <span class="badge bg-<%= config[0] %>"><%= config[1] %></span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th style="width: 40%">Requested By:</th>
+                  <td><%= @purchase_request.requested_by&.name || 'System' %></td>
+                </tr>
+                <tr>
+                  <th>Created:</th>
+                  <td><%= @purchase_request.created_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                </tr>
+                <% if @purchase_request.approved_at.present? %>
+                  <tr>
+                    <th>Approved At:</th>
+                    <td><%= @purchase_request.approved_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                  </tr>
+                <% end %>
+                <% if @purchase_request.ordered_at.present? %>
+                  <tr>
+                    <th>Ordered At:</th>
+                    <td><%= @purchase_request.ordered_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                  </tr>
+                <% end %>
+                <% if @purchase_request.received_at.present? %>
+                  <tr>
+                    <th>Received At:</th>
+                    <td><%= @purchase_request.received_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                  </tr>
+                <% end %>
+              </table>
+            </div>
+          </div>
+
+          <% if @purchase_request.notes.present? %>
+            <div class="mt-3 p-3 bg-light rounded">
+              <strong>Notes:</strong>
+              <p class="mb-0 mt-2"><%= simple_format(@purchase_request.notes) %></p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Supplier Information Card -->
+      <% if @purchase_request.part&.supplier.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Supplier Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>Name:</strong> <%= link_to @purchase_request.part.supplier.name, supplier_path(@purchase_request.part.supplier) %></p>
+                <% if @purchase_request.part.supplier.contact_person.present? %>
+                  <p><strong>Contact:</strong> <%= @purchase_request.part.supplier.contact_person %></p>
+                <% end %>
+              </div>
+              <div class="col-md-6">
+                <% if @purchase_request.part.supplier.email.present? %>
+                  <p><strong>Email:</strong> <%= mail_to @purchase_request.part.supplier.email %></p>
+                <% end %>
+                <% if @purchase_request.part.supplier.phone.present? %>
+                  <p><strong>Phone:</strong> <%= @purchase_request.part.supplier.phone %></p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- RFQ Information Card -->
+      <% if @purchase_request.part.present? %>
+        <% 
+          # Get RFQs through vendor_rfq_items
+          vendor_rfq_items = VendorRfqItem.where(part_id: @purchase_request.part.id)
+          related_rfqs = VendorRfq.where(id: vendor_rfq_items.select(:vendor_rfq_id))
+                                   .order(created_at: :desc)
+                                   .limit(5)
+        %>
+        <% if related_rfqs.any? %>
+          <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">Related RFQs</h5>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>RFQ Number</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Quotes</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% related_rfqs.each do |rfq| %>
+                      <tr>
+                        <td><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></td>
+                        <td><span class="badge bg-<%= rfq.status == 'draft' ? 'secondary' : 'info' %>"><%= rfq.status.titleize %></span></td>
+                        <td><%= rfq.created_at.strftime("%b %d, %Y") %></td>
+                        <td><span class="badge bg-primary"><%= rfq.vendor_quotations.count %></span></td>
+                        <td><%= link_to 'View', vmcott_vendor_rfq_path(rfq), class: 'btn btn-sm btn-outline-primary' %></td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+    <div class="col-md-4">
+      <!-- Workflow Status Card - FIXED -->
+      <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0">Workflow Status</h5>
+        </div>
+        <div class="card-body">
+          <div class="workflow-timeline">
+            <% 
+              # Determine if billing has been notified (status is no longer pending)
+              billing_notified = @purchase_request.status != 'pending'
+              
+              # Determine if RFQ has been sent (status indicates RFQ activity)
+              rfq_sent = ['rfq_sent', 'quotations_received', 'purchase_order_created'].include?(@purchase_request.status)
+              
+              # Determine if quotations have been received
+              quotes_received = ['quotations_received', 'purchase_order_created'].include?(@purchase_request.status)
+              
+              # Determine if PO has been created
+              po_created = @purchase_request.status == 'purchase_order_created'
+            %>
+            
+            <% workflow_steps = [
+              { 
+                name: 'Purchase Request Created', 
+                completed: true,
+                date: @purchase_request.created_at,
+                icon: 'bi-check-circle-fill'
+              },
+              { 
+                name: 'Billing Team Notified', 
+                completed: billing_notified,
+                date: billing_notified ? @purchase_request.updated_at : nil,
+                icon: billing_notified ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'RFQ Sent to Vendors', 
+                completed: rfq_sent,
+                detail: rfq_sent ? 'Billing team sent RFQs' : 'Pending',
+                icon: rfq_sent ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'Quotations Received', 
+                completed: quotes_received,
+                detail: quotes_received ? 'Quotes received from vendors' : 'Waiting for quotes',
+                icon: quotes_received ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'Purchase Order Created', 
+                completed: po_created,
+                date: po_created ? @purchase_request.ordered_at : nil,
+                icon: po_created ? 'bi-check-circle-fill' : 'bi-circle'
+              }
+            ] %>
+            
+            <% workflow_steps.each do |step| %>
+              <div class="workflow-step mb-3">
+                <div class="d-flex align-items-center">
+                  <div class="step-indicator me-2">
+                    <i class="bi <%= step[:icon] %> <%= step[:completed] ? 'text-success' : 'text-secondary' %> fs-5"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <strong><%= step[:name] %></strong>
+                    <% if step[:date].present? %>
+                      <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
+                    <% elsif step[:detail].present? %>
+                      <br><small class="text-muted"><%= step[:detail] %></small>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Part Stock Status Card -->
+      <% if @purchase_request.part.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-<%= @purchase_request.part.stock_status_color %> text-white">
+            <h5 class="mb-0">Current Stock Status</h5>
+          </div>
+          <div class="card-body">
+            <div class="text-center mb-3">
+              <span class="display-4"><%= @purchase_request.part.current_stock %></span>
+              <span class="text-muted">units</span>
+            </div>
+            
+            <div class="progress mb-3" style="height: 10px;">
+              <% stock_percentage = [(@purchase_request.part.current_stock.to_f / @purchase_request.part.reorder_point * 100).to_i, 100].min %>
+              <div class="progress-bar bg-<%= @purchase_request.part.stock_status_color %>" 
+                   style="width: <%= stock_percentage %>%"></div>
+            </div>
+            
+            <table class="table table-sm">
+              <tr>
+                <th>Minimum Stock:</th>
+                <td><%= @purchase_request.part.minimum_stock %></td>
+              </tr>
+              <tr>
+                <th>Reorder Point:</th>
+                <td><%= @purchase_request.part.reorder_point %></td>
+              </tr>
+              <tr>
+                <th>Status:</th>
+                <td>
+                  <span class="badge bg-<%= @purchase_request.part.stock_status_color %>">
+                    <%= @purchase_request.part.stock_status.titleize %>
+                  </span>
+                </td>
+              </tr>
+            </table>
+            
+            <%= link_to 'View Part Details', vmcott_part_path(@purchase_request.part), class: 'btn btn-outline-primary w-100 mt-2' %>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Timeline Card -->
+      <div class="card">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0">Timeline</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled">
+            <li class="mb-3">
+              <i class="bi bi-plus-circle text-primary me-2"></i>
+              <strong>Created:</strong><br>
+              <small class="text-muted"><%= @purchase_request.created_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+            </li>
+            <% if @purchase_request.approved_at.present? %>
+              <li class="mb-3">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                <strong>Approved:</strong><br>
+                <small class="text-muted"><%= @purchase_request.approved_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @purchase_request.ordered_at.present? %>
+              <li class="mb-3">
+                <i class="bi bi-truck text-info me-2"></i>
+                <strong>Ordered:</strong><br>
+                <small class="text-muted"><%= @purchase_request.ordered_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @purchase_request.received_at.present? %>
+              <li class="mb-3">
+                <i class="bi bi-box-seam text-success me-2"></i>
+                <strong>Received:</strong><br>
+                <small class="text-muted"><%= @purchase_request.received_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.workflow-step .step-indicator {
+  width: 24px;
+  text-align: center;
+}
+
+.card {
+  border: none;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.table th {
+  width: 40%;
+  background-color: #f8f9fa;
+}
+</style>

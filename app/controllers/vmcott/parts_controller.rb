@@ -35,11 +35,11 @@ module Vmcott
       @parts = scope.page(params[:page]).per(25)
     end
 
-    # JSON endpoint for live part search (used in inspection form)
+    # JSON endpoint for live part search (used in purchase request form and inspection form)
     def search
       @parts = Part.where("name ILIKE :q OR part_number ILIKE :q", q: "%#{params[:q]}%")
                    .where(is_active: true)
-                   .select(:id, :name, :part_number, :current_stock, :unit_of_measure, :price, :cost_price)
+                   .includes(:supplier)  # Eager load supplier for better performance
                    .limit(20)
       
       render json: @parts.map { |p| 
@@ -48,12 +48,17 @@ module Vmcott
           name: p.name,
           part_number: p.part_number,
           current_stock: p.current_stock,
+          minimum_stock: p.minimum_stock,
+          reorder_point: p.reorder_point,
           unit_of_measure: p.unit_of_measure,
           price: p.price,
           cost_price: p.cost_price,
+          sale_price: p.sale_price,
+          supplier: p.supplier ? { id: p.supplier.id, name: p.supplier.name } : nil,
           in_stock: p.current_stock > 0,
           stock_status: p.current_stock > 0 ? 'in_stock' : 'out_of_stock',
-          display_name: "#{p.name} (#{p.part_number})"
+          stock_status_color: p.stock_status_color,
+          display_name: "#{p.name} (#{p.part_number || 'No Part #'})"
         }
       }
     end
@@ -63,11 +68,17 @@ module Vmcott
       @part = Part.find(params[:id])
       render json: { 
         id: @part.id,
+        name: @part.name,
+        part_number: @part.part_number,
         current_stock: @part.current_stock,
         minimum_stock: @part.minimum_stock,
         reorder_point: @part.reorder_point,
         unit_of_measure: @part.unit_of_measure,
-        needs_reorder: @part.current_stock <= @part.reorder_point
+        needs_reorder: @part.current_stock <= @part.reorder_point,
+        stock_status: @part.stock_status,
+        stock_status_color: @part.stock_status_color,
+        suggested_quantity: @part.suggested_reorder_quantity,
+        supplier: @part.supplier ? { id: @part.supplier.id, name: @part.supplier.name } : nil
       }
     end
 

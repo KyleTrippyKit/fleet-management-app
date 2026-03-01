@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -255,7 +255,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
     t.decimal "estimated_cost", precision: 10, scale: 2
     t.bigint "inspection_job_id", null: false
     t.text "notes"
-    t.bigint "part_id", null: false
+    t.bigint "part_id"
     t.integer "quantity", default: 1
     t.datetime "updated_at", null: false
     t.index ["inspection_job_id", "part_id"], name: "idx_inspection_job_parts_unique", unique: true
@@ -652,7 +652,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
     t.bigint "inspection_id", null: false
     t.datetime "notified_billing_at"
     t.datetime "notified_parts_coordinator_at"
-    t.bigint "part_id", null: false
+    t.bigint "part_id"
     t.datetime "parts_received_at"
     t.bigint "purchase_order_id"
     t.integer "quantity", default: 1, null: false
@@ -890,10 +890,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
     t.index ["workflow_status"], name: "index_purchase_orders_on_workflow_status"
   end
 
+  create_table "purchase_request_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "estimated_unit_price", precision: 10, scale: 2
+    t.text "notes"
+    t.bigint "part_id", null: false
+    t.bigint "purchase_request_id", null: false
+    t.integer "quantity", default: 1, null: false
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_purchase_request_items_on_part_id"
+    t.index ["purchase_request_id", "part_id"], name: "idx_purchase_request_items_unique", unique: true
+    t.index ["purchase_request_id"], name: "index_purchase_request_items_on_purchase_request_id"
+  end
+
   create_table "purchase_requests", force: :cascade do |t|
     t.datetime "approved_at"
     t.bigint "approved_by_id"
     t.datetime "created_at", null: false
+    t.date "needed_by_date"
     t.text "notes"
     t.datetime "ordered_at"
     t.bigint "part_id", null: false
@@ -1423,6 +1438,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
 
   create_table "vendor_rfq_items", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "custom_part_name"
     t.text "description"
     t.bigint "part_id", null: false
     t.integer "quantity"
@@ -1455,6 +1471,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.date "due_date"
+    t.boolean "finance_review_ready", default: false
     t.text "notes"
     t.bigint "processing_agency_id"
     t.string "rfq_number", null: false
@@ -1463,6 +1480,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
     t.datetime "updated_at", null: false
     t.index ["awarded_vendor_quotation_id"], name: "index_vendor_rfqs_on_awarded_vendor_quotation_id"
     t.index ["created_by_id"], name: "index_vendor_rfqs_on_created_by_id"
+    t.index ["finance_review_ready"], name: "index_vendor_rfqs_on_finance_review_ready"
     t.index ["processing_agency_id"], name: "index_vendor_rfqs_on_processing_agency_id"
     t.index ["rfq_number"], name: "index_vendor_rfqs_on_rfq_number", unique: true
     t.index ["status"], name: "index_vendor_rfqs_on_status"
@@ -1549,6 +1567,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
   add_foreign_key "purchase_orders", "users", column: "finance_approved_by_id"
   add_foreign_key "purchase_orders", "users", column: "parts_coordinator_id"
   add_foreign_key "purchase_orders", "vehicles"
+  add_foreign_key "purchase_request_items", "parts"
+  add_foreign_key "purchase_request_items", "purchase_requests"
   add_foreign_key "purchase_requests", "parts"
   add_foreign_key "purchase_requests", "quotations"
   add_foreign_key "purchase_requests", "users", column: "approved_by_id"

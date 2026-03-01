@@ -10,7 +10,14 @@
         <div>
           <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary me-2" %>
           <% if @inspection.status == 'ready_for_pickup' %>
-            <%= link_to "View Invoice", invoice_path(@inspection.invoice) if @inspection.invoice.present? %>
+            <%# Check for invoice through purchase order or direct association %>
+            <% if @inspection.purchase_order&.invoice.present? %>
+              <%= link_to "View Invoice", invoice_path(@inspection.purchase_order.invoice), class: "btn btn-primary" %>
+            <% elsif @inspection.respond_to?(:invoice) && @inspection.invoice.present? %>
+              <%= link_to "View Invoice", invoice_path(@inspection.invoice), class: "btn btn-primary" %>
+            <% else %>
+              <span class="badge bg-success p-3">Ready for Pickup</span>
+            <% end %>
           <% end %>
         </div>
       </div>
@@ -293,6 +300,18 @@
         </div>
         <div class="card-body">
           <div class="workflow-timeline">
+            <% 
+              # Calculate parts sourcing completion - TRUE if no parts OR all parts received
+              parts_sourcing_completed = @inspection.parts_requests.none? || 
+                                        (@inspection.parts_requests.any? && 
+                                         @inspection.parts_requests.where(status: 'parts_received').count == @inspection.parts_requests.count)
+              
+              # Calculate repairs completion - TRUE if no jobs OR all jobs completed
+              repairs_completed = @inspection.inspection_jobs.none? || 
+                                 (@inspection.inspection_jobs.any? && 
+                                  @inspection.inspection_jobs.where.not(completed_at: nil).count == @inspection.inspection_jobs.count)
+            %>
+            
             <% workflow_steps = [
               { 
                 name: 'Inspection Completed', 
@@ -302,17 +321,19 @@
               },
               { 
                 name: 'Parts Sourcing', 
-                completed: @inspection.parts_requests.where(status: 'parts_received').any?,
+                completed: parts_sourcing_completed,
                 detail: @inspection.parts_requests.any? ? 
                   "#{@inspection.parts_requests.where(status: 'parts_received').count}/#{@inspection.parts_requests.count} parts received" : 
-                  'No parts needed',
-                icon: @inspection.parts_requests.where(status: 'parts_received').any? ? 'bi-check-circle-fill' : 'bi-circle'
+                  '✅ No parts needed',
+                icon: parts_sourcing_completed ? 'bi-check-circle-fill' : 'bi-circle'
               },
               { 
                 name: 'Repairs', 
-                completed: @inspection.status.in?(['approved_for_repair', 'in_progress', 'ready_for_qc', 'qc_completed', 'ready_for_pickup']),
-                detail: "#{@inspection.inspection_jobs.where.not(completed_at: nil).count}/#{@inspection.inspection_jobs.count} jobs completed",
-                icon: @inspection.status.in?(['approved_for_repair', 'in_progress', 'ready_for_qc', 'qc_completed', 'ready_for_pickup']) ? 'bi-check-circle-fill' : 'bi-circle'
+                completed: repairs_completed,
+                detail: @inspection.inspection_jobs.any? ? 
+                  "#{@inspection.inspection_jobs.where.not(completed_at: nil).count}/#{@inspection.inspection_jobs.count} jobs completed" : 
+                  '✅ No jobs needed',
+                icon: repairs_completed ? 'bi-check-circle-fill' : 'bi-circle'
               },
               { 
                 name: 'QC Completed', 
@@ -331,7 +352,7 @@
             <% workflow_steps.each do |step| %>
               <div class="workflow-step mb-3">
                 <div class="d-flex align-items-center">
-                  <div class="step-indicator me-2 <%= 'completed' if step[:completed] %>">
+                  <div class="step-indicator me-2">
                     <i class="bi <%= step[:icon] %> <%= step[:completed] ? 'text-success' : 'text-secondary' %>"></i>
                   </div>
                   <div class="flex-grow-1">
@@ -339,7 +360,7 @@
                     <% if step[:date].present? %>
                       <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
                     <% elsif step[:detail].present? %>
-                      <br><small class="text-muted"><%= step[:detail] %></small>
+                      <br><small class="text-muted"><%= step[:detail].html_safe %></small>
                     <% end %>
                   </div>
                 </div>
@@ -398,7 +419,9 @@
           </div>
           <div class="card-body">
             <p>This vehicle is ready for the agency to pick up.</p>
-            <% if @inspection.invoice.present? %>
+            <% if @inspection.purchase_order&.invoice.present? %>
+              <%= link_to "View Invoice", invoice_path(@inspection.purchase_order.invoice), class: "btn btn-primary w-100" %>
+            <% elsif @inspection.respond_to?(:invoice) && @inspection.invoice.present? %>
               <%= link_to "View Invoice", invoice_path(@inspection.invoice), class: "btn btn-primary w-100" %>
             <% end %>
           </div>

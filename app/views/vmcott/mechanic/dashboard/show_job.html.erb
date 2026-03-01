@@ -5,7 +5,7 @@
       <div class="d-flex justify-content-between align-items-center">
         <div>
           <h1 class="h2">🔧 Work Order Details</h1>
-          <p class="text-muted"><%= @job.work_order_number %></p>
+          <p class="text-muted">Job #<%= @job&.id %></p>
         </div>
         <%= link_to "← Back to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-outline-secondary" %>
       </div>
@@ -14,26 +14,26 @@
 
   <!-- Status Banner -->
   <div class="alert <%= 
-    case @job.status
+    case @assignment&.status
     when 'in_progress' then 'alert-primary'
     when 'completed' then 'alert-success'
-    when 'pending' then 'alert-warning'
+    when 'assigned' then 'alert-warning'
     else 'alert-secondary'
     end %> mb-4">
     <div class="d-flex align-items-center">
       <i class="bi <%= 
-        case @job.status
+        case @assignment&.status
         when 'in_progress' then 'bi-gear-fill'
         when 'completed' then 'bi-check-circle-fill'
-        when 'pending' then 'bi-clock-fill'
+        when 'assigned' then 'bi-clock-fill'
         else 'bi-info-circle-fill'
         end %> fs-3 me-3"></i>
       <div>
-        <strong>Status:</strong> <%= @job.status.humanize %>
-        <% if @job.started_at %>
-          <br><small>Started: <%= @job.started_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+        <strong>Status:</strong> <%= @assignment&.status&.humanize || (@job.assigned_mechanic_id.nil? ? 'Available' : 'Pending') %>
+        <% if @assignment&.started_at %>
+          <br><small>Started: <%= @assignment.started_at.strftime("%B %d, %Y at %I:%M %p") %></small>
         <% end %>
-        <% if @job.completed_at %>
+        <% if @job&.completed_at %>
           <br><small>Completed: <%= @job.completed_at.strftime("%B %d, %Y at %I:%M %p") %></small>
         <% end %>
       </div>
@@ -52,29 +52,25 @@
             <div class="col-md-6">
               <table class="table table-sm">
                 <tr>
-                  <th>Work Order:</th>
-                  <td><strong><%= @job.work_order_number %></strong></td>
+                  <th>Job ID:</th>
+                  <td><strong>#<%= @job&.id %></strong></td>
                 </tr>
                 <tr>
                   <th>Priority:</th>
                   <td>
                     <span class="badge bg-<%= 
-                      case @job.priority
+                      case @job&.priority
                       when 'high' then 'danger'
                       when 'normal' then 'info'
                       else 'secondary'
                       end %>">
-                      <%= @job.priority.humanize %>
+                      <%= @job&.priority&.humanize || 'Normal' %>
                     </span>
                   </td>
                 </tr>
                 <tr>
-                  <th>Section:</th>
-                  <td><%= @job.extracted_work_section || 'Workshop' %></td>
-                </tr>
-                <tr>
-                  <th>Role:</th>
-                  <td><%= @job.extracted_work_role || 'Technician' %></td>
+                  <th>Description:</th>
+                  <td><%= @job&.description || 'No description' %></td>
                 </tr>
               </table>
             </div>
@@ -82,19 +78,23 @@
               <table class="table table-sm">
                 <tr>
                   <th>Assigned To:</th>
-                  <td><%= @job.assigned_user_name %></td>
-                </tr>
-                <tr>
-                  <th>Created By:</th>
-                  <td><%= @job.created_by&.name || 'System' %></td>
+                  <td>
+                    <% if @job&.assigned_mechanic_id == current_user.id %>
+                      <span class="badge bg-success">You</span>
+                    <% elsif @job&.assigned_mechanic_id.present? %>
+                      <%= User.find_by(id: @job.assigned_mechanic_id)&.name || 'Another mechanic' %>
+                    <% else %>
+                      <span class="badge bg-info">Available</span>
+                    <% end %>
+                  </td>
                 </tr>
                 <tr>
                   <th>Created:</th>
-                  <td><%= time_ago_in_words(@job.created_at) %> ago</td>
+                  <td><%= time_ago_in_words(@job&.created_at) %> ago</td>
                 </tr>
                 <tr>
-                  <th>PO Number:</th>
-                  <td><%= @job.po_number || 'N/A' %></td>
+                  <th>Template:</th>
+                  <td><%= @job&.job_template&.name || 'Custom Job' %></td>
                 </tr>
               </table>
             </div>
@@ -103,7 +103,7 @@
       </div>
 
       <!-- Vehicle Information Card -->
-      <% if @job.vehicle.present? %>
+      <% if @vehicle.present? %>
         <div class="card mb-4">
           <div class="card-header bg-success text-white">
             <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Vehicle Information</h5>
@@ -114,15 +114,15 @@
                 <table class="table table-sm">
                   <tr>
                     <th>Make/Model:</th>
-                    <td><%= @job.vehicle.make %> <%= @job.vehicle.model %></td>
+                    <td><%= @vehicle.make %> <%= @vehicle.model %></td>
                   </tr>
                   <tr>
                     <th>License Plate:</th>
-                    <td><strong><%= @job.vehicle.license_plate %></strong></td>
+                    <td><strong><%= @vehicle.license_plate %></strong></td>
                   </tr>
                   <tr>
                     <th>Year:</th>
-                    <td><%= @job.vehicle.year_of_manufacture %></td>
+                    <td><%= @vehicle.year_of_manufacture %></td>
                   </tr>
                 </table>
               </div>
@@ -130,15 +130,15 @@
                 <table class="table table-sm">
                   <tr>
                     <th>Mileage:</th>
-                    <td><%= number_with_delimiter(@job.vehicle.mileage) %> km</td>
+                    <td><%= number_with_delimiter(@vehicle.mileage) %> km</td>
                   </tr>
                   <tr>
                     <th>Vehicle Type:</th>
-                    <td><%= @job.vehicle.vehicle_type %></td>
+                    <td><%= @vehicle.vehicle_type %></td>
                   </tr>
                   <tr>
                     <th>Fuel Type:</th>
-                    <td><%= @job.vehicle.fuel_type || 'N/A' %></td>
+                    <td><%= @vehicle.fuel_type || 'N/A' %></td>
                   </tr>
                 </table>
               </div>
@@ -148,17 +148,19 @@
       <% end %>
 
       <!-- Job Description Card -->
-      <div class="card mb-4">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0"><i class="bi bi-card-text me-2"></i>Job Description</h5>
+      <% if @job&.notes.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-card-text me-2"></i>Additional Notes</h5>
+          </div>
+          <div class="card-body">
+            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;"><%= @job.notes %></pre>
+          </div>
         </div>
-        <div class="card-body">
-          <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;"><%= @job.notes %></pre>
-        </div>
-      </div>
+      <% end %>
 
       <!-- Parts Required Card -->
-      <% if @job.purchase_order.present? && @job.purchase_order.purchase_order_items.any? %>
+      <% if @parts&.any? %>
         <div class="card mb-4">
           <div class="card-header bg-warning text-dark">
             <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Parts Required</h5>
@@ -169,32 +171,41 @@
                 <thead>
                   <tr>
                     <th>Part</th>
-                    <th class="text-end">Quantity</th>
-                    <th class="text-end">Stock Available</th>
-                    <th class="text-end">Status</th>
+                    <th>Part Number</th>
+                    <th class="text-center">Quantity</th>
+                    <th class="text-center">Stock Available</th>
+                    <th class="text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <% @job.purchase_order.purchase_order_items.each do |item| %>
+                  <% @parts.each do |part_item| %>
                     <tr>
-                      <td><%= item.description %></td>
-                      <td class="text-end"><%= item.quantity %></td>
-                      <td class="text-end">
-                        <% if item.part.present? %>
-                          <%= item.part.current_stock %>
+                      <td>
+                        <%= part_item.part_name %>
+                        <% if part_item.custom? %>
+                          <br><small class="text-warning">Custom Part</small>
+                        <% end %>
+                      </td>
+                      <td><%= part_item.part&.part_number || 'N/A' %></td>
+                      <td class="text-center"><span class="badge bg-secondary"><%= part_item.quantity %></span></td>
+                      <td class="text-center">
+                        <% if part_item.inventory? && part_item.part.present? %>
+                          <%= part_item.part.current_stock %>
                         <% else %>
                           N/A
                         <% end %>
                       </td>
-                      <td class="text-end">
-                        <% if item.part.present? %>
-                          <% if item.part.current_stock >= item.quantity %>
+                      <td class="text-center">
+                        <% if part_item.custom? %>
+                          <span class="badge bg-warning">To Order</span>
+                        <% elsif part_item.part.present? %>
+                          <% if part_item.part.current_stock >= part_item.quantity %>
                             <span class="badge bg-success">In Stock</span>
                           <% else %>
                             <span class="badge bg-danger">Low Stock</span>
                           <% end %>
                         <% else %>
-                          <span class="badge bg-secondary">Not Tracked</span>
+                          <span class="badge bg-secondary">Unknown</span>
                         <% end %>
                       </td>
                     </tr>
@@ -205,39 +216,66 @@
           </div>
         </div>
       <% end %>
+
+      <!-- Progress Updates -->
+      <% if @assignment&.mechanic_notes.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-chat-text me-2"></i>Progress Updates</h5>
+          </div>
+          <div class="card-body">
+            <div class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;">
+              <%= simple_format(@assignment.mechanic_notes) %>
+            </div>
+          </div>
+        </div>
+      <% end %>
     </div>
 
     <div class="col-md-4">
       <!-- Actions Card -->
       <div class="card mb-4">
-        <div class="card-header bg-secondary text-white">
+        <div class="card-header bg-dark text-white">
           <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Actions</h5>
         </div>
         <div class="card-body">
           <div class="d-grid gap-2">
-            <% if @job.status == 'pending' && @job.assigned_to_id == current_user.id %>
-              <%= button_to "Start Work", vmcott_mechanic_start_job_path(@job), 
-                    method: :post, 
-                    class: "btn btn-success btn-lg",
-                    data: { confirm: "Start working on this job?" } %>
-            <% end %>
-            
-            <% if @job.status == 'in_progress' %>
-              <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#progressModal">
-                <i class="bi bi-pencil-square me-2"></i>Update Progress
-              </button>
-              
-              <%= button_to "Request QC", vmcott_mechanic_request_qc_path(@job), 
-                    method: :post, 
-                    class: "btn btn-primary btn-lg",
-                    data: { confirm: "Mark this job as complete and request QC inspection?" } %>
-            <% end %>
-            
-            <% if @job.status == 'pending' && @job.assigned_to_id.nil? %>
-              <%= button_to "Assign to Me", vmcott_mechanic_assign_job_path(@job), 
+            <% if @job.assigned_mechanic_id.nil? %>
+              <!-- Job not assigned - anyone can take it -->
+              <%= button_to "Take This Job", vmcott_mechanic_assign_job_path(@job), 
                     method: :post, 
                     class: "btn btn-success btn-lg",
                     data: { confirm: "Assign this job to yourself?" } %>
+              <p class="text-muted small text-center mt-2">Take this job to start working on it</p>
+              
+            <% elsif @job.assigned_mechanic_id == current_user.id %>
+              <!-- Job assigned to current user -->
+              <% if @assignment&.status == 'assigned' || @assignment.nil? %>
+                <%= button_to "Start Work", vmcott_mechanic_start_job_path(@job), 
+                      method: :post, 
+                      class: "btn btn-success btn-lg",
+                      data: { confirm: "Start working on this job?" } %>
+              <% end %>
+              
+              <% if @assignment&.status == 'in_progress' %>
+                <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#progressModal">
+                  <i class="bi bi-pencil-square me-2"></i>Update Progress
+                </button>
+                
+                <%= button_to "Request QC", vmcott_mechanic_request_qc_path(@job), 
+                      method: :post, 
+                      class: "btn btn-primary btn-lg",
+                      data: { confirm: "Mark this job as complete and request QC inspection?" } %>
+              <% end %>
+              
+            <% else %>
+              <!-- Job assigned to someone else - view only -->
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                This job is assigned to another mechanic. You can view details but cannot take it.
+              </div>
+              <% assigned_mechanic = User.find_by(id: @job.assigned_mechanic_id) %>
+              <p class="text-muted small">Assigned to: <strong><%= assigned_mechanic&.name || 'Unknown' %></strong></p>
             <% end %>
           </div>
         </div>
@@ -253,16 +291,16 @@
             <li class="mb-3">
               <i class="bi bi-plus-circle text-primary me-2"></i>
               <strong>Created:</strong><br>
-              <small class="text-muted"><%= @job.created_at.strftime("%b %d, %Y at %I:%M %p") %></small>
+              <small class="text-muted"><%= @job&.created_at&.strftime("%b %d, %Y at %I:%M %p") || 'Unknown' %></small>
             </li>
-            <% if @job.started_at %>
+            <% if @assignment&.started_at %>
               <li class="mb-3">
                 <i class="bi bi-play-circle text-success me-2"></i>
                 <strong>Started:</strong><br>
-                <small class="text-muted"><%= @job.started_at.strftime("%b %d, %Y at %I:%M %p") %></small>
+                <small class="text-muted"><%= @assignment.started_at.strftime("%b %d, %Y at %I:%M %p") %></small>
               </li>
             <% end %>
-            <% if @job.completed_at %>
+            <% if @job&.completed_at %>
               <li class="mb-3">
                 <i class="bi bi-check-circle text-success me-2"></i>
                 <strong>Completed:</strong><br>
@@ -300,3 +338,51 @@
     </div>
   </div>
 </div>
+
+<!-- JavaScript for part usage -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Handle use part clicks
+  document.querySelectorAll('.use-part').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      const partId = this.dataset.partId;
+      const partName = this.dataset.partName;
+      const suggestedQty = this.dataset.quantity || '1';
+      const quantity = prompt(`Enter quantity of ${partName} to use:`, suggestedQty);
+      
+      if (quantity && !isNaN(quantity) && parseInt(quantity) > 0) {
+        logPartUsage(partId, quantity);
+      }
+    });
+  });
+  
+  function logPartUsage(partId, quantity) {
+    const formData = new FormData();
+    formData.append('part_id', partId);
+    formData.append('quantity', quantity);
+    
+    fetch('<%= vmcott_mechanic_log_parts_path(@job) %>', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+        'Accept': 'application/json'
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('An error occurred while logging part usage.');
+    });
+  }
+});
+</script>
