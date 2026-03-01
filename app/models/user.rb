@@ -1,7 +1,8 @@
-# app/models/user.rb
-# Complete revised version with all 4 new workflow roles
+# Complete revised version with all 4 new workflow roles and RoleFindable concern
 
 class User < ApplicationRecord
+  include RoleFindable  # Add this line to include the concern
+
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
   devise :database_authenticatable, :registerable,

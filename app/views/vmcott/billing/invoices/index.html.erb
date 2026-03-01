@@ -48,10 +48,10 @@
       <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Parts Requests Needing RFQ Creation</h5>
-          <span class="badge bg-light text-dark"><%= @pending_parts_requests&.count || 0 %> pending</span>
+          <span class="badge bg-light text-dark"><%= @parts_needing_rfq&.count || 0 %> pending</span>
         </div>
         <div class="card-body">
-          <% if @pending_parts_requests && @pending_parts_requests.any? %>
+          <% if @parts_needing_rfq && @parts_needing_rfq.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -66,11 +66,11 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <% @pending_parts_requests.each do |pr| %>
+                  <% @parts_needing_rfq.each do |pr| %>
                     <tr>
-                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) if pr.inspection %></td>
-                      <td><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></td>
-                      <td><%= pr.part&.name || 'Unknown Part' %></td>
+                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) %></td>
+                      <td><%= pr.inspection.vehicle.license_plate %></td>
+                      <td><%= pr.part.name %></td>
                       <td><%= pr.quantity %></td>
                       <td>
                         <span class="badge bg-<%= 
@@ -80,17 +80,17 @@
                           when 'quotations_received' then 'success'
                           else 'secondary'
                           end %>">
-                          <%= pr.status&.humanize || 'Unknown' %>
+                          <%= pr.status.humanize %>
                         </span>
                       </td>
                       <td><%= pr.notified_billing_at&.strftime("%b %d, %Y") || 'N/A' %></td>
                       <td>
                         <% if pr.status == 'billing_notified' %>
-                          <%= link_to "Create RFQ", new_vmcott_vendor_rfq_path(parts_request_id: pr.id), class: "btn btn-sm btn-primary" %>
-                        <% elsif pr.status == 'rfq_sent' && pr.vendor_rfq.present? %>
+                          <%= link_to "Create RFQ", new_vendor_rfq_path(parts_request_id: pr.id), class: "btn btn-sm btn-primary" %>
+                        <% elsif pr.status == 'rfq_sent' %>
                           <span class="badge bg-info">Awaiting Quotes</span>
-                        <% elsif pr.status == 'quotations_received' && pr.vendor_rfq.present? %>
-                          <%= link_to "View Quotes", vmcott_vendor_rfq_path(pr.vendor_rfq), class: "btn btn-sm btn-success" %>
+                        <% elsif pr.status == 'quotations_received' %>
+                          <%= link_to "View Quotes", vendor_rfq_path(pr.vendor_rfq), class: "btn btn-sm btn-success" %>
                         <% end %>
                       </td>
                     </tr>
@@ -106,68 +106,6 @@
     </div>
   </div>
 
-  <!-- Active RFQs Waiting for Vendor Responses -->
-  <div class="row mt-4">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-send me-2"></i>Active RFQs - Waiting for Vendor Responses</h5>
-          <span class="badge bg-light text-dark"><%= @active_rfqs&.count || 0 %> pending</span>
-        </div>
-        <div class="card-body">
-          <% if @active_rfqs && @active_rfqs.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>RFQ #</th>
-                    <th>Due Date</th>
-                    <th>Parts</th>
-                    <th>Days Left</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% @active_rfqs.each do |rfq| %>
-                    <tr>
-                      <td><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></td>
-                      <td><%= rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %></td>
-                      <td><%= rfq.vendor_rfq_items.count %> items</td>
-                      <td>
-                        <% if rfq.due_date.present? %>
-                          <% days_left = (rfq.due_date - Date.today).to_i %>
-                          <% if days_left < 0 %>
-                            <span class="badge bg-danger">Overdue</span>
-                          <% elsif days_left <= 3 %>
-                            <span class="badge bg-warning"><%= days_left %> days</span>
-                          <% else %>
-                            <span class="badge bg-success"><%= days_left %> days</span>
-                          <% end %>
-                        <% else %>
-                          <span class="badge bg-secondary">N/A</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <div class="btn-group btn-group-sm">
-                          <%= link_to "View", vmcott_vendor_rfq_path(rfq), class: "btn btn-outline-primary" %>
-                          <% if rfq.vendor_quotations.any? %>
-                            <%= link_to "Quotes (#{rfq.vendor_quotations.count})", vmcott_vendor_rfq_path(rfq), class: "btn btn-outline-success" %>
-                          <% end %>
-                        </div>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-3">No active RFQs waiting for vendor responses</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Quotations Received Needing Finance Review -->
   <div class="row mt-4">
     <div class="col-12">
@@ -177,71 +115,29 @@
           <span class="badge bg-light text-dark"><%= @quotations_received&.count || 0 %> pending</span>
         </div>
         <div class="card-body">
-          <% if @quotations_received.present? && @quotations_received.any? %>
+          <% if @quotations_received && @quotations_received.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>RFQ #</th>
                     <th>Vehicle</th>
-                    <th>Parts</th>
-                    <th>Suppliers</th>
+                    <th>Supplier</th>
                     <th># of Quotes</th>
                     <th>Received</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <% @quotations_received.compact.each do |rfq| %>
-                    <% next if rfq.nil? %>
+                  <% @quotations_received.each do |rfq| %>
                     <tr>
-                      <td><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></td>
+                      <td><%= link_to rfq.rfq_number, vendor_rfq_path(rfq) %></td>
+                      <td><%= rfq.vendor_rfq_items.first&.part&.name || 'Multiple Parts' %></td>
+                      <td><%= rfq.vendor_quotations.map(&:supplier).compact.map(&:name).join(', ') %></td>
+                      <td><span class="badge bg-info"><%= rfq.vendor_quotations.count %> quotes</span></td>
+                      <td><%= rfq.updated_at.strftime("%b %d, %Y") %></td>
                       <td>
-                        <% 
-                          # Safely navigate the association chain
-                          vehicle = nil
-                          if rfq.vendor_rfq_items.present? && rfq.vendor_rfq_items.any?
-                            first_item = rfq.vendor_rfq_items.first
-                            if first_item && first_item.part
-                              inspection = first_item.part.inspection
-                              vehicle = inspection.vehicle if inspection
-                            end
-                          end
-                        %>
-                        <%= vehicle&.license_plate || 'Multiple Vehicles' %>
-                      </td>
-                      <td>
-                        <% if rfq.vendor_rfq_items.present? && rfq.vendor_rfq_items.any? %>
-                          <% rfq.vendor_rfq_items.limit(2).each do |item| %>
-                            <%= item.part&.name || 'Unknown Part' %>
-                            <%= ',' unless item == rfq.vendor_rfq_items.last %>
-                          <% end %>
-                          <% if rfq.vendor_rfq_items.count > 2 %>
-                            <br><span class="badge bg-secondary">+<%= rfq.vendor_rfq_items.count - 2 %> more</span>
-                          <% end %>
-                        <% else %>
-                          <span class="text-muted">No parts</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <% if rfq.vendor_quotations.present? && rfq.vendor_quotations.any? %>
-                          <% suppliers = rfq.vendor_quotations.map { |q| q.supplier }.compact.uniq %>
-                          <% suppliers_list = suppliers.map { |s| s&.name || 'Unknown Supplier' } %>
-                          <%= suppliers_list.join('<br>').html_safe %>
-                        <% else %>
-                          <span class="text-muted">No quotations</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <% if rfq.vendor_quotations.present? %>
-                          <span class="badge bg-info"><%= rfq.vendor_quotations.count %> quotes</span>
-                        <% else %>
-                          <span class="badge bg-secondary">0 quotes</span>
-                        <% end %>
-                      </td>
-                      <td><%= rfq.updated_at&.strftime("%b %d, %Y") %></td>
-                      <td>
-                        <%= link_to "Review Quotes", vmcott_vendor_rfq_path(rfq), class: "btn btn-sm btn-warning" %>
+                        <%= link_to "Review Quotes", compare_vendor_rfq_path(rfq), class: "btn btn-sm btn-warning" %>
                       </td>
                     </tr>
                   <% end %>
@@ -332,21 +228,17 @@
                 <tbody>
                   <% @parts_received.each do |pr| %>
                     <tr>
-                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) if pr.inspection %></td>
-                      <td><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></td>
-                      <td><%= pr.part&.name || 'Unknown Part' %></td>
+                      <td><%= link_to "##{pr.inspection.id}", vmcott_inspector_inspection_path(pr.inspection) %></td>
+                      <td><%= pr.inspection.vehicle.license_plate %></td>
+                      <td><%= pr.part.name %></td>
                       <td><%= pr.quantity %></td>
-                      <td><%= link_to pr.purchase_order&.po_number, purchase_order_path(pr.purchase_order) if pr.purchase_order %></td>
+                      <td><%= link_to pr.purchase_order.po_number, purchase_order_path(pr.purchase_order) if pr.purchase_order %></td>
                       <td><%= pr.parts_received_at&.strftime("%b %d, %Y") %></td>
                       <td>
                         <% if pr.status == 'parts_received' && !pr.in_stock %>
-                          <td>
-                            <% if pr.status == 'parts_received' && !pr.in_stock %>
-                              <%= button_to "Update Stock", update_stock_vmcott_parts_request_path(pr), method: :post, class: "btn btn-sm btn-success", data: { confirm: "Add #{pr.quantity} #{pr.part&.name} to inventory?" } %>
-                            <% else %>
-                              <span class="badge bg-success">Stock Updated</span>
-                            <% end %>
-                          </td>
+                          <%= button_to "Update Stock", update_stock_parts_request_path(pr), method: :post, class: "btn btn-sm btn-success", data: { confirm: "Add #{pr.quantity} #{pr.part.name} to inventory?" } %>
+                        <% else %>
+                          <span class="badge bg-success">Stock Updated</span>
                         <% end %>
                       </td>
                     </tr>

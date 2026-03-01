@@ -1,0 +1,95 @@
+<%# app/views/vmcott/parts_coordinator/rfqs/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">📋 RFQ Management</h1>
+      <% if @inspection %>
+        <p class="text-muted">RFQs for Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
+      <% else %>
+        <p class="text-muted">All Request for Quotations</p>
+      <% end %>
+    </div>
+    <div class="col text-end">
+      <%= link_to "← Back", @inspection ? vmcott_inspector_inspection_path(@inspection) : vmcott_parts_coordinator_dashboard_path, class: "btn btn-outline-secondary" %>
+    </div>
+  </div>
+
+  <% if @rfqs.any? %>
+    <div class="row">
+      <% @rfqs.each do |rfq| %>
+        <div class="col-md-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">RFQ #<%= rfq.rfq_number %></h5>
+              <span class="badge bg-light text-dark"><%= rfq.status.titleize %></span>
+            </div>
+            <div class="card-body">
+              <% if rfq.vendor_rfq_items.any? %>
+                <h6 class="fw-bold">Parts Requested:</h6>
+                <ul class="list-unstyled">
+                  <% rfq.vendor_rfq_items.each do |item| %>
+                    <li class="mb-2 pb-2 border-bottom">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <strong><%= item.part&.name || 'Unknown Part' %></strong>
+                          <br>
+                          <small class="text-muted">Part #: <%= item.part&.part_number || 'N/A' %></small>
+                        </div>
+                        <div class="text-end">
+                          <span class="badge bg-secondary">x<%= item.quantity %></span>
+                          <br>
+                          <small class="text-muted"><%= item.unit_of_measure %></small>
+                        </div>
+                      </div>
+                    </li>
+                  <% end %>
+                </ul>
+              <% end %>
+
+              <div class="mt-3">
+                <h6 class="fw-bold">Quotations Received:</h6>
+                <p class="mb-0">
+                  <span class="badge bg-info"><%= rfq.vendor_quotations.count %> quotes</span>
+                  <% if rfq.vendor_quotations.any? %>
+                    <br>
+                    <small class="text-muted">
+                      Lowest: $<%= number_with_precision(rfq.vendor_quotations.minimum(:total_amount), precision: 2) %>
+                    </small>
+                  <% end %>
+                </p>
+              </div>
+
+              <% if rfq.due_date.present? %>
+                <div class="mt-3">
+                  <small class="text-muted">
+                    <i class="bi bi-calendar me-1"></i> Due: <%= rfq.due_date.strftime("%b %d, %Y") %>
+                  </small>
+                </div>
+              <% end %>
+            </div>
+            <div class="card-footer bg-transparent">
+              <%= link_to "View Details", vmcott_parts_coordinator_rfq_path(rfq), class: "btn btn-primary btn-sm" %>
+              <% if rfq.vendor_quotations.any? %>
+                <%= link_to "Compare Quotes", vmcott_parts_coordinator_compare_rfq_path(rfq), class: "btn btn-outline-info btn-sm" %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-inbox fs-1 text-muted"></i>
+        <h4 class="mt-3">No RFQs Found</h4>
+        <p class="text-muted">
+          <% if @inspection %>
+            No RFQs have been created for this inspection yet.
+          <% else %>
+            There are no RFQs to display at this time.
+          <% end %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+</div>

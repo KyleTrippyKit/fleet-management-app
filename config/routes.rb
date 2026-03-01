@@ -1,4 +1,3 @@
-# config/routes.rb - COMPLETE REVISED VERSION WITH PROPER VMCOTT NAMESPACING AND PAYABLES
 # frozen_string_literal: true
 
 Rails.application.routes.draw do
@@ -40,6 +39,18 @@ Rails.application.routes.draw do
   # ROOT - Role-based dashboard routing
   # ========================
   root to: "home#index"
+
+  # ========================
+  # NOTIFICATIONS - Added for notification center
+  # ========================
+  resources :notifications, only: [:index, :show] do
+    collection do
+      post :mark_all_as_read
+    end
+    member do
+      post :mark_as_read
+    end
+  end
 
   # ========================
   # PTSC Namespace - All PTSC-specific dashboards
@@ -101,6 +112,10 @@ Rails.application.routes.draw do
       post "quotation/:id/accept", to: "dashboard#accept_quotation", as: :accept_quotation
       post "receive_parts", to: "dashboard#receive_parts", as: :receive_parts
       
+      post "mark_in_stock/:id", to: "dashboard#mark_in_stock", as: :mark_in_stock
+      post "send_to_billing/:id", to: "dashboard#send_to_billing", as: :send_to_billing
+      post "pass_to_workshop/:id", to: "dashboard#pass_to_workshop", as: :pass_to_workshop
+      
       resources :rfqs, only: [:index, :show, :create] do
         resources :quotations, only: [:index, :show], controller: 'vendor_quotations'
       end
@@ -148,13 +163,20 @@ Rails.application.routes.draw do
       end
     end
 
-    # 6. BILLING - Invoicing and payments
+    # 6. BILLING - Invoicing and payments (UPDATED WITH ALL ROUTES)
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
+      
+      # RFQ Management Routes
+      get "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
+      post "send_rfq", to: "dashboard#send_rfq", as: :send_rfq
+      get "upload_quotation", to: "dashboard#upload_quotation", as: :upload_quotation
+      post "create_quotation", to: "dashboard#create_quotation", as: :create_quotation
       
       # PO Details endpoint for JSON
       get "po_details/:id", to: "invoices#po_details", as: :po_details
       
+      # Invoice Management
       resources :invoices, only: [:index, :show, :new, :create] do
         member do
           post :process_payment
@@ -165,6 +187,15 @@ Rails.application.routes.draw do
           get :paid
           get :overdue
         end
+      end
+    end
+
+    # ========================
+    # PARTS REQUESTS - CORRECTED FOR STOCK UPDATE
+    # ========================
+    resources :parts_requests, only: [:index, :show, :update] do
+      member do
+        post :update_stock
       end
     end
 
@@ -191,6 +222,7 @@ Rails.application.routes.draw do
         get  :export_csv
         get  :reorder_suggestions
         get  :search_by_vendor
+        get :search
       end
 
       member do
@@ -198,6 +230,7 @@ Rails.application.routes.draw do
         post :create_purchase_request
         get  :stock_history
         get  :vendor_pricing
+        get :stock
       end
     end
 
@@ -280,6 +313,7 @@ Rails.application.routes.draw do
       member do
         post :send_to_suppliers
         post :close
+        get :compare
       end
 
       resources :vendor_quotations, only: [:index, :show, :new, :create] do

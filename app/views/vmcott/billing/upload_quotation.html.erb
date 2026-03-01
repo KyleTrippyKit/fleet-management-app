@@ -1,0 +1,83 @@
+<%# app/views/vmcott/billing/upload_quotation.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">📄 Upload Vendor Quotation</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with url: upload_quotation_billing_path, multipart: true, local: true do |f| %>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Select Request</label>
+              <%= f.collection_select :parts_request_id, @pending_requests, :id, :reference, 
+                    { include_blank: "Choose request..." }, class: "form-select" %>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Supplier</label>
+              <%= f.collection_select :supplier_id, Supplier.active, :id, :name, 
+                    { include_blank: "Select supplier..." }, class: "form-select" %>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Upload Quotation (PDF/Image)</label>
+              <%= f.file_field :quotation_file, class: "form-control", accept: ".pdf,.jpg,.jpeg,.png" %>
+            </div>
+
+            <h6 class="fw-bold mt-4 mb-3">Quotation Items</h6>
+            <div id="items">
+              <div class="row mb-2 item-row">
+                <div class="col-md-5">
+                  <input type="text" name="items[][part_name]" class="form-control" placeholder="Part name">
+                </div>
+                <div class="col-md-2">
+                  <input type="number" name="items[][quantity]" class="form-control" placeholder="Qty" min="1">
+                </div>
+                <div class="col-md-3">
+                  <input type="number" name="items[][unit_price]" class="form-control" placeholder="Unit price" step="0.01">
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-outline-danger remove-item">×</button>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-sm btn-outline-primary mb-4" id="add-item">
+              <i class="bi bi-plus-circle"></i> Add Another Item
+            </button>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Quotation Reference #</label>
+              <%= f.text_field :reference_number, class: "form-control", placeholder: "e.g., QUOTE-12345" %>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Valid Until</label>
+              <%= f.date_field :valid_until, value: Date.current + 30.days, class: "form-control" %>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+              <%= link_to "Cancel", billing_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Upload Quotation", class: "btn btn-primary" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('add-item').addEventListener('click', function() {
+  const container = document.getElementById('items');
+  const newRow = document.querySelector('.item-row').cloneNode(true);
+  newRow.querySelectorAll('input').forEach(input => input.value = '');
+  container.appendChild(newRow);
+  
+  newRow.querySelector('.remove-item').addEventListener('click', function() {
+    newRow.remove();
+  });
+});
+</script>

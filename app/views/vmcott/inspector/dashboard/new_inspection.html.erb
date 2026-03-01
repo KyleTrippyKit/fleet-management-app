@@ -19,11 +19,10 @@
           <h5 class="mb-0">Vehicle: <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %></h5>
         </div>
         <div class="card-body">
-          <%= form_with url: vmcott_inspector_inspections_path, method: :post, local: true, id: "inspection-form" do |f| %>
-            
+          <%= form_with url: vmcott_inspector_inspections_path, method: :post, local: true, id: "inspection-form", data: { parts_search_path: search_vmcott_parts_path } do |f| %>
             <%= hidden_field_tag :vehicle_id, @vehicle.id %>
 
-            <!-- Vehicle Information (Read-only) -->
+            <!-- Vehicle Information -->
             <div class="row mb-4">
               <div class="col-md-6">
                 <label class="form-label fw-bold">License Plate</label>
@@ -47,74 +46,58 @@
 
             <!-- Job Templates Section -->
             <div class="mb-4">
-              <h5 class="border-bottom pb-2">Select Job Templates</h5>
-              <p class="text-muted small">Select templates that apply to this vehicle</p>
+              <h5 class="border-bottom pb-2">Select Required Jobs</h5>
+              <p class="text-muted small">Select jobs and add required parts</p>
               
-              <% applicable_templates = JobTemplate.for_vehicle(@vehicle).active %>
-              <% if applicable_templates.any? %>
-                <div class="row">
+              <div id="job-templates-container">
+                <% applicable_templates = JobTemplate.for_vehicle(@vehicle).active %>
+                <% if applicable_templates.any? %>
                   <% applicable_templates.each do |template| %>
-                    <div class="col-md-6 mb-2">
-                      <div class="card">
-                        <div class="card-body">
-                          <div class="form-check">
-                            <%= check_box_tag "job_template_ids[]", template.id, false, 
-                                  class: "form-check-input template-checkbox", 
-                                  id: "template_#{template.id}",
-                                  data: { 
-                                    labor: template.total_labor_cost,
-                                    parts: template.total_parts_cost,
-                                    name: template.name
-                                  } %>
-                            <%= label_tag "template_#{template.id}", template.name, class: "form-check-label fw-bold" %>
-                          </div>
-                          <p class="small text-muted mt-1 mb-1"><%= truncate(template.description, length: 100) %></p>
-                          <p class="small mb-0">
-                            <span class="badge bg-info">Labor: <%= number_to_currency(template.total_labor_cost) %></span>
-                            <span class="badge bg-warning">Parts: <%= number_to_currency(template.total_parts_cost) %></span>
-                          </p>
+                    <div class="card mb-3 template-card" data-template-id="<%= template.id %>">
+                      <div class="card-header bg-light">
+                        <div class="form-check">
+                          <%= check_box_tag "job_template_ids[]", template.id, false, 
+                                class: "form-check-input template-checkbox", 
+                                id: "template_#{template.id}" %>
+                          <%= label_tag "template_#{template.id}", template.name, class: "form-check-label fw-bold" %>
+                          <span class="badge bg-info ms-2">Template</span>
                         </div>
+                      </div>
+                      
+                      <div class="card-body template-parts-section" style="display: none;">
+                        <p class="text-muted small mb-2">Add parts needed for this job:</p>
+                        
+                        <!-- Parts container for this template -->
+                        <div class="template-parts-container mb-3" data-template-id="<%= template.id %>"></div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary add-part-to-template" 
+                                data-template-id="<%= template.id %>">
+                          <i class="bi bi-plus-circle me-1"></i> Add Part
+                        </button>
                       </div>
                     </div>
                   <% end %>
-                </div>
-              <% else %>
-                <div class="alert alert-info">
-                  <i class="bi bi-info-circle me-2"></i>
-                  No job templates found for this vehicle. You can create custom jobs below.
-                </div>
-              <% end %>
+                <% else %>
+                  <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No job templates found. You can create custom jobs below.
+                  </div>
+                <% end %>
+              </div>
             </div>
 
             <!-- Custom Jobs Section -->
             <div class="mb-4">
               <h5 class="border-bottom pb-2">Custom Jobs</h5>
-              <div id="custom-jobs">
-                <div class="custom-job-item border p-3 mb-2 rounded bg-light">
-                  <div class="row">
-                    <div class="col-md-12 mb-2">
-                      <input type="text" name="custom_jobs[][description]" 
-                             class="form-control" placeholder="Job description (e.g., 'Replace brake pads')">
-                    </div>
-                    <div class="col-md-6 mb-2">
-                      <div class="input-group">
-                        <span class="input-group-text">Labor $</span>
-                        <input type="number" name="custom_jobs[][estimated_labor_cost]" 
-                               class="form-control" placeholder="0.00" step="0.01" min="0">
-                      </div>
-                    </div>
-                    <div class="col-md-6 mb-2">
-                      <div class="input-group">
-                        <span class="input-group-text">Parts $</span>
-                        <input type="number" name="custom_jobs[][estimated_parts_cost]" 
-                               class="form-control" placeholder="0.00" step="0.01" min="0">
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <p class="text-muted small">Add custom jobs and required parts</p>
+              
+              <!-- Container with explicit visibility -->
+              <div id="custom-jobs-container" style="display: block !important; min-height: 100px; border: 3px solid #007bff; padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
+                <!-- Custom jobs will appear here -->
               </div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-custom-job">
-                <i class="bi bi-plus-circle me-1"></i> Add Another Custom Job
+              
+              <button type="button" class="btn btn-outline-primary mt-2" id="add-custom-job">
+                <i class="bi bi-plus-circle me-1"></i> Add Custom Job
               </button>
             </div>
 
@@ -123,12 +106,11 @@
               <h5 class="border-bottom pb-2">Next Service Recommendation</h5>
               <div class="row">
                 <div class="col-md-6">
-                  <label for="next_service_mileage" class="form-label">Service at (km)</label>
-                  <%= number_field_tag :next_service_mileage, @vehicle.mileage.to_i + 5000, 
-                        class: "form-control", min: 0, step: 1000 %>
+                  <label class="form-label">Service at (km)</label>
+                  <%= number_field_tag :next_service_mileage, @vehicle.mileage.to_i + 5000, class: "form-control" %>
                 </div>
                 <div class="col-md-6">
-                  <label for="next_service_date" class="form-label">or by date</label>
+                  <label class="form-label">or by date</label>
                   <%= date_field_tag :next_service_date, 6.months.from_now.to_date, class: "form-control" %>
                 </div>
               </div>
@@ -136,15 +118,27 @@
 
             <!-- Summary -->
             <div class="mb-4 p-3 bg-light rounded">
-              <h6 class="fw-bold">Estimated Total: <span id="estimated-total">$0.00</span></h6>
+              <h6 class="fw-bold mb-2">Summary</h6>
+              <div class="row">
+                <div class="col-md-4">
+                  <span class="text-muted">Jobs Selected:</span>
+                  <span class="fw-bold" id="jobs-count">0</span>
+                </div>
+                <div class="col-md-4">
+                  <span class="text-muted">Parts Added:</span>
+                  <span class="fw-bold" id="parts-count">0</span>
+                </div>
+                <div class="col-md-4">
+                  <span class="text-muted">Parts Needing Order:</span>
+                  <span class="fw-bold" id="parts-to-order-count">0</span>
+                </div>
+              </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="d-flex justify-content-end gap-2">
               <%= link_to "Cancel", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
-              <%= f.submit "Complete Inspection", 
-                    class: "btn btn-primary",
-                    data: { confirm: "Save this inspection and create jobs?" } %>
+              <%= f.submit "Complete Inspection", class: "btn btn-primary" %>
             </div>
           <% end %>
         </div>
@@ -153,79 +147,619 @@
   </div>
 </div>
 
-<!-- JavaScript for dynamic features -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Add custom job
-  document.getElementById('add-custom-job').addEventListener('click', function() {
-    const container = document.getElementById('custom-jobs');
-    const newJob = document.createElement('div');
-    newJob.className = 'custom-job-item border p-3 mb-2 rounded bg-light';
-    newJob.innerHTML = `
-      <div class="row">
-        <div class="col-md-12 mb-2">
-          <input type="text" name="custom_jobs[][description]" 
-                 class="form-control" placeholder="Job description">
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="input-group">
-            <span class="input-group-text">Labor $</span>
-            <input type="number" name="custom_jobs[][estimated_labor_cost]" 
-                   class="form-control" placeholder="0.00" step="0.01" min="0">
-          </div>
-        </div>
-        <div class="col-md-6 mb-2">
-          <div class="input-group">
-            <span class="input-group-text">Parts $</span>
-            <input type="number" name="custom_jobs[][estimated_parts_cost]" 
-                   class="form-control" placeholder="0.00" step="0.01" min="0">
-          </div>
-        </div>
-        <div class="col-12 text-end mt-2">
-          <button type="button" class="btn btn-sm btn-outline-danger remove-job">
-            <i class="bi bi-trash"></i> Remove
-          </button>
+<!-- Templates -->
+<template id="part-row-template">
+  <div class="part-row card card-body p-3 mb-2 bg-light" data-part-row style="display: block !important; border: 2px solid #ffc107 !important; margin: 10px 0; position: relative; z-index: 1;">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <div class="position-relative" style="position: relative; z-index: 9999;">
+          <input type="text" class="form-control part-search" placeholder="Search for a part..." style="position: relative; z-index: 9999;">
+          <input type="hidden" name="parts[][part_id]" class="part-id-field">
+          <input type="hidden" name="parts[][is_custom]" class="is-custom-field" value="false">
+          <input type="hidden" name="parts[][custom_name]" class="custom-name-field">
+          <input type="hidden" name="parts[][job_type]" class="job-type-field">
+          <input type="hidden" name="parts[][job_id]" class="job-id-field">
+          
+          <!-- Search Results Dropdown - Fixed with super high z-index -->
+          <div class="search-results dropdown-menu w-100" style="display: none; max-height: 300px; overflow-y: auto; position: absolute; z-index: 999999 !important; background: white; border: 2px solid #007bff; box-shadow: 0 8px 24px rgba(0,0,0,0.2); margin-top: 2px; left: 0;"></div>
         </div>
       </div>
-    `;
-    container.appendChild(newJob);
-    
-    // Add remove functionality
-    newJob.querySelector('.remove-job').addEventListener('click', function() {
-      newJob.remove();
-      updateTotal();
-    });
-  });
+      <div class="col-md-2">
+        <input type="number" name="parts[][quantity]" class="form-control quantity-field" value="1" min="1">
+      </div>
+      <div class="col-md-2">
+        <span class="stock-indicator badge bg-secondary w-100 py-2">Check stock</span>
+      </div>
+      <div class="col-md-2 text-end">
+        <button type="button" class="btn btn-sm btn-outline-danger remove-part">Remove</button>
+      </div>
+    </div>
+  </div>
+</template>
 
-  // Update estimated total
-  function updateTotal() {
-    let total = 0;
-    
-    // Add template costs
-    document.querySelectorAll('.template-checkbox:checked').forEach(cb => {
-      total += parseFloat(cb.dataset.labor || 0) + parseFloat(cb.dataset.parts || 0);
-    });
-    
-    // Add custom job costs
-    document.querySelectorAll('.custom-job-item').forEach(job => {
-      const labor = parseFloat(job.querySelector('input[name$="[estimated_labor_cost]"]')?.value || 0);
-      const parts = parseFloat(job.querySelector('input[name$="[estimated_parts_cost]"]')?.value || 0);
-      total += labor + parts;
-    });
-    
-    document.getElementById('estimated-total').textContent = '$' + total.toFixed(2);
-  }
+<template id="custom-job-template">
+  <div class="custom-job-item card mb-3" data-custom-job style="display: block !important; border: 3px solid #28a745 !important; margin: 15px 0;">
+    <div class="card-header bg-light">
+      <div class="row">
+        <div class="col-md-8">
+          <input type="text" name="custom_jobs[][description]" class="form-control" 
+                 placeholder="Job description" required>
+        </div>
+        <div class="col-md-4 text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger remove-custom-job">Remove Job</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="custom-job-parts-container mb-3"></div>
+      <button type="button" class="btn btn-sm btn-outline-primary add-part-to-custom-job">Add Part</button>
+    </div>
+  </div>
+</template>
 
-  // Add event listeners
-  document.querySelectorAll('.template-checkbox').forEach(cb => {
-    cb.addEventListener('change', updateTotal);
-  });
+<!-- JavaScript with working part search -->
+<script>
+(function() {
+  console.log('Script loaded');
   
-  document.addEventListener('input', function(e) {
-    if (e.target.name?.includes('estimated_labor_cost') || 
-        e.target.name?.includes('estimated_parts_cost')) {
-      updateTotal();
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  
+  function init() {
+    console.log('Initializing...');
+    
+    // Get templates
+    const partRowTemplate = document.getElementById('part-row-template');
+    const customJobTemplate = document.getElementById('custom-job-template');
+    
+    if (!partRowTemplate || !customJobTemplate) {
+      console.error('Templates not found!');
+      return;
     }
-  });
-});
+    
+    const partRowContent = partRowTemplate.content;
+    const customJobContent = customJobTemplate.content;
+    
+    // Object to track parts that need ordering
+    let partsToOrder = {};
+    
+    // Custom Job Button
+    const addCustomJobBtn = document.getElementById('add-custom-job');
+    if (addCustomJobBtn) {
+      console.log('Found add custom job button');
+      
+      addCustomJobBtn.addEventListener('click', function(e) {
+        console.log('Add custom job clicked');
+        e.preventDefault();
+        
+        const container = document.getElementById('custom-jobs-container');
+        if (!container) {
+          console.error('Container not found!');
+          return;
+        }
+        
+        const jobId = 'custom_' + Date.now();
+        console.log('Creating job with ID:', jobId);
+        
+        const clone = document.importNode(customJobContent, true);
+        const jobElement = clone.querySelector('[data-custom-job]');
+        
+        if (!jobElement) {
+          console.error('Could not find job element in template');
+          return;
+        }
+        
+        jobElement.dataset.jobId = jobId;
+        
+        // Remove job button
+        const removeBtn = clone.querySelector('.remove-custom-job');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', function() {
+            console.log('Removing job');
+            jobElement.remove();
+            updateSummary();
+          });
+        }
+        
+        // Add part button
+        const addPartBtn = clone.querySelector('.add-part-to-custom-job');
+        if (addPartBtn) {
+          addPartBtn.addEventListener('click', function() {
+            const partsContainer = jobElement.querySelector('.custom-job-parts-container');
+            if (partsContainer) {
+              console.log('Adding part to job');
+              addPartRow(partsContainer, 'custom', jobId);
+            }
+          });
+        }
+        
+        container.appendChild(clone);
+        
+        // Add default part
+        const partsContainer = jobElement.querySelector('.custom-job-parts-container');
+        if (partsContainer) {
+          console.log('Adding default part to new job');
+          addPartRow(partsContainer, 'custom', jobId);
+        }
+        
+        updateSummary();
+      });
+    } else {
+      console.error('Add custom job button not found!');
+    }
+    
+    // Template checkboxes
+    document.querySelectorAll('.template-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const card = this.closest('.template-card');
+        const section = card.querySelector('.template-parts-section');
+        const container = card.querySelector('.template-parts-container');
+        const templateId = card.dataset.templateId;
+        
+        if (this.checked) {
+          section.style.display = 'block';
+          if (container.children.length === 0) {
+            addPartRow(container, 'template', templateId);
+          }
+        } else {
+          section.style.display = 'none';
+          container.innerHTML = '';
+        }
+        updateSummary();
+      });
+    });
+    
+    // Add part to template buttons
+    document.querySelectorAll('.add-part-to-template').forEach(button => {
+      button.addEventListener('click', function() {
+        const templateId = this.dataset.templateId;
+        const container = document.querySelector(`.template-parts-container[data-template-id="${templateId}"]`);
+        if (container) {
+          addPartRow(container, 'template', templateId);
+        }
+      });
+    });
+    
+    function addPartRow(container, jobType, jobId) {
+      console.log('Adding part row to container:', container, 'jobType:', jobType, 'jobId:', jobId);
+      
+      if (!container) {
+        console.error('Container is null!');
+        return;
+      }
+      
+      const clone = document.importNode(partRowContent, true);
+      const row = clone.querySelector('[data-part-row]');
+      
+      if (!row) {
+        console.error('Could not find [data-part-row] in template');
+        return;
+      }
+      
+      // Set job identifiers
+      const jobTypeField = row.querySelector('.job-type-field');
+      const jobIdField = row.querySelector('.job-id-field');
+      if (jobTypeField) jobTypeField.value = jobType;
+      if (jobIdField) jobIdField.value = jobId;
+      
+      // Remove button
+      const removeBtn = row.querySelector('.remove-part');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+          console.log('Removing part row');
+          
+          // Remove from partsToOrder tracking
+          const partId = row.querySelector('.part-id-field')?.value;
+          if (partId) {
+            delete partsToOrder[`part_${partId}`];
+          }
+          
+          row.remove();
+          updateSummary();
+        });
+      }
+      
+      // Setup search functionality
+      const searchInput = row.querySelector('.part-search');
+      const resultsDiv = row.querySelector('.search-results');
+      const partIdField = row.querySelector('.part-id-field');
+      const isCustomField = row.querySelector('.is-custom-field');
+      const customNameField = row.querySelector('.custom-name-field');
+      const stockIndicator = row.querySelector('.stock-indicator');
+      const quantityField = row.querySelector('.quantity-field');
+      
+      let searchTimeout;
+      
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          clearTimeout(searchTimeout);
+          const query = this.value.trim();
+          
+          // Update indicator based on input length
+          if (query.length < 2) {
+            if (resultsDiv) resultsDiv.style.display = 'none';
+            stockIndicator.textContent = 'Type at least 2 chars';
+            stockIndicator.className = 'stock-indicator badge bg-secondary w-100 py-2';
+            return;
+          }
+          
+          // Show searching indicator
+          stockIndicator.textContent = 'Searching...';
+          stockIndicator.className = 'stock-indicator badge bg-info w-100 py-2';
+          
+          searchTimeout = setTimeout(() => {
+            const searchPath = document.getElementById('inspection-form')?.dataset.partsSearchPath;
+            if (!searchPath) {
+              console.error('Search path not found');
+              stockIndicator.textContent = 'Error: No search path';
+              stockIndicator.className = 'stock-indicator badge bg-danger w-100 py-2';
+              return;
+            }
+            
+            console.log('Searching for:', query, 'at:', searchPath);
+            
+            fetch(`${searchPath}?q=${encodeURIComponent(query)}`)
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+              })
+              .then(parts => {
+                console.log('Search results:', parts);
+                
+                if (!resultsDiv) return;
+                resultsDiv.innerHTML = '';
+                resultsDiv.style.display = 'block';
+                
+                if (parts.length === 0) {
+                  // No parts found - offer custom part option
+                  const customOption = document.createElement('div');
+                  customOption.className = 'dropdown-item';
+                  customOption.style.cursor = 'pointer';
+                  customOption.style.padding = '12px';
+                  customOption.style.backgroundColor = '#fff3cd';
+                  customOption.style.borderBottom = '2px solid #ffc107';
+                  
+                  customOption.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong class="text-primary">➕ Add "${query}" as custom part</strong>
+                        <small class="text-muted d-block">This part will need to be ordered</small>
+                      </div>
+                      <span class="badge bg-warning">Custom Part</span>
+                    </div>
+                  `;
+                  
+                  customOption.addEventListener('click', () => {
+                    selectCustomPart(row, query);
+                    resultsDiv.style.display = 'none';
+                  });
+                  
+                  customOption.addEventListener('mouseover', function() {
+                    this.style.backgroundColor = '#ffe69c';
+                  });
+                  
+                  customOption.addEventListener('mouseout', function() {
+                    this.style.backgroundColor = '#fff3cd';
+                  });
+                  
+                  resultsDiv.appendChild(customOption);
+                  
+                  stockIndicator.textContent = 'No parts found - add custom';
+                  stockIndicator.className = 'stock-indicator badge bg-warning w-100 py-2';
+                } else {
+                  stockIndicator.textContent = `${parts.length} part(s) found`;
+                  stockIndicator.className = 'stock-indicator badge bg-success w-100 py-2';
+                  
+                  parts.forEach(part => {
+                    const partOption = document.createElement('div');
+                    partOption.className = 'dropdown-item';
+                    partOption.style.cursor = 'pointer';
+                    partOption.style.padding = '8px 12px';
+                    partOption.style.borderBottom = '1px solid #eee';
+                    
+                    const stockClass = part.current_stock > 0 ? 'bg-success' : 'bg-danger';
+                    const stockText = part.current_stock > 0 ? `In Stock (${part.current_stock})` : 'Out of Stock';
+                    
+                    partOption.innerHTML = `
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <strong>${part.name}</strong>
+                          <small class="text-muted d-block">${part.part_number || 'No part #'}</small>
+                        </div>
+                        <span class="badge ${stockClass}">${stockText}</span>
+                      </div>
+                    `;
+                    
+                    partOption.addEventListener('click', () => {
+                      selectInventoryPart(row, part);
+                      resultsDiv.style.display = 'none';
+                    });
+                    
+                    partOption.addEventListener('mouseover', function() {
+                      this.style.backgroundColor = '#f8f9fa';
+                    });
+                    
+                    partOption.addEventListener('mouseout', function() {
+                      this.style.backgroundColor = '';
+                    });
+                    
+                    resultsDiv.appendChild(partOption);
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Error searching parts:', error);
+                stockIndicator.textContent = 'Search failed';
+                stockIndicator.className = 'stock-indicator badge bg-danger w-100 py-2';
+                if (resultsDiv) resultsDiv.style.display = 'none';
+              });
+          }, 500);
+        });
+      }
+      
+      // Close search results when clicking outside
+      document.addEventListener('click', function(e) {
+        if (searchInput && resultsDiv && !searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+          resultsDiv.style.display = 'none';
+        }
+      });
+      
+      // Quantity change updates stock status
+      if (quantityField) {
+        quantityField.addEventListener('input', function() {
+          updateStockIndicator(row);
+        });
+      }
+      
+      container.appendChild(clone);
+      updateSummary();
+    }
+    
+    function selectInventoryPart(row, part) {
+      console.log('Selecting part:', part);
+      
+      const searchInput = row.querySelector('.part-search');
+      const partIdField = row.querySelector('.part-id-field');
+      const isCustomField = row.querySelector('.is-custom-field');
+      const customNameField = row.querySelector('.custom-name-field');
+      const stockIndicator = row.querySelector('.stock-indicator');
+      const quantityField = row.querySelector('.quantity-field');
+      
+      if (searchInput) searchInput.value = part.name;
+      if (partIdField) partIdField.value = part.id;
+      if (isCustomField) isCustomField.value = 'false';
+      if (customNameField) customNameField.value = '';
+      
+      updateStockIndicator(row);
+      
+      // Track parts that need ordering
+      if (partIdField && quantityField) {
+        const quantity = parseInt(quantityField.value || 1);
+        const partKey = `part_${part.id}`;
+        
+        if (part.current_stock < quantity) {
+          partsToOrder[partKey] = true;
+          console.log('Part needs ordering:', part.name);
+        } else {
+          delete partsToOrder[partKey];
+          console.log('Part in stock:', part.name);
+        }
+      }
+      
+      updateSummary();
+    }
+    
+    function selectCustomPart(row, customName) {
+      console.log('Adding custom part:', customName);
+      
+      const searchInput = row.querySelector('.part-search');
+      const partIdField = row.querySelector('.part-id-field');
+      const isCustomField = row.querySelector('.is-custom-field');
+      const customNameField = row.querySelector('.custom-name-field');
+      const stockIndicator = row.querySelector('.stock-indicator');
+      
+      if (searchInput) searchInput.value = customName;
+      if (partIdField) partIdField.value = '';
+      if (isCustomField) isCustomField.value = 'true';
+      if (customNameField) customNameField.value = customName;
+      
+      if (stockIndicator) {
+        stockIndicator.className = 'stock-indicator badge bg-warning w-100 py-2';
+        stockIndicator.textContent = 'Custom - Will Order';
+      }
+      
+      // Custom parts always need ordering
+      const customKey = `custom_${Date.now()}`;
+      partsToOrder[customKey] = true;
+      
+      updateSummary();
+    }
+    
+    function updateStockIndicator(row) {
+      if (!row) return;
+      
+      const partIdField = row.querySelector('.part-id-field');
+      const isCustomField = row.querySelector('.is-custom-field');
+      const stockIndicator = row.querySelector('.stock-indicator');
+      const quantityField = row.querySelector('.quantity-field');
+      
+      if (!stockIndicator) return;
+      
+      // Check if it's a custom part
+      if (isCustomField && isCustomField.value === 'true') {
+        stockIndicator.className = 'stock-indicator badge bg-warning w-100 py-2';
+        stockIndicator.textContent = 'Custom - Will Order';
+        return;
+      }
+      
+      // Check if part is selected
+      if (!partIdField || !partIdField.value) {
+        stockIndicator.className = 'stock-indicator badge bg-secondary w-100 py-2';
+        stockIndicator.textContent = 'Select a part';
+        return;
+      }
+      
+      // Fetch current stock
+      stockIndicator.className = 'stock-indicator badge bg-info w-100 py-2';
+      stockIndicator.textContent = 'Checking...';
+      
+      fetch(`/vmcott/parts/${partIdField.value}/stock`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          const quantity = parseInt(quantityField?.value || 1);
+          const partKey = `part_${partIdField.value}`;
+          
+          if (data.current_stock >= quantity) {
+            stockIndicator.className = 'stock-indicator badge bg-success w-100 py-2';
+            stockIndicator.textContent = `In Stock (${data.current_stock})`;
+            delete partsToOrder[partKey];
+          } else {
+            stockIndicator.className = 'stock-indicator badge bg-danger w-100 py-2';
+            const needed = quantity - data.current_stock;
+            stockIndicator.textContent = `Out of Stock - Need ${needed} more`;
+            partsToOrder[partKey] = true;
+          }
+          updateSummary();
+        })
+        .catch(error => {
+          console.error('Error fetching stock:', error);
+          stockIndicator.className = 'stock-indicator badge bg-danger w-100 py-2';
+          stockIndicator.textContent = 'Error checking stock';
+        });
+    }
+    
+    function updateSummary() {
+      const selectedTemplates = document.querySelectorAll('.template-checkbox:checked').length;
+      const customJobs = document.querySelectorAll('[data-custom-job]').length;
+      const totalParts = document.querySelectorAll('[data-part-row]').length;
+      const partsToOrderCount = Object.keys(partsToOrder).length;
+      
+      console.log('Summary - Jobs:', selectedTemplates + customJobs, 'Parts:', totalParts, 'Parts to order:', partsToOrderCount);
+      
+      document.getElementById('jobs-count').textContent = selectedTemplates + customJobs;
+      document.getElementById('parts-count').textContent = totalParts;
+      document.getElementById('parts-to-order-count').textContent = partsToOrderCount;
+    }
+  }
+})();
 </script>
+
+<style>
+/* Force elements to be visible */
+#custom-jobs-container {
+  display: block !important;
+  min-height: 100px;
+  border: 3px solid #007bff !important;
+  padding: 15px !important;
+  margin-bottom: 15px !important;
+  background-color: #f8f9fa !important;
+}
+
+.custom-job-item {
+  display: block !important;
+  border: 3px solid #28a745 !important;
+  margin: 15px 0 !important;
+  background-color: white !important;
+}
+
+.part-row {
+  display: block !important;
+  border: 2px solid #ffc107 !important;
+  margin: 10px 0 !important;
+  background-color: #fff3cd !important;
+  position: relative;
+  z-index: 1;
+}
+
+.template-parts-container {
+  display: block !important;
+  min-height: 50px;
+  border: 2px dashed #6c757d !important;
+  padding: 10px !important;
+  margin: 10px 0 !important;
+}
+
+.stock-indicator {
+  display: inline-block !important;
+  font-size: 0.85rem;
+  text-align: center;
+  width: 100%;
+  white-space: normal !important;
+  line-height: 1.4;
+}
+
+/* Search results styling - SUPER HIGH Z-INDEX */
+.search-results {
+  position: absolute !important;
+  z-index: 999999 !important;
+  max-height: 300px;
+  overflow-y: auto;
+  background: white !important;
+  border: 2px solid #007bff !important;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+  margin-top: 2px;
+  left: 0;
+  right: 0;
+}
+
+.search-results .dropdown-item {
+  cursor: pointer;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  transition: background-color 0.2s;
+  background-color: white;
+}
+
+.search-results .dropdown-item:hover {
+  background-color: #f8f9fa !important;
+}
+
+/* Position relative for search container */
+.position-relative {
+  position: relative !important;
+  z-index: 9999 !important;
+}
+
+/* Ensure form inputs are visible */
+.form-control {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 9999;
+}
+
+.btn {
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+/* Card shouldn't hide dropdown */
+.card {
+  overflow: visible !important;
+}
+
+.card-body {
+  overflow: visible !important;
+}
+
+.template-parts-container {
+  overflow: visible !important;
+}
+
+.custom-job-parts-container {
+  overflow: visible !important;
+}
+</style>

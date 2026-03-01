@@ -1,77 +1,88 @@
-# app/models/inspection.rb
 class Inspection < ApplicationRecord
   belongs_to :vehicle
   belongs_to :inspector, class_name: 'User'
   belongs_to :purchase_order, optional: true
-  
+  belongs_to :final_inspector, class_name: 'User', optional: true
+
   has_many :inspection_jobs, dependent: :destroy
-  has_many :job_templates, through: :inspection_jobs
-  
-  accepts_nested_attributes_for :inspection_jobs, allow_destroy: true
-  
-  validates :inspector_id, presence: true
-  validates :vehicle_id, presence: true
+  has_many :parts_requests, dependent: :destroy
+
+  # Status workflow - corrected enum syntax for Rails 7+
+  enum :status, {
+    pending_inspection: 'pending_inspection',
+    inspection_completed: 'inspection_completed',
+    parts_coordinator_review: 'parts_coordinator_review',
+    billing_review: 'billing_review',
+    awaiting_customer_approval: 'awaiting_customer_approval',
+    approved_for_repair: 'approved_for_repair',
+    in_progress: 'in_progress',
+    ready_for_qc: 'ready_for_qc',
+    qc_completed: 'qc_completed',
+    ready_for_pickup: 'ready_for_pickup',
+    completed: 'completed'
+  }, default: :pending_inspection, validate: true
+
+  validates :status, presence: true
   validates :mileage_at_inspection, numericality: { greater_than: 0 }, allow_nil: true
-  
-  scope :pending, -> { where(completed_at: nil) }
-  scope :completed, -> { where.not(completed_at: nil) }
-  
-  def completed?
-    completed_at.present?
-  end
-  
+
+  # Scopes for notifications
+  scope :needing_parts_coordinator, -> { where(status: :inspection_completed) }
+  scope :needing_billing_review, -> { where(status: :parts_coordinator_review) }
+  scope :needing_mechanic_notification, -> { where(status: :approved_for_repair) }
+  scope :ready_for_final_qc, -> { where(status: :ready_for_qc) }
+  scope :ready_for_pickup, -> { where(status: :ready_for_pickup) }
+
+  # After inspection is completed, notify parts coordinator if any parts are needed
+  after_update :notify_parts_coordinator_if_needed, if: :saved_change_to_status?
+
   def total_estimated_cost
-    inspection_jobs.sum(&:estimated_total)
+    inspection_jobs.sum(&:estimated_total)  # now sums only labor, parts are separate
   end
-  
-  def create_purchase_order_from_jobs(created_by_user)
-    return if purchase_order.present?
-    
-    po = PurchaseOrder.create!(
-      vehicle: vehicle,
-      vendor: 'VMCOTT',
-      amount: total_estimated_cost,
-      status: 'draft',
-      created_by: created_by_user,
-      notes: "Created from inspection ##{id} on #{created_at.strftime('%B %d, %Y')}",
-      acceptance_status: 'pending_acceptance'
-    )
-    
-    inspection_jobs.each do |job|
-      po.purchase_order_items.create!(
-        description: job.description,
-        quantity: 1,
-        unit_price: job.estimated_total,
-        notes: job.notes,
-        is_accepted: nil
-      )
-      
-      # Add parts from job template
-      if job.job_template.present?
-        job.job_template.job_template_parts.each do |template_part|
-          po.purchase_order_items.create!(
-            part_id: template_part.part_id,
-            description: "Part for #{job.description}: #{template_part.part.name}",
-            quantity: template_part.quantity,
-            unit_price: template_part.part.current_price,
-            is_accepted: nil
-          )
-        end
-      end
+
+  def all_parts_available?
+    parts_requests.where(status: ['pending', 'ordered']).none?
+  end
+
+  def check_parts_availability!
+    if all_parts_available?
+      update(status: 'approved_for_repair')
+      notify_mechanics!
     end
-    
-    po.recalculate_amount!
-    po
   end
-  
-  def recommend_next_service
-    return unless mileage_at_inspection.present? && next_service_mileage.present?
-    
-    {
-      current_mileage: mileage_at_inspection,
-      next_service_at: next_service_mileage,
-      kilometers_remaining: next_service_mileage - mileage_at_inspection,
-      estimated_date: next_service_date
-    }
+
+  def notify_parts_coordinator!
+    update(parts_coordinator_notified_at: Time.current)
+    # In a real app, enqueue a background job
+    if defined?(PartsCoordinatorNotificationJob)
+      PartsCoordinatorNotificationJob.perform_later(id)
+    else
+      Rails.logger.info "Would notify parts coordinator for inspection #{id}"
+    end
+  end
+
+  def notify_mechanics!
+    update(mechanic_notified_at: Time.current)
+    if defined?(MechanicNotificationJob)
+      MechanicNotificationJob.perform_later(id)
+    else
+      Rails.logger.info "Would notify mechanics for inspection #{id}"
+    end
+  end
+
+  def notify_billing_team!
+    update(billing_notified_at: Time.current)
+    if defined?(BillingNotificationJob)
+      BillingNotificationJob.perform_later(id)
+    else
+      Rails.logger.info "Would notify billing team for inspection #{id}"
+    end
+  end
+
+  private
+
+  def notify_parts_coordinator_if_needed
+    if status == 'inspection_completed' && parts_requests.any?
+      notify_parts_coordinator!
+    end
   end
 end

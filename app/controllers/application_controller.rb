@@ -28,6 +28,7 @@ class ApplicationController < ActionController::Base
   before_action :check_for_turbo_frame
   before_action :set_agency_theme
   before_action :prevent_real_payments_in_dev
+  before_action :set_notification_counts, if: :user_signed_in?  # ADD THIS
   
   # Set Current context for POS transactions
   around_action :set_current_context
@@ -148,6 +149,67 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
+  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES
+  # =====================================================
+  def set_notification_counts
+    return unless current_user.present?
+    
+    # General notifications for all users
+    if defined?(Notification)
+      @unread_notifications_count = Notification.where(user: current_user, read: false).count
+      @recent_notifications = Notification.where(user: current_user)
+                                          .order(created_at: :desc)
+                                          .limit(5)
+    end
+    
+    # Role-specific counts for VMCOTT users
+    if current_user.agency&.code == 'VMCOTT'
+      
+      # Inspector counts
+      if current_user.inspector? || current_user.admin?
+        @pending_inspections_count = Inspection.where(status: 'pending_inspection').count
+        @pending_qc_count = Inspection.where(status: 'ready_for_qc').count
+      end
+      
+      # Parts Coordinator counts
+      if current_user.parts_coordinator? || current_user.admin?
+        @pending_parts_count = PartsRequest.where(status: 'pending').count
+        @pending_parts_review_count = PartsRequest.where(status: 'pending').count
+        @parts_received_count = PartsRequest.where(status: 'parts_received').count
+      end
+      
+      # Mechanic counts
+      if current_user.mechanic? || current_user.admin?
+        @available_jobs_count = InspectionJob.where(assigned_mechanic_id: nil, completed_at: nil)
+                                            .where.not(inspection_id: Inspection.where(status: 'pending_inspection').select(:id))
+                                            .count
+        @pending_qc_count = Inspection.where(status: 'ready_for_qc').count
+        @my_assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id, completed_at: nil).count
+      end
+      
+      # Billing/Finance counts
+      if current_user.finance? || current_user.admin?
+        @pending_quotations_count = VendorQuotation.where(status: 'received').count
+        @pending_rfqs_count = VendorRfq.where(status: 'draft').count
+        @ready_for_pickup_count = Inspection.where(status: 'ready_for_pickup').count
+        @pending_invoices_count = Invoice.where(status: 'pending').count
+      end
+      
+      # Workshop Supervisor counts
+      if current_user.maintenance_supervisor? || current_user.admin?
+        @overdue_jobs_count = InspectionJob.where('estimated_completion_date < ?', Date.today)
+                                          .where(completed_at: nil)
+                                          .count
+        @pending_supervisor_review_count = Inspection.where(status: 'ready_for_qc').count
+      end
+      
+    else
+      # Non-VMCOTT users (agencies) see alerts
+      @alerts_count = Alert.where(agency_id: current_user.agency_id, status: 'active').count if defined?(Alert)
+    end
+  end
+
+  # =====================================================
   # Helper Methods
   # =====================================================
   helper_method :current_agency, 
@@ -173,6 +235,16 @@ class ApplicationController < ActionController::Base
                 :can_view_reports?,
                 :can_close_register?,
                 :invoice_status_badge_color,
+                # Notification count helpers
+                :unread_notifications_count,
+                :pending_inspections_count,
+                :pending_parts_count,
+                :available_jobs_count,
+                :pending_qc_count,
+                :pending_quotations_count,
+                :ready_for_pickup_count,
+                :my_assigned_jobs_count,
+                :alerts_count,
                 # VMCOTT Namespaced Route Helpers
                 :vmcott_receptionist_dashboard_path,
                 :vmcott_inspector_dashboard_path,
@@ -236,6 +308,43 @@ class ApplicationController < ActionController::Base
 
   def current_user_role
     current_user&.role || 'guest'
+  end
+
+  # Notification count accessors (with defaults)
+  def unread_notifications_count
+    @unread_notifications_count || 0
+  end
+
+  def pending_inspections_count
+    @pending_inspections_count || 0
+  end
+
+  def pending_parts_count
+    @pending_parts_count || 0
+  end
+
+  def available_jobs_count
+    @available_jobs_count || 0
+  end
+
+  def pending_qc_count
+    @pending_qc_count || 0
+  end
+
+  def pending_quotations_count
+    @pending_quotations_count || 0
+  end
+
+  def ready_for_pickup_count
+    @ready_for_pickup_count || 0
+  end
+
+  def my_assigned_jobs_count
+    @my_assigned_jobs_count || 0
+  end
+
+  def alerts_count
+    @alerts_count || 0
   end
 
   # POS permissions

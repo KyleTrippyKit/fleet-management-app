@@ -1,5 +1,5 @@
-<%# app/views/shared/_navigation.html.erb - COMPLETE ROLE-BASED DASHBOARD NAVIGATION %>
-<%# Includes all VMCOTT workflow roles: Receptionist, Inspector, Parts Coordinator, Mechanic, Workshop Supervisor, Billing %>
+<%# app/views/shared/_navigation.html.erb - COMPLETE ROLE-BASED DASHBOARD NAVIGATION WITH NOTIFICATIONS %>
+<%# Updated to match VMCOTT workflow - COMPATIBLE WITH EXISTING ROUTES %>
 
 <% return unless current_user.present? %>
 
@@ -10,20 +10,39 @@
 <% is_admin   = !!current_user&.admin? %>
 
 <%# ============================================================
+    NOTIFICATION COUNTS - FETCH FOR EACH ROLE
+   ============================================================ %>
+<%
+  # These would be helper methods or instance variables set in ApplicationController
+  @unread_notifications_count ||= 0
+  @pending_inspections_count ||= 0
+  @pending_parts_count ||= 0
+  @pending_quotations_count ||= 0
+  @available_jobs_count ||= 0
+  @pending_qc_count ||= 0
+  @ready_for_pickup_count ||= 0
+  @parts_needing_review_count ||= 0
+  @parts_to_order_count ||= 0
+%>
+
+<%# ============================================================
     VMCOTT ROLE DEFINITIONS
    ============================================================ %>
 <% is_vmcott_admin           = is_admin && agency_code == "VMCOTT" %>
 <% is_vmcott_staff           = user_role == 'vmcott_staff' %>
 <% is_vmcott_finance         = user_role == 'finance' && agency_code == "VMCOTT" %>
-<% is_vmcott_workshop_manager = user_role == 'workshop_manager' %>
-<% is_vmcott_inventory_clerk  = user_role == 'inventory_clerk' %>
+<% is_vmcott_workshop_manager = user_role == 'workshop_manager' && agency_code == "VMCOTT" %>
+<% is_vmcott_inventory_clerk  = user_role == 'inventory_clerk' && agency_code == "VMCOTT" %>
 
-<%# NEW: Explicit VMCOTT workflow roles %>
+<%# Explicit VMCOTT workflow roles %>
 <% is_vmcott_receptionist     = user_role == 'receptionist' && agency_code == "VMCOTT" %>
 <% is_vmcott_inspector        = user_role == 'inspector' && agency_code == "VMCOTT" %>
 <% is_vmcott_parts_coordinator = user_role == 'parts_coordinator' && agency_code == "VMCOTT" %>
 <% is_vmcott_mechanic         = user_role == 'mechanic' && agency_code == "VMCOTT" %>
 <% is_vmcott_billing          = user_role == 'finance' && agency_code == "VMCOTT" %>
+
+<%# New separate billing/finance distinction %>
+<% is_vmcott_billing_team     = user_role == 'billing' && agency_code == "VMCOTT" %>
 
 <%# Regular users see only their specific role %>
 <% is_fleet_manager          = user_role == 'fleet_manager' %>
@@ -52,6 +71,7 @@
     <% is_vmcott_parts_coordinator = true %>
     <% is_vmcott_mechanic = true %>
     <% is_vmcott_billing = true %>
+    <% is_vmcott_billing_team = true %>
   <% else %>
     <% is_fleet_manager = true %>
     <% is_maintenance_supervisor = true %>
@@ -67,45 +87,62 @@
 <%# Only VMCOTT can write maintenance - PTSC users cannot add maintenance even if admin %>
 <% can_write_maintenance = agency_code == "VMCOTT" %>
 
-<%# ROLE-BASED DASHBOARD PATH - MATCHES HOMECONTROLLER LOGIC %>
+<%# ============================================================
+    ROLE-BASED DASHBOARD PATH - USING EXISTING ROUTES
+   ============================================================ %>
 <%
-  # PTSC Admin goes to PTSC dashboard
-  if agency_code == "PTSC" && current_user.admin?
-    dashboard_path = ptsc_dashboard_path
-  # PTSC users by role
-  elsif agency_code == "PTSC"
+  # Determine the correct dashboard path for each user type
+  dashboard_path = if agency_code == "PTSC"
     case current_user.role
     when 'fleet_manager'
-      dashboard_path = ptsc_fleet_dashboard_path
+      ptsc_fleet_dashboard_path
     when 'finance'
-      dashboard_path = ptsc_finance_dashboard_path
+      ptsc_finance_dashboard_path
     when 'driver'
-      dashboard_path = ptsc_driver_dashboard_path
+      ptsc_driver_dashboard_path
     when 'maintenance_supervisor', 'maintenance'
-      dashboard_path = ptsc_maintenance_dashboard_path
-    else
-      dashboard_path = ptsc_dashboard_path
-    end
-  # VMCOTT users (including admins) always go to VMCOTT dashboard
-  elsif agency_code == "VMCOTT"
-    dashboard_path = vmcott_dashboard_path
-  else
-    # For other agencies, use role-based routing
-    case current_user.role
+      ptsc_maintenance_dashboard_path
     when 'admin'
-      dashboard_path = main_dashboard_path
-    when 'fleet_manager'
-      if agency.present?
-        dashboard_path = agency_vehicles_path(agency)
-      else
-        dashboard_path = main_dashboard_path
-      end
+      ptsc_dashboard_path
+    else
+      ptsc_dashboard_path
+    end
+  elsif agency_code == "VMCOTT"
+    # VMCOTT users get role-specific dashboards
+    case current_user.role
+    when 'receptionist'
+      vmcott_receptionist_dashboard_path
+    when 'inspector'
+      vmcott_inspector_dashboard_path
+    when 'parts_coordinator'
+      vmcott_parts_coordinator_dashboard_path
+    when 'mechanic'
+      vmcott_mechanic_dashboard_path
+    when 'workshop_manager'
+      vmcott_workshop_supervisor_dashboard_path
     when 'finance'
-      dashboard_path = main_dashboard_path
+      vmcott_billing_dashboard_path
+    when 'billing'
+      # For new billing role, fallback to finance dashboard for now
+      vmcott_billing_dashboard_path
+    when 'admin'
+      vmcott_dashboard_path
+    else
+      vmcott_dashboard_path
+    end
+  else
+    # Other agencies (TTPS, TTDF, HEALTH, etc.)
+    case current_user.role
+    when 'fleet_manager'
+      agency.present? ? agency_vehicles_path(agency) : main_dashboard_path
+    when 'finance'
+      main_dashboard_path
     when 'driver'
-      dashboard_path = driver_dashboard_path
+      driver_dashboard_path
     when 'maintenance_supervisor', 'maintenance'
-      dashboard_path = maintenance_dashboard_path
+      maintenance_dashboard_path
+    when 'admin'
+      main_dashboard_path
     else
       # Legacy agency-based dashboards as fallback
       case agency_code
@@ -132,6 +169,341 @@
             <i class="bi bi-speedometer2 me-1"></i> Dashboard
           <% end %>
 
+          <!-- ================= VMCOTT WORKFLOW NAVIGATION - USING EXISTING ROUTES ================= -->
+          <% if agency_code == "VMCOTT" %>
+
+            <!-- STEP 1: RECEPTIONIST -->
+            <% if is_vmcott_receptionist || is_admin %>
+              <%= link_to vmcott_receptionist_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_receptionist_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-door-open me-1"></i> Reception
+              <% end %>
+            <% end %>
+
+            <!-- STEP 2: INSPECTOR -->
+            <% if is_vmcott_inspector || is_admin %>
+              <%= link_to vmcott_inspector_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_inspector_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-search me-1"></i> Inspector
+                <% if @pending_inspections_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= @pending_inspections_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- STEP 3: PARTS COORDINATOR -->
+            <% if is_vmcott_parts_coordinator || is_admin %>
+              <%= link_to vmcott_parts_coordinator_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_parts_coordinator_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-box-seam me-1"></i> Parts Coordinator
+                <% if @pending_parts_count > 0 || @parts_needing_review_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= @pending_parts_count + @parts_needing_review_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- STEP 4: BILLING TEAM (RFQs) - Using existing finance routes -->
+            <% if is_vmcott_billing || is_vmcott_billing_team || is_admin %>
+              <%= link_to vmcott_billing_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_billing_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-envelope-paper me-1"></i> Billing
+                <% if @pending_quotations_count > 0 || @parts_to_order_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning" style="color: #000;">
+                    <%= @pending_quotations_count + @parts_to_order_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- STEP 5: FINANCE TEAM (Quotations) -->
+            <% if is_vmcott_finance || is_admin %>
+              <%= link_to vmcott_billing_dashboard_path, 
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_billing_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-cash-stack me-1"></i> Finance
+                <% if @pending_quotations_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= @pending_quotations_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- STEP 6: MECHANIC -->
+            <% if is_vmcott_mechanic || is_admin %>
+              <%= link_to vmcott_mechanic_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_mechanic_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-tools me-1"></i> Mechanic
+                <% if @available_jobs_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
+                    <%= @available_jobs_count %>
+                  </span>
+                <% end %>
+                <% if @pending_qc_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning" style="color: #000;">
+                    QC:<%= @pending_qc_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- READY FOR PICKUP -->
+            <% if is_vmcott_billing || is_vmcott_finance || is_admin %>
+              <%= link_to vmcott_billing_invoices_path(status: 'pending'), 
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative btn-outline-primary" do %>
+                <i class="bi bi-truck me-1"></i> Ready for Pickup
+                <% if @ready_for_pickup_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
+                    <%= @ready_for_pickup_count %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+          <% end %>
+
+          <!-- ================= NOTIFICATION CENTER - FOR ALL VMCOTT ROLES ================= -->
+          <% if agency_code == "VMCOTT" && (is_vmcott_receptionist || is_vmcott_inspector || is_vmcott_parts_coordinator || is_vmcott_mechanic || is_vmcott_billing || is_admin) %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle position-relative"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-bell me-1"></i> Notifications
+                <% if @unread_notifications_count > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= @unread_notifications_count %>
+                    <span class="visually-hidden">unread notifications</span>
+                  </span>
+                <% end %>
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float dropdown-scroll" style="min-width: 300px;">
+                <li class="dropdown-section">🔔 RECENT NOTIFICATIONS</li>
+                
+                <%# This would be populated from a @recent_notifications variable %>
+                <% if @recent_notifications && @recent_notifications.any? %>
+                  <% @recent_notifications.each do |notification| %>
+                    <li>
+                      <%= link_to notification_path(notification), class: "dropdown-item #{'fw-bold' unless notification.read?}" do %>
+                        <div class="d-flex align-items-center">
+                          <div class="me-2">
+                            <% case notification.notifiable_type %>
+                            <% when 'Inspection' %>
+                              <i class="bi bi-search text-info"></i>
+                            <% when 'PartsRequest' %>
+                              <i class="bi bi-box-seam text-warning"></i>
+                            <% when 'PurchaseOrder' %>
+                              <i class="bi bi-file-text text-success"></i>
+                            <% else %>
+                              <i class="bi bi-bell text-primary"></i>
+                            <% end %>
+                          </div>
+                          <div class="flex-grow-1">
+                            <div><%= notification.title %></div>
+                            <small class="text-muted"><%= time_ago_in_words(notification.created_at) %> ago</small>
+                          </div>
+                          <% unless notification.read? %>
+                            <span class="badge bg-danger rounded-pill ms-2">New</span>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </li>
+                  <% end %>
+                <% else %>
+                  <li><span class="dropdown-item text-muted">No notifications</span></li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
+          <!-- ================= WORKFLOW DROPDOWN (COMPLETE VIEW) - USING EXISTING ROUTES ================= -->
+          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_workshop_manager || is_vmcott_staff) %>
+            <div class="dropdown nav-dd">
+              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      data-bs-boundary="viewport"
+                      data-bs-display="static">
+                <i class="bi bi-diagram-3 me-1"></i> Full Workflow
+              </button>
+
+              <ul class="dropdown-menu dropdown-menu-float dropdown-scroll">
+                
+                <%# RECEPTION %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_receptionist %>
+                  <li class="dropdown-section">🚪 1. RECEPTION</li>
+                  <li>
+                    <%= link_to vmcott_receptionist_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-person-badge me-2"></i> Vehicle Reception
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_receptionist_scan_path, class: "dropdown-item" do %>
+                      <i class="bi bi-qr-code-scan me-2"></i> Scan QR Code
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# INSPECTION %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_inspector %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">🔍 2. INSPECTION</li>
+                  <li>
+                    <%= link_to vmcott_inspector_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-search me-2"></i> Inspections Dashboard
+                      <% if @pending_inspections_count > 0 %>
+                        <span class="badge bg-danger float-end"><%= @pending_inspections_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_inspector_inspections_path, class: "dropdown-item" do %>
+                      <i class="bi bi-list-check me-2"></i> All Inspections
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# PARTS COORDINATOR %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_parts_coordinator %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">📦 3. PARTS COORDINATION</li>
+                  <li>
+                    <%= link_to vmcott_parts_coordinator_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-box-seam me-2"></i> Parts Dashboard
+                      <% if @pending_parts_count > 0 %>
+                        <span class="badge bg-danger float-end"><%= @pending_parts_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_parts_path, class: "dropdown-item" do %>
+                      <i class="bi bi-gear me-2"></i> Parts Catalog
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_inventory_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-archive me-2"></i> Inventory Lookup
+                    <% end %>
+                  </li>
+                <% end %>
+                
+                <%# BILLING (RFQs) %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_billing || is_vmcott_billing_team %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">📨 4. BILLING (RFQs)</li>
+                  <li>
+                    <%= link_to vmcott_billing_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-envelope-paper me-2"></i> Billing Dashboard
+                      <% if @pending_quotations_count > 0 %>
+                        <span class="badge bg-danger float-end"><%= @pending_quotations_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_rfq_inbox_path, class: "dropdown-item" do %>
+                      <i class="bi bi-inbox me-2"></i> RFQ Inbox
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to suppliers_path, class: "dropdown-item" do %>
+                      <i class="bi bi-building me-2"></i> Suppliers/Vendors
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# FINANCE (Quotations) %>
+                <% if is_admin || is_vmcott_staff || is_vmcott_finance %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">💰 5. FINANCE (Quotations)</li>
+                  <li>
+                    <%= link_to vmcott_billing_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-cash-stack me-2"></i> Review Quotations
+                      <% if @pending_quotations_count > 0 %>
+                        <span class="badge bg-danger float-end"><%= @pending_quotations_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_quotation_workspace_path, class: "dropdown-item" do %>
+                      <i class="bi bi-clipboard-data me-2"></i> Quotation Workspace
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to purchase_orders_path, class: "dropdown-item" do %>
+                      <i class="bi bi-bag-check me-2"></i> Purchase Orders
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# WORKSHOP %>
+                <% if is_admin || is_vmcott_workshop_manager || is_vmcott_mechanic %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">🔧 6. WORKSHOP</li>
+                  <li>
+                    <%= link_to vmcott_mechanic_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-tools me-2"></i> Jobs by Vehicle
+                      <% if @available_jobs_count > 0 %>
+                        <span class="badge bg-success float-end"><%= @available_jobs_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to active_work_vmcott_internal_pos_path, class: "dropdown-item" do %>
+                      <i class="bi bi-play-circle me-2"></i> Active Work Orders
+                    <% end %>
+                  </li>
+                  <% if is_admin || is_vmcott_workshop_manager %>
+                    <li>
+                      <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "dropdown-item" do %>
+                        <i class="bi bi-clipboard-check me-2"></i> Supervisor View
+                      <% end %>
+                    </li>
+                  <% end %>
+                <% end %>
+
+                <%# QUALITY CONTROL %>
+                <% if is_admin || is_vmcott_inspector %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">✅ 7. QUALITY CONTROL</li>
+                  <li>
+                    <%= link_to vmcott_inspector_dashboard_path, class: "dropdown-item" do %>
+                      <i class="bi bi-clipboard-check me-2"></i> Pending QC
+                      <% if @pending_qc_count > 0 %>
+                        <span class="badge bg-warning float-end"><%= @pending_qc_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                <% end %>
+
+                <%# INVOICING %>
+                <% if is_admin || is_vmcott_finance || is_vmcott_billing %>
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-section">💵 8. INVOICING</li>
+                  <li>
+                    <%= link_to vmcott_billing_invoices_path, class: "dropdown-item" do %>
+                      <i class="bi bi-receipt me-2"></i> All Invoices
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to vmcott_billing_invoices_path(status: 'pending'), class: "dropdown-item" do %>
+                      <i class="bi bi-truck me-2"></i> Ready for Pickup
+                      <% if @ready_for_pickup_count > 0 %>
+                        <span class="badge bg-success float-end"><%= @ready_for_pickup_count %></span>
+                      <% end %>
+                    <% end %>
+                  </li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
           <!-- ================= Admin Section - PTSC ONLY ================= -->
           <% if current_user.admin? && agency_code == "PTSC" %>
             <div class="dropdown nav-dd">
@@ -156,7 +528,6 @@
                     <i class="bi bi-person-plus me-2"></i> Create New User
                   <% end %>
                 </li>
-                <!-- MANAGE AGENCIES LINK REMOVED - PTSC only manages its own users -->
               </ul>
             </div>
           <% end %>
@@ -253,8 +624,6 @@
 
               <ul class="dropdown-menu dropdown-menu-float">
                 <li class="dropdown-section">MAINTENANCE</li>
-
-                <!-- REMOVED: Dashboard link from Maintenance dropdown -->
 
                 <li>
                   <%= link_to gantt_path, class: "dropdown-item" do %>
@@ -355,158 +724,6 @@
             </div>
           <% end %>
 
-          <!-- ================= WORKFLOW (VMCOTT Internal) - COMPLETE ================= -->
-          <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_staff || is_vmcott_workshop_manager || is_vmcott_inventory_clerk || is_vmcott_receptionist || is_vmcott_inspector || is_vmcott_parts_coordinator || is_vmcott_mechanic) %>
-            <div class="dropdown nav-dd">
-              <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle"
-                      type="button"
-                      data-bs-toggle="dropdown"
-                      aria-expanded="false"
-                      data-bs-boundary="viewport"
-                      data-bs-display="static">
-                <i class="bi bi-gear-wide-connected me-1"></i> Workflow
-              </button>
-
-              <ul class="dropdown-menu dropdown-menu-float dropdown-scroll">
-                
-                <%# RECEPTION %>
-                <% if is_admin || is_vmcott_staff || is_vmcott_receptionist %>
-                  <li class="dropdown-section">🚪 RECEPTION</li>
-                  <li>
-                    <%= link_to vmcott_receptionist_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-person-badge me-2"></i> Vehicle Reception
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_receptionist_scan_path, class: "dropdown-item" do %>
-                      <i class="bi bi-qr-code-scan me-2"></i> Scan QR Code
-                    <% end %>
-                  </li>
-                <% end %>
-
-                <%# INSPECTION %>
-                <% if is_admin || is_vmcott_staff || is_vmcott_inspector %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">🔍 INSPECTION</li>
-                  <li>
-                    <%= link_to vmcott_inspector_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-search me-2"></i> Inspections Dashboard
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_inspector_inspections_path, class: "dropdown-item" do %>
-                      <i class="bi bi-list-check me-2"></i> All Inspections
-                    <% end %>
-                  </li>
-                <% end %>
-
-                <%# PARTS COORDINATOR %>
-                <% if is_admin || is_vmcott_staff || is_vmcott_parts_coordinator %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📦 PARTS</li>
-                  <li>
-                    <%= link_to vmcott_parts_coordinator_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-box-seam me-2"></i> Parts Dashboard
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_parts_path, class: "dropdown-item" do %>
-                      <i class="bi bi-gear me-2"></i> Parts Catalog
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_parts_coordinator_new_rfq_path(part_id: 0), class: "dropdown-item" do %>
-                      <i class="bi bi-file-earmark-plus me-2"></i> Create RFQ
-                    <% end %>
-                  </li>
-                <% end %>
-                
-                <%# RFQ PROCESSING %>
-                <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📋 RFQ PROCESSING</li>
-                  <li>
-                    <%= link_to vmcott_rfq_inbox_path, class: "dropdown-item" do %>
-                      <i class="bi bi-inbox me-2"></i> RFQ Inbox
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_quotation_workspace_path, class: "dropdown-item" do %>
-                      <i class="bi bi-clipboard-data me-2"></i> Quotation Workspace
-                    <% end %>
-                  </li>
-                <% end %>
-
-                <%# WORKSHOP OPERATIONS %>
-                <% if is_admin || is_vmcott_workshop_manager || is_vmcott_mechanic %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">🔧 WORKSHOP</li>
-                  <li>
-                    <%= link_to vmcott_mechanic_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-tools me-2"></i> Mechanic Dashboard
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to active_work_vmcott_internal_pos_path, class: "dropdown-item" do %>
-                      <i class="bi bi-play-circle me-2"></i> Active Work Orders
-                    <% end %>
-                  </li>
-                  <% if is_admin || is_vmcott_workshop_manager %>
-                    <li>
-                      <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "dropdown-item" do %>
-                        <i class="bi bi-clipboard-check me-2"></i> Supervisor View
-                      <% end %>
-                    </li>
-                  <% end %>
-                <% end %>
-
-                <%# ORDERS %>
-                <% if is_admin || is_vmcott_staff || is_vmcott_workshop_manager %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📦 ORDERS</li>
-                  <li>
-                    <%= link_to purchase_orders_path, class: "dropdown-item" do %>
-                      <i class="bi bi-bag-check me-2"></i> Purchase Orders
-                    <% end %>
-                  </li>
-                <% end %>
-
-                <%# INVENTORY %>
-                <% if is_admin || is_vmcott_inventory_clerk || is_vmcott_staff %>
-                  <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📦 INVENTORY</li>
-                  <li>
-                    <%= link_to vmcott_inventory_dashboard_path, class: "dropdown-item" do %>
-                      <i class="bi bi-box-seam me-2"></i> Inventory Dashboard
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to vmcott_parts_path, class: "dropdown-item" do %>
-                      <i class="bi bi-gear me-2"></i> Parts Catalog
-                    <% end %>
-                  </li>
-                  <li>
-                    <%= link_to suppliers_path, class: "dropdown-item" do %>
-                      <i class="bi bi-building me-2"></i> Suppliers
-                    <% end %>
-                  </li>
-                <% end %>
-
-                <%# MONITORING %>
-                <li><hr class="dropdown-divider"></li>
-                <li class="dropdown-section">📊 MONITORING</li>
-                <li>
-                  <%= link_to alerts_path, class: "dropdown-item" do %>
-                    <i class="bi bi-bell me-2"></i> System Alerts
-                    <% if Alert.active.count > 0 %>
-                      <span class="badge bg-danger ms-2"><%= Alert.active.count %></span>
-                    <% end %>
-                  <% end %>
-                </li>
-              </ul>
-            </div>
-          <% end %>
-
           <!-- ================= FINANCE (VMCOTT) - COMPLETE ================= -->
           <% if agency_code == "VMCOTT" && (is_admin || is_vmcott_finance || is_vmcott_billing) %>
             <div class="dropdown nav-dd">
@@ -529,11 +746,22 @@
                 <li>
                   <%= link_to vmcott_billing_dashboard_path, class: "dropdown-item" do %>
                     <i class="bi bi-speedometer2 me-2"></i> Billing Dashboard
+                    <% if @pending_quotations_count > 0 %>
+                      <span class="badge bg-danger float-end"><%= @pending_quotations_count %></span>
+                    <% end %>
                   <% end %>
                 </li>
                 <li>
                   <%= link_to new_vmcott_billing_invoice_path, class: "dropdown-item" do %>
                     <i class="bi bi-plus-circle me-2"></i> Create Invoice
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to vmcott_billing_invoices_path(status: 'pending'), class: "dropdown-item" do %>
+                    <i class="bi bi-truck me-2"></i> Ready for Pickup
+                    <% if @ready_for_pickup_count > 0 %>
+                      <span class="badge bg-success float-end"><%= @ready_for_pickup_count %></span>
+                    <% end %>
                   <% end %>
                 </li>
 
@@ -560,6 +788,20 @@
                 <li>
                   <%= link_to account_transactions_path, class: "dropdown-item" do %>
                     <i class="bi bi-list me-2"></i> Transactions
+                  <% end %>
+                </li>
+
+                <!-- FINANCE INVENTORY TOOLS -->
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-section">📦 INVENTORY TOOLS</li>
+                <li>
+                  <%= link_to vmcott_inventory_adjust_stock_path(0), class: "dropdown-item" do %>
+                    <i class="bi bi-arrow-left-right me-2"></i> 📊 Adjust Stock
+                  <% end %>
+                </li>
+                <li>
+                  <%= link_to vmcott_inventory_new_purchase_request_path, class: "dropdown-item" do %>
+                    <i class="bi bi-cart-plus me-2"></i> 🔄 Manual Reorder
                   <% end %>
                 </li>
               </ul>
@@ -676,11 +918,21 @@
         <!-- RIGHT -->
         <div class="d-flex gap-2 align-items-center">
 
-          <%# Optional: show agency code pill for quick context %>
-          <% if agency_code.present? %>
+          <%# Show user role and notification bell for non-VMCOTT users %>
+          <% if agency_code.present? && agency_code != "VMCOTT" %>
             <span class="badge nav-agency-pill">
               <i class="bi bi-building me-1"></i> <%= agency_code %>
             </span>
+            
+            <%# Simple notification bell for non-VMCOTT users %>
+            <%= link_to alerts_path, class: "btn btn-sm btn-outline-primary rounded-pill px-3 py-2 position-relative" do %>
+              <i class="bi bi-bell"></i>
+              <% if @alerts_count && @alerts_count > 0 %>
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                  <%= @alerts_count %>
+                </span>
+              <% end %>
+            <% end %>
           <% end %>
 
           <%= button_to destroy_user_session_path,
@@ -893,6 +1145,12 @@
     cursor: not-allowed;
     pointer-events: none;
     background: rgba(0,0,0,0.10);
+  }
+
+  /* Badge positioning for notification counts */
+  .position-relative .badge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.4rem;
   }
 
   @media (max-width: 576px) {

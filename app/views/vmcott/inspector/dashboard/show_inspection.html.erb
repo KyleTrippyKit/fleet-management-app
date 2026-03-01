@@ -9,19 +9,24 @@
         </div>
         <div>
           <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary me-2" %>
+          <% if @inspection.status == 'ready_for_pickup' %>
+            <%= link_to "View Invoice", invoice_path(@inspection.invoice) if @inspection.invoice.present? %>
+          <% end %>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Status Banner -->
-  <div class="alert <%= @inspection.completed_at.present? ? 'alert-success' : 'alert-primary' %> mb-4">
+  <div class="alert alert-<%= inspection_status_color(@inspection.status) %> mb-4">
     <div class="d-flex align-items-center">
-      <i class="bi <%= @inspection.completed_at.present? ? 'bi-check-circle-fill' : 'bi-clock-fill' %> fs-3 me-3"></i>
+      <i class="bi <%= inspection_status_icon(@inspection.status) %> fs-3 me-3"></i>
       <div>
-        <strong>Status:</strong> <%= @inspection.completed_at.present? ? 'Completed' : 'In Progress' %>
-        <% if @inspection.completed_at %>
-          <br><small>Completed: <%= @inspection.completed_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+        <strong>Status:</strong> <%= @inspection.status.titleize %>
+        <% if @inspection.ready_for_pickup_at %>
+          <br><small>Ready for pickup: <%= @inspection.ready_for_pickup_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+        <% elsif @inspection.completed_at %>
+          <br><small>Inspection completed: <%= @inspection.completed_at.strftime("%B %d, %Y at %I:%M %p") %></small>
         <% end %>
       </div>
     </div>
@@ -49,6 +54,10 @@
                 <tr>
                   <th>Year:</th>
                   <td><%= @inspection.vehicle.year_of_manufacture %></td>
+                </tr>
+                <tr>
+                  <th>Agency:</th>
+                  <td><%= @inspection.vehicle.agency&.name || 'Unknown' %></td>
                 </tr>
               </table>
             </div>
@@ -90,11 +99,11 @@
         </div>
       <% end %>
 
-      <!-- Inspection Jobs Card -->
+      <!-- Required Jobs Card -->
       <% if @inspection.inspection_jobs.any? %>
         <div class="card mb-4">
           <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="bi bi-tools me-2"></i>Recommended Jobs</h5>
+            <h5 class="mb-0"><i class="bi bi-tools me-2"></i>Required Jobs</h5>
           </div>
           <div class="card-body">
             <div class="table-responsive">
@@ -103,9 +112,8 @@
                   <tr>
                     <th>Job</th>
                     <th>Description</th>
-                    <th>Labor Cost</th>
-                    <th>Parts Cost</th>
-                    <th>Total</th>
+                    <th>Parts Required</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,18 +128,113 @@
                         <% end %>
                       </td>
                       <td><%= job.description || job.job_template&.description %></td>
-                      <td><%= number_to_currency(job.estimated_labor_cost) %></td>
-                      <td><%= number_to_currency(job.estimated_parts_cost) %></td>
-                      <td><strong><%= number_to_currency(job.estimated_total) %></strong></td>
+                      <td>
+                        <% if job.inspection_job_parts.any? %>
+                          <ul class="list-unstyled mb-0">
+                            <% job.inspection_job_parts.each do |part_item| %>
+                              <li class="mb-2">
+                                <div class="d-flex align-items-center">
+                                  <i class="bi bi-gear me-2"></i>
+                                  <div class="flex-grow-1">
+                                    <strong><%= part_item.part_name %></strong> 
+                                    <span class="badge bg-secondary ms-2">x<%= part_item.quantity %></span>
+                                    
+                                    <% if part_item.custom? %>
+                                      <span class="badge bg-warning ms-2">Custom Part</span>
+                                    <% end %>
+                                    
+                                    <% if part_item.customer_approved? %>
+                                      <span class="badge bg-success ms-2">Approved</span>
+                                    <% else %>
+                                      <span class="badge bg-secondary ms-2">Pending Approval</span>
+                                    <% end %>
+                                  </div>
+                                </div>
+                                
+                                <!-- Show stock info for inventory parts -->
+                                <% if part_item.inventory? && part_item.part.present? %>
+                                  <div class="ms-4 small text-muted">
+                                    Part #: <%= part_item.part.part_number %> | 
+                                    Stock: <%= part_item.part.current_stock %> <%= part_item.part.unit_of_measure %>
+                                  </div>
+                                <% end %>
+                              </li>
+                            <% end %>
+                          </ul>
+                        <% else %>
+                          <span class="text-muted">No parts required</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% if job.completed_at %>
+                          <span class="badge bg-success">Completed</span>
+                          <br><small class="text-muted"><%= job.completed_at.strftime("%m/%d/%Y") %></small>
+                        <% elsif job.assigned_mechanic_id %>
+                          <span class="badge bg-primary">In Progress</span>
+                        <% else %>
+                          <span class="badge bg-secondary">Pending</span>
+                        <% end %>
+                      </td>
                     </tr>
                   <% end %>
                 </tbody>
-                <tfoot class="table-light">
+              </table>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Parts Request Status -->
+      <% if @inspection.parts_requests.any? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Parts Procurement Status</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
                   <tr>
-                    <th colspan="4" class="text-end">Total Estimated Cost:</th>
-                    <th><%= number_to_currency(@inspection.total_estimated_cost) %></th>
+                    <th>Part</th>
+                    <th>Quantity</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Details</th>
                   </tr>
-                </tfoot>
+                </thead>
+                <tbody>
+                  <% @inspection.parts_requests.each do |pr| %>
+                    <tr>
+                      <td>
+                        <strong><%= pr.part_name %></strong>
+                        <% if pr.part.present? %>
+                          <br><small class="text-muted"><%= pr.part.part_number %></small>
+                        <% end %>
+                      </td>
+                      <td><%= pr.quantity %></td>
+                      <td>
+                        <% if pr.custom? %>
+                          <span class="badge bg-warning">Custom</span>
+                        <% else %>
+                          <span class="badge bg-info">Inventory</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <%= parts_request_status_badge(pr.status) %>
+                      </td>
+                      <td>
+                        <% if pr.purchase_order.present? %>
+                          <%= link_to "PO ##{pr.purchase_order.po_number}", 
+                              purchase_order_path(pr.purchase_order), 
+                              class: "btn btn-sm btn-outline-primary" %>
+                        <% end %>
+                        <% if pr.vendor_invoice.present? %>
+                          <br><small>Received: <%= pr.parts_received_at&.strftime("%m/%d/%Y") %></small>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
               </table>
             </div>
           </div>
@@ -149,6 +252,9 @@
               <% if @inspection.next_service_mileage.present? %>
                 <div class="col-md-6">
                   <strong>Service at:</strong> <%= number_with_delimiter(@inspection.next_service_mileage) %> km
+                  <% if @inspection.mileage_at_inspection.present? %>
+                    <br><small class="text-muted"><%= number_with_delimiter(@inspection.next_service_mileage - @inspection.mileage_at_inspection) %> km from now</small>
+                  <% end %>
                 </div>
               <% end %>
               <% if @inspection.next_service_date.present? %>
@@ -160,32 +266,144 @@
           </div>
         </div>
       <% end %>
+
+      <!-- Final QC Notes (if completed) -->
+      <% if @inspection.final_inspection_notes.present? %>
+        <div class="card mb-4">
+          <div class="card-header bg-purple text-white">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Final QC Notes</h5>
+          </div>
+          <div class="card-body">
+            <p class="mb-0"><%= simple_format(@inspection.final_inspection_notes) %></p>
+            <% if @inspection.final_inspector %>
+              <small class="text-muted mt-2 d-block">
+                QC by: <%= @inspection.final_inspector.name %> on <%= @inspection.final_inspection_completed_at&.strftime("%B %d, %Y at %I:%M %p") %>
+              </small>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     </div>
 
     <div class="col-md-4">
-      <!-- Quick Actions Card -->
+      <!-- Workflow Status Card -->
       <div class="card mb-4">
-        <div class="card-header bg-success text-white">
-          <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Workflow Status</h5>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            <% if @inspection.inspection_jobs.any? && @inspection.purchase_order.blank? %>
-              <%= button_to "Create Purchase Order", 
-                    create_po_vmcott_inspector_inspection_path(@inspection), 
-                    method: :post,
-                    class: "btn btn-warning btn-lg",
-                    data: { confirm: "Create a purchase order from these inspection jobs?" } %>
-            <% end %>
+          <div class="workflow-timeline">
+            <% workflow_steps = [
+              { 
+                name: 'Inspection Completed', 
+                completed: @inspection.status != 'pending_inspection',
+                date: @inspection.completed_at || @inspection.updated_at,
+                icon: 'bi-check-circle-fill'
+              },
+              { 
+                name: 'Parts Sourcing', 
+                completed: @inspection.parts_requests.where(status: 'parts_received').any?,
+                detail: @inspection.parts_requests.any? ? 
+                  "#{@inspection.parts_requests.where(status: 'parts_received').count}/#{@inspection.parts_requests.count} parts received" : 
+                  'No parts needed',
+                icon: @inspection.parts_requests.where(status: 'parts_received').any? ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'Repairs', 
+                completed: @inspection.status.in?(['approved_for_repair', 'in_progress', 'ready_for_qc', 'qc_completed', 'ready_for_pickup']),
+                detail: "#{@inspection.inspection_jobs.where.not(completed_at: nil).count}/#{@inspection.inspection_jobs.count} jobs completed",
+                icon: @inspection.status.in?(['approved_for_repair', 'in_progress', 'ready_for_qc', 'qc_completed', 'ready_for_pickup']) ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'QC Completed', 
+                completed: @inspection.status.in?(['qc_completed', 'ready_for_pickup']),
+                date: @inspection.final_inspection_completed_at,
+                icon: @inspection.status.in?(['qc_completed', 'ready_for_pickup']) ? 'bi-check-circle-fill' : 'bi-circle'
+              },
+              { 
+                name: 'Ready for Pickup', 
+                completed: @inspection.status == 'ready_for_pickup',
+                date: @inspection.ready_for_pickup_at,
+                icon: @inspection.status == 'ready_for_pickup' ? 'bi-check-circle-fill' : 'bi-circle'
+              }
+            ] %>
             
-            <% if @inspection.purchase_order.present? %>
-              <%= link_to "View Purchase Order", 
-                    purchase_order_path(@inspection.purchase_order), 
-                    class: "btn btn-info btn-lg" %>
+            <% workflow_steps.each do |step| %>
+              <div class="workflow-step mb-3">
+                <div class="d-flex align-items-center">
+                  <div class="step-indicator me-2 <%= 'completed' if step[:completed] %>">
+                    <i class="bi <%= step[:icon] %> <%= step[:completed] ? 'text-success' : 'text-secondary' %>"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <strong><%= step[:name] %></strong>
+                    <% if step[:date].present? %>
+                      <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
+                    <% elsif step[:detail].present? %>
+                      <br><small class="text-muted"><%= step[:detail] %></small>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
             <% end %>
           </div>
         </div>
       </div>
+
+      <!-- Parts Summary Card -->
+      <% if @inspection.parts_requests.any? %>
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Parts Summary</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <span>Total Parts:</span>
+                <span class="badge bg-primary"><%= @inspection.parts_requests.sum(:quantity) %></span>
+              </div>
+            </div>
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <span>Custom Parts:</span>
+                <span class="badge bg-warning"><%= @inspection.parts_requests.custom_parts.count %></span>
+              </div>
+            </div>
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <span>Inventory Parts:</span>
+                <span class="badge bg-info"><%= @inspection.parts_requests.inventory_parts.count %></span>
+              </div>
+            </div>
+            <div class="mb-2">
+              <div class="d-flex justify-content-between">
+                <span>Parts Received:</span>
+                <span class="badge bg-success"><%= @inspection.parts_requests.where(status: 'parts_received').count %></span>
+              </div>
+            </div>
+            <div>
+              <div class="d-flex justify-content-between">
+                <span>Parts Pending:</span>
+                <span class="badge bg-warning"><%= @inspection.parts_requests.where(status: ['pending', 'quotations_received', 'purchase_order_created']).count %></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Quick Actions Card -->
+      <% if @inspection.status == 'ready_for_pickup' %>
+        <div class="card mb-4 border-success">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Ready for Pickup</h5>
+          </div>
+          <div class="card-body">
+            <p>This vehicle is ready for the agency to pick up.</p>
+            <% if @inspection.invoice.present? %>
+              <%= link_to "View Invoice", invoice_path(@inspection.invoice), class: "btn btn-primary w-100" %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
 
       <!-- Timeline Card -->
       <div class="card">
@@ -202,8 +420,36 @@
             <% if @inspection.completed_at %>
               <li class="mb-3">
                 <i class="bi bi-check-circle text-success me-2"></i>
-                <strong>Completed:</strong><br>
+                <strong>Inspection Completed:</strong><br>
                 <small class="text-muted"><%= @inspection.completed_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @inspection.parts_coordinator_notified_at %>
+              <li class="mb-3">
+                <i class="bi bi-envelope text-info me-2"></i>
+                <strong>Parts Coordinator Notified:</strong><br>
+                <small class="text-muted"><%= @inspection.parts_coordinator_notified_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @inspection.mechanic_notified_at %>
+              <li class="mb-3">
+                <i class="bi bi-wrench text-secondary me-2"></i>
+                <strong>Mechanics Notified:</strong><br>
+                <small class="text-muted"><%= @inspection.mechanic_notified_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @inspection.final_inspection_completed_at %>
+              <li class="mb-3">
+                <i class="bi bi-clipboard-check text-success me-2"></i>
+                <strong>QC Completed:</strong><br>
+                <small class="text-muted"><%= @inspection.final_inspection_completed_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+              </li>
+            <% end %>
+            <% if @inspection.ready_for_pickup_at %>
+              <li class="mb-3">
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                <strong>Ready for Pickup:</strong><br>
+                <small class="text-muted"><%= @inspection.ready_for_pickup_at.strftime("%B %d, %Y at %I:%M %p") %></small>
               </li>
             <% end %>
           </ul>

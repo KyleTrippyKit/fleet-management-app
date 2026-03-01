@@ -1,139 +1,264 @@
-<%# app/views/vmcott/mechanic/dashboard/index.html.erb %>
+<%# app/views/vmcott/parts_coordinator/dashboard/index.html.erb %>
 <div class="container-fluid py-4">
+  <h1 class="h2 mb-4">📦 Parts Coordinator Dashboard</h1>
+
+  <!-- KPI Cards -->
   <div class="row mb-4">
-    <div class="col">
-      <h1 class="h2">🔧 Welcome, <%= current_user.name %></h1>
-      <p class="text-muted">VMCOTT Mechanic - Repairs & Work Orders</p>
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">Pending Reviews</h5>
+          <h2 class="display-4"><%= @pending_parts&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark">
+        <div class="card-body">
+          <h5 class="card-title">With Billing</h5>
+          <h2 class="display-4"><%= @pending_billing&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">Quotes Received</h5>
+          <h2 class="display-4"><%= @pending_finance&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">Parts Received</h5>
+          <h2 class="display-4"><%= @parts_received&.count || 0 %></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions Nav -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body py-2">
+          <div class="d-flex gap-2">
+            <%= link_to "📋 Inventory Management", vmcott_inventory_dashboard_path, class: "btn btn-outline-primary btn-sm" %>
+            <%= link_to "⚠️ Low Stock Alerts", vmcott_inventory_low_stock_path, class: "btn btn-outline-danger btn-sm" %>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="row">
-    <div class="col-md-4 mb-3">
-      <div class="card bg-primary text-white">
-        <div class="card-body">
-          <h5 class="card-title">My Assigned Jobs</h5>
-          <h2 class="display-4"><%= @assigned_jobs&.count || 0 %></h2>
+    <!-- Pending Parts Reviews -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Pending Parts Reviews (<%= @pending_parts&.count || 0 %>)</h5>
+        </div>
+        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+          <% if @pending_parts&.any? %>
+            <% @pending_parts.each do |parts_request| %>
+              <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between">
+                  <h6><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></h6>
+                  <span class="badge bg-primary">Pending</span>
+                </div>
+                <p class="small text-muted mb-2">
+                  <%= parts_request.inspection&.vehicle&.make %> <%= parts_request.inspection&.vehicle&.model %> | 
+                  <%= parts_request.inspection&.vehicle&.agency&.name || 'Unknown' %>
+                </p>
+                
+                <div class="bg-light p-2 rounded mb-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong><%= parts_request.part&.name || 'Unknown Part' %></strong>
+                      <small class="text-muted d-block">Part #: <%= parts_request.part&.part_number || 'N/A' %></small>
+                    </div>
+                    <div class="text-end">
+                      <span class="badge bg-secondary me-2">x<%= parts_request.quantity %></span>
+                      <% if parts_request.in_stock? %>
+                        <span class="badge bg-success">In Stock</span>
+                      <% else %>
+                        <span class="badge bg-danger">Out of Stock</span>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="d-flex gap-2">
+                  <% if parts_request.in_stock? %>
+                    <%= button_to "✓ Mark In Stock", 
+                          vmcott_parts_coordinator_mark_in_stock_path(parts_request),
+                          class: "btn btn-success btn-sm",
+                          method: :post,
+                          data: { confirm: "Mark this part as in stock and pass to workshop?" } %>
+                  <% else %>
+                    <%= button_to "📤 Send to Billing", 
+                          vmcott_parts_coordinator_send_to_billing_path(parts_request),
+                          class: "btn btn-warning btn-sm",
+                          method: :post,
+                          data: { confirm: "Send this part to billing team for RFQ?" } %>
+                  <% end %>
+                  <%= link_to "Details", vmcott_inspector_inspection_path(parts_request.inspection), 
+                        class: "btn btn-outline-secondary btn-sm" %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted text-center py-4">No pending parts reviews</p>
+          <% end %>
         </div>
       </div>
     </div>
-    <div class="col-md-4 mb-3">
-      <div class="card bg-success text-white">
-        <div class="card-body">
-          <h5 class="card-title">Available Jobs</h5>
-          <h2 class="display-4"><%= @available_jobs&.count || 0 %></h2>
+
+    <!-- Sent to Billing -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-warning text-dark">
+          <h5 class="mb-0"><i class="bi bi-send me-2"></i>Sent to Billing (<%= @pending_billing&.count || 0 %>)</h5>
         </div>
-      </div>
-    </div>
-    <div class="col-md-4 mb-3">
-      <div class="card bg-info text-white">
-        <div class="card-body">
-          <h5 class="card-title">Completed Today</h5>
-          <h2 class="display-4"><%= @completed_today || 0 %></h2>
+        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+          <% if @pending_billing&.any? %>
+            <% @pending_billing.each do |parts_request| %>
+              <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between">
+                  <h6><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></h6>
+                  <span class="badge bg-warning">With Billing</span>
+                </div>
+                
+                <div class="bg-light p-2 rounded mb-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong><%= parts_request.part&.name || 'Unknown Part' %></strong>
+                      <small class="text-muted d-block">Part #: <%= parts_request.part&.part_number || 'N/A' %></small>
+                    </div>
+                    <span class="badge bg-secondary">x<%= parts_request.quantity %></span>
+                  </div>
+                  
+                  <% if parts_request.has_rfqs? %>
+                    <hr>
+                    <small class="text-muted">
+                      <i class="bi bi-check-circle text-success me-1"></i>
+                      RFQ #<%= parts_request.rfq_number %> sent
+                    </small>
+                  <% end %>
+                </div>
+                
+                <!-- Simplified - just show status, no tracking link -->
+                <div class="text-muted small">
+                  Status: <span class="badge bg-info">With Billing Team</span>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted text-center py-4">No items with billing team</p>
+          <% end %>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Quotations Received (Finance Review) -->
   <div class="row mt-4">
-    <div class="col-md-6">
+    <div class="col-12">
       <div class="card">
-        <div class="card-header bg-primary text-white">
-          <h5 class="mb-0"><i class="bi bi-tools me-2"></i>My Assigned Jobs</h5>
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Received - Awaiting Finance Review (<%= @pending_finance&.count || 0 %>)</h5>
         </div>
         <div class="card-body">
-          <% if @assigned_jobs && @assigned_jobs.any? %>
-            <% @assigned_jobs.each do |job| %>
-              <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                <div>
-                  <strong><%= job.work_order_number %></strong>
-                  <div class="small">
-                    <!-- FIXED: Using extracted_work_section and notes instead of description -->
-                    <% if job.extracted_work_section.present? %>
-                      <span class="badge bg-info"><%= job.extracted_work_section %></span>
-                    <% end %>
-                    <% if job.extracted_work_role.present? %>
-                      <span class="badge bg-secondary"><%= job.extracted_work_role %></span>
-                    <% end %>
-                    <br>
-                    <%= job.notes&.split("\n")&.first&.truncate(50) %><br>
-                    <span class="text-muted">
-                      <%= job.vehicle&.make %> <%= job.vehicle&.model %> - 
-                      <%= job.vehicle&.license_plate %>
-                    </span>
-                  </div>
-                  <div class="mt-2">
-                    <span class="badge bg-<%= job.status == 'in_progress' ? 'warning' : 'secondary' %>">
-                      <%= job.status.humanize %>
-                    </span>
-                    <span class="badge bg-<%= 
-                      case job.priority
-                      when 'high' then 'danger'
-                      when 'normal' then 'info'
-                      else 'secondary'
-                      end %>">
-                      <%= job.priority.humanize %>
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <%= link_to "View", vmcott_mechanic_job_path(job), class: "btn btn-sm btn-primary" %>
-                </div>
-              </div>
-            <% end %>
+          <% if @pending_finance&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Part</th>
+                    <th>Quotes</th>
+                    <th>Lowest Price</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @pending_finance.each do |parts_request| %>
+                    <% latest_rfq = parts_request.latest_rfq %>
+                    <tr>
+                      <td><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></td>
+                      <td>
+                        <strong><%= parts_request.part&.name || 'Unknown' %></strong>
+                        <br><small class="text-muted"><%= parts_request.part&.part_number || 'N/A' %></small>
+                      </td>
+                      <td><%= latest_rfq&.vendor_quotations&.count || 0 %></td>
+                      <td>
+                        <% if latest_rfq&.vendor_quotations&.any? %>
+                          $<%= number_with_precision(latest_rfq.vendor_quotations.minimum(:unit_price), precision: 2) %>
+                        <% else %>
+                          -
+                        <% end %>
+                      </td>
+                      <td><span class="badge bg-warning">Finance Review</span></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
           <% else %>
-            <p class="text-muted text-center py-3">No assigned jobs</p>
+            <p class="text-muted text-center py-3">No quotations received</p>
           <% end %>
         </div>
       </div>
     </div>
-    
-    <div class="col-md-6">
+  </div>
+
+  <!-- Parts Received - Ready to Pass -->
+  <div class="row mt-4">
+    <div class="col-12">
       <div class="card">
         <div class="card-header bg-success text-white">
-          <h5 class="mb-0"><i class="bi bi-list-task me-2"></i>Available Jobs</h5>
+          <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Parts Received - Ready for Workshop (<%= @parts_received&.count || 0 %>)</h5>
         </div>
         <div class="card-body">
-          <% if @available_jobs && @available_jobs.any? %>
-            <% @available_jobs.each do |job| %>
-              <div class="d-flex justify-content-between align-items-center mb-3 p-3 border rounded">
-                <div>
-                  <strong><%= job.work_order_number %></strong>
-                  <div class="small">
-                    <!-- FIXED: Using extracted_work_section and notes instead of description -->
-                    <% if job.extracted_work_section.present? %>
-                      <span class="badge bg-info"><%= job.extracted_work_section %></span>
-                    <% end %>
-                    <% if job.extracted_work_role.present? %>
-                      <span class="badge bg-secondary"><%= job.extracted_work_role %></span>
-                    <% end %>
-                    <br>
-                    <%= job.notes&.split("\n")&.first&.truncate(50) %><br>
-                    <span class="text-muted">
-                      <%= job.vehicle&.make %> <%= job.vehicle&.model %> - 
-                      <%= job.vehicle&.license_plate %>
-                    </span>
-                  </div>
-                  <div class="mt-2">
-                    <span class="badge bg-<%= 
-                      case job.priority
-                      when 'high' then 'danger'
-                      when 'normal' then 'info'
-                      else 'secondary'
-                      end %>">
-                      <%= job.priority.humanize %>
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <%= button_to "Assign to Me", vmcott_mechanic_assign_job_path(job), 
-                        method: :post, 
-                        class: "btn btn-sm btn-success",
-                        data: { confirm: "Assign this job to yourself?" } %>
-                </div>
-              </div>
-            <% end %>
+          <% if @parts_received&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Parts Received</th>
+                    <th>Date Received</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @parts_received.each do |inspection| %>
+                    <tr>
+                      <td>
+                        <strong><%= inspection.vehicle&.license_plate || 'Unknown' %></strong>
+                        <br><small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
+                      </td>
+                      <td>
+                        <% inspection.parts_requests.where(status: 'parts_received').each do |pr| %>
+                          <div><%= pr.part&.name || 'Unknown' %> (x<%= pr.quantity %>)</div>
+                        <% end %>
+                      </td>
+                      <td><%= inspection.parts_requests.maximum(:parts_received_at)&.strftime("%b %d, %Y") %></td>
+                      <td>
+                        <%= button_to "✓ Pass to Workshop", 
+                              vmcott_parts_coordinator_pass_to_workshop_path(inspection),
+                              class: "btn btn-success btn-sm",
+                              method: :post,
+                              data: { confirm: "All parts received. Pass to workshop and notify mechanics?" } %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
           <% else %>
-            <p class="text-muted text-center py-3">No available jobs</p>
+            <p class="text-muted text-center py-3">No parts received</p>
           <% end %>
         </div>
       </div>

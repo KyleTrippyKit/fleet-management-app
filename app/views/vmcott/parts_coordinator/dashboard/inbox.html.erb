@@ -1,0 +1,271 @@
+<%# app/views/vmcott/parts_coordinator/inbox.html.erb %>
+<div class="container-fluid py-4">
+  <h1 class="h2 mb-4">📦 Parts Coordinator Inbox</h1>
+
+  <div class="row">
+    <!-- Pending Inspections -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-warning">
+          <h5 class="mb-0">⏳ Pending Parts Review</h5>
+        </div>
+        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+          <% if @pending_inspections&.any? %>
+            <% @pending_inspections.each do |inspection| %>
+              <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between">
+                  <h6><%= inspection.vehicle&.license_plate || 'Unknown' %></h6>
+                  <span class="badge bg-warning">Pending</span>
+                </div>
+                <p class="small text-muted mb-2"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %> | <%= inspection.vehicle&.agency&.name || 'Unknown' %></p>
+                
+                <!-- Detailed Parts List -->
+                <div class="bg-light p-2 rounded mb-2">
+                  <strong>Parts needed:</strong>
+                  <% inspection.parts_requests.where(status: 'pending').each do |pr| %>
+                    <div class="d-flex justify-content-between align-items-center mt-2 pb-2 border-bottom">
+                      <div>
+                        <% if pr.custom? %>
+                          <span class="text-warning">🔧 <%= pr.custom_part_name %></span>
+                          <small class="text-muted d-block">Custom Part</small>
+                        <% else %>
+                          <span><%= pr.part&.name || 'Unknown Part' %></span>
+                          <small class="text-muted d-block">Part #: <%= pr.part&.part_number || 'N/A' %></small>
+                        <% end %>
+                      </div>
+                      <div class="text-end">
+                        <span class="badge bg-secondary me-2">x<%= pr.quantity %></span>
+                        <% if pr.in_stock? %>
+                          <span class="badge bg-success">In Stock</span>
+                        <% else %>
+                          <span class="badge bg-danger">Out of Stock</span>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+                
+                <!-- Actions -->
+                <div class="d-flex flex-wrap gap-2">
+                  <% if inspection.parts_requests.where(status: 'pending').all?(&:in_stock?) %>
+                    <%= button_to "✓ Mark In Stock & Pass", 
+                          vmcott_parts_coordinator_mark_in_stock_path(inspection),
+                          class: "btn btn-success btn-sm",
+                          data: { confirm: "All parts are in stock. Pass to workshop?" } %>
+                  <% else %>
+                    <%# Use button_to for each out-of-stock part to ensure POST method %>
+                    <% inspection.parts_requests.where(status: 'pending', in_stock: false).each do |pr| %>
+                      <%= button_to "📤 Send #{pr.part&.name || pr.custom_part_name} to Billing", 
+                            vmcott_parts_coordinator_send_to_billing_path(pr),
+                            class: "btn btn-warning btn-sm",
+                            method: :post,
+                            data: { confirm: "Send this part to billing team for RFQ?" } %>
+                    <% end %>
+                  <% end %>
+                  <%= link_to "Details", vmcott_inspector_inspection_path(inspection), class: "btn btn-outline-secondary btn-sm" %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted text-center py-4">No pending inspections</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sent to Billing -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0">📨 Sent to Billing Team</h5>
+        </div>
+        <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+          <% if @sent_to_billing&.any? %>
+            <% @sent_to_billing.each do |inspection| %>
+              <div class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between">
+                  <h6><%= inspection.vehicle&.license_plate || 'Unknown' %></h6>
+                  <span class="badge bg-info">Billing Review</span>
+                </div>
+                
+                <!-- RFQ Status -->
+                <div class="bg-light p-2 rounded">
+                  <strong>Parts being quoted:</strong>
+                  <% inspection.parts_requests.where(status: 'billing_notified').each do |pr| %>
+                    <div class="d-flex justify-content-between mt-1">
+                      <span>
+                        <% if pr.custom? %>
+                          🔧 <%= pr.custom_part_name %>
+                        <% else %>
+                          <%= pr.part&.name || 'Unknown Part' %>
+                        <% end %>
+                      </span>
+                      <span class="badge bg-secondary">x<%= pr.quantity %></span>
+                    </div>
+                  <% end %>
+                  
+                  <% if inspection.parts_requests.where(status: 'rfq_sent').any? %>
+                    <hr>
+                    <strong>RFQs sent to suppliers:</strong>
+                    <% inspection.parts_requests.where(status: 'rfq_sent').each do |pr| %>
+                      <div class="small mt-1">
+                        <% if pr.has_rfqs? %>
+                          RFQ #<%= pr.rfq_number %> - 
+                          <%= pr.latest_rfq&.vendor_quotations&.count || 0 %> quotations
+                        <% end %>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="text-muted text-center py-4">No items with billing team</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quotations Received (Finance Review) -->
+  <div class="card mt-4 mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">📋 Quotations Received - Awaiting Finance Review</h5>
+    </div>
+    <div class="card-body">
+      <% if @quotations_received&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Vehicle</th>
+                <th>Part</th>
+                <th>Quotes</th>
+                <th>Lowest Price</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @quotations_received.each do |pr| %>
+                <% latest_rfq = pr.latest_rfq %>
+                <tr>
+                  <td><%= pr.inspection&.vehicle&.license_plate || 'Unknown' %></td>
+                  <td>
+                    <% if pr.custom? %>
+                      🔧 <%= pr.custom_part_name %>
+                    <% else %>
+                      <%= pr.part&.name || 'Unknown Part' %>
+                    <% end %>
+                  </td>
+                  <td><%= latest_rfq&.vendor_quotations&.count || 0 %></td>
+                  <td>
+                    <% if latest_rfq&.vendor_quotations&.any? %>
+                      $<%= number_with_precision(latest_rfq.vendor_quotations.minimum(:unit_price), precision: 2) %>
+                    <% else %>
+                      -
+                    <% end %>
+                  </td>
+                  <td><span class="badge bg-warning">Finance Review</span></td>
+                  <td>
+                    <% if latest_rfq.present? %>
+                      <%= link_to "View Quotes", 
+                            vmcott_parts_coordinator_compare_rfq_path(latest_rfq),
+                            class: "btn btn-sm btn-outline-primary" %>
+                    <% else %>
+                      <span class="text-muted">No RFQ</span>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-3">No quotations received</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Purchase Orders Created -->
+  <div class="card mt-4 mb-4">
+    <div class="card-header bg-secondary text-white">
+      <h5 class="mb-0">📦 Purchase Orders Created</h5>
+    </div>
+    <div class="card-body">
+      <% if @purchase_orders_created&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>PO Number</th>
+                <th>Vehicle</th>
+                <th>Part</th>
+                <th>Supplier</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @purchase_orders_created.each do |pr| %>
+                <tr>
+                  <td><strong>#<%= pr.purchase_order&.po_number || 'N/A' %></strong></td>
+                  <td><%= pr.inspection&.vehicle&.license_plate || 'Unknown' %></td>
+                  <td>
+                    <% if pr.custom? %>
+                      🔧 <%= pr.custom_part_name %>
+                    <% else %>
+                      <%= pr.part&.name || 'Unknown Part' %>
+                    <% end %>
+                  </td>
+                  <td><%= pr.purchase_order&.vendor || 'Unknown' %></td>
+                  <td>$<%= number_with_precision(pr.purchase_order&.amount || 0, precision: 2) %></td>
+                  <td><span class="badge bg-info">Ordered</span></td>
+                  <td>
+                    <%= link_to "Receive Parts", 
+                          vmcott_parts_coordinator_receive_parts_path(purchase_order_id: pr.purchase_order_id),
+                          class: "btn btn-sm btn-success" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-3">No purchase orders created</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Parts Received - Ready to Pass -->
+  <div class="card mt-4">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">✅ Parts Received - Ready for Workshop</h5>
+    </div>
+    <div class="card-body">
+      <% if @parts_received&.any? %>
+        <% @parts_received.each do |inspection| %>
+          <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+            <div>
+              <strong><%= inspection.vehicle&.license_plate || 'Unknown' %></strong>
+              <span class="text-muted ms-2">
+                <%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %>
+              </span>
+              <br>
+              <small class="text-muted">
+                All <%= inspection.parts_requests.count %> parts now in stock
+              </small>
+            </div>
+            <%= button_to "✓ Pass to Workshop", 
+                  vmcott_parts_coordinator_pass_to_workshop_path(inspection),
+                  class: "btn btn-success btn-sm",
+                  data: { confirm: "This will mark inspection as approved_for_repair and notify mechanics. Continue?" } %>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="text-muted text-center py-3">No parts received</p>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,132 @@
+<%# app/views/vmcott/finance/compare_quotations.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">📊 Compare Quotations</h1>
+      <p class="text-muted">Request #<%= @parts_request.id %> - <%= @parts_request.vehicle.license_plate %></p>
+    </div>
+  </div>
+
+  <!-- Items Needed -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">Parts Needed</h5>
+    </div>
+    <div class="card-body">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Part</th>
+            <th class="text-end">Quantity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @parts_request.parts_needed.each do |part, qty| %>
+            <tr>
+              <td><%= part.name %></td>
+              <td class="text-end"><%= qty %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Quotations Comparison -->
+  <div class="card">
+    <div class="card-header bg-success text-white">
+      <h5 class="mb-0">Vendor Quotations</h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th>Valid Until</th>
+              <th class="text-end">Total</th>
+              <th class="text-center">Items</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @quotations.each do |quote| %>
+              <% is_lowest = quote.total == @lowest_price %>
+              <tr class="<%= 'table-success' if is_lowest %>">
+                <td>
+                  <strong><%= quote.supplier.name %></strong>
+                  <% if is_lowest %>
+                    <span class="badge bg-success ms-2">Best Price</span>
+                  <% end %>
+                </td>
+                <td><%= quote.valid_until.strftime("%b %d, %Y") %></td>
+                <td class="text-end"><strong><%= number_to_currency(quote.total) %></strong></td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-sm btn-outline-info" 
+                          data-bs-toggle="modal" data-bs-target="#quoteModal<%= quote.id %>">
+                    View Items
+                  </button>
+                </td>
+                <td class="text-center">
+                  <%= button_to "Accept & Create PO", 
+                        accept_quotation_finance_path(quote),
+                        method: :post,
+                        class: "btn btn-sm btn-success",
+                        data: { confirm: "Accept this quotation and create a purchase order?" } %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if @quotations.empty? %>
+        <div class="alert alert-warning">
+          No quotations received yet.
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Quotation Detail Modals -->
+<% @quotations.each do |quote| %>
+  <div class="modal fade" id="quoteModal<%= quote.id %>" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><%= quote.supplier.name %> - Items</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% quote.items.each do |item| %>
+                <tr>
+                  <td><%= item.part_name %></td>
+                  <td class="text-end"><%= item.quantity %></td>
+                  <td class="text-end"><%= number_to_currency(item.unit_price) %></td>
+                  <td class="text-end"><%= number_to_currency(item.total) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+            <tfoot>
+              <tr class="fw-bold">
+                <td colspan="3" class="text-end">Total:</td>
+                <td class="text-end"><%= number_to_currency(quote.total) %></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_28_214948) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -246,6 +246,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.index ["agency_id"], name: "index_fare_rules_on_agency_id"
   end
 
+  create_table "inspection_job_parts", force: :cascade do |t|
+    t.decimal "actual_cost", precision: 10, scale: 2
+    t.datetime "created_at", null: false
+    t.string "custom_part_name"
+    t.boolean "customer_approved", default: false
+    t.datetime "customer_approved_at"
+    t.decimal "estimated_cost", precision: 10, scale: 2
+    t.bigint "inspection_job_id", null: false
+    t.text "notes"
+    t.bigint "part_id", null: false
+    t.integer "quantity", default: 1
+    t.datetime "updated_at", null: false
+    t.index ["inspection_job_id", "part_id"], name: "idx_inspection_job_parts_unique", unique: true
+    t.index ["inspection_job_id"], name: "index_inspection_job_parts_on_inspection_job_id"
+    t.index ["part_id"], name: "index_inspection_job_parts_on_part_id"
+  end
+
   create_table "inspection_jobs", force: :cascade do |t|
     t.bigint "assigned_mechanic_id"
     t.datetime "completed_at"
@@ -256,7 +273,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.bigint "inspection_id", null: false
     t.bigint "job_template_id"
     t.text "notes"
+    t.text "parts_approval_notes"
+    t.boolean "parts_approved", default: false
     t.string "priority"
+    t.boolean "requires_part_approval", default: false
     t.datetime "updated_at", null: false
     t.index ["assigned_mechanic_id"], name: "index_inspection_jobs_on_assigned_mechanic_id"
     t.index ["inspection_id"], name: "index_inspection_jobs_on_inspection_id"
@@ -264,16 +284,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
   end
 
   create_table "inspections", force: :cascade do |t|
+    t.datetime "billing_notified_at"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
+    t.datetime "final_inspection_completed_at"
+    t.text "final_inspection_notes"
+    t.bigint "final_inspector_id"
     t.bigint "inspector_id", null: false
+    t.datetime "mechanic_notified_at"
     t.integer "mileage_at_inspection"
     t.date "next_service_date"
     t.integer "next_service_mileage"
     t.text "notes"
+    t.datetime "parts_coordinator_notified_at"
+    t.datetime "pickup_notified_at"
     t.bigint "purchase_order_id"
+    t.datetime "ready_for_pickup_at"
+    t.string "status", default: "pending_inspection"
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
+    t.index ["final_inspector_id"], name: "index_inspections_on_final_inspector_id"
     t.index ["inspector_id"], name: "index_inspections_on_inspector_id"
     t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
     t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
@@ -521,6 +551,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.index ["vehicle_id"], name: "index_maintenances_on_vehicle_id"
   end
 
+  create_table "mechanic_assignments", force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "inspection_job_id", null: false
+    t.bigint "mechanic_id", null: false
+    t.text "mechanic_notes"
+    t.datetime "qc_completed_at"
+    t.text "qc_notes"
+    t.datetime "qc_requested_at"
+    t.datetime "started_at"
+    t.string "status", default: "assigned"
+    t.datetime "updated_at", null: false
+    t.index ["inspection_job_id"], name: "index_mechanic_assignments_on_inspection_job_id"
+    t.index ["mechanic_id", "status"], name: "index_mechanic_assignments_on_mechanic_id_and_status"
+    t.index ["mechanic_id"], name: "index_mechanic_assignments_on_mechanic_id"
+  end
+
   create_table "monthly_statements", force: :cascade do |t|
     t.bigint "agency_id"
     t.decimal "closing_balance", precision: 15, scale: 2, default: "0.0"
@@ -543,6 +590,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.index ["statement_number"], name: "index_monthly_statements_on_statement_number", unique: true
     t.index ["status"], name: "index_monthly_statements_on_status"
     t.index ["vendor_id"], name: "index_monthly_statements_on_vendor_id"
+  end
+
+  create_table "notifications", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "link"
+    t.text "message"
+    t.bigint "notifiable_id"
+    t.string "notifiable_type"
+    t.boolean "read", default: false
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable_type_and_notifiable_id"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
   create_table "parts", force: :cascade do |t|
@@ -570,6 +631,41 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.index ["is_consumable"], name: "index_parts_on_is_consumable"
     t.index ["part_number"], name: "index_parts_on_part_number", unique: true
     t.index ["supplier_id"], name: "index_parts_on_supplier_id"
+  end
+
+  create_table "parts_request_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "part_id", null: false
+    t.bigint "parts_request_id", null: false
+    t.integer "quantity_needed"
+    t.string "status"
+    t.datetime "updated_at", null: false
+    t.index ["part_id"], name: "index_parts_request_items_on_part_id"
+    t.index ["parts_request_id"], name: "index_parts_request_items_on_parts_request_id"
+  end
+
+  create_table "parts_requests", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.datetime "created_at", null: false
+    t.string "custom_part_name"
+    t.boolean "in_stock", default: false
+    t.bigint "inspection_id", null: false
+    t.datetime "notified_billing_at"
+    t.datetime "notified_parts_coordinator_at"
+    t.bigint "part_id", null: false
+    t.datetime "parts_received_at"
+    t.bigint "purchase_order_id"
+    t.integer "quantity", default: 1, null: false
+    t.datetime "rejected_at"
+    t.text "rejection_reason"
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.bigint "vendor_invoice_id"
+    t.index ["inspection_id", "part_id"], name: "index_parts_requests_on_inspection_id_and_part_id", unique: true
+    t.index ["inspection_id"], name: "index_parts_requests_on_inspection_id"
+    t.index ["part_id"], name: "index_parts_requests_on_part_id"
+    t.index ["purchase_order_id"], name: "index_parts_requests_on_purchase_order_id"
+    t.index ["vendor_invoice_id"], name: "index_parts_requests_on_vendor_invoice_id"
   end
 
   create_table "parts_stores", id: false, force: :cascade do |t|
@@ -735,15 +831,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.datetime "approved_at"
     t.bigint "approved_by_id"
     t.jsonb "billing_address", default: {}
+    t.bigint "billing_team_id"
     t.string "card_type"
     t.boolean "compliance_checked", default: false
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.date "due_date"
+    t.datetime "finance_approved_at"
+    t.bigint "finance_approved_by_id"
     t.string "last_four_digits"
     t.text "notes"
     t.datetime "ordered_at"
     t.datetime "paid_at"
+    t.bigint "parts_coordinator_id"
     t.bigint "payable_id"
     t.datetime "payment_authorized_at"
     t.bigint "payment_authorized_by_id"
@@ -770,6 +870,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.bigint "vehicle_id"
     t.string "vendor", null: false
     t.string "vmcott_status", default: "pending_internal_work", null: false
+    t.string "workflow_status", default: "pending_parts_coordinator"
     t.index ["acceptance_acknowledged_at"], name: "index_purchase_orders_on_acceptance_acknowledged_at"
     t.index ["acceptance_status"], name: "index_purchase_orders_on_acceptance_status"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
@@ -786,6 +887,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
     t.index ["vendor", "status"], name: "index_purchase_orders_on_vendor_and_status"
     t.index ["vmcott_status"], name: "index_purchase_orders_on_vmcott_status"
+    t.index ["workflow_status"], name: "index_purchase_orders_on_workflow_status"
   end
 
   create_table "purchase_requests", force: :cascade do |t|
@@ -1385,10 +1487,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "drivers_vehicles", "drivers"
   add_foreign_key "drivers_vehicles", "vehicles"
+  add_foreign_key "inspection_job_parts", "inspection_jobs"
+  add_foreign_key "inspection_job_parts", "parts"
   add_foreign_key "inspection_jobs", "inspections"
   add_foreign_key "inspection_jobs", "job_templates"
   add_foreign_key "inspection_jobs", "users", column: "assigned_mechanic_id"
   add_foreign_key "inspections", "purchase_orders"
+  add_foreign_key "inspections", "users", column: "final_inspector_id"
   add_foreign_key "inspections", "users", column: "inspector_id"
   add_foreign_key "inspections", "vehicles"
   add_foreign_key "inventory_transactions", "agencies"
@@ -1414,7 +1519,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
+  add_foreign_key "mechanic_assignments", "inspection_jobs"
+  add_foreign_key "mechanic_assignments", "users", column: "mechanic_id"
+  add_foreign_key "notifications", "users", name: "notifications_user_id_fkey"
   add_foreign_key "parts", "suppliers"
+  add_foreign_key "parts_request_items", "parts"
+  add_foreign_key "parts_request_items", "parts_requests"
+  add_foreign_key "parts_requests", "inspections"
+  add_foreign_key "parts_requests", "parts"
+  add_foreign_key "parts_requests", "purchase_orders"
+  add_foreign_key "parts_requests", "vendor_invoices"
   add_foreign_key "payment_audits", "purchase_orders"
   add_foreign_key "payment_audits", "users"
   add_foreign_key "payment_histories", "invoices"
@@ -1430,7 +1544,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_28_142846) do
   add_foreign_key "purchase_orders", "quotations"
   add_foreign_key "purchase_orders", "suppliers"
   add_foreign_key "purchase_orders", "users", column: "approved_by_id"
+  add_foreign_key "purchase_orders", "users", column: "billing_team_id"
   add_foreign_key "purchase_orders", "users", column: "created_by_id"
+  add_foreign_key "purchase_orders", "users", column: "finance_approved_by_id"
+  add_foreign_key "purchase_orders", "users", column: "parts_coordinator_id"
   add_foreign_key "purchase_orders", "vehicles"
   add_foreign_key "purchase_requests", "parts"
   add_foreign_key "purchase_requests", "quotations"

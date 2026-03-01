@@ -17,7 +17,7 @@
         <div class="card-body">
           <!-- Stats -->
           <div class="row mb-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="card bg-info text-white">
                 <div class="card-body text-center">
                   <h3 class="mb-0"><%= @stats[:total] %></h3>
@@ -25,7 +25,7 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="card bg-warning text-white">
                 <div class="card-body text-center">
                   <h3 class="mb-0"><%= @stats[:pending] %></h3>
@@ -33,11 +33,19 @@
                 </div>
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <div class="card bg-success text-white">
                 <div class="card-body text-center">
                   <h3 class="mb-0"><%= @stats[:recently_received] %></h3>
                   <p class="mb-0">New (Last 24h)</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                  <h3 class="mb-0"><%= @stats[:expiring_soon] %></h3>
+                  <p class="mb-0">Expiring Soon</p>
                 </div>
               </div>
             </div>
@@ -55,23 +63,26 @@
                     <th>Received</th>
                     <th>Valid Until</th>
                     <th>Status</th>
-                    <th>Sent/Draft</th>
+                    <th>Items</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @quotations.each do |quotation| %>
-                    <tr>
+                    <tr class="<%= 'table-danger' if quotation.expired? %>">
                       <td>
                         <strong><%= quotation.quote_number %></strong>
                         <br>
-                        <small class="text-muted">Vendor: <%= quotation.vendor %></small>
+                        <small class="text-muted"><%= quotation.vendor %></small>
                       </td>
                       <td>
                         <%= quotation.vehicle&.license_plate || 'N/A' %>
                         <br>
                         <small class="text-muted">
                           <%= quotation.vehicle&.make %> <%= quotation.vehicle&.model %>
+                          <% if quotation.vehicle&.year_of_manufacture %>
+                            (<%= quotation.vehicle.year_of_manufacture %>)
+                          <% end %>
                         </small>
                       </td>
                       <td class="fw-bold">
@@ -85,10 +96,12 @@
                       <td>
                         <%= quotation.valid_to.strftime('%b %d, %Y') %>
                         <br>
-                        <% if quotation.valid_to < Date.today %>
+                        <% if quotation.expired? %>
                           <span class="badge bg-danger">Expired</span>
-                        <% elsif quotation.valid_to < Date.today + 7.days %>
-                          <span class="badge bg-warning text-dark">Expiring Soon</span>
+                        <% elsif quotation.expiring_soon? %>
+                          <span class="badge bg-warning text-dark">Expires in <%= quotation.days_until_expiry %> days</span>
+                        <% else %>
+                          <span class="badge bg-success"><%= quotation.days_until_expiry %> days left</span>
                         <% end %>
                       </td>
                       <td>
@@ -97,6 +110,7 @@
                           when 'sent' then 'warning'
                           when 'accepted' then 'success'
                           when 'rejected' then 'danger'
+                          when 'partially_accepted' then 'info'
                           else 'secondary'
                           end
                         %>">
@@ -104,34 +118,26 @@
                         </span>
                       </td>
                       <td>
-                        <% if quotation.sent? %>
-                          <span class="badge bg-success">Sent</span>
-                        <% else %>
-                          <span class="badge bg-secondary">Draft</span>
-                        <% end %>
-                        
-                        <% if quotation.sent? %>
-                          <i class="bi bi-lock text-muted ms-1" title="Locked"></i>
-                        <% end %>
+                        <span class="badge bg-secondary"><%= quotation.total_items %> items</span>
                       </td>
                       <td>
                         <div class="btn-group btn-group-sm">
                           <%= link_to quotation_path(quotation), 
                                 class: 'btn btn-outline-primary', 
-                                title: 'Review' do %>
+                                title: 'Review Quotation' do %>
                             <i class="bi bi-eye"></i> Review
                           <% end %>
                           
                           <%= link_to accept_items_quotation_path(quotation), 
                                 class: 'btn btn-outline-success', 
-                                title: 'Accept Items' do %>
-                            <i class="bi bi-check-circle"></i> Accept
+                                title: 'Select Items to Accept' do %>
+                            <i class="bi bi-check-circle"></i> Select Items
                           <% end %>
                           
                           <%= link_to print_quotation_path(quotation, format: :pdf), 
                                 class: 'btn btn-outline-dark',
                                 target: '_blank',
-                                title: 'Print' do %>
+                                title: 'Print Quotation' do %>
                             <i class="bi bi-printer"></i>
                           <% end %>
                         </div>

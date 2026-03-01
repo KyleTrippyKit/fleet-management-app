@@ -1,0 +1,77 @@
+<%# app/views/vmcott/billing/parts_requests.html.erb %>
+<div class="container-fluid py-4">
+  <h1 class="h2 mb-4">💰 Parts Procurement Requests</h1>
+
+  <div class="row">
+    <% @parts_requests.each do |request| %>
+      <div class="col-md-6 mb-4">
+        <div class="card">
+          <div class="card-header bg-warning">
+            <h5 class="mb-0">Request #<%= request.id %> - <%= request.vehicle.license_plate %></h5>
+          </div>
+          <div class="card-body">
+            <h6>Parts Needed:</h6>
+            <ul class="mb-3">
+              <% request.parts_needed.each do |part, quantity| %>
+                <li><strong><%= part.name %></strong> x<%= quantity %></li>
+              <% end %>
+            </ul>
+
+            <h6>Send RFQs to Suppliers:</h6>
+            <%= form_with url: send_rfq_billing_path(request), method: :post, local: true do |f| %>
+              <div class="mb-3">
+                <label class="form-label">Select Suppliers</label>
+                <div class="border p-3 rounded">
+                  <% Supplier.active.each do |supplier| %>
+                    <div class="form-check">
+                      <%= check_box_tag "supplier_ids[]", supplier.id, false, 
+                            class: "form-check-input", id: "supplier_#{supplier.id}" %>
+                      <%= label_tag "supplier_#{supplier.id}", supplier.name, class: "form-check-label" %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Response Due Date</label>
+                <%= date_field_tag :due_date, Date.current + 7.days, class: "form-control" %>
+              </div>
+
+              <%= f.submit "Send RFQs", class: "btn btn-primary" %>
+            <% end %>
+
+            <!-- Existing Quotations -->
+            <% if request.quotations.any? %>
+              <hr>
+              <h6>Received Quotations:</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Supplier</th>
+                      <th>Amount</th>
+                      <th>Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% request.quotations.each do |quote| %>
+                      <tr>
+                        <td><%= quote.supplier.name %></td>
+                        <td><%= number_to_currency(quote.total) %></td>
+                        <td><%= quote.received_date.strftime("%b %d") %></td>
+                        <td>
+                          <%= link_to "View", quote, class: "btn btn-sm btn-outline-info" %>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
