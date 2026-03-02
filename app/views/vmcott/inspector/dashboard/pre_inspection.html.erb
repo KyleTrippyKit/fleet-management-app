@@ -1,0 +1,456 @@
+<%# app/views/vmcott/inspector/dashboard/pre_inspection.html.erb %>
+<div data-controller="debug" class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2"><i class="bi bi-clipboard2-check me-2"></i>Vehicle Inspection</h1>
+          <p class="text-muted">Step 1: Document findings | Step 2: List required parts</p>
+        </div>
+        <%= link_to "← Back", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary", data: { turbo: false } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <%= form_with url: vmcott_inspector_proceed_to_jobs_path, method: :post, local: true, id: "inspection-form", html: { onsubmit: "return validateForm()" } do |f| %>
+        <%= hidden_field_tag :vehicle_id, @vehicle.id %>
+
+        <!-- Vehicle Summary -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-truck me-2"></i><%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %></h5>
+            <span class="badge bg-light text-dark">Mileage: <%= @vehicle.mileage || 'N/A' %></span>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-3">
+                <label class="form-label fw-bold">Current Mileage *</label>
+                <%= number_field_tag :current_mileage, @vehicle.mileage, class: "form-control", required: true, min: @vehicle.mileage || 0 %>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-bold">Fuel Level *</label>
+                <%= select_tag :fuel_level, options_for_select([['1/4', 25], ['1/2', 50], ['3/4', 75], ['Full', 100]]), { prompt: 'Select', class: 'form-select', required: true } %>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-bold">Vehicle Condition *</label>
+                <%= select_tag :vehicle_condition, options_for_select(['Excellent', 'Good', 'Fair', 'Poor', 'Damaged']), { prompt: 'Select', class: 'form-select', required: true } %>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-bold">Priority *</label>
+                <%= select_tag :inspection_priority, options_for_select([['Low', 'low'], ['Normal', 'normal'], ['High', 'high'], ['Critical', 'critical']]), { prompt: 'Select', class: 'form-select', required: true } %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORIGINAL REQUEST (if any) -->
+        <% if @original_request.present? %>
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Customer Request:</strong> <%= @original_request.description || 'No specific request' %>
+            <div class="form-check mt-2">
+              <input type="checkbox" name="verify_reported_issues" value="true" id="verify_issues" class="form-check-input" required>
+              <label for="verify_issues" class="form-check-label">I have verified these issues</label>
+            </div>
+          </div>
+        <% end %>
+
+        <!-- TWO-COLUMN LAYOUT: Findings on Left, Parts on Right -->
+        <div class="row">
+          <!-- LEFT COLUMN: Inspection Findings -->
+          <div class="col-md-6">
+            <div class="card mb-4 h-100">
+              <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-search me-2"></i>Inspection Findings</h5>
+              </div>
+              <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                
+                <!-- Exterior Section -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Exterior</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][body_damage]" value="true" id="body_damage" class="form-check-input">
+                        <label for="body_damage" class="form-check-label">Body Damage</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][rust]" value="true" id="rust" class="form-check-input">
+                        <label for="rust" class="form-check-label">Rust/Corrosion</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][windshield]" value="true" id="windshield" class="form-check-input">
+                        <label for="windshield" class="form-check-label">Windshield Cracked</label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][lights]" value="true" id="lights" class="form-check-input">
+                        <label for="lights" class="form-check-label">Lights Not Working</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][tires]" value="true" id="tires" class="form-check-input">
+                        <label for="tires" class="form-check-label">Tire Damage/Wear</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[exterior][mirrors]" value="true" id="mirrors" class="form-check-input">
+                        <label for="mirrors" class="form-check-label">Mirror Damage</label>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea name="findings[exterior][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Exterior notes..."></textarea>
+                </div>
+
+                <!-- Interior Section -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Interior</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[interior][seats]" value="true" id="seats" class="form-check-input">
+                        <label for="seats" class="form-check-label">Seat Damage</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[interior][dashboard_lights]" value="true" id="dashboard_lights" class="form-check-input">
+                        <label for="dashboard_lights" class="form-check-label">Warning Lights On</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[interior][ac]" value="true" id="ac" class="form-check-input">
+                        <label for="ac" class="form-check-label">AC Not Working</label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[interior][electronics]" value="true" id="electronics" class="form-check-input">
+                        <label for="electronics" class="form-check-label">Electronics Issues</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[interior][smell]" value="true" id="smell" class="form-check-input">
+                        <label for="smell" class="form-check-label">Unusual Odor</label>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea name="findings[interior][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Interior notes..."></textarea>
+                </div>
+
+                <!-- Mechanical Section -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Mechanical</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][engine_noise]" value="true" id="engine_noise" class="form-check-input">
+                        <label for="engine_noise" class="form-check-label">Engine Noise</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][smoke]" value="true" id="smoke" class="form-check-input">
+                        <label for="smoke" class="form-check-label">Exhaust Smoke</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][leaks]" value="true" id="leaks" class="form-check-input">
+                        <label for="leaks" class="form-check-label">Fluid Leaks</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][brakes]" value="true" id="brakes" class="form-check-input">
+                        <label for="brakes" class="form-check-label">Brake Issues</label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][transmission]" value="true" id="transmission" class="form-check-input">
+                        <label for="transmission" class="form-check-label">Transmission Issues</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][steering]" value="true" id="steering" class="form-check-input">
+                        <label for="steering" class="form-check-label">Steering Issues</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[mechanical][suspension]" value="true" id="suspension" class="form-check-input">
+                        <label for="suspension" class="form-check-label">Suspension Issues</label>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea name="findings[mechanical][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Mechanical notes..."></textarea>
+                </div>
+
+                <!-- Diagnostic Codes -->
+                <div class="mb-3">
+                  <h6 class="border-bottom pb-2">Diagnostic Codes</h6>
+                  <input type="text" name="diagnostic_codes" class="form-control form-control-sm mb-2" placeholder="e.g., P0300, P0420">
+                  <input type="text" name="diagnostic_equipment" class="form-control form-control-sm" placeholder="Equipment used">
+                </div>
+
+                <!-- Summary -->
+                <div class="mb-3">
+                  <h6 class="border-bottom pb-2">Preliminary Summary *</h6>
+                  <textarea name="preliminary_summary" class="form-control" rows="3" required placeholder="Summarize your findings..."></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN: Parts Needed -->
+          <div class="col-md-6">
+            <div class="card mb-4 h-100">
+              <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Parts Needed</h5>
+                <button type="button" class="btn btn-sm btn-light" onclick="addPartRow()">+ Add Part</button>
+              </div>
+              <div class="card-body" style="max-height: 600px; overflow-y: auto;" id="parts-container">
+                <p class="text-muted text-center" id="no-parts-msg">Click "Add Part" to list required parts</p>
+                
+                <!-- Parts will be added here dynamically -->
+                <div id="parts-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden template for new part row -->
+        <template id="part-row-template">
+          <div class="part-row border rounded p-3 mb-3 bg-light">
+            <div class="row g-2">
+              <div class="col-md-5">
+                <select name="parts[][part_type]" class="form-select form-select-sm part-type" onchange="togglePartInput(this)">
+                  <option value="inventory">Select from Inventory</option>
+                  <option value="custom">Custom Part (Not in System)</option>
+                </select>
+              </div>
+              <div class="col-md-5">
+                <div class="inventory-part-input">
+                  <input type="text" class="form-control form-control-sm part-search" placeholder="Search parts..." oninput="searchParts(this)">
+                  <input type="hidden" name="parts[][part_id]" class="part-id">
+                  <div class="search-results dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+                <div class="custom-part-input" style="display: none;">
+                  <input type="text" name="parts[][custom_name]" class="form-control form-control-sm" placeholder="Enter part name">
+                </div>
+              </div>
+              <div class="col-md-2">
+                <input type="number" name="parts[][quantity]" class="form-control form-control-sm" value="1" min="1">
+              </div>
+              <div class="col-md-12 text-end mt-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePart(this)">Remove</button>
+              </div>
+            </div>
+            <input type="hidden" name="parts[][is_custom]" class="is-custom" value="false">
+          </div>
+        </template>
+
+        <!-- Submit Button -->
+        <div class="d-flex justify-content-between mt-4">
+          <%= link_to "Cancel", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary", data: { turbo: false } %>
+          <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+            <i class="bi bi-check-circle me-2"></i>Complete Inspection & Send to Workshop
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript for parts management -->
+<script>
+let partCounter = 0;
+const partsList = document.getElementById('parts-list');
+const noPartsMsg = document.getElementById('no-parts-msg');
+
+function addPartRow() {
+  const template = document.getElementById('part-row-template');
+  const clone = template.content.cloneNode(true);
+  const rowId = `part-row-${partCounter++}`;
+  
+  // Add a unique identifier
+  clone.querySelector('.part-row').id = rowId;
+  
+  partsList.appendChild(clone);
+  noPartsMsg.style.display = 'none';
+  
+  // Scroll to the new row
+  document.getElementById(rowId).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function removePart(btn) {
+  const row = btn.closest('.part-row');
+  row.remove();
+  
+  if (partsList.children.length === 0) {
+    noPartsMsg.style.display = 'block';
+  }
+}
+
+function togglePartInput(select) {
+  const row = select.closest('.part-row');
+  const inventoryInput = row.querySelector('.inventory-part-input');
+  const customInput = row.querySelector('.custom-part-input');
+  const isCustom = row.querySelector('.is-custom');
+  
+  if (select.value === 'custom') {
+    inventoryInput.style.display = 'none';
+    customInput.style.display = 'block';
+    isCustom.value = 'true';
+  } else {
+    inventoryInput.style.display = 'block';
+    customInput.style.display = 'none';
+    isCustom.value = 'false';
+  }
+}
+
+function searchParts(input) {
+  const query = input.value;
+  const resultsDiv = input.closest('.inventory-part-input').querySelector('.search-results');
+  const partIdField = input.closest('.inventory-part-input').querySelector('.part-id');
+  
+  if (query.length < 2) {
+    resultsDiv.style.display = 'none';
+    return;
+  }
+  
+  // Show loading
+  resultsDiv.innerHTML = '<div class="dropdown-item">Searching...</div>';
+  resultsDiv.style.display = 'block';
+  
+  // Fetch parts from server
+  fetch(`/vmcott/parts/search?q=${encodeURIComponent(query)}`)
+    .then(response => response.json())
+    .then(parts => {
+      if (parts.length === 0) {
+        resultsDiv.innerHTML = '<div class="dropdown-item text-muted">No parts found</div>';
+        return;
+      }
+      
+      resultsDiv.innerHTML = '';
+      parts.forEach(part => {
+        const item = document.createElement('div');
+        item.className = 'dropdown-item';
+        item.style.cursor = 'pointer';
+        item.innerHTML = `
+          <div class="d-flex justify-content-between">
+            <span><strong>${part.name}</strong> <small class="text-muted">${part.part_number || ''}</small></span>
+            <span class="badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'}">Stock: ${part.current_stock}</span>
+          </div>
+        `;
+        item.onclick = () => {
+          input.value = part.name;
+          partIdField.value = part.id;
+          resultsDiv.style.display = 'none';
+          
+          // Show stock status
+          const stockBadge = document.createElement('span');
+          stockBadge.className = `badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'} ms-2`;
+          stockBadge.textContent = part.current_stock > 0 ? `In Stock (${part.current_stock})` : 'Out of Stock';
+          input.parentNode.appendChild(stockBadge);
+        };
+        resultsDiv.appendChild(item);
+      });
+    })
+    .catch(error => {
+      resultsDiv.innerHTML = '<div class="dropdown-item text-danger">Error loading parts</div>';
+    });
+}
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.inventory-part-input')) {
+    document.querySelectorAll('.search-results').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+});
+
+function validateForm() {
+  const mileage = document.getElementById('current_mileage');
+  const fuelLevel = document.getElementById('fuel_level');
+  const condition = document.getElementById('vehicle_condition');
+  const priority = document.getElementById('inspection_priority');
+  const summary = document.querySelector('textarea[name="preliminary_summary"]');
+  
+  if (!mileage.value || mileage.value < 0) {
+    alert('Please enter current mileage');
+    mileage.focus();
+    return false;
+  }
+  
+  if (!fuelLevel.value) {
+    alert('Please select fuel level');
+    fuelLevel.focus();
+    return false;
+  }
+  
+  if (!condition.value) {
+    alert('Please select vehicle condition');
+    condition.focus();
+    return false;
+  }
+  
+  if (!priority.value) {
+    alert('Please select priority');
+    priority.focus();
+    return false;
+  }
+  
+  if (!summary.value.trim()) {
+    alert('Please enter preliminary summary');
+    summary.focus();
+    return false;
+  }
+  
+  // Disable submit button
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+  
+  return true;
+}
+</script>
+
+<style>
+/* Fix scroll anchoring */
+* {
+  overflow-anchor: none !important;
+}
+
+/* Part row styling */
+.part-row {
+  position: relative;
+  background: white;
+  transition: all 0.2s;
+}
+
+.part-row:hover {
+  background: #f8f9fa;
+}
+
+/* Search results */
+.search-results {
+  position: absolute;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.search-results .dropdown-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.search-results .dropdown-item:hover {
+  background: #f0f0f0;
+}
+
+/* Two-column layout */
+.col-md-6 .card {
+  min-height: 500px;
+}
+
+/* Scrollable areas */
+.card-body {
+  scroll-behavior: smooth;
+}
+</style>

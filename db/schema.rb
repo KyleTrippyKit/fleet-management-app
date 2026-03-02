@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -272,15 +272,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
     t.decimal "estimated_parts_cost", precision: 10, scale: 2
     t.bigint "inspection_id", null: false
     t.bigint "job_template_id"
+    t.text "mechanic_notes"
     t.text "notes"
+    t.integer "parent_job_id"
     t.text "parts_approval_notes"
     t.boolean "parts_approved", default: false
     t.string "priority"
+    t.string "recommendation_source", default: "inspector"
+    t.boolean "requires_approval", default: false
     t.boolean "requires_part_approval", default: false
     t.datetime "updated_at", null: false
+    t.string "verification_status", default: "pending"
+    t.datetime "verified_at"
+    t.integer "verified_by_mechanic_id"
     t.index ["assigned_mechanic_id"], name: "index_inspection_jobs_on_assigned_mechanic_id"
     t.index ["inspection_id"], name: "index_inspection_jobs_on_inspection_id"
     t.index ["job_template_id"], name: "index_inspection_jobs_on_job_template_id"
+    t.index ["parent_job_id"], name: "index_inspection_jobs_on_parent_job_id"
+    t.index ["verification_status"], name: "index_inspection_jobs_on_verification_status"
+    t.index ["verified_by_mechanic_id"], name: "index_inspection_jobs_on_verified_by_mechanic_id"
   end
 
   create_table "inspections", force: :cascade do |t|
@@ -292,6 +302,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
     t.bigint "final_inspector_id"
     t.bigint "inspector_id", null: false
     t.datetime "mechanic_notified_at"
+    t.jsonb "metadata", default: {}
     t.integer "mileage_at_inspection"
     t.date "next_service_date"
     t.integer "next_service_mileage"
@@ -305,6 +316,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
     t.bigint "vehicle_id", null: false
     t.index ["final_inspector_id"], name: "index_inspections_on_final_inspector_id"
     t.index ["inspector_id"], name: "index_inspections_on_inspector_id"
+    t.index ["metadata"], name: "index_inspections_on_metadata", using: :gin
     t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
     t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
   end
@@ -650,19 +662,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
     t.string "custom_part_name"
     t.boolean "in_stock", default: false
     t.bigint "inspection_id", null: false
+    t.bigint "inspection_job_id"
     t.datetime "notified_billing_at"
     t.datetime "notified_parts_coordinator_at"
     t.bigint "part_id"
     t.datetime "parts_received_at"
+    t.datetime "processed_at"
+    t.integer "processed_by"
     t.bigint "purchase_order_id"
     t.integer "quantity", default: 1, null: false
     t.datetime "rejected_at"
     t.text "rejection_reason"
+    t.datetime "sent_to_billing_at"
     t.string "status", default: "pending"
     t.datetime "updated_at", null: false
     t.bigint "vendor_invoice_id"
     t.index ["inspection_id", "part_id"], name: "index_parts_requests_on_inspection_id_and_part_id", unique: true
     t.index ["inspection_id"], name: "index_parts_requests_on_inspection_id"
+    t.index ["inspection_job_id"], name: "index_parts_requests_on_inspection_job_id"
     t.index ["part_id"], name: "index_parts_requests_on_part_id"
     t.index ["purchase_order_id"], name: "index_parts_requests_on_purchase_order_id"
     t.index ["vendor_invoice_id"], name: "index_parts_requests_on_vendor_invoice_id"
@@ -1543,6 +1560,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_215042) do
   add_foreign_key "parts", "suppliers"
   add_foreign_key "parts_request_items", "parts"
   add_foreign_key "parts_request_items", "parts_requests"
+  add_foreign_key "parts_requests", "inspection_jobs"
   add_foreign_key "parts_requests", "inspections"
   add_foreign_key "parts_requests", "parts"
   add_foreign_key "parts_requests", "purchase_orders"

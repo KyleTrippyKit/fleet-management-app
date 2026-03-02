@@ -35,11 +35,11 @@ module Vmcott
       @parts = scope.page(params[:page]).per(25)
     end
 
-    # JSON endpoint for live part search (used in purchase request form and inspection form)
+    # JSON endpoint for live part search (used in inspection form and mechanic parts request)
     def search
       @parts = Part.where("name ILIKE :q OR part_number ILIKE :q", q: "%#{params[:q]}%")
                    .where(is_active: true)
-                   .includes(:supplier)  # Eager load supplier for better performance
+                   .includes(:supplier)
                    .limit(20)
       
       render json: @parts.map { |p| 

@@ -1,0 +1,254 @@
+<%# app/views/ptsc/admin/vehicle_status.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2 mb-0">
+        <i class="bi bi-truck-front-fill text-primary me-2"></i>
+        Fleet Status Dashboard
+      </h1>
+      <p class="text-muted">Real-time tracking of vehicles at VMCOTT</p>
+    </div>
+    <div class="col-auto">
+      <div class="btn-group">
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+          <i class="bi bi-arrow-repeat me-1"></i> Refresh
+        </button>
+        <%= link_to ptsc_fleet_dashboard_path, class: "btn btn-outline-secondary" do %>
+          <i class="bi bi-arrow-left me-1"></i> Back to Fleet
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Overview Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-uppercase mb-2">At VMCOTT</h6>
+              <h2 class="mb-0"><%= @at_vmcott_count %></h2>
+            </div>
+            <i class="bi bi-building fs-1 opacity-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-uppercase mb-2">Awaiting Quote</h6>
+              <h2 class="mb-0"><%= @awaiting_quote_count %></h2>
+            </div>
+            <i class="bi bi-cash-stack fs-1 opacity-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-uppercase mb-2">Awaiting PO</h6>
+              <h2 class="mb-0"><%= @awaiting_po_count %></h2>
+            </div>
+            <i class="bi bi-file-text fs-1 opacity-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="text-uppercase mb-2">In Progress</h6>
+              <h2 class="mb-0"><%= @in_progress_count %></h2>
+            </div>
+            <i class="bi bi-gear-wide-connected fs-1 opacity-50"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quotations Waiting for Approval -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-warning">
+      <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Pending Your Approval - Quotations</h5>
+    </div>
+    <div class="card-body">
+      <% if @pending_quotations.any? %>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Vehicle</th>
+                <th>Description</th>
+                <th>Labor Cost</th>
+                <th>Parts Cost</th>
+                <th>Total</th>
+                <th>Valid Until</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @pending_quotations.each do |quote| %>
+                <tr>
+                  <td><%= quote.vehicle.license_plate %></td>
+                  <td><%= truncate(quote.description, length: 50) %></td>
+                  <td>$<%= quote.labor_cost %></td>
+                  <td>$<%= quote.parts_cost %></td>
+                  <td><strong>$<%= quote.total_cost %></strong></td>
+                  <td><%= quote.valid_until.strftime("%b %d, %Y") %></td>
+                  <td>
+                    <%= link_to "View", quotation_path(quote), class: "btn btn-sm btn-outline-primary" %>
+                    <%= link_to "Accept", accept_quotation_path(quote), method: :post, 
+                        class: "btn btn-sm btn-success", data: { confirm: "Accept this quote?" } %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-3">No pending quotations</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Live Status Timeline -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">
+        <i class="bi bi-clock-history me-2 text-primary"></i>
+        Live Vehicle Status
+      </h5>
+      <span class="badge bg-success">
+        <i class="bi bi-circle-fill me-1" style="font-size: 0.6rem;"></i>
+        Live Updates
+      </span>
+    </div>
+    <div class="card-body">
+      
+      <!-- Search/Filter -->
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text bg-white">
+              <i class="bi bi-search"></i>
+            </span>
+            <input type="text" class="form-control" id="vehicleSearch" 
+                   placeholder="Search by license plate..." 
+                   onkeyup="filterVehicles()">
+          </div>
+        </div>
+        <div class="col-md-8">
+          <div class="d-flex gap-2 justify-content-end">
+            <span class="badge bg-primary p-2">📋 Inspection</span>
+            <span class="badge bg-warning p-2">💰 Quote Sent</span>
+            <span class="badge bg-info p-2">📦 PO Received</span>
+            <span class="badge bg-secondary p-2">🔧 Workshop</span>
+            <span class="badge bg-success p-2">✅ Ready</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Table -->
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="vehicleTable">
+          <thead class="table-light">
+            <tr>
+              <th>Vehicle</th>
+              <th>Check-in</th>
+              <th>Current Status</th>
+              <th>Jobs Found</th>
+              <th>Parts Needed</th>
+              <th>Quote Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @vehicles_at_vmcott.each do |vehicle| %>
+              <% inspection = vehicle.current_inspection %>
+              <tr class="vehicle-row" data-license="<%= vehicle.license_plate %>">
+                <!-- Vehicle Info -->
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div>
+                      <strong class="d-block"><%= vehicle.license_plate %></strong>
+                      <small class="text-muted"><%= vehicle.make %> <%= vehicle.model %></small>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Check-in Time -->
+                <td>
+                  <%= vehicle.reception_logs.last&.check_in_time&.strftime("%b %d") %>
+                </td>
+
+                <!-- Current Status -->
+                <td>
+                  <%= status_badge(vehicle.current_status) %>
+                </td>
+
+                <!-- Jobs Found -->
+                <td>
+                  <%= inspection&.inspection_jobs&.count || 0 %>
+                </td>
+
+                <!-- Parts Needed -->
+                <td>
+                  <%= inspection&.parts_requests&.count || 0 %>
+                </td>
+
+                <!-- Quote Status -->
+                <td>
+                  <% if inspection&.quotation.present? %>
+                    <% if inspection.quotation.status == 'pending_agency_approval' %>
+                      <span class="badge bg-warning">Awaiting Your Approval</span>
+                    <% elsif inspection.quotation.status == 'approved' %>
+                      <span class="badge bg-success">Approved - PO Sent</span>
+                    <% end %>
+                  <% else %>
+                    <span class="badge bg-secondary">Preparing Quote</span>
+                  <% end %>
+                </td>
+
+                <!-- Actions -->
+                <td>
+                  <%= link_to "Details", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary" %>
+                  <% if inspection&.quotation&.status == 'pending_agency_approval' %>
+                    <%= link_to "Review Quote", quotation_path(inspection.quotation), 
+                        class: "btn btn-sm btn-warning" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Auto-refresh every 30 seconds
+  setTimeout(function() { location.reload(); }, 30000);
+
+  function filterVehicles() {
+    const input = document.getElementById('vehicleSearch');
+    const filter = input.value.toUpperCase();
+    const rows = document.querySelectorAll('.vehicle-row');
+    
+    rows.forEach(row => {
+      const license = row.getAttribute('data-license').toUpperCase();
+      row.style.display = license.includes(filter) ? '' : 'none';
+    });
+  }
+</script>

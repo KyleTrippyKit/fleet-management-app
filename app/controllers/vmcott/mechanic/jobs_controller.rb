@@ -20,10 +20,20 @@ module Vmcott
       def available
         @jobs = InspectionJob.includes(inspection: :vehicle)
                             .where(assigned_mechanic_id: nil, completed_at: nil)
+                            .where(verification_status: 'approved')
                             .where('requires_part_approval = false OR parts_approved = true')
                             .order(created_at: :desc)
         
         render 'vmcott/mechanic/jobs/available'
+      end
+      
+      def verification
+        @jobs = InspectionJob.includes(inspection: :vehicle)
+                            .where(assigned_mechanic_id: nil, completed_at: nil)
+                            .where(verification_status: 'pending')
+                            .order(created_at: :desc)
+        
+        render 'vmcott/mechanic/jobs/verification'
       end
       
       def completed

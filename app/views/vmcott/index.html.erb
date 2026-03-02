@@ -161,6 +161,7 @@
             <tbody>
               <% @agency_stats.each do |stats| %>
                 <% agency = stats[:agency] %>
+                <% next if agency.nil? %> <!-- Skip if agency is nil -->
                 <% agency_color = agency_colors[agency.code] || { bg: "#6B7280", text: "#FFFFFF" } %>
                 <% util = stats[:usage_stats][:average_utilization].to_f %>
                 <% util_color = util >= 70 ? vmcott_success : (util >= 30 ? vmcott_warning : vmcott_danger) %>
@@ -272,7 +273,7 @@
 
     <!-- BOTTOM SECTION - Two column layout with Fleet Health & Alerts -->
     <div class="row g-4">
-      <!-- Recent Maintenance -->
+      <!-- Recent Maintenance - FIXED with nil safety -->
       <div class="col-12 col-lg-7">
         <div class="card border-0 shadow-sm h-100" style="border-radius: 12px;">
           <div class="card-header bg-transparent px-4 py-3 d-flex justify-content-between align-items-center" style="border-bottom: 1px solid <%= vmcott_border_gray %>;">
@@ -282,11 +283,11 @@
               </div>
               <h5 class="fw-bold mb-0" style="color: <%= vmcott_dark_blue %>;">Recent Maintenance</h5>
             </div>
-            <span class="small text-muted"><%= @recent_maintenances.count %> requests</span>
+            <span class="small text-muted"><%= @recent_maintenances&.count || 0 %> requests</span>
           </div>
           
           <div class="card-body p-0">
-            <% if @recent_maintenances.any? %>
+            <% if @recent_maintenances&.any? %>
               <div class="list-group list-group-flush">
                 <% @recent_maintenances.limit(5).each do |maintenance| %>
                   <% status_color = case maintenance.status
@@ -301,17 +302,26 @@
                       <div>
                         <div class="d-flex align-items-center gap-2 mb-1">
                           <span class="badge rounded-pill px-3 py-1" style="background: <%= status_color %>10; color: <%= status_color %>; font-weight: 500; font-size: 0.7rem;">
-                            <%= maintenance.status.titleize %>
+                            <%= maintenance.status&.titleize || 'Unknown' %>
                           </span>
                           <span class="fw-medium">
-                            <%= link_to maintenance.vehicle.display_name, vehicle_path(maintenance.vehicle), 
-                                class: "text-decoration-none", style: "color: #{vmcott_dark_blue};" %>
+                            <% if maintenance.vehicle.present? %>
+                              <%= link_to maintenance.vehicle.display_name, vehicle_path(maintenance.vehicle), 
+                                  class: "text-decoration-none", style: "color: #{vmcott_dark_blue};" %>
+                            <% else %>
+                              <span class="text-muted">Unknown Vehicle</span>
+                            <% end %>
                           </span>
                         </div>
                         <div class="small text-muted">
                           <i class="fas fa-building me-1" style="color: <%= vmcott_gold %>;"></i>
-                          <%= link_to maintenance.vehicle.agency.name, agency_vehicles_path(maintenance.vehicle.agency), 
-                              class: "text-decoration-none text-muted" %> • 
+                          <% if maintenance.vehicle&.agency.present? %>
+                            <%= link_to maintenance.vehicle.agency.name, agency_vehicles_path(maintenance.vehicle.agency), 
+                                class: "text-decoration-none text-muted" %>
+                          <% else %>
+                            <span class="text-muted">Unknown Agency</span>
+                          <% end %>
+                          • 
                           <i class="fas fa-wrench me-1 ms-1" style="color: <%= vmcott_gold %>;"></i>
                           <%= maintenance.service_type || 'General Service' %>
                         </div>
@@ -378,7 +388,7 @@
               </div>
             </div>
             
-            <!-- Critical Alerts -->
+            <!-- Critical Alerts - FIXED with nil safety -->
             <% if @critical_alerts && @critical_alerts.any? %>
               <div class="alert alert-danger mb-3 p-3" style="border-radius: 10px;">
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -390,7 +400,13 @@
                     <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-danger border-opacity-25">
                       <div>
                         <div class="fw-medium"><%= alert.title %></div>
-                        <small><%= alert.vehicle.display_name %> • <%= alert.agency.code %></small>
+                        <small>
+                          <% if alert.vehicle.present? %>
+                            <%= alert.vehicle.display_name %> • <%= alert.agency&.code || 'N/A' %>
+                          <% else %>
+                            Unknown Vehicle • <%= alert.agency&.code || 'N/A' %>
+                          <% end %>
+                        </small>
                       </div>
                       <%= link_to alert_path(alert), class: "btn btn-sm btn-outline-danger rounded-circle p-1", style: "width: 28px; height: 28px;" do %>
                         <i class="fas fa-arrow-right fa-sm"></i>
@@ -443,7 +459,7 @@
                     <span class="badge rounded-pill px-2 py-1" style="background: <%= color[:bg] %>; color: white; font-size: 0.7rem;">
                       <%= agency.code %>
                     </span>
-                    <span class="small"><%= agency.name %></span> <!-- Changed from short_name to name -->
+                    <span class="small"><%= agency.name %></span>
                   </div>
                   <div class="d-flex align-items-center gap-2">
                     <span class="small fw-bold" style="color: <%= health_color %>;"><%= health_score %></span>
@@ -653,13 +669,3 @@ document.addEventListener('DOMContentLoaded', function() {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
-  
-  .btn.rounded-circle {
-    width: 32px !important;
-    height: 32px !important;
-  }
-}
-
-/* Import Inter Font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-</style>

@@ -1,8 +1,178 @@
+# app/helpers/application_helper.rb
 module ApplicationHelper
   include Ransack::Helpers::FormHelper
   
   # ============================================================
-  # ROLE BADGE COLOR HELPER - ADDED TO FIX THE ERROR
+  # INSPECTOR WORKFLOW HELPER METHODS - ADDED FOR YOUR WORKFLOW
+  # ============================================================
+  def inspection_status_color(status)
+    case status.to_s
+    when 'pending_inspection'
+      'warning'
+    when 'inspection_completed'
+      'info'
+    when 'parts_needed'
+      'danger'
+    when 'approved_for_repair'
+      'success'
+    when 'in_progress'
+      'primary'
+    when 'ready_for_qc'
+      'secondary'
+    when 'qc_completed'
+      'success'
+    when 'ready_for_pickup'
+      'dark'
+    when 'invoiced'
+      'success'
+    when 'completed'
+      'success'
+    else
+      'secondary'
+    end
+  end
+
+  def inspection_status_icon(status)
+    case status.to_s
+    when 'pending_inspection'
+      'bi-clock'
+    when 'inspection_completed'
+      'bi-check-circle'
+    when 'parts_needed'
+      'bi-exclamation-triangle'
+    when 'approved_for_repair'
+      'bi-check-circle'
+    when 'in_progress'
+      'bi-gear'
+    when 'ready_for_qc'
+      'bi-clipboard-check'
+    when 'qc_completed'
+      'bi-check-circle'
+    when 'ready_for_pickup'
+      'bi-truck'
+    when 'invoiced'
+      'bi-receipt'
+    when 'completed'
+      'bi-check-circle'
+    else
+      'bi-question-circle'
+    end
+  end
+
+  def job_status_color(status)
+    case status.to_s
+    when 'pending'
+      'secondary'
+    when 'assigned'
+      'info'
+    when 'in_progress'
+      'primary'
+    when 'ready_for_qc'
+      'warning'
+    when 'completed'
+      'success'
+    else
+      'secondary'
+    end
+  end
+
+  def part_status_badge(part_request)
+    if part_request.in_stock
+      content_tag(:span, 'In Stock', class: 'badge bg-success')
+    elsif part_request.part.present?
+      content_tag(:span, 'Out of Stock', class: 'badge bg-danger')
+    else
+      content_tag(:span, 'Custom Part', class: 'badge bg-warning')
+    end
+  end
+
+  def calculate_inspection_progress(inspection)
+    case inspection.status
+    when 'pending_inspection'
+      10
+    when 'inspection_completed'
+      25
+    when 'parts_needed'
+      35
+    when 'approved_for_repair'
+      50
+    when 'in_progress'
+      65
+    when 'ready_for_qc'
+      80
+    when 'qc_completed'
+      90
+    when 'ready_for_pickup'
+      95
+    when 'invoiced'
+      98
+    when 'completed'
+      100
+    else
+      0
+    end
+  end
+
+  def progress_bar_color(progress)
+    case progress.to_i
+    when 0..30
+      'danger'
+    when 31..60
+      'warning'
+    when 61..90
+      'info'
+    else
+      'success'
+    end
+  end
+
+  # ============================================================
+  # PARTS REQUEST STATUS HELPERS - UPDATED WITH BADGE METHOD
+  # ============================================================
+  def parts_request_status_color(status)
+    case status.to_s
+    when 'pending'
+      'secondary'
+    when 'billing_notified'
+      'warning'
+    when 'rfq_sent'
+      'info'
+    when 'quotations_received'
+      'primary'
+    when 'ordered'
+      'info'
+    when 'parts_received'
+      'success'
+    when 'in_stock'
+      'success'
+    else
+      'secondary'
+    end
+  end
+
+  # NEW METHOD - Creates a Bootstrap badge for parts request status
+  def parts_request_status_badge(status)
+    color = parts_request_status_color(status)
+    display_text = case status.to_s
+                  when 'billing_notified'
+                    'Billing Notified'
+                  when 'rfq_sent'
+                    'RFQ Sent'
+                  when 'quotations_received'
+                    'Quotes Received'
+                  when 'parts_received'
+                    'Parts Received'
+                  when 'in_stock'
+                    'In Stock'
+                  else
+                    status.to_s.titleize
+                  end
+    
+    content_tag(:span, display_text, class: "badge bg-#{color}")
+  end
+
+  # ============================================================
+  # ROLE BADGE COLOR HELPER
   # ============================================================
   def role_badge_color(role)
     case role.to_s
@@ -22,6 +192,16 @@ module ApplicationHelper
       'bg-light text-dark'
     when 'vmcott_staff'
       'bg-dark'
+    when 'receptionist'
+      'bg-primary'
+    when 'inspector'
+      'bg-info'
+    when 'parts_coordinator'
+      'bg-warning'
+    when 'mechanic'
+      'bg-secondary'
+    when 'billing'
+      'bg-success'
     else
       'bg-secondary'
     end
@@ -235,7 +415,7 @@ module ApplicationHelper
     end
   end
   
-  # NEW: Helper for payment audit action icons
+  # Helper for payment audit action icons
   def audit_action_icon(action)
     case action.to_s
     when 'initiated'

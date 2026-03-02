@@ -1,30 +1,43 @@
 # app/controllers/admin/users_controller.rb
 class Admin::UsersController < ApplicationController
   before_action :authenticate_user!
-  before_action :authorize_ptsc_admin!
+  before_action :authorize_admin!
   before_action :set_user, only: [:edit, :update, :destroy, :impersonate, :reset_password]
+  before_action :ensure_same_agency!, only: [:edit, :update, :destroy, :impersonate, :reset_password]
 
   def index
-    @users = User.includes(:agency).where(agency: current_user.agency) # Only PTSC users
+    @users = User.includes(:agency).where(agency: current_user.agency)
     @users = apply_filters(@users)
     @users = @users.order(created_at: :desc).page(params[:page]).per(20)
-    @agencies = [current_user.agency] # Only current agency (PTSC)
+    @agencies = [current_user.agency]
   end
 
   def new
     @user = User.new
-    @user.agency = current_user.agency # Auto-assign to PTSC
+    # Set agency from params or default to current user's agency
+    if params[:agency_id].present?
+      @user.agency = Agency.find(params[:agency_id])
+    else
+      @user.agency = current_user.agency
+    end
     @agencies = [current_user.agency]
   end
 
   def create
     @user = User.new(user_params)
-    @user.agency = current_user.agency # Force PTSC agency
-    @user.password = SecureRandom.hex(8) # Generate random password
+    
+    # Set agency from params or default to current user's agency
+    if params[:agency_id].present?
+      @user.agency_id = params[:agency_id]
+    else
+      @user.agency_id = current_user.agency_id
+    end
+    
+    # Generate random password
+    @user.password = SecureRandom.hex(8)
     
     if @user.save
-      # You could send an email here with the password
-      redirect_to admin_users_path, notice: "User created successfully. Password: #{@user.password}"
+      redirect_to admin_users_path, notice: "User created successfully for #{@user.agency.code}. Password: #{@user.password}"
     else
       @agencies = [current_user.agency]
       render :new, status: :unprocessable_entity
@@ -36,7 +49,7 @@ class Admin::UsersController < ApplicationController
   end
 
   def update
-    if @user.update(user_params.except(:password, :agency_id)) # Don't allow agency change
+    if @user.update(user_params.except(:password, :agency_id))
       redirect_to admin_users_path, notice: "User updated successfully."
     else
       @agencies = [current_user.agency]
@@ -47,19 +60,21 @@ class Admin::UsersController < ApplicationController
   def destroy
     if @user == current_user
       redirect_to admin_users_path, alert: "You cannot delete yourself."
-    elsif @user.agency != current_user.agency
-      redirect_to admin_users_path, alert: "You can only delete users from your agency."
     else
-      @user.destroy
-      redirect_to admin_users_path, notice: "User deleted successfully."
+      # First, nullify any associations that might exist
+      # You may need to update other records here if they reference this user
+      begin
+        @user.destroy
+        redirect_to admin_users_path, notice: "User deleted successfully."
+      rescue => e
+        redirect_to admin_users_path, alert: "Could not delete user: #{e.message}"
+      end
     end
   end
 
   def impersonate
     if @user == current_user
       redirect_to admin_users_path, alert: "You cannot impersonate yourself."
-    elsif @user.agency != current_user.agency
-      redirect_to admin_users_path, alert: "You can only impersonate users from your agency."
     else
       session[:admin_id] = current_user.id
       sign_in(:user, @user, bypass: true)
@@ -79,13 +94,6 @@ class Admin::UsersController < ApplicationController
   end
 
   def reset_password
-    @user = User.find(params[:user_id])
-    
-    if @user.agency != current_user.agency
-      redirect_to admin_users_path, alert: "You can only reset passwords for users in your agency."
-      return
-    end
-    
     new_password = SecureRandom.hex(8)
     @user.update(password: new_password, reset_password_sent_at: Time.current)
     
@@ -96,9 +104,11 @@ class Admin::UsersController < ApplicationController
 
   def set_user
     @user = User.find(params[:id])
-    # Ensure user belongs to PTSC
-    if @user.agency != current_user.agency
-      redirect_to admin_users_path, alert: "You can only access users from your agency."
+  end
+
+  def ensure_same_agency!
+    if @user.agency_id != current_user.agency_id
+      redirect_to admin_users_path, alert: "You can only manage users from your own agency."
     end
   end
 
@@ -112,11 +122,11 @@ class Admin::UsersController < ApplicationController
   def user_params
     params.require(:user).permit(
       :email, :name, :role, :employee_id, :time_zone, :is_active
-    ).merge(agency_id: current_user.agency_id) # Force agency_id to PTSC
+    )
   end
 
-  def authorize_ptsc_admin!
-    unless current_user.admin? && current_user.agency&.code == 'PTSC'
+  def authorize_admin!
+    unless current_user.admin?
       redirect_to root_path, alert: "You are not authorized to access this area."
     end
   end

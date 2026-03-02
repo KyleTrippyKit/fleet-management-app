@@ -1,3 +1,4 @@
+# app/models/inspection.rb
 class Inspection < ApplicationRecord
   belongs_to :vehicle
   belongs_to :inspector, class_name: 'User'
@@ -7,10 +8,11 @@ class Inspection < ApplicationRecord
   has_many :inspection_jobs, dependent: :destroy
   has_many :parts_requests, dependent: :destroy
 
-  # Status workflow - corrected enum syntax for Rails 7+
+  # Status workflow - added pending_mechanic_review
   enum :status, {
     pending_inspection: 'pending_inspection',
     inspection_completed: 'inspection_completed',
+    pending_mechanic_review: 'pending_mechanic_review',  # NEW: Waiting for mechanic to review
     parts_coordinator_review: 'parts_coordinator_review',
     billing_review: 'billing_review',
     awaiting_customer_approval: 'awaiting_customer_approval',
@@ -25,9 +27,10 @@ class Inspection < ApplicationRecord
   validates :status, presence: true
   validates :mileage_at_inspection, numericality: { greater_than: 0 }, allow_nil: true
 
-  # Scopes for notifications
+  # Scopes for notifications - updated
+  scope :needing_mechanic_review, -> { where(status: :pending_mechanic_review) }
   scope :needing_parts_coordinator, -> { where(status: :parts_coordinator_review) }
-  scope :needing_billing_review, -> { where(status: :parts_coordinator_review) }
+  scope :needing_billing_review, -> { where(status: :billing_review) }
   scope :needing_mechanic_notification, -> { where(status: :approved_for_repair) }
   scope :ready_for_final_qc, -> { where(status: :ready_for_qc) }
   scope :ready_for_pickup, -> { where(status: :ready_for_pickup) }
@@ -76,7 +79,6 @@ class Inspection < ApplicationRecord
 
   def notify_parts_coordinator!
     update(parts_coordinator_notified_at: Time.current)
-    # In a real app, enqueue a background job
     if defined?(PartsCoordinatorNotificationJob)
       PartsCoordinatorNotificationJob.perform_later(id)
     else
@@ -103,7 +105,6 @@ class Inspection < ApplicationRecord
   end
 
   def notify_receptionist_for_pickup!
-    # Notify receptionist that vehicle is ready for customer pickup
     Rails.logger.info "Would notify receptionist that vehicle #{vehicle.license_plate} is ready for pickup"
   end
 

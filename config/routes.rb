@@ -60,6 +60,15 @@ Rails.application.routes.draw do
     get "finance-dashboard", to: "finance_dashboard#index", as: :finance_dashboard
     get "driver-dashboard", to: "driver_dashboard#index", as: :driver_dashboard
     get "maintenance-dashboard", to: "maintenance_dashboard#index", as: :maintenance_dashboard
+    
+    # ========================
+    # PTSC ADMIN - Vehicle Status Tracking
+    # ========================
+    namespace :admin do
+      get "vehicle_status", to: "vehicle_status#index", as: :vehicle_status
+      get "vehicle_status/:id", to: "vehicle_status#show", as: :vehicle_status_details
+      get "vehicle_status_history/:id", to: "vehicle_status#history", as: :vehicle_status_history
+    end
   end
 
   # ========================
@@ -76,7 +85,6 @@ Rails.application.routes.draw do
       get "scan", to: "dashboard#scan"
       get "manual_entry", to: "dashboard#manual_entry"
       post "receive_vehicle", to: "dashboard#receive_vehicle"
-      get "parts/search", to: "parts#search", as: :search_parts
       
       resources :reception_logs, only: [:index, :show] do
         collection do
@@ -85,7 +93,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 2. INSPECTOR - Diagnostics and QC
+    # 2. INSPECTOR - Diagnostics and QC (UPDATED - No parts)
     namespace :inspector do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "inspection/:vehicle_id/new", to: "dashboard#new_inspection", as: :new_inspection
@@ -93,6 +101,10 @@ Rails.application.routes.draw do
       get "inspection/:id", to: "dashboard#show_inspection", as: :inspection
       get "qc/:id", to: "dashboard#qc_inspection", as: :qc
       post "qc/:id/complete", to: "dashboard#complete_qc", as: :complete_qc
+      
+      # Pre-inspection routes
+      get "pre_inspection/:vehicle_id", to: "dashboard#pre_inspection", as: :pre_inspection
+      post "proceed_to_jobs", to: "dashboard#proceed_to_jobs", as: :proceed_to_jobs
       
       resources :inspections, only: [:index, :show] do
         member do
@@ -103,9 +115,11 @@ Rails.application.routes.draw do
       end
     end
 
-    # 3. PARTS COORDINATOR - Inventory and RFQs
+    # 3. PARTS COORDINATOR - Inventory and RFQs (UPDATED with new workflow)
     namespace :parts_coordinator do
       get "dashboard", to: "dashboard#index", as: :dashboard
+      
+      # RFQ Management
       get "rfq/:part_id/new", to: "dashboard#create_rfq", as: :new_rfq
       post "rfq/create", to: "dashboard#create_and_send_rfq", as: :create_rfq
       post "rfq/:id/send", to: "dashboard#send_rfq", as: :send_rfq
@@ -113,9 +127,12 @@ Rails.application.routes.draw do
       post "quotation/:id/accept", to: "dashboard#accept_quotation", as: :accept_quotation
       post "receive_parts", to: "dashboard#receive_parts", as: :receive_parts
       
+      # New workflow routes
       post "mark_in_stock/:id", to: "dashboard#mark_in_stock", as: :mark_in_stock
       post "send_to_billing/:id", to: "dashboard#send_to_billing", as: :send_to_billing
       post "pass_to_workshop/:id", to: "dashboard#pass_to_workshop", as: :pass_to_workshop
+      post "process_request/:id", to: "dashboard#process_request", as: :process_request
+      post "receive_parts/:purchase_order_id", to: "dashboard#receive_parts", as: :receive_parts_with_po
       
       resources :rfqs, only: [:index, :show, :create] do
         resources :quotations, only: [:index, :show], controller: 'vendor_quotations'
@@ -129,7 +146,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 4. MECHANIC - Repairs and work orders
+    # 4. MECHANIC - Repairs and work orders (UPDATED with parts requests)
     namespace :mechanic do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "job/:id", to: "dashboard#show_job", as: :job
@@ -137,14 +154,31 @@ Rails.application.routes.draw do
       post "job/:id/start", to: "dashboard#start_job", as: :start_job
       post "job/:id/progress", to: "dashboard#update_progress", as: :update_progress
       post "job/:id/request_qc", to: "dashboard#request_qc", as: :request_qc
-      post "job/:id/log_parts", to: "dashboard#log_parts_used", as: :log_parts
+      
+      # Parts request routes
+      post "job/:id/request_part", to: "dashboard#request_part", as: :request_part
       get "job/:id/parts", to: "dashboard#parts_needed", as: :parts_needed
+      
+      # Parts Requests resource
+      resources :parts_requests, only: [:new, :create] do
+        collection do
+          get 'for_job/:inspection_job_id', to: 'parts_requests#new', as: :new_for_job
+        end
+      end
+      
+      # Verification routes
+      get "verification_queue", to: "dashboard#verification_queue", as: :verification_queue
+      get "verify/:id", to: "dashboard#verify_job", as: :verify_job
+      post "submit_verification/:id", to: "dashboard#submit_verification", as: :submit_verification
+      get "additional_finding/:inspection_id", to: "dashboard#new_additional_finding", as: :new_additional_finding
+      post "create_additional_finding/:inspection_id", to: "dashboard#create_additional_finding", as: :create_additional_finding
       
       resources :jobs, only: [:index] do
         collection do
           get :assigned
           get :available
           get :completed
+          get :verification
         end
       end
     end
@@ -164,7 +198,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 6. BILLING TEAM - RFQs and vendor communication (FULLY REVISED)
+    # 6. BILLING TEAM - RFQs and vendor communication (UPDATED)
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
@@ -172,7 +206,14 @@ Rails.application.routes.draw do
       get "new_rfq/:parts_request_id", to: "dashboard#new_rfq", as: :new_rfq
       post "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
       post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
-      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
+      
+      # New RFQ to supplier routes
+      post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers
+      get "rfq/:id/upload_quotation", to: "dashboard#upload_quotation", as: :upload_quotation
+      post "rfq/:id/receive_quotation", to: "dashboard#receive_quotation", as: :receive_quotation
+      
+      # Quotation handling
+      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation_old
       post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
       
       # Forward quotations to Finance
@@ -181,7 +222,7 @@ Rails.application.routes.draw do
       # PO Details endpoint for JSON
       get "po_details/:id", to: "invoices#po_details", as: :po_details
       
-      # Invoice Management (shared with Finance, but Billing can view)
+      # Invoice Management
       resources :invoices, only: [:index, :show, :new, :create] do
         member do
           post :process_payment
@@ -195,15 +236,21 @@ Rails.application.routes.draw do
       end
     end
 
-    # 7. FINANCE TEAM - Quotations review, PO approval, invoicing (SEPARATE ROLE)
+    # 7. FINANCE TEAM - Quotations to Agency, PO approval, invoicing (UPDATED)
     namespace :finance do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
-      # Quotation comparison and review
+      # Quotation comparison and review (internal)
       get "quotations", to: "quotations#index", as: :quotations
       get "quotations/:id", to: "quotations#show", as: :quotation
       get "compare/:rfq_id", to: "quotations#compare", as: :compare_quotations
       post "quotations/:id/select", to: "quotations#select", as: :select_quotation
+      
+      # NEW: Agency Quotations (from in-stock parts)
+      get "quotations/new_for_inspection/:inspection_id", to: "quotations#new_for_inspection", as: :new_quotation_for_inspection
+      post "quotations/create_for_inspection", to: "quotations#create_for_inspection", as: :create_quotation_for_inspection
+      get "quotations/:id/send_to_agency", to: "quotations#send_to_agency", as: :send_quotation_to_agency
+      post "quotations/:id/awaiting_approval", to: "quotations#mark_as_awaiting_approval", as: :mark_awaiting_approval
       
       # PO approval actions
       resources :purchase_orders, only: [:index, :show] do
@@ -235,7 +282,7 @@ Rails.application.routes.draw do
     end
 
     # ========================
-    # PARTS REQUESTS - CORRECTED FOR STOCK UPDATE
+    # PARTS REQUESTS - Stock update
     # ========================
     resources :parts_requests, only: [:index, :show, :update] do
       member do
@@ -256,7 +303,7 @@ Rails.application.routes.draw do
     end
 
     # ------------------------
-    # Parts / Providers
+    # Parts / Providers - WITH SEARCH
     # ------------------------
     resources :parts do
       collection do
@@ -266,7 +313,7 @@ Rails.application.routes.draw do
         get  :export_csv
         get  :reorder_suggestions
         get  :search_by_vendor
-        get :search
+        get  :search  # JSON search endpoint
       end
 
       member do
@@ -274,7 +321,7 @@ Rails.application.routes.draw do
         post :create_purchase_request
         get  :stock_history
         get  :vendor_pricing
-        get :stock
+        get  :stock  # JSON stock endpoint
       end
     end
 
@@ -520,6 +567,7 @@ Rails.application.routes.draw do
       post :create_critical_incident
       post :create_maintenance_alert
       post :resolve_all_alerts
+      get  :status_history
     end
 
     resources :maintenances do
@@ -538,6 +586,16 @@ Rails.application.routes.draw do
       get :export_csv
       get :themes
       get :catalog_search
+      get :at_vmcott
+    end
+  end
+
+  # ========================
+  # Vehicle Status Tracking
+  # ========================
+  resources :vehicle_statuses, only: [:index, :show] do
+    collection do
+      get :live_feed
     end
   end
 
@@ -685,7 +743,7 @@ Rails.application.routes.draw do
   end
 
   # ========================
-  # 🔥 FIXED: Payables (matches PayablesController)
+  # Payables
   # ========================
   resources :payables do
     collection do

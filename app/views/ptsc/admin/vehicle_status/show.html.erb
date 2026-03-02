@@ -1,0 +1,172 @@
+<%# app/views/ptsc/admin/vehicle_status/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2 mb-0">
+        <i class="bi bi-truck-front-fill text-primary me-2"></i>
+        Vehicle Status: <%= @vehicle.license_plate %>
+      </h1>
+      <p class="text-muted"><%= @vehicle.make %> <%= @vehicle.model %> • <%= @vehicle.year_of_manufacture %></p>
+    </div>
+    <div class="col-auto">
+      <%= link_to ptsc_admin_vehicle_status_path, class: "btn btn-outline-secondary" do %>
+        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+      <% end %>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Status Timeline Card -->
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Status Timeline</h5>
+        </div>
+        <div class="card-body">
+          <div class="timeline">
+            <% @timeline.each_with_index do |step, index| %>
+              <div class="timeline-item">
+                <div class="timeline-marker <%= step[:status] %>">
+                  <i class="bi bi-<%= step[:icon] %>"></i>
+                </div>
+                <div class="timeline-content">
+                  <h6 class="mb-1"><%= step[:stage] %></h6>
+                  <p class="text-muted mb-0">
+                    <%= step[:time]&.strftime("%b %d, %I:%M %p") %>
+                  </p>
+                </div>
+              </div>
+              <% if index < @timeline.length - 1 %>
+                <div class="timeline-connector"></div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Details Card -->
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Vehicle Details</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr>
+              <th>License Plate:</th>
+              <td><%= @vehicle.license_plate %></td>
+            </tr>
+            <tr>
+              <th>Make/Model:</th>
+              <td><%= @vehicle.make %> <%= @vehicle.model %></td>
+            </tr>
+            <tr>
+              <th>Year:</th>
+              <td><%= @vehicle.year_of_manufacture %></td>
+            </tr>
+            <tr>
+              <th>Current Status:</th>
+              <td>
+                <span class="badge bg-<%= status_badge_color(@vehicle.current_status) %>">
+                  <%= @vehicle.current_status.to_s.humanize %>
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <th>Check-in Time:</th>
+              <td><%= @vehicle.reception_logs.last&.check_in_time&.strftime("%b %d, %I:%M %p") || 'N/A' %></td>
+            </tr>
+            <tr>
+              <th>Last Updated:</th>
+              <td><%= time_ago_in_words(@vehicle.updated_at) %> ago</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Inspection Details -->
+      <% if @vehicle.inspections.last %>
+        <div class="card shadow-sm">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Inspection Details</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm">
+              <tr>
+                <th>Inspector:</th>
+                <td><%= @vehicle.inspections.last.inspector&.name || 'N/A' %></td>
+              </tr>
+              <tr>
+                <th>Mileage:</th>
+                <td><%= @vehicle.inspections.last.mileage_at_inspection %> mi</td>
+              </tr>
+              <tr>
+                <th>Jobs:</th>
+                <td><%= @vehicle.inspections.last.inspection_jobs.count %></td>
+              </tr>
+              <tr>
+                <th>Parts:</th>
+                <td><%= @vehicle.parts_requests.count %></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<style>
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+  }
+  
+  .timeline-item {
+    position: relative;
+    padding-bottom: 20px;
+  }
+  
+  .timeline-marker {
+    position: absolute;
+    left: -30px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e9ecef;
+    color: #6c757d;
+  }
+  
+  .timeline-marker.completed {
+    background: #28a745;
+    color: white;
+  }
+  
+  .timeline-marker.current {
+    background: #007bff;
+    color: white;
+    animation: pulse 2s infinite;
+  }
+  
+  .timeline-connector {
+    position: absolute;
+    left: -11px;
+    width: 2px;
+    height: 20px;
+    background: #dee2e6;
+  }
+  
+  .timeline-content {
+    padding-bottom: 10px;
+  }
+  
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0,123,255,0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(0,123,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,123,255,0); }
+  }
+</style>

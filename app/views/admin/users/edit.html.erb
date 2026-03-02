@@ -1,7 +1,7 @@
 <%# app/views/admin/users/edit.html.erb %>
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Edit User: <%= @user.email %></h1>
+    <h1 class="h3 mb-0">Edit User: <%= @user.email %> (<%= @user.agency.code %>)</h1>
     <%= link_to "Back to Users", admin_users_path, class: "btn btn-outline-secondary" %>
   </div>
 
@@ -11,6 +11,11 @@
         <div class="card-body">
           <%= form_with model: @user, url: admin_user_path(@user), method: :patch, local: true do |f| %>
             
+            <div class="alert alert-info">
+              <i class="bi bi-building me-2"></i>
+              Agency: <strong><%= @user.agency.code %> - <%= @user.agency.name %></strong> (cannot be changed)
+            </div>
+
             <div class="row">
               <div class="col-md-6 mb-3">
                 <%= f.label :email, "Email Address", class: "form-label required fw-bold" %>
@@ -27,38 +32,31 @@
               <div class="col-md-6 mb-3">
                 <%= f.label :role, "Role", class: "form-label required fw-bold" %>
                 <%= f.select :role, 
-                    options_for_select(User.roles.values.map { |r| [r.titleize, r] }, @user.role),
+                    options_for_select(role_options_for_agency(@user.agency.code), @user.role),
                     { include_blank: "Select Role" },
                     class: "form-select", required: true %>
               </div>
 
               <div class="col-md-6 mb-3">
-                <%= f.label :agency_id, "Agency", class: "form-label required fw-bold" %>
-                <%= f.collection_select :agency_id, @agencies, :id, :code,
-                    { include_blank: "Select Agency" },
-                    class: "form-select", required: true %>
+                <%= f.label :employee_id, "Employee ID", class: "form-label fw-bold" %>
+                <%= f.text_field :employee_id, class: "form-control" %>
               </div>
             </div>
 
             <div class="row">
-              <div class="col-md-6 mb-3">
-                <%= f.label :employee_id, "Employee ID", class: "form-label fw-bold" %>
-                <%= f.text_field :employee_id, class: "form-control" %>
-              </div>
-
               <div class="col-md-6 mb-3">
                 <%= f.label :time_zone, "Time Zone", class: "form-label fw-bold" %>
                 <%= f.time_zone_select :time_zone, nil, 
                     { default: @user.time_zone },
                     class: "form-select" %>
               </div>
-            </div>
 
-            <div class="mb-4">
-              <div class="form-check">
-                <%= f.check_box :is_active, class: "form-check-input" %>
-                <%= f.label :is_active, "Active", class: "form-check-label fw-bold" %>
-                <small class="text-muted d-block">Inactive users cannot log in</small>
+              <div class="col-md-6 mb-3">
+                <div class="form-check mt-4">
+                  <%= f.check_box :is_active, class: "form-check-input" %>
+                  <%= f.label :is_active, "Active", class: "form-check-label fw-bold" %>
+                  <small class="text-muted d-block">Inactive users cannot log in</small>
+                </div>
               </div>
             </div>
 

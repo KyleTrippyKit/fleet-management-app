@@ -1,8 +1,8 @@
 <%# app/views/admin/users/index.html.erb %>
 <div class="container-fluid py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">PTSC User Management</h1>
-    <%= link_to "Create New User", new_admin_user_path, class: "btn btn-primary" %>
+    <h1 class="h3 mb-0"><%= current_user.agency.code %> User Management</h1>
+    <%= link_to "Create New #{current_user.agency.code} User", new_admin_user_path(agency_id: current_user.agency.id), class: "btn btn-primary" %>
   </div>
 
   <!-- Filters -->
@@ -16,14 +16,7 @@
         <div class="col-md-3">
           <%= f.label :role, "Role", class: "form-label" %>
           <%= f.select :role, 
-              options_for_select([
-                ["All Roles", ""],
-                ["Admin", "admin"],
-                ["Fleet Manager", "fleet_manager"],
-                ["Maintenance Supervisor", "maintenance_supervisor"],
-                ["Finance Officer", "finance_officer"],
-                ["Driver", "driver"]
-              ], params[:role]),
+              options_for_select([["All Roles", ""]] + role_options_for_agency(current_user.agency.code), params[:role]),
               {},
               class: "form-select" %>
         </div>
@@ -40,6 +33,12 @@
         </div>
       <% end %>
     </div>
+  </div>
+
+  <!-- Agency Info Banner -->
+  <div class="alert alert-info mb-3">
+    <i class="bi bi-building me-2"></i>
+    Managing users for: <strong><%= current_user.agency.code %> - <%= current_user.agency.name %></strong>
   </div>
 
   <!-- Users Table -->
@@ -123,12 +122,3 @@
     <% end %>
   </div>
 </div>
-
-<style>
-  .badge.bg-info { background-color: #17a2b8 !important; color: white !important; }
-  .badge.bg-warning { background-color: #ffc107 !important; color: #212529 !important; }
-  .badge.bg-success { background-color: #28a745 !important; color: white !important; }
-  .badge.bg-danger { background-color: #dc3545 !important; color: white !important; }
-  .badge.bg-secondary { background-color: #6c757d !important; color: white !important; }
-  .badge.bg-primary { background-color: #0d6efd !important; color: white !important; }
-</style>

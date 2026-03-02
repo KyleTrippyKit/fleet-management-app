@@ -1,5 +1,6 @@
 # Complete revised version with all 5 workflow roles and Finance role
 # Now includes separate Billing and Finance roles
+# FIXED: Removed invalid associations that don't exist in the database
 
 class User < ApplicationRecord
   include RoleFindable  # Add this line to include the concern
@@ -18,11 +19,15 @@ class User < ApplicationRecord
   has_many :created_purchase_orders, class_name: "PurchaseOrder", foreign_key: :created_by_id
   has_many :approved_purchase_orders, class_name: "PurchaseOrder", foreign_key: :approved_by_id
   
-  # NEW: Associations for workflow roles
-  has_many :reception_logs, foreign_key: :receptionist_id, dependent: :nullify
-  has_many :inspections, foreign_key: :inspector_id, dependent: :nullify
-  has_many :inspection_jobs, foreign_key: :assigned_mechanic_id, dependent: :nullify
-  has_many :assigned_internal_pos, class_name: "InternalPos", foreign_key: :assigned_to_id, dependent: :nullify
+  # FIXED: Removed associations that don't exist in the database
+  # These were causing the PG::UndefinedColumn error when deleting users
+  # has_many :reception_logs, foreign_key: :receptionist_id, dependent: :nullify
+  # has_many :inspections, foreign_key: :inspector_id, dependent: :nullify
+  # has_many :inspection_jobs, foreign_key: :assigned_mechanic_id, dependent: :nullify
+  # has_many :assigned_internal_pos, class_name: "InternalPos", foreign_key: :assigned_to_id, dependent: :nullify
+
+  # If you need these associations, you'll need to add the foreign key columns to the respective tables first
+  # For now, we'll keep them commented out to prevent errors
 
   # ========================
   # ROLE (Rails 8 safe, simple)

@@ -284,173 +284,324 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script> i dont want the parts and labor price set by the inspector i like the idea where he choose from some job templates or create a custom job with just the job description but not the price of the job/labor or the price of the part i think those cost columns need to go, also i think there should be a search bar for parts and be able to select multiple parts for one jobtemplate then after its done i dont like the create purchase order quickaction i rather a send to parts cordinator button where he get the inspection with key details in his inbox where he then the inspection he receieve tells him if the part is in stock or not, if the part is in stock and the job can be done then it passes but if the part is not in the inventory then he tells the billing team in their inbox the parts needed to buy they check their inbox and then send multiple rfq to multiple vendors /suppliers that usually have the part/item, then they wait on the vendors to send the quotations (but these quotations will be physical copy or emailed, so they need to upload the vendor/supplier invoice and when its uploaded they will enter the item/part name , quantity and the price, so with that information it goes to a screen where you can see all vmcott quotations received and the finance role will take over and it tells you the lowest invoice price with that session of items where you send multiple rfqs, and then they decide to accept whatever quotation and create a purchase order of the quotation then after they receive that item/part with a physical invoice they upload that too with the part/item name, quantity and cost, and then inventory will automatically  update itself with that item/part and then the parts coordinator will get a notification that the part for an inspection is in stock and when clicked on it carries him to the inspection and it allows him to pass the inspection, when that inspection is passed,firstly finance will send a quotation to the agency with the price of the job and part/item and ofc how i want it some jobs are directly linked to a part/item so if they dont want to accept or pay for an item then the job associated with it doesnt get done too, the agency then sees the quotation and sends a purchase order with what they want done on the vehicle like the set up i have already, then when vmcott recieves that purchase order then a mechanic could be assigned by the admin to work on a job or the job/jobs will just appear in the list of job a mechanic is willing to take, also on the mechanic home screen i want the jobs be sorted by vehicle  for example a mechanic can easily know a certian amount of jobs are associated with a vehicle,  then after the mechanic/mechanics are all finished with a vehicle remember they can leave notes, then when the mechanic does a qc and the job/jobs are done for a vehicle the status updates, then the inspector gets a notification to inspect the vehicle before it is sent off and the status updates again to the vehicle is ready for pick up (the agency gets these status updates btw), and the finance team/admin gets a notification from the inspector that the vehicle is done are ready to be pickup the finance team will then take the purchase order with that vehicle and create an invoice to sent to the agency
 
+Here's your clarified VMCOTT Workflow with the corrections:
 📋 COMPLETE VMCOTT WORKFLOW
-🚪 Step 1: Receptionist - Vehicle Check-in
-
-    Agency delivers vehicle to VMCOTT
-
-    Receptionist scans QR code or enters license plate manually
-
-    System creates:
-
-        ReceptionLog with status checked_in
-
-        VehicleStatus with status vehicle_received
-
-        Inspection with status pending_inspection
-
-    Notification sent to: Inspectors
-
-🔍 Step 2: Inspector - Initial Inspection
-
-    Inspector sees pending inspections in their dashboard
-
-    Opens new inspection form for the vehicle
-
-    Selects required jobs (from templates or creates custom jobs)
-
-    Searches for parts needed for each job:
-
-        If part is in inventory and in stock → marks as "In Stock"
-
-        If part is in inventory but out of stock → marks as "Out of Stock - Needs Order"
-
-        If part is custom (typed in manually) → marks as "Custom - Will Order"
-
-    Submits inspection with status inspection_completed
-
-    System checks: If ANY parts need ordering → notifies Parts Coordinator
-
-    If ALL parts in stock → automatically moves to approved_for_repair and notifies Mechanics
-
-📦 Step 3: Parts Coordinator - Review Parts
-
-    Sees pending inspections in their inbox
-
-    Reviews each part needed:
-
-        ✅ If part is in stock → clicks "Mark In Stock & Pass" (moves to workshop)
-
-        ❌ If part needs ordering → clicks "Send to Billing Team"
-
-    For parts sent to billing, status becomes billing_notified
-
-💰 Step 4: Billing Team - Create RFQs
-
-    Sees parts requests in their dashboard
-
-    Creates RFQ (Request for Quotation) for each needed part
-
-    Selects multiple suppliers/vendors
-
-    Sends RFQs to suppliers
-
-    Status becomes rfq_sent
-
-📨 Step 5: Suppliers - Submit Quotations
-
-    Suppliers email or upload their quotes
-
-    Billing team enters each quotation into system:
-
-        Part name/description
-
-        Quantity
-
-        Price
-
-        Upload invoice PDF
-
-    Status becomes quotations_received
-
-💼 Step 6: Finance Team - Review Quotations
-
-    Sees all quotations in comparison view
-
-    System highlights:
-
-        Lowest price for each part
-
-        Most frequent vendor (based on history)
-
-    Finance selects best quotation
-
-    System creates Purchase Order (PO)
-
-    Status becomes purchase_order_created
-
-    Notification sent to: Parts Coordinator that PO is created
-
-📦 Step 7: Parts Coordinator - Receive Parts
-
-    When parts arrive with physical invoice:
-
-        Enters invoice details
-
-        Updates stock quantities
-
-        Marks parts as received
-
-    Status becomes parts_received
-
-    System checks: If ALL parts for inspection are now received → inspection status becomes approved_for_repair
-
-    Notification sent to: Mechanics
-
-🔧 Step 8: Mechanic - Perform Repairs
-
-    Sees available jobs grouped by vehicle in dashboard
-
-    Can preview job details before claiming
-
-    Clicks "Assign to Me" to take ownership
-
-    Clicks "Start Work" when beginning
-
-    Updates progress notes
-
-    Logs parts used (reduces inventory)
-
-    When job complete → Clicks "Request QC"
-
-    Status becomes ready_for_qc
-
-    Notification sent to: Inspectors for QC
-
-✅ Step 9: Inspector - Quality Control
-
-    Sees vehicles ready for QC
-
-    Inspects completed work
-
-    If passed → marks as qc_completed → ready_for_pickup
-
-    If failed → adds notes and sends back to mechanic
-
-    Notification sent to: Finance team to create invoice
-
-💵 Step 10: Finance - Create Invoice
-
-    Sees vehicles ready for pickup
-
-    Creates invoice with:
-
-        Labor costs (from job templates)
-
-        Parts costs (actual cost from purchase orders)
-
-    Sends invoice to agency
-
-    Status becomes pending (invoice) while vehicle is ready_for_pickup
-
-🚗 Step 11: Agency - Pickup & Payment
-
-    Agency receives invoice
-
-    Agency processes payment
-
-    Finance marks invoice as paid
-
-    Vehicle status becomes completed
-
-    Workflow complete!
+Phase 1: Vehicle Reception
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  RECEPTIONIST                                           │
+├─────────────────────────────────────────────────────────┤
+│  • Agency delivers vehicle to VMCOTT                    │
+│  • Receptionist scans QR or enters license plate        │
+│  • Creates ReceptionLog (status: checked_in)            │
+│  • Creates VehicleStatus (status: vehicle_received)     │
+│  • Creates Inspection (status: pending_inspection)      │
+│  • Notification sent to: INSPECTORS                     │
+└─────────────────────────────────────────────────────────┘
+
+Phase 2: Inspector - Initial Assessment (NO PARTS)
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  INSPECTOR                                               │
+├─────────────────────────────────────────────────────────┤
+│  • Sees pending inspections in dashboard                │
+│  • Opens pre-inspection checklist                       │
+│    └── Checks boxes for issues found (unchecked = good) │
+│    └── Records findings (exterior, interior, mechanical)│
+│    └── Adds diagnostic codes if any                     │
+│                                                          │
+│  • Selects REQUIRED JOBS (from templates or custom)     │
+│    ⚠️  NO PARTS SELECTED - only identifies jobs         │
+│                                                          │
+│  • Submits inspection                                    │
+│  • Status → pending_mechanic_review                      │
+│  • Notification sent to: MECHANICS                       │
+└─────────────────────────────────────────────────────────┘
+
+Phase 3: Mechanic - Review & Initial Parts Request
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  MECHANIC                                                │
+├─────────────────────────────────────────────────────────┤
+│  • Sees jobs needing review in dashboard                │
+│  • Reviews inspector's findings                          │
+│  • Verifies or corrects the required jobs               │
+│    └── If verified → proceeds                           │
+│    └── If different → creates corrected job             │
+│                                                          │
+│  • Requests PARTS needed for the INITIAL job:            │
+│    └── Search inventory parts                            │
+│    └── Or add custom parts (not in system)              │
+│                                                          │
+│  • Submits parts requests                                │
+│  • Status → parts_coordinator_review                     │
+│  • Notification sent to: PARTS COORDINATOR               │
+└─────────────────────────────────────────────────────────┘
+
+Phase 4: Parts Coordinator - Parts Processing
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  PARTS COORDINATOR                                       │
+├─────────────────────────────────────────────────────────┤
+│  • Reviews all pending parts requests from mechanic     │
+│                                                          │
+│  FOR EACH PART:                                          │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  IF PART IS IN STOCK:                               │ │
+│  │  • Marks as in_stock = true                          │ │
+│  │  • ✅ SENDS DIRECTLY TO FINANCE FOR QUOTATION        │ │
+│  │    (No RFQ needed - parts available)                 │ │
+│  │                                                      │ │
+│  │  IF PART IS OUT OF STOCK:                            │ │
+│  │  • Creates RFQ and sends to BILLING team             │ │
+│  │  • Status → rfq_sent                                 │ │
+│  │  • Notification sent to: BILLING                     │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+│  • When ALL parts for the JOB are processed:             │
+│    └── If ALL in stock → Notify FINANCE for quote       │
+│    └── If SOME out of stock → Wait for RFQ process      │
+└─────────────────────────────────────────────────────────┘
+
+Phase 5: Billing - RFQ for Out-of-Stock Parts
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  BILLING TEAM (ONLY FOR OUT-OF-STOCK PARTS)             │
+├─────────────────────────────────────────────────────────┤
+│  • Receives RFQ from parts coordinator                  │
+│  • Selects suppliers to send RFQ to                     │
+│  • SENDS RFQ TO MULTIPLE VENDORS/SUPPLIERS              │
+│  • Status → sent                                         │
+│                                                          │
+│  • When suppliers respond:                               │
+│    • Uploads quotations (physical/email)                │
+│    • Enters part name, quantity, price                   │
+│    • Uploads supplier invoice                            │
+│  • Status → quotations_received                          │
+│  • Notification sent to: FINANCE                         │
+└─────────────────────────────────────────────────────────┘
+
+Phase 6: Finance - Create Quotation for Agency
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  FINANCE TEAM                                            │
+├─────────────────────────────────────────────────────────┤
+│  • Receives notification from:                           │
+│    └── Parts Coordinator (if ALL parts in stock)        │
+│    └── Billing (if quotations received)                  │
+│                                                          │
+│  • Creates QUOTATION for the AGENCY (PTSC):              │
+│    └── Labor costs (from job templates)                  │
+│    └── Parts costs (from stock or selected quotation)   │
+│                                                          │
+│  • SENDS QUOTATION TO AGENCY                             │
+│  • Status → awaiting_customer_approval                   │
+│  • Notification sent to: PTSC ADMIN                      │
+└─────────────────────────────────────────────────────────┘
+
+Phase 7: Agency (PTSC) - Quote Approval
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  PTSC AGENCY                                             │
+├─────────────────────────────────────────────────────────┤
+│  • Receives quotation in their inbox                     │
+│  • Reviews costs (labor + parts) for requested work     │
+│  • Can ACCEPT or REJECT                                   │
+│                                                          │
+│  IF ACCEPTED:                                            │
+│  • Sends Purchase Order to VMCOTT                        │
+│  • Notification sent to: FINANCE                         │
+│                                                          │
+│  IF REJECTED:                                            │
+│  • Provides reason                                       │
+│  • Process stops or renegotiation                        │
+└─────────────────────────────────────────────────────────┘
+
+Phase 8: Finance - PO Received & Work Authorization
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  FINANCE TEAM                                            │
+├─────────────────────────────────────────────────────────┤
+│  • Receives PO from agency                               │
+│  • Authorizes work to begin                              │
+│  • Status → approved_for_repair                          │
+│  • Notification sent to: MECHANICS                       │
+└─────────────────────────────────────────────────────────┘
+
+Phase 9: Mechanic - Perform Repairs
+text
+
+┌─────────────────────────────────────────────────────────┤
+│  MECHANIC                                                │
+├─────────────────────────────────────────────────────────┤
+│  • Sees available jobs grouped by vehicle                │
+│  • Performs the APPROVED JOB (what agency requested)    │
+│                                                          │
+│  DURING REPAIR:                                          │
+│  • Updates progress notes                                │
+│  • Logs parts used (reduces inventory)                   │
+│                                                          │
+│  ⚠️  IF ADDITIONAL ISSUES FOUND:                         │
+│  • Does NOT fix them immediately                         │
+│  • Documents the new issue and required parts           │
+│  • Status remains in_progress for original job          │
+│                                                          │
+│  WHEN ORIGINAL JOB COMPLETE:                             │
+│  • Clicks "Request QC"                                   │
+│  • Status → ready_for_qc                                 │
+│  • Notification sent to: INSPECTORS                      │
+└─────────────────────────────────────────────────────────┘
+
+Phase 10: Inspector - Quality Control
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  INSPECTOR                                               │
+├─────────────────────────────────────────────────────────┤
+│  • Sees vehicles ready for QC                           │
+│  • Inspects completed work                              │
+│                                                          │
+│  CHECK ONLY:                                             │
+│  • Did they fix the ORIGINAL issue? (what agency asked) │
+│  • Is the work quality acceptable?                      │
+│                                                          │
+│  IF ORIGINAL JOB PASSED:                                 │
+│  • Notes the condition of the vehicle                    │
+│  • Documents ANY ADDITIONAL ISSUES found by mechanic    │
+│  • Status → qc_completed (original job done)            │
+│  • BUT vehicle NOT ready for pickup yet                  │
+│  • Notification sent to: FINANCE                         │
+│    └── "Original job complete. Additional issues found" │
+│                                                          │
+│  IF ORIGINAL JOB FAILED:                                 │
+│  • Adds notes and sends back to mechanic                 │
+│  • Status → in_progress                                  │
+└─────────────────────────────────────────────────────────┘
+
+Phase 11: Finance - Create Additional Work Quotation
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  FINANCE TEAM                                            │
+├─────────────────────────────────────────────────────────┤
+│  • Receives QC report with additional issues            │
+│                                                          │
+│  FOR ADDITIONAL ISSUES:                                  │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  CHECK PARTS AVAILABILITY:                          │ │
+│  │                                                     │ │
+│  │  IF PARTS IN STOCK:                                 │ │
+│  │  • Creates NEW QUOTATION for agency                  │ │
+│  │    └── Additional labor + parts cost                │ │
+│  │  • Sends to agency                                   │ │
+│  │  • Status → awaiting_customer_approval (additional) │ │
+│  │                                                     │ │
+│  │  IF PARTS NEED ORDERING:                             │ │
+│  │  • Sends to BILLING to source parts                 │ │
+│  │  • Status → pending_parts (additional)              │ │
+│  │  • Billing follows Phase 5 for sourcing             │ │
+│  │  • After parts received, FINANCE creates quote      │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+│  • Vehicle remains at VMCOTT waiting for decision       │
+└─────────────────────────────────────────────────────────┘
+
+Phase 12: Agency - Additional Work Decision
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  PTSC AGENCY                                             │
+├─────────────────────────────────────────────────────────┤
+│  • Receives ADDITIONAL QUOTATION                         │
+│  • Reviews new issues and costs                         │
+│                                                          │
+│  CHOOSE OPTION:                                          │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  OPTION A: FIX ADDITIONAL ISSUES                    │ │
+│  │  • Accepts quotation                                 │ │
+│  │  • Sends new PO or approves additional cost         │ │
+│  │  • Mechanic fixes additional issues                 │ │
+│  │  • Vehicle goes back to QC after done               │ │
+│  │                                                     │ │
+│  │  OPTION B: SKIP ADDITIONAL ISSUES                    │ │
+│  │  • Declines additional work                          │ │
+│  │  • Vehicle ready for pickup with original fixes     │ │
+│  │  • Status → ready_for_pickup                         │ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+
+Phase 13: Final Invoice & Pickup
+text
+
+┌─────────────────────────────────────────────────────────┐
+│  SCENARIO A: No Additional Issues OR Agency Declines    │
+├─────────────────────────────────────────────────────────┤
+│  • Finance creates FINAL INVOICE (original work only)   │
+│  • Sends to agency                                       │
+│  • Agency pays                                           │
+│  • Vehicle picked up                                     │
+│  • Status → completed                                    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  SCENARIO B: Agency Approves Additional Work            │
+├─────────────────────────────────────────────────────────┤
+│  • Mechanic fixes additional issues                     │
+│  • Inspector does FINAL QC on all work                  │
+│  • Finance creates FINAL INVOICE (original + additional)│
+│  • Sends to agency                                       │
+│  • Agency pays                                           │
+│  • Vehicle picked up                                     │
+│  • Status → completed                                    │
+└─────────────────────────────────────────────────────────┘
+
+📊 STATUS FLOW SUMMARY
+text
+
+pending_inspection 
+    ↓
+pending_mechanic_review
+    ↓
+parts_coordinator_review
+    ↓
+awaiting_customer_approval  (waiting for PTSC on original work)
+    ↓
+approved_for_repair
+    ↓
+in_progress
+    ↓
+ready_for_qc
+    ↓
+qc_completed (original work done, additional issues noted)
+    ↓
+awaiting_customer_approval  (waiting for PTSC on additional work)
+    ↓
+[if approved] → in_progress (additional) → ready_for_qc → qc_completed
+    ↓
+ready_for_pickup
+    ↓
+completed
+
+🔄 KEY CLARIFICATIONS
+
+    Phase 4: If ALL parts in stock → Finance sends ONE quotation to agency for the requested work
+
+    Phase 5: Billing ONLY involved for OUT-OF-STOCK parts (RFQ to vendors)
+
+    Phase 9: Mechanic only does the APPROVED job, just DOCUMENTS additional issues
+
+    Phase 10: Inspector checks if ORIGINAL issue was fixed, notes additional issues
+
+    Phase 11: Finance creates SEPARATE quotation for additional issues
+
+    Phase 12: Agency decides to fix additional issues or take vehicle as-is
+
+for phase thirteen, the agency doesnt pay the invoice instantly they can pick up the vehicle without paying it but thats where aging invoices come in so they pay after a month or 2 or three in bulk all the invoices that are overdue
