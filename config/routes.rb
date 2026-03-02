@@ -414,6 +414,34 @@ Rails.application.routes.draw do
         end
       end
     end
+
+    # ========================
+    # NEW WORKFLOW ROUTES FOR INSPECTION JOBS
+    # ========================
+    resources :inspection_jobs, only: [] do
+      member do
+        post :lock_for_changes
+        post :unlock_for_changes
+        post :record_quantity_used
+        get  :change_log
+      end
+    end
+
+    # ========================
+    # ADDITIONAL WORK ROUTES
+    # ========================
+    resources :maintenances, only: [] do
+      member do
+        post :create_additional_work
+        get  :additional_work_form
+        post :agency_cancel
+        get  :agency_decision_form
+        post :record_agency_decision
+      end
+      collection do
+        get :pending_agency_decisions
+      end
+    end
   end
 
   # ========================

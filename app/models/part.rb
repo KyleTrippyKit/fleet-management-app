@@ -247,12 +247,15 @@ class Part < ApplicationRecord
     end
   end
 
-  # Consume parts for a job
+  # Consume parts for a job - UPDATED METHOD
   def consume_for_job(quantity, job, notes = nil)
-    stock_out(quantity, 
-      reference: job, 
-      notes: notes || "Consumed for job #{job.id}"
-    )
+    # Only deduct when job is completed, not when requested
+    if job.completed?
+      stock_out(quantity, 
+        reference: job, 
+        notes: notes || "Consumed for job #{job.id}"
+      )
+    end
   end
 
   # Receive stock from purchase order

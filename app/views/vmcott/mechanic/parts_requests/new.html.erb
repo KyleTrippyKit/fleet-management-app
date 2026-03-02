@@ -1,0 +1,278 @@
+<%# app/views/vmcott/mechanic/parts_requests/new.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2"><i class="bi bi-gear me-2"></i>Request Parts</h1>
+          <p class="text-muted">Job: <%= @inspection_job.description %></p>
+        </div>
+        <%= link_to "← Back to Job", vmcott_mechanic_job_path(@inspection_job), class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <%= form_with url: vmcott_mechanic_parts_requests_path, method: :post, local: true, id: "parts-request-form" do |f| %>
+        <%= hidden_field_tag :inspection_job_id, @inspection_job.id %>
+
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Job Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>Vehicle:</strong> <%= @inspection_job.inspection.vehicle.license_plate %></p>
+                <p><strong>Make/Model:</strong> <%= @inspection_job.inspection.vehicle.make %> <%= @inspection_job.inspection.vehicle.model %></p>
+              </div>
+              <div class="col-md-6">
+                <p><strong>Job Description:</strong> <%= @inspection_job.description %></p>
+                <p><strong>Inspector Notes:</strong> <%= @inspection_job.inspection.notes %></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Parts Needed</h5>
+            <button type="button" class="btn btn-sm btn-light" id="add-part-btn">
+              <i class="bi bi-plus-circle me-1"></i> Add Part
+            </button>
+          </div>
+          <div class="card-body" id="parts-container">
+            <div id="parts-list"></div>
+            <p class="text-muted text-center py-3" id="no-parts-msg">
+              Click "Add Part" to request parts
+            </p>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <%= link_to "Cancel", vmcott_mechanic_job_path(@inspection_job), class: "btn btn-outline-secondary" %>
+          <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
+            <i class="bi bi-check-circle me-2"></i>Submit Parts Request
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<template id="part-row-template">
+  <div class="part-row card mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-5">
+          <select name="parts[][part_type]" class="form-select part-type" onchange="togglePartInput(this)">
+            <option value="inventory">Select from Inventory</option>
+            <option value="custom">Custom Part (Not in System)</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <div class="inventory-part-input">
+            <input type="text" class="form-control part-search" placeholder="Search parts...">
+            <input type="hidden" name="parts[][part_id]" class="part-id">
+            <div class="search-results dropdown-menu w-100" style="display: none;"></div>
+          </div>
+          <div class="custom-part-input" style="display: none;">
+            <input type="text" name="parts[][custom_name]" class="form-control" placeholder="Enter part name">
+          </div>
+        </div>
+        <div class="col-md-2">
+          <input type="number" name="parts[][quantity]" class="form-control" value="1" min="1">
+        </div>
+        <div class="col-md-12 text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePart(this)">
+            <i class="bi bi-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+      <input type="hidden" name="parts[][is_custom]" class="is-custom" value="false">
+    </div>
+  </div>
+</template>
+
+<script>
+let partCounter = 0;
+const partsList = document.getElementById('parts-list');
+const noPartsMsg = document.getElementById('no-parts-msg');
+const addPartBtn = document.getElementById('add-part-btn');
+const form = document.getElementById('parts-request-form');
+
+addPartBtn.addEventListener('click', addPartRow);
+
+function addPartRow() {
+  const template = document.getElementById('part-row-template');
+  const clone = template.content.cloneNode(true);
+  const rowId = `part-${partCounter++}`;
+  
+  clone.querySelector('.part-row').id = rowId;
+  partsList.appendChild(clone);
+  noPartsMsg.style.display = 'none';
+  
+  setupSearch(clone.querySelector('.part-search'));
+}
+
+function removePart(btn) {
+  btn.closest('.part-row').remove();
+  if (partsList.children.length === 0) {
+    noPartsMsg.style.display = 'block';
+  }
+}
+
+function togglePartInput(select) {
+  const row = select.closest('.part-row');
+  const inventoryInput = row.querySelector('.inventory-part-input');
+  const customInput = row.querySelector('.custom-part-input');
+  const isCustom = row.querySelector('.is-custom');
+  
+  if (select.value === 'custom') {
+    inventoryInput.style.display = 'none';
+    customInput.style.display = 'block';
+    isCustom.value = 'true';
+  } else {
+    inventoryInput.style.display = 'block';
+    customInput.style.display = 'none';
+    isCustom.value = 'false';
+  }
+}
+
+function setupSearch(input) {
+  let searchTimeout;
+  
+  input.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    const query = this.value.trim();
+    const resultsDiv = this.closest('.inventory-part-input').querySelector('.search-results');
+    const partIdField = this.closest('.inventory-part-input').querySelector('.part-id');
+    
+    if (query.length < 2) {
+      resultsDiv.style.display = 'none';
+      return;
+    }
+    
+    resultsDiv.innerHTML = '<div class="dropdown-item text-muted">Searching...</div>';
+    resultsDiv.style.display = 'block';
+    
+    searchTimeout = setTimeout(() => {
+      fetch(`/vmcott/parts/search?q=${encodeURIComponent(query)}`)
+        .then(response => response.json())
+        .then(parts => {
+          resultsDiv.innerHTML = '';
+          
+          if (parts.length === 0) {
+            const customOption = document.createElement('div');
+            customOption.className = 'dropdown-item';
+            customOption.innerHTML = `<strong>Add "${query}" as custom part</strong>`;
+            customOption.onclick = () => {
+              input.closest('.inventory-part-input').style.display = 'none';
+              input.closest('.part-row').querySelector('.custom-part-input').style.display = 'block';
+              input.closest('.part-row').querySelector('.custom-part-input input').value = query;
+              input.closest('.part-row').querySelector('.is-custom').value = 'true';
+              resultsDiv.style.display = 'none';
+            };
+            resultsDiv.appendChild(customOption);
+          } else {
+            parts.forEach(part => {
+              const item = document.createElement('div');
+              item.className = 'dropdown-item';
+              item.innerHTML = `
+                <div class="d-flex justify-content-between">
+                  <span><strong>${part.name}</strong></span>
+                  <span class="badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'}">Stock: ${part.current_stock}</span>
+                </div>
+              `;
+              item.onclick = () => {
+                input.value = part.name;
+                partIdField.value = part.id;
+                resultsDiv.style.display = 'none';
+                
+                const stockIndicator = document.createElement('span');
+                stockIndicator.className = `badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'} ms-2`;
+                stockIndicator.textContent = part.current_stock > 0 ? `In Stock (${part.current_stock})` : 'Out of Stock';
+                input.parentNode.appendChild(stockIndicator);
+              };
+              resultsDiv.appendChild(item);
+            });
+          }
+        })
+        .catch(() => {
+          resultsDiv.innerHTML = '<div class="dropdown-item text-danger">Error loading parts</div>';
+        });
+    }, 300);
+  });
+}
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.inventory-part-input')) {
+    document.querySelectorAll('.search-results').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+});
+
+// Form validation
+form.addEventListener('submit', function(e) {
+  const partRows = document.querySelectorAll('.part-row');
+  
+  if (partRows.length === 0) {
+    e.preventDefault();
+    alert('Please add at least one part to request.');
+    return false;
+  }
+  
+  let hasValidParts = false;
+  partRows.forEach(row => {
+    const partType = row.querySelector('.part-type').value;
+    if (partType === 'inventory') {
+      const partId = row.querySelector('.part-id').value;
+      if (partId) hasValidParts = true;
+    } else {
+      const customName = row.querySelector('input[name*="custom_name"]').value;
+      if (customName) hasValidParts = true;
+    }
+  });
+  
+  if (!hasValidParts) {
+    e.preventDefault();
+    alert('Please fill in all part details before submitting.');
+    return false;
+  }
+});
+</script>
+
+<style>
+.part-row {
+  background: white;
+  transition: all 0.2s;
+}
+
+.part-row:hover {
+  background: #f8f9fa;
+}
+
+.search-results {
+  position: absolute;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.search-results .dropdown-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.search-results .dropdown-item:hover {
+  background: #f0f0f0;
+}
+</style>

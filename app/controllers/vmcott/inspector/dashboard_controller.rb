@@ -3,19 +3,22 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   before_action :authenticate_user!
   before_action :require_inspector
   before_action :set_inspection, only: [:show_inspection, :qc_inspection, :complete_qc]
+  before_action :ensure_can_edit, only: [:create_inspection]
+  before_action :ensure_can_qc, only: [:complete_qc]
 
   def index
+    # FIXED: Only show what inspectors need to see
     @pending_inspections = ReceptionLog.where(status: 'checked_in')
                                        .includes(:vehicle)
                                        .order(created_at: :desc)
     @in_progress = Inspection.where(inspector: current_user, status: 'pending_inspection')
+    @qc_pending = Inspection.where(status: 'ready_for_qc')
     @recent_completed = Inspection.where(inspector: current_user)
-                                   .where(status: ['inspection_completed', 'approved_for_repair', 'ready_for_pickup', 'completed'])
+                                   .where(status: ['qc_completed', 'ready_for_pickup', 'completed'])
                                    .order(created_at: :desc)
                                    .limit(5)
   end
 
-  # Pre-inspection checklist page
   def pre_inspection
     @vehicle = Vehicle.find_by(id: params[:vehicle_id])
     
@@ -30,7 +33,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     render "vmcott/inspector/dashboard/pre_inspection"
   end
 
-  # Process pre-inspection data - ONLY findings, NO parts
   def proceed_to_jobs
     @vehicle = Vehicle.find_by(id: params[:vehicle_id])
     
@@ -45,7 +47,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       redirect_to vmcott_inspector_pre_inspection_path(@vehicle.id) and return
     end
 
-    # Save pre-inspection data to session
     session[:pre_inspection_data] = {
       vehicle_id: @vehicle.id,
       mileage: params[:current_mileage],
@@ -61,7 +62,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       completed_at: Time.current
     }
 
-    # Create inspection record with findings
     inspection = Inspection.find_or_initialize_by(vehicle: @vehicle, status: 'pending_inspection')
     
     checklist_data = {
@@ -109,7 +109,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @pre_inspection_data = session[:pre_inspection_data]
   end
 
-  # FIXED: Using correct status 'pending_mechanic_review'
   def create_inspection
     @vehicle = Vehicle.find_by(id: params[:vehicle_id])
     
@@ -136,14 +135,13 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       notes: build_final_notes(session[:pre_inspection_data], params[:notes]),
       next_service_mileage: params[:next_service_mileage],
       next_service_date: params[:next_service_date],
-      status: :pending_mechanic_review,  # FIXED: Using symbol for enum
+      status: :pending_mechanic_review,
       metadata: metadata
     )
 
     ActiveRecord::Base.transaction do
       @inspection.save!
 
-      # Create jobs from templates (no parts)
       if params[:job_template_ids].present?
         params[:job_template_ids].each do |template_id|
           template = JobTemplate.find(template_id)
@@ -152,12 +150,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
             description: template.name,
             priority: session[:pre_inspection_data]['priority'] || 'normal',
             recommendation_source: 'inspector',
-            verification_status: 'pending' # Needs mechanic verification
+            verification_status: 'pending'
           )
         end
       end
 
-      # Create custom jobs (no parts)
       if params[:custom_jobs].present?
         params[:custom_jobs].each do |custom_job|
           @inspection.inspection_jobs.create!(
@@ -169,10 +166,8 @@ class Vmcott::Inspector::DashboardController < ApplicationController
         end
       end
 
-      # Update vehicle mileage
       @inspection.vehicle.update(mileage: session[:pre_inspection_data]['mileage']) if session[:pre_inspection_data]['mileage'].present?
 
-      # Notify mechanics that inspection is ready for review
       notify_mechanics_for_review(@inspection)
 
       session.delete(:pre_inspection_data)
@@ -242,6 +237,22 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @inspection = Inspection.find_by(id: params[:id])
     if @inspection.nil?
       flash[:alert] = "Inspection not found"
+      redirect_to vmcott_inspector_dashboard_path and return false
+    end
+  end
+
+  def ensure_can_edit
+    return unless @inspection
+    unless @inspection.pending_inspection?
+      flash[:alert] = "Cannot modify inspection at this stage"
+      redirect_to vmcott_inspector_dashboard_path and return false
+    end
+  end
+
+  def ensure_can_qc
+    return unless @inspection
+    unless @inspection.ready_for_qc?
+      flash[:alert] = "This inspection is not ready for QC"
       redirect_to vmcott_inspector_dashboard_path and return false
     end
   end

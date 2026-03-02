@@ -1,13 +1,16 @@
-# Add to app/models/concerns/notifiable.rb
+# app/models/concerns/notifiable.rb
 module Notifiable
   extend ActiveSupport::Concern
-  
-  included do
-    has_many :notifications, as: :recipient
-  end
-  
-  def send_alert(message, type: :info)
-    # Mock SMS/Email notification
-    Rails.logger.info "ALERT: #{message}"
+
+  def notify_role(role, message)
+    User.where(role: role).each do |user|
+      Notification.create!(
+        user: user,
+        title: "Action Required",
+        message: message,
+        link: "/dashboard",
+        read: false
+      )
+    end
   end
 end

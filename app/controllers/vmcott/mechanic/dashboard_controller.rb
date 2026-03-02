@@ -2,14 +2,21 @@
 class Vmcott::Mechanic::DashboardController < ApplicationController
   before_action :authenticate_user!
   before_action :require_mechanic
-  before_action :set_job_context, only: [:show_job, :start_job, :update_progress, :log_parts_used, :request_qc]
+  before_action :set_job_context, only: [:show_job, :start_job, :update_progress, :log_parts_used, :request_qc, :request_part]
+  before_action :ensure_can_take_job, only: [:assign_self]
+  before_action :ensure_can_start_job, only: [:start_job]
+  before_action :ensure_can_request_parts, only: [:log_parts_used, :request_part]
 
   def index
+    # FIXED: Show only what mechanics need to see
+    @jobs_needing_review = Inspection.needing_mechanic_review
+    @jobs_ready_to_work = Inspection.where(status: 'approved_for_repair')
+    @my_assigned_jobs = MechanicAssignment.where(mechanic_id: current_user.id, status: ['assigned', 'in_progress'])
+    
     @assigned_jobs = MechanicAssignment.includes(inspection_job: { inspection: :vehicle })
                                        .where(mechanic_id: current_user.id, status: ['assigned', 'in_progress'])
                                        .order(created_at: :asc)
 
-    # Jobs needing verification (inspector-suspected jobs)
     @jobs_needing_verification = InspectionJob.includes(inspection: :vehicle)
                                               .where(assigned_mechanic_id: nil, 
                                                      completed_at: nil,
@@ -63,30 +70,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @taken_jobs = []
   end
 
-  def show_job
-    @inspection = @job&.inspection
-    @vehicle = @inspection&.vehicle
-    @parts = @job&.inspection_job_parts&.includes(:part) || []
-    
-    if @job.nil?
-      flash[:alert] = "Job not found."
-      redirect_to vmcott_mechanic_dashboard_path and return
-    end
-    
-    if @inspection.nil?
-      flash[:alert] = "Inspection details not found for this job."
-      redirect_to vmcott_mechanic_dashboard_path and return
-    end
-    
-    render 'vmcott/mechanic/dashboard/show_job'
-  rescue => e
-    Rails.logger.error "Error in show_job: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
-    flash[:alert] = "An error occurred while loading the job details: #{e.message}"
-    redirect_to vmcott_mechanic_dashboard_path
-  end
-
-  # Verification actions
   def verification_queue
     @jobs_needing_verification = InspectionJob.includes(inspection: :vehicle)
                                               .where(assigned_mechanic_id: nil, 
@@ -104,7 +87,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
-    # Auto-assign for verification
     @job.update(assigned_mechanic_id: current_user.id) if @job.assigned_mechanic_id.nil?
     
     render 'vmcott/mechanic/dashboard/verify_job'
@@ -130,11 +112,9 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
 
       case verification_status
       when 'verified'
-        # Original job is correct - update parts requests
         @job.inspection_job_parts.each do |job_part|
           part = job_part.part
           if part && part.current_stock >= job_part.quantity
-            # Create approved parts request
             PartsRequest.create!(
               inspection: @job.inspection,
               inspection_job: @job,
@@ -144,7 +124,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
               in_stock: true
             )
           else
-            # Create pending parts request
             PartsRequest.create!(
               inspection: @job.inspection,
               inspection_job: @job,
@@ -160,7 +139,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
         flash[:notice] = "Job verified successfully. Parts requests created."
         
       when 'different'
-        # Create new corrected job based on mechanic's findings
         corrected_job = @job.inspection.inspection_jobs.create!(
           description: params[:corrected_description],
           recommendation_source: 'mechanic',
@@ -169,7 +147,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           priority: @job.priority
         )
         
-        # Handle parts from params
         if params[:parts].present?
           params[:parts].each do |part_data|
             if part_data[:is_custom] == 'true'
@@ -215,12 +192,10 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           end
         end
         
-        # Mark original job as superseded
         @job.update!(status: 'superseded')
         flash[:notice] = "Corrected job created based on your findings."
         
       when 'rejected'
-        # No issue found - close the job
         @job.update!(
           completed_at: Time.current,
           status: 'cancelled'
@@ -228,7 +203,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
         flash[:notice] = "Job marked as not needed."
       end
 
-      # Check if all jobs for this inspection are now approved/verified
       inspection = @job.inspection
       if inspection.inspection_jobs.where(verification_status: 'pending').none?
         if inspection.inspection_jobs.joins(:parts_requests).where(parts_requests: { status: 'pending' }).any?
@@ -249,9 +223,15 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     redirect_to vmcott_mechanic_verify_job_path(@job)
   end
 
-  # Additional finding (while repairing)
   def new_additional_finding
     @inspection = Inspection.find(params[:inspection_id])
+    
+    # Ensure we're not trying to modify an already-approved job
+    unless @inspection.approved_for_repair?
+      redirect_to vmcott_mechanic_dashboard_path, alert: "Can only report additional findings on approved work."
+      return
+    end
+    
     @job = @inspection.inspection_jobs.new
     render 'vmcott/mechanic/dashboard/new_additional_finding'
   end
@@ -259,71 +239,20 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def create_additional_finding
     @inspection = Inspection.find(params[:inspection_id])
     
-    ActiveRecord::Base.transaction do
-      @job = @inspection.inspection_jobs.create!(
-        description: params[:job][:description],
-        recommendation_source: 'mechanic',
-        verification_status: 'approved',
-        verified_by_mechanic_id: current_user.id,
-        verified_at: Time.current,
-        mechanic_notes: params[:job][:mechanic_notes],
-        priority: params[:job][:priority] || 'normal'
-      )
-
-      if params[:parts].present?
-        params[:parts].each do |part_data|
-          quantity = part_data[:quantity].to_i
-          
-          if part_data[:is_custom] == 'true'
-            @job.inspection_job_parts.create!(
-              custom_part_name: part_data[:custom_name],
-              quantity: quantity
-            )
-            PartsRequest.create!(
-              inspection: @inspection,
-              inspection_job: @job,
-              custom_part_name: part_data[:custom_name],
-              quantity: quantity,
-              status: 'pending',
-              in_stock: false
-            )
-          else
-            part = Part.find(part_data[:part_id])
-            @job.inspection_job_parts.create!(
-              part: part,
-              quantity: quantity
-            )
-            
-            if part.current_stock >= quantity
-              PartsRequest.create!(
-                inspection: @inspection,
-                inspection_job: @job,
-                part: part,
-                quantity: quantity,
-                status: 'approved',
-                in_stock: true
-              )
-            else
-              PartsRequest.create!(
-                inspection: @inspection,
-                inspection_job: @job,
-                part: part,
-                quantity: quantity,
-                status: 'pending',
-                in_stock: false
-              )
-            end
-          end
-        end
-      end
-      
-      # Update inspection status if needed
-      if @inspection.status == 'pending_mechanic_verification'
-        @inspection.update!(status: 'approved_for_repair')
-      end
-    end
-
-    redirect_to vmcott_mechanic_job_path(@job), notice: "Additional finding logged successfully."
+    # Create a new maintenance record for additional work
+    additional_maintenance = @inspection.vehicle.maintenances.create_additional_work!(
+      description: params[:job][:description],
+      cost: nil,
+      notes: "Additional finding during repair of inspection ##{@inspection.id}"
+    )
+    
+    # Link to original inspection
+    @inspection.update!(maintenance_id: additional_maintenance.id)
+    
+    # Notify finance for new quotation
+    notify_finance_for_additional_quotation(additional_maintenance)
+    
+    redirect_to vmcott_mechanic_dashboard_path, notice: "Additional finding logged. Finance will create a new quotation."
   rescue => e
     Rails.logger.error "Error in create_additional_finding: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
@@ -336,6 +265,12 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     
     if job.nil?
       redirect_to vmcott_mechanic_dashboard_path, alert: "Job not found."
+      return
+    end
+    
+    # FIXED: Only allow taking jobs that are ready
+    unless job.verification_status == 'approved' && job.inspection&.approved_for_repair?
+      redirect_to vmcott_mechanic_dashboard_path, alert: "This job is not ready to be taken yet."
       return
     end
     
@@ -368,6 +303,12 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def start_job
     if @job.assigned_mechanic_id != current_user.id
       redirect_to vmcott_mechanic_dashboard_path, alert: "You cannot start a job that isn't assigned to you."
+      return
+    end
+    
+    # FIXED: Ensure job is approved
+    unless @job.inspection&.approved_for_repair?
+      redirect_to vmcott_mechanic_job_path(@job), alert: "This job is not approved for work yet."
       return
     end
     
@@ -423,6 +364,13 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
+    # FIXED: Only allow logging parts when job is in progress
+    assignment = MechanicAssignment.find_by(inspection_job_id: @job.id, mechanic_id: current_user.id)
+    unless assignment&.in_progress?
+      render json: { success: false, message: "Parts can only be logged when job is in progress." }, status: :unauthorized
+      return
+    end
+    
     part = Part.find_by(id: params[:part_id])
     qty = params[:quantity].to_i
 
@@ -443,14 +391,13 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
 
     part.update!(current_stock: part.current_stock - qty)
     
-    assignment = MechanicAssignment.find_by(inspection_job_id: @job.id, mechanic_id: current_user.id)
     if assignment
       assignment.update(
         mechanic_notes: "#{assignment.mechanic_notes}\n[PARTS] Used #{qty}x #{part.name} (Stock left: #{part.current_stock})"
       )
     end
     
-    InspectionJobPart.find_or_create_by!(
+    job_part = InspectionJobPart.find_or_create_by!(
       inspection_job_id: @job.id,
       part_id: part.id
     ) do |jp|
@@ -463,6 +410,72 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     Rails.logger.error "Error in log_parts_used: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     render json: { success: false, message: "An error occurred: #{e.message}" }, status: :internal_server_error
+  end
+
+  # ========================
+  # NEW ACTION: request_part
+  # ========================
+  def request_part
+    if @job.assigned_mechanic_id != current_user.id
+      redirect_to vmcott_mechanic_dashboard_path, alert: "You cannot request parts for a job that isn't assigned to you."
+      return
+    end
+    
+    assignment = MechanicAssignment.find_by(inspection_job_id: @job.id, mechanic_id: current_user.id)
+    unless assignment&.in_progress?
+      redirect_to vmcott_mechanic_job_path(@job), alert: "Parts can only be requested when job is in progress."
+      return
+    end
+
+    if params[:part_id].present? && params[:quantity].present?
+      part = Part.find_by(id: params[:part_id])
+      
+      if part.nil?
+        # Custom part request
+        parts_request = PartsRequest.new(
+          inspection: @job.inspection,
+          inspection_job: @job,
+          custom_part_name: params[:custom_part_name],
+          quantity: params[:quantity],
+          status: 'pending',
+          in_stock: false,
+          notes: params[:notes]
+        )
+      else
+        # Inventory part request
+        parts_request = PartsRequest.new(
+          inspection: @job.inspection,
+          inspection_job: @job,
+          part: part,
+          quantity: params[:quantity],
+          status: part.current_stock >= params[:quantity].to_i ? 'approved' : 'pending',
+          in_stock: part.current_stock >= params[:quantity].to_i,
+          notes: params[:notes]
+        )
+      end
+
+      if parts_request.save
+        # Update assignment notes
+        assignment.update(
+          mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{params[:quantity]}x #{part&.name || params[:custom_part_name]}"
+        )
+        
+        # Notify parts coordinator
+        notify_parts_coordinator(@job.inspection) if parts_request.status == 'pending'
+        
+        redirect_to vmcott_mechanic_job_path(@job), notice: "Parts request submitted successfully."
+      else
+        redirect_to vmcott_mechanic_job_path(@job), alert: "Failed to create parts request: #{parts_request.errors.full_messages.join(', ')}"
+      end
+    else
+      # Show request form
+      @parts = Part.active.order(:name)
+      render 'vmcott/mechanic/dashboard/request_part_form'
+    end
+  rescue => e
+    Rails.logger.error "Error in request_part: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    redirect_to vmcott_mechanic_job_path(@job), alert: "An error occurred: #{e.message}"
   end
 
   def request_qc
@@ -552,6 +565,36 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     true
   end
 
+  def ensure_can_take_job
+    job = InspectionJob.find_by(id: params[:id])
+    return unless job
+    
+    unless job.verification_status == 'approved' && job.inspection&.approved_for_repair?
+      redirect_to vmcott_mechanic_dashboard_path, alert: "This job is not ready to be taken."
+      return false
+    end
+  end
+
+  def ensure_can_start_job
+    return unless @job
+    
+    unless @job.inspection&.approved_for_repair?
+      redirect_to vmcott_mechanic_job_path(@job), alert: "This job is not approved for work yet."
+      return false
+    end
+  end
+
+  def ensure_can_request_parts
+    return unless @job
+    
+    assignment = MechanicAssignment.find_by(inspection_job_id: @job.id, mechanic_id: current_user.id)
+    unless assignment&.in_progress?
+      flash[:alert] = "Parts can only be requested when job is in progress."
+      redirect_to vmcott_mechanic_job_path(@job) and return false
+    end
+    true
+  end
+
   def notify_parts_coordinator(inspection)
     coordinator_ids = User.where(role: 'parts_coordinator').pluck(:id)
     Notification.create!(
@@ -578,5 +621,17 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     )
   rescue => e
     Rails.logger.error "Failed to create notification: #{e.message}"
+  end
+
+  def notify_finance_for_additional_quotation(maintenance)
+    finance_users = User.where(role: ['finance', 'admin']).pluck(:id)
+    Notification.create!(
+      title: "Additional Work Requires Quotation",
+      message: "Additional work '#{maintenance.service_type}' needs a quotation for the agency.",
+      link: "/vmcott/finance/quotations/new_for_maintenance/#{maintenance.id}",
+      user_id: finance_users,
+      notifiable_type: 'Maintenance',
+      notifiable_id: maintenance.id
+    )
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_02_225038) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -272,12 +272,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
     t.decimal "estimated_parts_cost", precision: 10, scale: 2
     t.bigint "inspection_id", null: false
     t.bigint "job_template_id"
+    t.datetime "locked_at"
+    t.boolean "locked_for_changes", default: false
     t.text "mechanic_notes"
     t.text "notes"
     t.integer "parent_job_id"
     t.text "parts_approval_notes"
     t.boolean "parts_approved", default: false
     t.string "priority"
+    t.integer "quantity_used", default: 0
     t.string "recommendation_source", default: "inspector"
     t.boolean "requires_approval", default: false
     t.boolean "requires_part_approval", default: false
@@ -530,7 +533,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
   end
 
   create_table "maintenances", force: :cascade do |t|
+    t.boolean "additional_work", default: false
+    t.datetime "agency_decision_at"
+    t.text "agency_decision_notes"
     t.string "assignment_type", default: "0"
+    t.boolean "cancelled_by_agency", default: false
     t.string "category", default: "General"
     t.decimal "cost"
     t.datetime "created_at", null: false
@@ -546,8 +553,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
     t.date "next_due_date"
     t.text "notes"
     t.string "owner"
+    t.bigint "parent_maintenance_id"
     t.decimal "parts_cost", precision: 10, scale: 2
     t.text "parts_used"
+    t.bigint "quotation_id"
     t.datetime "reminder_sent_at"
     t.bigint "service_provider_id"
     t.string "service_type"
@@ -559,6 +568,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
     t.integer "urgency", default: 0, null: false
     t.string "urgency_label"
     t.bigint "vehicle_id", null: false
+    t.index ["parent_maintenance_id"], name: "index_maintenances_on_parent_maintenance_id"
+    t.index ["quotation_id"], name: "index_maintenances_on_quotation_id"
     t.index ["service_provider_id"], name: "index_maintenances_on_service_provider_id"
     t.index ["vehicle_id"], name: "index_maintenances_on_vehicle_id"
   end
@@ -1552,6 +1563,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_140539) do
   add_foreign_key "maintenance_requests", "vehicles"
   add_foreign_key "maintenance_tasks", "maintenances"
   add_foreign_key "maintenance_tasks", "users", column: "assigned_to_id"
+  add_foreign_key "maintenances", "maintenances", column: "parent_maintenance_id"
+  add_foreign_key "maintenances", "quotations"
   add_foreign_key "maintenances", "service_providers"
   add_foreign_key "maintenances", "vehicles"
   add_foreign_key "mechanic_assignments", "inspection_jobs"

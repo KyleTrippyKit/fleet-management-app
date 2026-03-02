@@ -12,13 +12,13 @@ class InspectionJob < ApplicationRecord
 
   validates :description, presence: true
   validates :priority, inclusion: { in: PRIORITIES }, allow_nil: true
+  validate :cannot_add_parts_after_approval, if: :approved_for_repair?
 
   scope :pending, -> { where(completed_at: nil) }
   scope :completed, -> { where.not(completed_at: nil) }
   scope :by_priority, -> { order(Arel.sql("CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END")) }
 
   def estimated_total
-    # Only labor, parts are handled separately
     estimated_labor_cost.to_f
   end
 
@@ -35,13 +35,37 @@ class InspectionJob < ApplicationRecord
     inspection_job_parts.all?(&:customer_approved)
   end
   
-  # Helper method to check if job has any custom parts
   def has_custom_parts?
     inspection_job_parts.any?(&:custom?)
   end
   
-  # Helper method to get all parts (both inventory and custom)
   def all_parts
     inspection_job_parts.map(&:part_name).join(', ')
+  end
+
+  def approved_for_repair?
+    inspection&.status == 'approved_for_repair'
+  end
+
+  def cannot_add_parts_after_approval
+    if inspection&.status == 'approved_for_repair' && will_save_change_to_parts?
+      errors.add(:base, "Cannot add parts after job is approved. Create additional work request instead.")
+    end
+  end
+
+  def lock_for_changes!
+    update!(locked_for_changes: true, locked_at: Time.current)
+  end
+
+  def record_parts_usage!
+    # Only record usage when job is completed
+    if completed? && !locked_for_changes?
+      total_quantity = inspection_job_parts.sum(:quantity)
+      update!(
+        quantity_used: total_quantity,
+        locked_for_changes: true,
+        locked_at: Time.current
+      )
+    end
   end
 end

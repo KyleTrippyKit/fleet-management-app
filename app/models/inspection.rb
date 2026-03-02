@@ -12,16 +12,18 @@ class Inspection < ApplicationRecord
   enum :status, {
     pending_inspection: 'pending_inspection',
     inspection_completed: 'inspection_completed',
-    pending_mechanic_review: 'pending_mechanic_review',  # NEW: Waiting for mechanic to review
+    pending_mechanic_review: 'pending_mechanic_review',
     parts_coordinator_review: 'parts_coordinator_review',
     billing_review: 'billing_review',
-    awaiting_customer_approval: 'awaiting_customer_approval',
+    awaiting_customer_approval_original: 'awaiting_customer_approval_original',  # Split
+    awaiting_customer_approval_additional: 'awaiting_customer_approval_additional', # Split
     approved_for_repair: 'approved_for_repair',
     in_progress: 'in_progress',
     ready_for_qc: 'ready_for_qc',
     qc_completed: 'qc_completed',
     ready_for_pickup: 'ready_for_pickup',
-    completed: 'completed'
+    completed: 'completed',
+    cancelled_by_agency: 'cancelled_by_agency'  # New
   }, default: :pending_inspection, validate: true
 
   validates :status, presence: true

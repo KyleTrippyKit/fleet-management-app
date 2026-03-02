@@ -1,3 +1,4 @@
+# app/models/maintenance.rb
 class Maintenance < ApplicationRecord
   # =====================================================
   # Associations
@@ -5,31 +6,15 @@ class Maintenance < ApplicationRecord
   belongs_to :vehicle
   belongs_to :assigned_to, class_name: "User", optional: true
   belongs_to :service_provider, optional: true
+  belongs_to :parent_maintenance, class_name: "Maintenance", optional: true
+  belongs_to :quotation, optional: true
+  
   has_many :maintenance_tasks, dependent: :destroy
+  has_many :child_maintenances, class_name: "Maintenance", foreign_key: "parent_maintenance_id"
 
   # =====================================================
-  # Constants - REMOVE URGENCIES constant since we're using enum differently
+  # Enums
   # =====================================================
-  ASSIGNMENT_TYPES = %w[stores purchasing].freeze
-  STATUSES = %w[Pending Completed In\ Progress].freeze
-  
-  # REMOVE THIS: URGENCIES constant
-  # URGENCIES = {
-  #   routine: 0,
-  #   scheduled: 1, 
-  #   emergency: 2,
-  #   high: 3,
-  #   medium: 4,
-  #   low: 5
-  # }.freeze
-  
-  CATEGORIES = %w[OilChange TireRotation BrakeService EngineCheck Transmission 
-                  Electrical BodyWork AirConditioning Suspension General].freeze
-
-  # =====================================================
-  # Enums - CORRECT SYNTAX (Simplified)
-  # =====================================================
-  # Option A: Simple enum (Rails will auto-assign 0, 1, 2, etc.)
   enum :urgency, {
     routine: 0,
     scheduled: 1,
@@ -40,11 +25,12 @@ class Maintenance < ApplicationRecord
   }, default: :routine
 
   # =====================================================
-  # Validations - REMOVE urgency validation (enum handles it)
+  # Validations
   # =====================================================
-  validates :status, inclusion: { in: STATUSES }
-  validates :assignment_type, inclusion: { in: ASSIGNMENT_TYPES }, allow_nil: true
-  validates :category, inclusion: { in: CATEGORIES }, allow_nil: true
+  validates :status, inclusion: { in: %w[Pending Completed In\ Progress] }
+  validates :assignment_type, inclusion: { in: %w[stores purchasing] }, allow_nil: true
+  validates :category, inclusion: { in: %w[OilChange TireRotation BrakeService EngineCheck Transmission 
+                                            Electrical BodyWork AirConditioning Suspension General] }, allow_nil: true
   validates :service_type, presence: true
   validates :date, presence: true
   validates :start_date, presence: true
@@ -55,12 +41,12 @@ class Maintenance < ApplicationRecord
   validate :next_due_date_not_before_date
 
   # =====================================================
-  # Callbacks - UPDATED: Set defaults BEFORE validation
+  # Callbacks
   # =====================================================
   before_validation :set_defaults
 
   # =====================================================
-  # Scopes - UPDATE by_urgency to use integer values
+  # Scopes
   # =====================================================
   scope :pending, -> { where(status: "Pending") }
   scope :in_progress, -> { where(status: "In Progress") }
@@ -81,7 +67,6 @@ class Maintenance < ApplicationRecord
     where("start_date <= ? AND end_date >= ?", end_date, start_date)
   }
   
-  # UPDATE: by_urgency scope to work with enum
   scope :by_urgency, ->(urgency_level) { 
     where(urgency: urgency_level) if urgency_level.present? 
   }
@@ -89,6 +74,13 @@ class Maintenance < ApplicationRecord
   scope :by_service_owner, ->(owner) {
     joins(:vehicle).where(vehicles: { service_owner: owner }) if owner.present?
   }
+
+  # NEW: Scope for additional work
+  scope :additional_work, -> { where(additional_work: true) }
+  scope :original_work, -> { where(additional_work: false) }
+  
+  # NEW: Scope for agency decisions
+  scope :cancelled_by_agency, -> { where(cancelled_by_agency: true) }
 
   # =====================================================
   # Status Helpers
@@ -105,7 +97,6 @@ class Maintenance < ApplicationRecord
     status == "In Progress"
   end
 
-  # FIXED: Simplified overdue? method to match what controller expects
   def overdue?
     return false if status == 'Completed'
     return false unless end_date
@@ -120,6 +111,21 @@ class Maintenance < ApplicationRecord
   def active?
     return false unless pending? && start_date.present? && end_date.present?
     start_date <= Date.today && end_date >= Date.today
+  end
+
+  # NEW: Check if this is additional work
+  def additional_work?
+    additional_work == true
+  end
+
+  # NEW: Get original maintenance if this is additional work
+  def original_maintenance
+    parent_maintenance if additional_work?
+  end
+
+  # NEW: Get all additional work for this maintenance
+  def additional_work_items
+    child_maintenances if !additional_work?
   end
 
   # =====================================================
@@ -138,8 +144,9 @@ class Maintenance < ApplicationRecord
   end
 
   attr_accessor :next_maintenance_mileage
+
   # =====================================================
-  # Timeline Methods - USE enum predicate methods
+  # Timeline Methods
   # =====================================================
   def gantt_bar_color
     if overdue?
@@ -155,7 +162,6 @@ class Maintenance < ApplicationRecord
     end
   end
 
-  # Alternative method that returns RGBA format for Chart.js
   def rgba_color
     if overdue?
       "rgba(220, 53, 69, 0.8)" # Red
@@ -202,7 +208,6 @@ class Maintenance < ApplicationRecord
   end
 
   def urgency_badge_class
-    # Use enum predicate methods
     if emergency? || high?
       "bg-danger"
     elsif scheduled? || medium?
@@ -224,7 +229,6 @@ class Maintenance < ApplicationRecord
     end
   end
 
-  # Helper method for JSON date formatting
   def start_date_iso
     safe_start_date.iso8601
   end
@@ -248,6 +252,82 @@ class Maintenance < ApplicationRecord
     }
   end
 
+  def gantt_task_data
+    {
+      id: "maintenance_#{id}",
+      name: service_type.presence || "Maintenance ##{id}",
+      start: safe_start_date.to_s,
+      end: safe_end_date.to_s,
+      parent: "vehicle_#{vehicle_id}",
+      type: 'maintenance',
+      color: gantt_bar_color,
+      additional_work: additional_work?,
+      details: {
+        status: status || 'Pending',
+        urgency: urgency_display,
+        cost: cost.to_f || 0,
+        notes: notes.to_s,
+        vehicle_id: vehicle_id,
+        maintenance_id: id,
+        duration: duration_days,
+        additional_work: additional_work?
+      }
+    }
+  end
+
+  def dhtmlx_gantt_data
+    {
+      id: "maintenance_#{id}",
+      text: service_type.presence || "Maintenance ##{id}",
+      start_date: safe_start_date.strftime("%Y-%m-%d"),
+      end_date: safe_end_date.strftime("%Y-%m-%d"),
+      parent: "vehicle_#{vehicle_id}",
+      progress: completed? ? 1 : 0.5,
+      open: true,
+      color: gantt_bar_color,
+      status: status || 'Pending',
+      urgency: urgency_display,
+      overdue: overdue?,
+      additional_work: additional_work?,
+      details: {
+        status: status || 'Pending',
+        urgency: urgency_display,
+        cost: cost.to_f || 0,
+        notes: notes.to_s,
+        vehicle_id: vehicle_id,
+        maintenance_id: id,
+        duration: duration_days,
+        service_type: service_type,
+        category: category,
+        additional_work: additional_work?
+      }
+    }
+  end
+
+  # =====================================================
+  # Display Methods
+  # =====================================================
+  def display_name
+    prefix = additional_work? ? "[ADDITIONAL] " : ""
+    "#{prefix}#{service_type} - #{vehicle.try(:make)} #{vehicle.try(:model)}"
+  end
+
+  def to_s
+    "#{service_type} (#{safe_date.strftime('%Y-%m-%d')})"
+  end
+
+  def urgency_display
+    urgency&.humanize || "Normal"
+  end
+
+  def owner
+    self[:owner] || vehicle&.service_owner
+  end
+
+  def owner=(value)
+    self[:owner] = value
+  end
+
   # =====================================================
   # Reminder Helpers
   # =====================================================
@@ -265,7 +345,7 @@ class Maintenance < ApplicationRecord
   # =====================================================
   def self.csv_headers
     ["Vehicle", "Registration", "Service Type", "Start Date", "End Date", 
-     "Duration", "Status", "Urgency", "Cost", "Notes"]
+     "Duration", "Status", "Urgency", "Cost", "Notes", "Additional Work"]
   end
 
   def to_csv_row
@@ -279,7 +359,8 @@ class Maintenance < ApplicationRecord
       status,
       urgency_display,
       cost || 0,
-      notes || ""
+      notes || "",
+      additional_work? ? "Yes" : "No"
     ]
   end
 
@@ -294,7 +375,7 @@ class Maintenance < ApplicationRecord
     return unless completed? && mileage && end_date
     
     next_start = end_date + days_interval.days
-    next_end = next_start + 7.days # Default 1 week duration
+    next_end = next_start + 7.days
     next_mileage = mileage + miles_interval
     
     Maintenance.create!(
@@ -307,111 +388,58 @@ class Maintenance < ApplicationRecord
       next_due_date: next_end,
       mileage: next_mileage,
       urgency: :scheduled,
-      notes: "Automatically scheduled - Next service"
+      notes: "Automatically scheduled - Next service",
+      additional_work: false
     )
   end
 
-  # =====================================================
-  # Gantt Chart Data Methods
-  # =====================================================
-  def gantt_task_data
-    {
-      id: "maintenance_#{id}",
-      name: service_type.presence || "Maintenance ##{id}",
-      start: safe_start_date.to_s,
-      end: safe_end_date.to_s,
-      parent: "vehicle_#{vehicle_id}",
-      type: 'maintenance',
-      color: gantt_bar_color,
-      details: {
-        status: status || 'Pending',
-        urgency: urgency_display,
-        cost: cost.to_f || 0,
-        notes: notes.to_s,
-        vehicle_id: vehicle_id,
-        maintenance_id: id,
-        duration: duration_days
-      }
-    }
+  # NEW: Create additional work from this maintenance
+  def create_additional_work!(description:, cost: nil, notes: nil)
+    child = Maintenance.create!(
+      vehicle: vehicle,
+      service_type: description,
+      status: "Pending",
+      start_date: Date.today,
+      end_date: Date.today + 7.days,
+      date: Date.today,
+      cost: cost,
+      notes: notes,
+      urgency: :high,
+      additional_work: true,
+      parent_maintenance: self
+    )
+    
+    # Notify finance that additional quotation needed
+    notify_finance_for_additional_quotation(child)
+    
+    child
   end
 
-  # Method specifically for DHTMLX Gantt format
-  def dhtmlx_gantt_data
-    {
-      id: "maintenance_#{id}",
-      text: service_type.presence || "Maintenance ##{id}",
-      start_date: safe_start_date.strftime("%Y-%m-%d"),
-      end_date: safe_end_date.strftime("%Y-%m-%d"),
-      parent: "vehicle_#{vehicle_id}",
-      progress: completed? ? 1 : 0.5,
-      open: true,
-      color: gantt_bar_color,
-      status: status || 'Pending',
-      urgency: urgency_display,
-      overdue: overdue?,
-      details: {
-        status: status || 'Pending',
-        urgency: urgency_display,
-        cost: cost.to_f || 0,
-        notes: notes.to_s,
-        vehicle_id: vehicle_id,
-        maintenance_id: id,
-        duration: duration_days,
-        service_type: service_type,
-        category: category
-      }
-    }
-  end
-
-  # =====================================================
-  # Display Methods
-  # =====================================================
-  def display_name
-    "#{service_type} - #{vehicle.try(:make)} #{vehicle.try(:model)}"
-  end
-
-  def to_s
-    "#{service_type} (#{safe_date.strftime('%Y-%m-%d')})"
-  end
-
-  # =====================================================
-  # Urgency Helper for Views
-  # =====================================================
-  def urgency_display
-    # This will automatically use the humanized enum value
-    urgency&.humanize || "Normal"
-  end
-
-  # =====================================================
-  # Owner field (for filtering)
-  # =====================================================
-  def owner
-    self[:owner] || vehicle&.service_owner
-  end
-
-  def owner=(value)
-    self[:owner] = value
+  # NEW: Mark as cancelled by agency
+  def cancel_by_agency!(reason: nil)
+    update!(
+      cancelled_by_agency: true,
+      agency_decision_at: Time.current,
+      agency_decision_notes: reason,
+      status: "Cancelled"
+    )
   end
 
   private
 
-  # =====================================================
-  # Set default values
-  # =====================================================
   def set_defaults
     self.date ||= Date.today if date.nil?
     self.start_date ||= Date.today if start_date.nil?
     self.end_date ||= (Date.today + 7.days) if end_date.nil?
     self.status ||= 'Pending' if status.nil?
-    self.urgency ||= :routine if self[:urgency].nil?  # Use symbol for enum
+    self.urgency ||= :routine if self[:urgency].nil?
     self.assignment_type ||= 'stores' if assignment_type.nil?
     self.category ||= 'General' if category.nil?
     self.owner ||= vehicle&.service_owner if owner.nil?
+    self.additional_work ||= false if additional_work.nil?
+    self.cancelled_by_agency ||= false if cancelled_by_agency.nil?
   end
 
-  # =====================================================
-  # Custom Validations
-  # =====================================================
   def end_date_after_start_date
     return if start_date.blank? || end_date.blank?
     if end_date < start_date
@@ -424,5 +452,17 @@ class Maintenance < ApplicationRecord
     if next_due_date < date
       errors.add(:next_due_date, "cannot be before the maintenance date")
     end
+  end
+
+  def notify_finance_for_additional_quotation(maintenance)
+    finance_users = User.where(role: ['finance', 'admin'])
+    Notification.create!(
+      title: "Additional Work Requires Quotation",
+      message: "Additional work '#{maintenance.service_type}' needs a quotation for the agency.",
+      link: "/vmcott/finance/quotations/new_for_maintenance/#{maintenance.id}",
+      user_id: finance_users.pluck(:id),
+      notifiable_type: 'Maintenance',
+      notifiable_id: maintenance.id
+    )
   end
 end
