@@ -1,3 +1,4 @@
+# app/models/vehicle_status.rb
 class VehicleStatus < ApplicationRecord
   belongs_to :vehicle
   belongs_to :created_by, class_name: 'User', optional: true
@@ -105,40 +106,49 @@ class VehicleStatus < ApplicationRecord
     # Get license plate safely
     license_plate = vehicle.respond_to?(:license_plate) ? vehicle.license_plate : "Vehicle #{vehicle.id}"
     
-    # Ensure the channel is loaded
+    # Broadcast to Action Cable
     begin
-        # Try to broadcast to Action Cable
-        VehicleStatusChannel.broadcast_to(
+      VehicleStatusChannel.broadcast_to(
         vehicle,
         {
-            vehicle_id: vehicle.id,
-            status: status,
-            status_display: status_display,
-            status_badge_color: status_badge_color,
-            notes: notes,
-            timestamp: Time.current,
-            license_plate: license_plate,
-            message: "Vehicle #{license_plate} is now #{status_display}"
+          vehicle_id: vehicle.id,
+          status: status,
+          status_display: status_display,
+          status_badge_color: status_badge_color,
+          notes: notes,
+          timestamp: Time.current,
+          license_plate: license_plate,
+          message: "Vehicle #{license_plate} is now #{status_display}"
         }
-        )
-        Rails.logger.info "✅ Broadcasted vehicle #{vehicle.id} status: #{status}"
+      )
+      Rails.logger.info "✅ Broadcasted vehicle #{vehicle.id} status: #{status}"
     rescue => e
-        Rails.logger.error "❌ Failed to broadcast vehicle status: #{e.message}"
+      Rails.logger.error "❌ Failed to broadcast vehicle status: #{e.message}"
     end
     
-    # Also create a notification if you have that model
+    # FIXED: Create individual notifications for agency users - using correct Notification model
     if defined?(Notification) && vehicle.respond_to?(:agency_id)
-        begin
-        Notification.create!(
-            title: "Vehicle Status Update",
-            message: "Vehicle #{license_plate} is now #{status_display}",
-            link: Rails.application.routes.url_helpers.vehicle_path(vehicle),
-            recipient_type: 'agency',
-            agency_id: vehicle.agency_id
-        )
-        rescue => e
-        Rails.logger.error "Failed to create notification: #{e.message}"
+      begin
+        # Find users in the agency who should receive notifications
+        # Only notify admin and fleet_manager roles to avoid spamming drivers
+        agency_users = User.where(agency_id: vehicle.agency_id, role: ['admin', 'fleet_manager'])
+        
+        if agency_users.any?
+          agency_users.each do |user|
+            Notification.create!(
+              user: user,
+              title: "Vehicle Status Update",
+              message: "Vehicle #{license_plate} is now #{status_display}",
+              link: Rails.application.routes.url_helpers.vehicle_path(vehicle),
+              notifiable: vehicle,
+              read: false  # Use 'read' boolean, not 'read_at'
+            )
+          end
+          Rails.logger.info "✅ Created #{agency_users.count} notifications for vehicle #{vehicle.id}"
         end
+      rescue => e
+        Rails.logger.error "❌ Failed to create notification: #{e.message}"
+      end
     end
   end
 end

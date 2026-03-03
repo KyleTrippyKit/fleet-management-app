@@ -1,9 +1,29 @@
 # app/controllers/vmcott/finance/quotations_controller.rb
-class Vmcott::Finance::QuotationsController < ApplicationController
+class Vmcott::Finance::QuotationsController < QuotationsController
   before_action :authenticate_user!
   before_action :require_finance
   before_action :set_inspection, only: [:new_for_inspection, :create_for_inspection]
 
+  # Override index to add finance-specific filtering
+  def index
+    # Call the parent controller's index first
+    super
+    
+    # Add finance-specific filters or scopes
+    # For example, only show VMCOTT quotations for finance team
+    @quotations = @quotations.where(vendor: 'VMCOTT')
+  end
+
+  # Override show to add finance-specific context
+  def show
+    # Call the parent controller's show
+    super
+    
+    # Add finance-specific instance variables if needed
+    @finance_notes = @quotation.metadata&.dig('finance_notes')
+  end
+
+  # Finance-specific actions
   def new_for_inspection
     @vehicle = @inspection.vehicle
     @jobs = @inspection.inspection_jobs
@@ -16,6 +36,8 @@ class Vmcott::Finance::QuotationsController < ApplicationController
     
     # Determine if this is original or additional
     @is_additional = @inspection.metadata&.dig('additional_work') || false
+    
+    render 'vmcott/finance/quotations/new_for_inspection'
   end
 
   def create_for_inspection
@@ -59,7 +81,8 @@ class Vmcott::Finance::QuotationsController < ApplicationController
     
     @quotation.update!(
       status: :sent,
-      sent_at: Time.current
+      sent_at: Time.current,
+      vendor: 'VMCOTT' # Ensure vendor is set correctly
     )
     
     # Notify PTSC
@@ -77,7 +100,7 @@ class Vmcott::Finance::QuotationsController < ApplicationController
 
   def require_finance
     unless current_user.finance? || current_user.admin?
-      redirect_to root_path, alert: "Access denied."
+      redirect_to root_path, alert: "Access denied. Finance privileges required."
     end
   end
 
@@ -95,5 +118,8 @@ class Vmcott::Finance::QuotationsController < ApplicationController
       notifiable_type: 'Quotation',
       notifiable_id: quotation.id
     )
+  rescue => e
+    Rails.logger.error "Failed to create notification: #{e.message}"
+    # Don't crash if notification fails
   end
 end
