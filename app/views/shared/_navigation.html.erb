@@ -1,5 +1,6 @@
 <%# app/views/shared/_navigation.html.erb - COMPLETE VMCOTT WORKFLOW NAVIGATION %>
 <%# Includes PTSC Admin Vehicle Status Tracking and PROCUREMENT for PTSC Finance %>
+<%# UPDATED: Added RFQ Inbox for VMCOTT Finance users %>
 
 <% return unless current_user.present? %>
 
@@ -185,6 +186,19 @@
                 <% if finance_alerts > 0 %>
                   <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                     <%= finance_alerts %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- STEP 5.5: RFQ INBOX - Added for Finance -->
+            <% if is_vmcott_finance || is_vmcott_admin %>
+              <%= link_to vmcott_vendor_rfqs_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_vendor_rfqs_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-envelope me-1"></i> RFQ Inbox
+                <% if @pending_rfq_responses_count.to_i > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= @pending_rfq_responses_count %>
                   </span>
                 <% end %>
               <% end %>
@@ -442,6 +456,8 @@
                   <li><%= link_to "All RFQs", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
                 <% elsif is_vmcott_finance %>
+                  <!-- RFQ INBOX FOR FINANCE IN DROPDOWN -->
+                  <li><%= link_to "RFQ Inbox", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "All POs", purchase_orders_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Invoices", vmcott_finance_invoices_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Quotations", vmcott_finance_quotations_path, class: "dropdown-item" %></li>
@@ -454,9 +470,9 @@
                   <li><%= link_to "Fleet Dashboard", ptsc_fleet_dashboard_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Maintenance Schedule", ptsc_maintenance_dashboard_path, class: "dropdown-item" %></li>
                   <li><%= link_to "All Vehicles", vehicles_path, class: "dropdown-item" %></li>
-                  <<% if agency.present? %>
-                  <li><%= link_to "New RFQ", new_agency_rfq_path(agency), class: "dropdown-item" %></li>
-                <% end %>
+                  <% if agency.present? %>
+                    <li><%= link_to "New RFQ", new_agency_rfq_path(agency), class: "dropdown-item" %></li>
+                  <% end %>
                 <% elsif is_ptsc_fleet_manager %>
                   <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item" %></li>
                   <li><%= link_to "Vehicle Status", vehicles_path, class: "dropdown-item" %></li>

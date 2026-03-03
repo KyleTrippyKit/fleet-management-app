@@ -45,49 +45,98 @@ class Vmcott::Billing::DashboardController < ApplicationController
       return
     end
     
+    # Check if RFQ already exists
+    existing_rfq = find_existing_rfq(@parts_request)
+    if existing_rfq
+      redirect_to vmcott_vendor_rfq_path(existing_rfq), 
+                  notice: "An RFQ already exists for this part. You can add additional suppliers to it."
+      return
+    end
+    
     @vendor_rfq = VendorRfq.new
     @suppliers = Supplier.where(is_active: true).order(:name)
   end
 
   def create_rfq
+    Rails.logger.info "=" * 50
+    Rails.logger.info "CREATE RFQ CALLED with params: #{params.inspect}"
+    Rails.logger.info "=" * 50
+    
     parts_request = PartsRequest.find(params[:parts_request_id])
     
-    rfq = VendorRfq.new(
+    # ===== ADDED: Validate suppliers are selected =====
+    if params[:supplier_ids].blank?
+      flash[:alert] = "Please select at least one supplier."
+      redirect_to vmcott_billing_new_rfq_path(parts_request_id: parts_request.id) and return
+    end
+    # ===== END OF VALIDATION =====
+    
+    # Build parameters safely
+    rfq_params = {
       rfq_number: generate_rfq_number,
       processing_agency_id: current_user.agency_id,
       status: 'draft',
-      notes: params[:vendor_rfq][:notes],
-      due_date: params[:vendor_rfq][:due_date],
+      notes: params[:vendor_rfq]&.[](:notes),
+      due_date: params[:vendor_rfq]&.[](:due_date),
       created_by_id: current_user.id
-    )
+    }
+    
+    Rails.logger.info "RFQ Params: #{rfq_params.inspect}"
+    
+    rfq = VendorRfq.new(rfq_params)
     
     if rfq.save
-      # Create RFQ item from parts request
-      rfq.vendor_rfq_items.create!(
-        part_id: parts_request.part_id,
-        custom_part_name: parts_request.custom_part_name,
-        quantity: parts_request.quantity,
-        description: parts_request.part&.name || parts_request.custom_part_name,
-        unit_of_measure: parts_request.part&.unit_of_measure || 'each'
-      )
+      Rails.logger.info "RFQ SAVED: #{rfq.id}"
       
-      # Add selected suppliers
-      if params[:supplier_ids].present?
-        params[:supplier_ids].each do |supplier_id|
-          rfq.vendor_quotations.create(
-            supplier_id: supplier_id,
-            status: 'draft'
-          )
-        end
+      # Create RFQ item from parts request
+      rfq_item_params = {
+        quantity: parts_request.quantity,
+        description: parts_request.part_name,
+        unit_of_measure: parts_request.part&.unit_of_measure || 'each'
+      }
+      
+      # Handle part_id vs custom_part_name
+      if parts_request.part_id.present?
+        rfq_item_params[:part_id] = parts_request.part_id
+        Rails.logger.info "Using catalog part ID: #{parts_request.part_id}"
       end
       
-      parts_request.update(status: 'rfq_sent', notified_billing_at: Time.current)
+      if parts_request.custom_part_name.present?
+        rfq_item_params[:custom_part_name] = parts_request.custom_part_name
+        Rails.logger.info "Using custom part name: #{parts_request.custom_part_name}"
+      end
       
-      redirect_to vmcott_vendor_rfq_path(rfq), notice: "RFQ created successfully."
+      rfq_item = rfq.vendor_rfq_items.create!(rfq_item_params)
+      Rails.logger.info "RFQ ITEM CREATED: #{rfq_item.id}"
+      
+      # Add selected suppliers (now guaranteed to exist)
+      supplier_count = 0
+      params[:supplier_ids].each do |supplier_id|
+        next if supplier_id.blank?
+        quotation = rfq.vendor_quotations.create(
+          supplier_id: supplier_id,
+          status: 'draft'
+        )
+        supplier_count += 1 if quotation.persisted?
+      end
+      Rails.logger.info "Created #{supplier_count} supplier quotations"
+      
+      parts_request.update(status: 'rfq_sent', notified_billing_at: Time.current)
+      Rails.logger.info "PartsRequest ##{parts_request.id} updated to rfq_sent"
+      
+      redirect_to vmcott_vendor_rfq_path(rfq), notice: "RFQ created successfully with #{supplier_count} suppliers. Next: Review and send to suppliers."
     else
-      redirect_to vmcott_billing_new_rfq_path(parts_request_id: parts_request.id), 
-                  alert: "Failed to create RFQ: #{rfq.errors.full_messages.join(', ')}"
+      Rails.logger.error "RFQ ERRORS: #{rfq.errors.full_messages}"
+      @parts_request = parts_request
+      @suppliers = Supplier.where(is_active: true).order(:name)
+      @vendor_rfq = rfq
+      flash.now[:alert] = "Failed to create RFQ: #{rfq.errors.full_messages.join(', ')}"
+      render :new_rfq
     end
+  rescue => e
+    Rails.logger.error "EXCEPTION in create_rfq: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    redirect_to vmcott_billing_dashboard_path, alert: "Error: #{e.message}"
   end
 
   def send_rfq
@@ -100,57 +149,109 @@ class Vmcott::Billing::DashboardController < ApplicationController
     
     if rfq.update(status: 'sent', sent_date: Time.current)
       # In a real app, you'd send emails here
-      flash[:notice] = "RFQ sent to #{rfq.vendor_quotations.count} suppliers."
+      redirect_to vmcott_vendor_rfq_path(rfq), notice: "RFQ sent to #{rfq.vendor_quotations.count} suppliers."
     else
-      flash[:alert] = "Failed to send RFQ."
+      redirect_to vmcott_vendor_rfq_path(rfq), alert: "Failed to send RFQ."
     end
-    
-    redirect_to vmcott_vendor_rfq_path(rfq)
   end
 
   def upload_quotation
     @rfq = VendorRfq.find(params[:rfq_id])
+    @suppliers = @rfq.vendor_quotations.map(&:supplier)
+    @parts = @rfq.vendor_rfq_items.map do |item|
+      {
+        id: item.id,
+        part_id: item.part_id,
+        name: item.part_name,
+        quantity: item.quantity,
+        is_custom: item.custom?
+      }
+    end
   end
 
   def create_quotation
     @rfq = VendorRfq.find(params[:rfq_id])
     
-    quotation = @rfq.vendor_quotations.build(quotation_params)
-    quotation.status = 'received'
+    Rails.logger.info "=" * 50
+    Rails.logger.info "CREATE QUOTATION STARTED for RFQ ##{@rfq.id}"
+    Rails.logger.info "Params: #{params.inspect}"
+    Rails.logger.info "=" * 50
     
-    if quotation.save
-      # Add line items
-      if params[:items].present?
-        params[:items].each do |item_data|
-          quotation.vendor_quotation_lines.create(
-            part_id: item_data[:part_id],
-            quantity: item_data[:quantity],
-            unit_price: item_data[:unit_price],
-            total_price: item_data[:unit_price].to_f * item_data[:quantity].to_i,
-            description: item_data[:description] || item_data[:part_name]
-          )
-        end
-      end
-      
-      # Update RFQ status if this is the first quotation
-      if @rfq.vendor_quotations.count == 1
-        @rfq.update(status: 'quotations_received')
-      end
-      
-      # Update related parts requests
-      @rfq.vendor_rfq_items.each do |item|
-        if item.part_id.present?
-          PartsRequest.where(part_id: item.part_id)
-                     .where(status: 'rfq_sent')
-                     .update_all(status: 'quotations_received')
-        end
-      end
-      
-      redirect_to vmcott_billing_dashboard_path, notice: "Quotation uploaded successfully."
-    else
-      redirect_to vmcott_billing_upload_quotation_path(@rfq), 
-                  alert: "Failed to upload quotation: #{quotation.errors.full_messages.join(', ')}"
+    quotation = @rfq.vendor_quotations.build(quotation_params)
+    
+    # Set status
+    quotation.status = 'received'
+    quotation.assign_attributes(status: 'received')
+    Rails.logger.info "Status set to: #{quotation.status}"
+    
+    if quotation.status.blank? || !VendorQuotation::STATUSES.include?(quotation.status)
+      Rails.logger.warn "Status was #{quotation.status.inspect}, forcing to 'received'"
+      quotation.write_attribute(:status, 'received')
     end
+    
+    Rails.logger.info "Final status: #{quotation.status}"
+    
+    unless quotation.valid?
+      Rails.logger.error "Quotation validation errors: #{quotation.errors.full_messages}"
+    end
+    
+    ActiveRecord::Base.transaction do
+      if quotation.save
+        Rails.logger.info "Quotation saved successfully! ID: #{quotation.id}"
+        
+        if params[:items].present?
+          params[:items].each do |index, item_data|
+            next if item_data[:unit_price].blank? || item_data[:unit_price].to_f <= 0
+            
+            line_item_params = {
+              quantity: item_data[:quantity] || 1,
+              unit_price: item_data[:unit_price],
+              total_price: item_data[:unit_price].to_f * (item_data[:quantity] || 1).to_i,
+              description: item_data[:description].presence || item_data[:part_name]
+            }
+            
+            if item_data[:part_id].present? && item_data[:part_id] != 'null' && item_data[:part_id] != ''
+              line_item_params[:part_id] = item_data[:part_id]
+            end
+            
+            line_item = quotation.vendor_quotation_lines.create!(line_item_params)
+            Rails.logger.info "Line item created: #{line_item.id} (part_id: #{line_item.part_id || 'custom'})"
+          end
+        end
+        
+        if params[:attachment].present?
+          quotation.attachment.attach(params[:attachment])
+          Rails.logger.info "Attachment uploaded"
+        end
+        
+        if @rfq.status == 'sent'
+          @rfq.update!(status: 'quotations_received')
+          Rails.logger.info "RFQ status updated to quotations_received"
+        end
+        
+        @rfq.vendor_rfq_items.each do |item|
+          if item.part_id.present?
+            PartsRequest.where(part_id: item.part_id)
+                       .where(status: 'rfq_sent')
+                       .update_all(status: 'quotations_received')
+          end
+        end
+        
+        redirect_to vmcott_vendor_rfq_path(@rfq), 
+                    notice: "Quotation from #{quotation.supplier&.name} uploaded successfully."
+      else
+        Rails.logger.error "Quotation save failed: #{quotation.errors.full_messages}"
+        @suppliers = @rfq.vendor_quotations.map(&:supplier)
+        flash.now[:alert] = "Failed to upload quotation: #{quotation.errors.full_messages.join(', ')}"
+        render :upload_quotation, status: :unprocessable_entity
+      end
+    end
+  rescue => e
+    Rails.logger.error "Error in create_quotation: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    @suppliers = @rfq.vendor_quotations.map(&:supplier)
+    flash.now[:alert] = "Error uploading quotation: #{e.message}"
+    render :upload_quotation, status: :unprocessable_entity
   end
 
   def forward_to_finance
@@ -162,24 +263,24 @@ class Vmcott::Billing::DashboardController < ApplicationController
     end
     
     if rfq.update(finance_review_ready: true)
-      # Update related parts requests
       rfq.vendor_rfq_items.each do |item|
         if item.part_id.present?
           PartsRequest.where(part_id: item.part_id)
-                     .where(status: 'rfq_sent')
+                     .where(status: 'quotations_received')
                      .update_all(status: 'finance_review')
         end
       end
       
-      # Notify finance team
-      User.where(role: ['finance', 'admin']).each do |finance_user|
-        Notification.create(
-          user: finance_user,
-          title: "Quotations Ready for Review",
-          message: "RFQ ##{rfq.rfq_number} has received #{rfq.vendor_quotations.where(status: 'received').count} quotations.",
-          notifiable: rfq,
-          link: vmcott_finance_compare_quotations_path(rfq_id: rfq.id)
-        ) if defined?(Notification)
+      if defined?(Notification)
+        User.where(role: ['finance', 'admin']).each do |finance_user|
+          Notification.create(
+            user: finance_user,
+            title: "Quotations Ready for Review",
+            message: "RFQ ##{rfq.rfq_number} has received #{rfq.vendor_quotations.where(status: 'received').count} quotations.",
+            notifiable: rfq,
+            link: vmcott_finance_compare_quotations_path(rfq_id: rfq.id)
+          )
+        end
       end
       
       redirect_to vmcott_billing_dashboard_path, notice: "Quotations forwarded to finance team."
@@ -231,11 +332,27 @@ class Vmcott::Billing::DashboardController < ApplicationController
 
   def quotation_params
     params.require(:vendor_quotation).permit(
-      :supplier_id, :valid_until, :notes, :reference_number
+      :supplier_id, :notes
     )
   end
 
   def generate_rfq_number
     "RFQ-#{Date.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+  
+  def find_existing_rfq(parts_request)
+    if parts_request.part_id.present?
+      VendorRfq.joins(:vendor_rfq_items)
+               .where(vendor_rfq_items: { part_id: parts_request.part_id })
+               .where(status: ['draft', 'sent'])
+               .first
+    elsif parts_request.custom_part_name.present?
+      VendorRfq.joins(:vendor_rfq_items)
+               .where(vendor_rfq_items: { custom_part_name: parts_request.custom_part_name })
+               .where(status: ['draft', 'sent'])
+               .first
+    else
+      nil
+    end
   end
 end

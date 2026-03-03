@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class VendorRfq < ApplicationRecord
-  STATUSES = %w[draft sent closed awarded].freeze
+  STATUSES = %w[draft sent quotations_received closed awarded].freeze
 
   # Associations
   belongs_to :created_by, class_name: "User", optional: true
@@ -19,8 +19,6 @@ class VendorRfq < ApplicationRecord
   # Validations
   validates :rfq_number, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
-  # If you ever had null statuses in existing data, switch to:
-  # validates :status, inclusion: { in: STATUSES }, allow_nil: true
 
   # Scopes
   scope :recent, -> { order(created_at: :desc) }
@@ -36,6 +34,21 @@ class VendorRfq < ApplicationRecord
     awarded? || closed?
   end
 
+  # Get all items with their part info (handles both catalog and custom)
+  def items_with_part_info
+    vendor_rfq_items.map do |item|
+      {
+        id: item.id,
+        part_id: item.part_id,
+        part_name: item.part_name,
+        part_number: item.part_number,
+        quantity: item.quantity,
+        description: item.description,
+        custom: item.custom?
+      }
+    end
+  end
+
   # Cheapest quotation helper
   def cheapest_vendor_response
     quotes = vendor_quotations.includes(:supplier, :vendor_quotation_lines).to_a
@@ -44,43 +57,75 @@ class VendorRfq < ApplicationRecord
   end
 
   # ============================================
-  # NEW METHODS FOR QUOTATION COMPARISON AND AWARDING
+  # QUOTATION COMPARISON AND AWARDING
   # ============================================
 
   # Generate a comprehensive quotation comparison for all items
   def quotation_comparison
     result = {}
     vendor_rfq_items.each do |item|
-      part = item.part
-      
-      # Skip if no part is associated
-      next unless part
+      # For custom parts, we need to match by description/custom name
+      if item.custom?
+        result["custom_#{item.id}"] = {
+          part_name: item.custom_part_name,
+          quantity: item.quantity,
+          description: item.description,
+          is_custom: true,
+          quotations: []
+        }
+        
+        # Get quotations that have lines matching this custom part
+        vendor_quotations.each do |quote|
+          matching_lines = quote.vendor_quotation_lines.select do |line|
+            line.description&.include?(item.custom_part_name) ||
+            (line.part_id.nil? && line.description.present?)
+          end
+          
+          matching_lines.each do |line|
+            result["custom_#{item.id}"][:quotations] << {
+              supplier_id: quote.supplier_id,
+              supplier_name: quote.supplier.name,
+              unit_price: line.unit_price,
+              total_price: line.total_price,
+              quotation_id: quote.id,
+              line_id: line.id
+            }
+          end
+        end
+        
+        # Sort by price
+        result["custom_#{item.id}"][:quotations].sort_by! { |q| q[:unit_price] }
+      else
+        # Catalog part - match by part_id
+        part = item.part
+        next unless part
 
-      # Get all quotations that include this part
-      quotes = vendor_quotations
-        .joins(:vendor_quotation_lines)
-        .where(vendor_quotation_lines: { part_id: part.id })
-        .select('vendor_quotations.*, vendor_quotation_lines.unit_price, vendor_quotation_lines.quantity')
-        .order('vendor_quotation_lines.unit_price ASC')
+        quotes = vendor_quotations
+          .joins(:vendor_quotation_lines)
+          .where(vendor_quotation_lines: { part_id: part.id })
+          .select('vendor_quotations.*, vendor_quotation_lines.unit_price, vendor_quotation_lines.quantity, vendor_quotation_lines.id as line_id')
+          .order('vendor_quotation_lines.unit_price ASC')
 
-      # Find the lowest price quotation for this part
-      lowest = quotes.min_by(&:unit_price)
+        # Find the lowest price quotation for this part
+        lowest = quotes.min_by(&:unit_price)
 
-      # Find the most frequent supplier for this part based on purchase history
-      most_frequent = PurchaseOrder.joins(:purchase_order_items)
-                                    .where(purchase_order_items: { part_id: part.id })
-                                    .group(:vendor)
-                                    .count
-                                    .max_by { |_, count| count }
-                                    &.first
+        # Find the most frequent supplier for this part based on purchase history
+        most_frequent = PurchaseOrder.joins(:purchase_order_items)
+                                      .where(purchase_order_items: { part_id: part.id })
+                                      .group(:vendor)
+                                      .count
+                                      .max_by { |_, count| count }
+                                      &.first
 
-      result[part.id] = {
-        part: part,
-        quantity: item.quantity,
-        quotations: quotes,
-        lowest_price: lowest,
-        most_frequent_supplier: most_frequent
-      }
+        result[part.id] = {
+          part: part,
+          quantity: item.quantity,
+          quotations: quotes,
+          lowest_price: lowest,
+          most_frequent_supplier: most_frequent,
+          is_custom: false
+        }
+      end
     end
     result
   end
@@ -148,8 +193,7 @@ class VendorRfq < ApplicationRecord
     end
   end
 
-  # ✅ Award an RFQ to a quotation (Accept 1, Reject others, Create PO, Lock RFQ)
-  # This is an alias for backward compatibility
+  # Alias for backward compatibility
   def award_to!(quotation:, user:)
     award_to!(quotation, user)
   end

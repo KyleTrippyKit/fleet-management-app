@@ -1,38 +1,61 @@
 <%# app/views/vmcott/parts_coordinator/dashboard/index.html.erb %>
 <div class="container-fluid py-4">
   <h1 class="h2 mb-4">📦 Parts Coordinator Dashboard</h1>
+  <p class="text-muted">Review parts requests and manage purchase orders</p>
 
   <!-- KPI Cards -->
   <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <div class="card bg-primary text-white">
         <div class="card-body">
-          <h5 class="card-title">Pending Reviews</h5>
-          <h2 class="display-4"><%= @pending_parts&.count || 0 %></h2>
+          <h5 class="card-title">Pending Review</h5>
+          <h2 class="display-6"><%= @pending_count %></h2>
+          <p class="card-text"><small><%= @in_stock_requests.count %> in stock | <%= @out_of_stock_requests.count %> out</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <div class="card bg-warning text-dark">
         <div class="card-body">
           <h5 class="card-title">With Billing</h5>
-          <h2 class="display-4"><%= @pending_billing&.count || 0 %></h2>
+          <h2 class="display-6"><%= @billing_count %></h2>
+          <p class="card-text"><small>RFQ in progress</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <div class="card bg-info text-white">
         <div class="card-body">
-          <h5 class="card-title">Quotes Received</h5>
-          <h2 class="display-4"><%= @pending_finance&.count || 0 %></h2>
+          <h5 class="card-title">Finance Review</h5>
+          <h2 class="display-6"><%= @finance_count %></h2>
+          <p class="card-text"><small>Quotes received</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
+      <div class="card bg-primary text-white" style="background-color: #17a2b8 !important;">
+        <div class="card-body">
+          <h5 class="card-title">Approved POs</h5>
+          <h2 class="display-6"><%= @approved_po_count %></h2>
+          <p class="card-text"><small>Ready to order</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="card bg-warning text-dark" style="background-color: #ffc107 !important;">
+        <div class="card-body">
+          <h5 class="card-title">Ordered POs</h5>
+          <h2 class="display-6"><%= @ordered_po_count %></h2>
+          <p class="card-text"><small>Awaiting delivery</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-2">
       <div class="card bg-success text-white">
         <div class="card-body">
           <h5 class="card-title">Parts Received</h5>
-          <h2 class="display-4"><%= @parts_received&.count || 0 %></h2>
+          <h2 class="display-6"><%= @received_count %></h2>
+          <p class="card-text"><small>Ready for workshop</small></p>
         </div>
       </div>
     </div>
@@ -46,26 +69,144 @@
           <div class="d-flex gap-2">
             <%= link_to "📋 Inventory Management", vmcott_inventory_dashboard_path, class: "btn btn-outline-primary btn-sm" %>
             <%= link_to "⚠️ Low Stock Alerts", vmcott_inventory_low_stock_path, class: "btn btn-outline-danger btn-sm" %>
+            <%= link_to "📦 All POs", purchase_orders_path, class: "btn btn-outline-secondary btn-sm" %>
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- Approved Purchase Orders - Ready to Order -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-cart-check me-2"></i>Approved POs - Ready to Order</h5>
+          <span class="badge bg-light text-dark"><%= @approved_po_count %> ready</span>
+        </div>
+        <div class="card-body">
+          <% if @approved_pos.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>PO #</th>
+                    <th>Vendor</th>
+                    <th>Parts</th>
+                    <th>Total Amount</th>
+                    <th>Approved</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @approved_pos.each do |po| %>
+                    <tr>
+                      <td><strong><%= link_to po.po_number, purchase_order_path(po) %></strong></td>
+                      <td><%= po.vendor %></td>
+                      <td>
+                        <% po.purchase_order_items.limit(2).each do |item| %>
+                          <div><%= item.description.truncate(30) %> (x<%= item.quantity %>)</div>
+                        <% end %>
+                        <% if po.purchase_order_items.count > 2 %>
+                          <span class="badge bg-secondary">+<%= po.purchase_order_items.count - 2 %> more</span>
+                        <% end %>
+                      </td>
+                      <td><%= number_to_currency(po.amount) %></td>
+                      <td><%= po.approved_at&.strftime("%b %d, %Y") %></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to "View", purchase_order_path(po), class: "btn btn-outline-primary" %>
+                          <%= button_to "Mark Ordered", 
+                                vmcott_parts_coordinator_mark_po_ordered_path(po),
+                                method: :post,
+                                class: "btn btn-success btn-sm",
+                                data: { confirm: "Mark this PO as ordered?" } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No approved POs ready to order</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ordered POs - Awaiting Delivery -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Ordered POs - Awaiting Delivery</h5>
+          <span class="badge bg-light text-dark"><%= @ordered_po_count %> pending</span>
+        </div>
+        <div class="card-body">
+          <% if @ordered_pos.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>PO #</th>
+                    <th>Vendor</th>
+                    <th>Parts</th>
+                    <th>Ordered</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @ordered_pos.each do |po| %>
+                    <tr>
+                      <td><strong><%= link_to po.po_number, purchase_order_path(po) %></strong></td>
+                      <td><%= po.vendor %></td>
+                      <td>
+                        <% po.purchase_order_items.limit(2).each do |item| %>
+                          <div><%= item.description.truncate(30) %> (x<%= item.quantity %>)</div>
+                        <% end %>
+                      </td>
+                      <td><%= po.ordered_at&.strftime("%b %d, %Y") %></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to "View", purchase_order_path(po), class: "btn btn-outline-primary" %>
+                          <%= button_to "Mark Received", 
+                                vmcott_parts_coordinator_mark_po_received_path(po),
+                                method: :post,
+                                class: "btn btn-success btn-sm",
+                                data: { confirm: "Mark this PO as received and update inventory?" } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No POs awaiting delivery</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending Parts Reviews -->
   <div class="row">
-    <!-- Pending Parts Reviews -->
     <div class="col-md-6 mb-4">
       <div class="card h-100">
         <div class="card-header bg-primary text-white">
-          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Pending Parts Reviews (<%= @pending_parts&.count || 0 %>)</h5>
+          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Pending Parts Reviews (<%= @pending_count %>)</h5>
         </div>
         <div class="card-body" style="max-height: 500px; overflow-y: auto;">
-          <% if @pending_parts&.any? %>
+          <% if @pending_parts.any? %>
             <% @pending_parts.each do |parts_request| %>
-              <div class="border rounded p-3 mb-3">
+              <div class="border rounded p-3 mb-3 <%= 'border-success' if parts_request.in_stock? %> <%= 'border-danger' unless parts_request.in_stock? %>">
                 <div class="d-flex justify-content-between">
                   <h6><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></h6>
-                  <span class="badge bg-primary">Pending</span>
+                  <span class="badge <%= parts_request.in_stock? ? 'bg-success' : 'bg-danger' %>">
+                    <%= parts_request.in_stock? ? '✅ IN STOCK' : '❌ OUT OF STOCK' %>
+                  </span>
                 </div>
                 <p class="small text-muted mb-2">
                   <%= parts_request.inspection&.vehicle&.make %> <%= parts_request.inspection&.vehicle&.model %> | 
@@ -75,15 +216,14 @@
                 <div class="bg-light p-2 rounded mb-2">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
-                      <strong><%= parts_request.part&.name || 'Unknown Part' %></strong>
+                      <strong><%= parts_request.part_name %></strong>
                       <small class="text-muted d-block">Part #: <%= parts_request.part&.part_number || 'N/A' %></small>
+                      <small class="text-muted d-block">Job: <%= parts_request.inspection_job&.description&.truncate(30) || 'N/A' %></small>
                     </div>
                     <div class="text-end">
-                      <span class="badge bg-secondary me-2">x<%= parts_request.quantity %></span>
-                      <% if parts_request.in_stock? %>
-                        <span class="badge bg-success">In Stock</span>
-                      <% else %>
-                        <span class="badge bg-danger">Out of Stock</span>
+                      <span class="badge bg-secondary fs-6">x<%= parts_request.quantity %></span>
+                      <% if parts_request.part %>
+                        <small class="d-block text-muted">Stock: <%= parts_request.part.current_stock %></small>
                       <% end %>
                     </div>
                   </div>
@@ -91,25 +231,30 @@
                 
                 <div class="d-flex gap-2">
                   <% if parts_request.in_stock? %>
-                    <%= button_to "✓ Mark In Stock", 
+                    <%= button_to "✓ Mark In-Stock & Notify Finance", 
                           vmcott_parts_coordinator_mark_in_stock_path(parts_request),
-                          class: "btn btn-success btn-sm",
+                          class: "btn btn-success btn-sm flex-grow-1",
                           method: :post,
-                          data: { confirm: "Mark this part as in stock and pass to workshop?" } %>
+                          data: { confirm: "Mark this part as in-stock? Finance will be notified to create quotation." } %>
                   <% else %>
-                    <%= button_to "📤 Send to Billing", 
+                    <%= button_to "📤 Send to Billing for RFQ", 
                           vmcott_parts_coordinator_send_to_billing_path(parts_request),
-                          class: "btn btn-warning btn-sm",
+                          class: "btn btn-warning btn-sm flex-grow-1",
                           method: :post,
-                          data: { confirm: "Send this part to billing team for RFQ?" } %>
+                          data: { confirm: "Send this out-of-stock part to Billing team to create RFQ?" } %>
                   <% end %>
+                  
                   <%= link_to "Details", vmcott_inspector_inspection_path(parts_request.inspection), 
-                        class: "btn btn-outline-secondary btn-sm" %>
+                        class: "btn btn-outline-secondary btn-sm",
+                        title: "View inspection details" %>
                 </div>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted text-center py-4">No pending parts reviews</p>
+            <div class="text-center py-4">
+              <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+              <p class="text-muted mb-0">No pending parts reviews</p>
+            </div>
           <% end %>
         </div>
       </div>
@@ -119,10 +264,10 @@
     <div class="col-md-6 mb-4">
       <div class="card h-100">
         <div class="card-header bg-warning text-dark">
-          <h5 class="mb-0"><i class="bi bi-send me-2"></i>Sent to Billing (<%= @pending_billing&.count || 0 %>)</h5>
+          <h5 class="mb-0"><i class="bi bi-send me-2"></i>With Billing Team - RFQ in Progress (<%= @billing_count %>)</h5>
         </div>
         <div class="card-body" style="max-height: 500px; overflow-y: auto;">
-          <% if @pending_billing&.any? %>
+          <% if @pending_billing.any? %>
             <% @pending_billing.each do |parts_request| %>
               <div class="border rounded p-3 mb-3">
                 <div class="d-flex justify-content-between">
@@ -133,29 +278,30 @@
                 <div class="bg-light p-2 rounded mb-2">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
-                      <strong><%= parts_request.part&.name || 'Unknown Part' %></strong>
+                      <strong><%= parts_request.part_name %></strong>
                       <small class="text-muted d-block">Part #: <%= parts_request.part&.part_number || 'N/A' %></small>
                     </div>
                     <span class="badge bg-secondary">x<%= parts_request.quantity %></span>
                   </div>
-                  
-                  <% if parts_request.has_rfqs? %>
-                    <hr>
-                    <small class="text-muted">
-                      <i class="bi bi-check-circle text-success me-1"></i>
-                      RFQ #<%= parts_request.rfq_number %> sent
-                    </small>
-                  <% end %>
                 </div>
                 
-                <!-- Simplified - just show status, no tracking link -->
                 <div class="text-muted small">
-                  Status: <span class="badge bg-info">With Billing Team</span>
+                  <i class="bi bi-info-circle me-1"></i>
+                  Sent to billing: <%= parts_request.sent_to_billing_at&.strftime("%b %d, %Y") || 'Recently' %>
                 </div>
+                
+                <% if parts_request.has_rfqs? %>
+                  <div class="mt-2">
+                    <span class="badge bg-info">RFQ #<%= parts_request.rfq_number %> created</span>
+                  </div>
+                <% end %>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted text-center py-4">No items with billing team</p>
+            <div class="text-center py-4">
+              <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+              <p class="text-muted mb-0">No items with billing team</p>
+            </div>
           <% end %>
         </div>
       </div>
@@ -166,35 +312,47 @@
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Received - Awaiting Finance Review (<%= @pending_finance&.count || 0 %>)</h5>
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Received - Awaiting Finance Review</h5>
+          <span class="badge bg-light text-dark"><%= @finance_count %> pending</span>
         </div>
         <div class="card-body">
-          <% if @pending_finance&.any? %>
+          <% if @pending_finance.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>Vehicle</th>
                     <th>Part</th>
+                    <th>Quantity</th>
                     <th>Quotes</th>
-                    <th>Lowest Price</th>
+                    <th>Price Range</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @pending_finance.each do |parts_request| %>
                     <% latest_rfq = parts_request.latest_rfq %>
+                    <% quotes = latest_rfq&.vendor_quotations || [] %>
+                    <% prices = quotes.map { |q| q.total_amount }.compact %>
+                    <% min_price = prices.min if prices.any? %>
+                    <% max_price = prices.max if prices.any? %>
                     <tr>
-                      <td><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></td>
                       <td>
-                        <strong><%= parts_request.part&.name || 'Unknown' %></strong>
-                        <br><small class="text-muted"><%= parts_request.part&.part_number || 'N/A' %></small>
+                        <strong><%= parts_request.inspection&.vehicle&.license_plate || 'Unknown' %></strong>
+                        <br><small class="text-muted"><%= parts_request.inspection&.vehicle&.make %></small>
                       </td>
-                      <td><%= latest_rfq&.vendor_quotations&.count || 0 %></td>
                       <td>
-                        <% if latest_rfq&.vendor_quotations&.any? %>
-                          $<%= number_with_precision(latest_rfq.vendor_quotations.minimum(:unit_price), precision: 2) %>
+                        <strong><%= parts_request.part_name %></strong>
+                        <br><small class="text-muted"><%= parts_request.part&.part_number %></small>
+                      </td>
+                      <td><span class="badge bg-secondary"><%= parts_request.quantity %></span></td>
+                      <td><span class="badge bg-primary"><%= quotes.count %> quotes</span></td>
+                      <td>
+                        <% if min_price && max_price %>
+                          <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                        <% elsif min_price %>
+                          <%= number_to_currency(min_price) %>
                         <% else %>
                           -
                         <% end %>
@@ -206,28 +364,30 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No quotations received</p>
+            <p class="text-muted text-center py-3">No quotations awaiting finance review</p>
           <% end %>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Parts Received - Ready to Pass -->
+  <!-- Parts Received - Ready to Pass to Workshop -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
-        <div class="card-header bg-success text-white">
-          <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Parts Received - Ready for Workshop (<%= @parts_received&.count || 0 %>)</h5>
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Parts Received - Ready for Workshop</h5>
+          <span class="badge bg-light text-dark"><%= @received_count %> ready</span>
         </div>
         <div class="card-body">
-          <% if @parts_received&.any? %>
+          <% if @parts_received.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>Vehicle</th>
                     <th>Parts Received</th>
+                    <th>Jobs</th>
                     <th>Date Received</th>
                     <th>Actions</th>
                   </tr>
@@ -236,20 +396,25 @@
                   <% @parts_received.each do |inspection| %>
                     <tr>
                       <td>
-                        <strong><%= inspection.vehicle&.license_plate || 'Unknown' %></strong>
+                        <strong><%= inspection.vehicle&.license_plate %></strong>
                         <br><small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
                       </td>
                       <td>
                         <% inspection.parts_requests.where(status: 'parts_received').each do |pr| %>
-                          <div><%= pr.part&.name || 'Unknown' %> (x<%= pr.quantity %>)</div>
+                          <div><%= pr.part_name %> (x<%= pr.quantity %>)</div>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% inspection.inspection_jobs.each do |job| %>
+                          <div><%= job.description.truncate(20) %></div>
                         <% end %>
                       </td>
                       <td><%= inspection.parts_requests.maximum(:parts_received_at)&.strftime("%b %d, %Y") %></td>
                       <td>
                         <%= button_to "✓ Pass to Workshop", 
                               vmcott_parts_coordinator_pass_to_workshop_path(inspection),
-                              class: "btn btn-success btn-sm",
                               method: :post,
+                              class: "btn btn-success btn-sm",
                               data: { confirm: "All parts received. Pass to workshop and notify mechanics?" } %>
                       </td>
                     </tr>
@@ -258,10 +423,49 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No parts received</p>
+            <p class="text-muted text-center py-3">No vehicles ready for workshop</p>
           <% end %>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Low Stock Alerts -->
+  <% if @low_stock_parts.present? %>
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Low Stock Alerts</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Part</th>
+                    <th>Part #</th>
+                    <th>Current Stock</th>
+                    <th>Min Stock</th>
+                    <th>Reorder Point</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @low_stock_parts.each do |part| %>
+                    <tr>
+                      <td><%= part.name %></td>
+                      <td><%= part.part_number %></td>
+                      <td><span class="badge bg-danger"><%= part.current_stock %></span></td>
+                      <td><%= part.minimum_stock %></td>
+                      <td><%= part.reorder_point %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>

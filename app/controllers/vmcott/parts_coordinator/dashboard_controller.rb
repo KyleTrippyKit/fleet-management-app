@@ -13,10 +13,10 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
                                  .order(created_at: :asc)
     
     # In-stock parts ready for parts coordinator to process
-    @in_stock_requests = @pending_parts.where(in_stock: true)
+    @in_stock_requests = @pending_parts.select(&:in_stock?)
     
     # Out of stock parts needing RFQ
-    @out_of_stock_requests = @pending_parts.where(in_stock: false)
+    @out_of_stock_requests = @pending_parts.reject(&:in_stock?)
     
     # Parts sent to billing (RFQ created)
     @pending_billing = PartsRequest.includes(:inspection, :part, :inspection_job)
@@ -37,6 +37,18 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
     @parts_received = PartsRequest.includes(:inspection, :part, :inspection_job)
                                   .where(status: 'parts_received')
                                   .order(created_at: :asc)
+    
+    # Approved Purchase Orders ready to order
+    @approved_pos = PurchaseOrder.where(status: 'approved')
+                                 .includes(:vehicle, :created_by, :purchase_order_items)
+                                 .order(approved_at: :desc)
+                                 .limit(20)
+    
+    # Ordered POs awaiting delivery
+    @ordered_pos = PurchaseOrder.where(status: 'ordered')
+                                .includes(:vehicle, :created_by, :purchase_order_items)
+                                .order(ordered_at: :desc)
+                                .limit(20)
     
     # Inspections ready for workshop (all parts received)
     @ready_for_workshop = Inspection.joins(:parts_requests)
@@ -71,14 +83,72 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       pending_finance: @pending_finance.count,
       ordered_count: @ordered_requests.count,
       parts_received: @parts_received.count,
-      ready_for_workshop_count: @ready_for_workshop.count
+      ready_for_workshop_count: @ready_for_workshop.count,
+      approved_po_count: @approved_pos.count,
+      ordered_po_count: @ordered_pos.count
     }
     
     # KPI counts for view
-    @pending_parts_count = @pending_parts.count
-    @pending_billing_count = @pending_billing.count
-    @pending_finance_count = @pending_finance.count
-    @parts_received_count = @parts_received.count
+    @pending_count = @pending_parts.count
+    @billing_count = @pending_billing.count
+    @finance_count = @pending_finance.count
+    @received_count = @parts_received.count
+    @approved_po_count = @approved_pos.count
+    @ordered_po_count = @ordered_pos.count
+  end
+
+  # Mark PO as ordered
+  def mark_po_ordered
+    po = PurchaseOrder.find(params[:id])
+    
+    if po.update(status: 'ordered', ordered_at: Time.current)
+      redirect_to vmcott_parts_coordinator_dashboard_path, 
+                  notice: "PO ##{po.po_number} marked as ordered."
+    else
+      redirect_to vmcott_parts_coordinator_dashboard_path, 
+                  alert: "Could not mark PO as ordered."
+    end
+  end
+
+  # Mark PO as received
+  def mark_po_received
+    po = PurchaseOrder.find(params[:id])
+    
+    ActiveRecord::Base.transaction do
+      # Update PO status
+      po.update!(
+        status: 'received',
+        received_at: Time.current
+      )
+      
+      # Update inventory for each item
+      po.purchase_order_items.each do |item|
+        if item.part.present?
+          item.part.update!(
+            current_stock: item.part.current_stock + item.quantity
+          )
+        end
+      end
+      
+      # Update related parts requests
+      po.purchase_order_items.each do |item|
+        if item.part.present?
+          PartsRequest.where(part_id: item.part_id)
+                     .where(status: 'purchase_order_created')
+                     .update_all(
+                       status: 'parts_received',
+                       parts_received_at: Time.current,
+                       in_stock: true
+                     )
+        end
+      end
+      
+      flash[:notice] = "PO ##{po.po_number} marked as received. Inventory updated."
+    end
+    
+    redirect_to vmcott_parts_coordinator_dashboard_path
+  rescue => e
+    redirect_to vmcott_parts_coordinator_dashboard_path, alert: "Error: #{e.message}"
   end
 
   # Mark part as in-stock (part is available in inventory)

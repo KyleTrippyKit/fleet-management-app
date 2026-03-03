@@ -291,7 +291,7 @@
     </div>
 
     <div class="col-md-4">
-      <!-- Workflow Status Card -->
+      <!-- Workflow Status Card - ENHANCED WITH TURN INDICATORS -->
       <div class="card mb-4">
         <div class="card-header bg-dark text-white">
           <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Workflow Status</h5>
@@ -308,57 +308,89 @@
               repairs_completed = @inspection.inspection_jobs.none? || 
                                  (@inspection.inspection_jobs.any? && 
                                   @inspection.inspection_jobs.where.not(completed_at: nil).count == @inspection.inspection_jobs.count)
+              
+              # Determine current active step
+              current_step = if @inspection.status == 'pending_inspection'
+                'inspection'
+              elsif @inspection.status.in?(['pending_mechanic_review', 'parts_coordinator_review', 'approved_for_repair']) && !parts_sourcing_completed
+                'parts_sourcing'
+              elsif !repairs_completed
+                'repairs'
+              elsif !@inspection.status.in?(['qc_completed', 'ready_for_pickup'])
+                'qc'
+              else
+                'pickup'
+              end
             %>
             
             <% workflow_steps = [
               { 
                 name: 'Inspection Completed', 
                 completed: @inspection.status != 'pending_inspection',
+                active: current_step == 'inspection',
                 date: @inspection.completed_at || @inspection.updated_at,
-                icon: 'bi-check-circle-fill'
+                icon: 'bi-check-circle-fill',
+                turn: 'Inspector'
               },
               { 
                 name: 'Parts Sourcing', 
                 completed: parts_sourcing_completed,
+                active: current_step == 'parts_sourcing',
                 detail: @inspection.parts_requests.any? ? 
                   "#{@inspection.parts_requests.where(status: 'parts_received').count}/#{@inspection.parts_requests.count} parts received" : 
                   '✅ No parts needed',
-                icon: parts_sourcing_completed ? 'bi-check-circle-fill' : 'bi-circle'
+                icon: parts_sourcing_completed ? 'bi-check-circle-fill' : (current_step == 'parts_sourcing' ? 'bi-arrow-right-circle-fill' : 'bi-circle'),
+                turn: 'Mechanic'
               },
               { 
                 name: 'Repairs', 
                 completed: repairs_completed,
+                active: current_step == 'repairs',
                 detail: @inspection.inspection_jobs.any? ? 
                   "#{@inspection.inspection_jobs.where.not(completed_at: nil).count}/#{@inspection.inspection_jobs.count} jobs completed" : 
                   '✅ No jobs needed',
-                icon: repairs_completed ? 'bi-check-circle-fill' : 'bi-circle'
+                icon: repairs_completed ? 'bi-check-circle-fill' : (current_step == 'repairs' ? 'bi-arrow-right-circle-fill' : 'bi-circle'),
+                turn: 'Mechanic'
               },
               { 
                 name: 'QC Completed', 
                 completed: @inspection.status.in?(['qc_completed', 'ready_for_pickup']),
+                active: current_step == 'qc',
                 date: @inspection.final_inspection_completed_at,
-                icon: @inspection.status.in?(['qc_completed', 'ready_for_pickup']) ? 'bi-check-circle-fill' : 'bi-circle'
+                icon: @inspection.status.in?(['qc_completed', 'ready_for_pickup']) ? 'bi-check-circle-fill' : (current_step == 'qc' ? 'bi-arrow-right-circle-fill' : 'bi-circle'),
+                turn: 'Inspector'
               },
               { 
                 name: 'Ready for Pickup', 
                 completed: @inspection.status == 'ready_for_pickup',
+                active: current_step == 'pickup',
                 date: @inspection.ready_for_pickup_at,
-                icon: @inspection.status == 'ready_for_pickup' ? 'bi-check-circle-fill' : 'bi-circle'
+                icon: @inspection.status == 'ready_for_pickup' ? 'bi-check-circle-fill' : (current_step == 'pickup' ? 'bi-arrow-right-circle-fill' : 'bi-circle'),
+                turn: 'Finance'
               }
             ] %>
             
             <% workflow_steps.each do |step| %>
-              <div class="workflow-step mb-3">
+              <div class="workflow-step mb-3 p-2 rounded <%= 'bg-light border border-warning' if step[:active] %>">
                 <div class="d-flex align-items-center">
                   <div class="step-indicator me-2">
-                    <i class="bi <%= step[:icon] %> <%= step[:completed] ? 'text-success' : 'text-secondary' %>"></i>
+                    <i class="bi <%= step[:icon] %> 
+                      <%= step[:completed] ? 'text-success' : (step[:active] ? 'text-warning' : 'text-secondary') %> 
+                      fs-5"></i>
                   </div>
                   <div class="flex-grow-1">
-                    <strong><%= step[:name] %></strong>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <strong><%= step[:name] %></strong>
+                      <% if step[:active] %>
+                        <span class="badge bg-warning text-dark ms-2 animate-pulse">
+                          <i class="bi bi-person-walking me-1"></i><%= step[:turn] %>'s Turn
+                        </span>
+                      <% end %>
+                    </div>
                     <% if step[:date].present? %>
-                      <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
+                      <small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
                     <% elsif step[:detail].present? %>
-                      <br><small class="text-muted"><%= step[:detail].html_safe %></small>
+                      <small class="text-muted"><%= step[:detail].html_safe %></small>
                     <% end %>
                   </div>
                 </div>
@@ -366,7 +398,16 @@
             <% end %>
           </div>
 
-          <!-- APPROVE FOR REPAIR BUTTON - ADDED HERE -->
+          <!-- Next Action Hint -->
+          <% if @inspection.status == 'approved_for_repair' && !parts_sourcing_completed %>
+            <div class="alert alert-warning mt-3 mb-3">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>⏳ Next:</strong> Mechanic needs to request parts
+              <br><small class="text-muted">Go to Mechanic Dashboard → Find PTS-7487 → Click "Request Parts"</small>
+            </div>
+          <% end %>
+
+          <!-- APPROVE FOR REPAIR BUTTON -->
           <% if @inspection.status.in?(['pending_mechanic_review', 'parts_coordinator_review']) %>
             <hr>
             <div class="text-center mt-3">
@@ -496,3 +537,21 @@
     </div>
   </div>
 </div>
+
+<!-- Add this CSS for the pulse animation -->
+<style>
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.animate-pulse {
+  animation: pulse 1.5s infinite;
+}
+
+.bg-light.border.border-warning {
+  background-color: #fff9e6 !important;
+  border-width: 2px !important;
+}
+</style>

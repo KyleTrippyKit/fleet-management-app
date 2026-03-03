@@ -1,19 +1,21 @@
 # app/controllers/purchase_orders_controller.rb
 # COMPLETE REVISED VERSION with JSON endpoint in show action
+# UPDATED: Finance users can now create and approve POs
+# FIXED: Skip payable creation for procurement POs (no vehicle/agency)
 
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
   before_action :set_purchase_order, except: [:index, :new, :create, :from_quotation, :awaiting_acceptance]
   before_action :check_edit_permission, only: [:edit, :update]
-  before_action :require_supervisor, only: [:approve, :reject]
+  before_action :require_supervisor_or_finance, only: [:approve, :reject]  # CHANGED: Now includes finance
   before_action :require_finance, only: [:mark_paid, :payment, :process_payment, :authorize_payment, :complete_payment, :record_payment]
   before_action :redirect_pdf_to_print, only: [:show]
 
   # GET /purchase_orders
   def index
     @purchase_orders = fetch_purchase_orders
-    @agencies = Agency.all if current_user.admin?
-    @users = User.all if current_user.admin? || current_user.supervisor? # For "Created By" filter
+    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
+    @users = User.all if current_user.admin? || current_user.supervisor? || current_user.finance?  # CHANGED: Added finance
 
     # Fix any nil statuses in the collection (temporary fix)
     @purchase_orders.each do |po|
@@ -27,8 +29,9 @@ class PurchaseOrdersController < ApplicationController
   def from_quotation
     @quotation = Quotation.find(params[:quotation_id])
 
-    unless current_user.finance? || current_user.admin?
-      redirect_to @quotation, alert: 'Access denied. Finance role required.'
+    # CHANGED: Allow finance users to create POs from quotations
+    unless current_user.finance? || current_user.admin? || current_user.supervisor?
+      redirect_to @quotation, alert: 'Access denied. Finance, admin, or supervisor role required.'
       return
     end
 
@@ -309,15 +312,29 @@ class PurchaseOrdersController < ApplicationController
     end
   end
 
+  # CHANGED: Now allows finance users to approve POs
+  # FIXED: Skip payable creation for procurement POs (vendor != 'VMCOTT')
   def approve
     if @purchase_order.approve!(current_user)
-      @purchase_order.create_payable! unless @purchase_order.payable.present?
-      redirect_to @purchase_order, notice: 'Approved successfully and payable created.'
+      # Only create payable for agency POs (vendor = 'VMCOTT') that need it
+      if @purchase_order.vendor == 'VMCOTT' && @purchase_order.payable.blank?
+        begin
+          @purchase_order.create_payable!
+          notice_msg = 'Approved successfully and payable created.'
+        rescue => e
+          Rails.logger.error "Failed to create payable for PO #{@purchase_order.po_number}: #{e.message}"
+          notice_msg = 'Approved successfully (payable creation skipped - no vehicle/agency).'
+        end
+      else
+        notice_msg = 'Approved successfully.'
+      end
+      redirect_to @purchase_order, notice: notice_msg
     else
       redirect_to @purchase_order, alert: 'Could not approve purchase order.'
     end
   end
 
+  # CHANGED: Now allows finance users to reject POs
   def reject
     if @purchase_order.reject!(current_user, params[:reason])
       # Send rejection email
@@ -520,20 +537,20 @@ class PurchaseOrdersController < ApplicationController
     @start_date ||= 30.days.ago
 
     @stats = PurchaseOrder.trinidad_payment_stats(time_range: @start_date..@end_date, agency_id: @agency_id)
-    @agencies = Agency.all if current_user.admin?
+    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
   end
 
   def reconciliation
     @start_date = params[:start_date] || Date.current.beginning_of_month
     @end_date = params[:end_date] || Date.current
     @agency_id = params[:agency_id]
-    @agencies = Agency.all if current_user.admin?
+    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
   end
 
   def compliance_reports
     @purchase_orders = PurchaseOrder.trinidad_card_payments.order(created_at: :desc).page(params[:page]).per(20)
     @purchase_orders = @purchase_orders.joins(:vehicle).where(vehicles: { agency_id: params[:agency_id] }) if params[:agency_id].present?
-    @agencies = Agency.all if current_user.admin?
+    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
   end
 
   def vendor_analysis
@@ -677,7 +694,14 @@ class PurchaseOrdersController < ApplicationController
       next unless purchase_order && purchase_order.pending_approval?
 
       if purchase_order.approve!(current_user)
-        purchase_order.create_payable! unless purchase_order.payable.present?
+        # Only create payable for agency POs
+        if purchase_order.vendor == 'VMCOTT' && purchase_order.payable.blank?
+          begin
+            purchase_order.create_payable!
+          rescue => e
+            Rails.logger.error "Failed to create payable for PO #{purchase_order.po_number}: #{e.message}"
+          end
+        end
         approved_count += 1
       else
         failed_count += 1
@@ -761,8 +785,11 @@ class PurchaseOrdersController < ApplicationController
     redirect_to @purchase_order, alert: 'This purchase order cannot be edited.' unless @purchase_order.editable?
   end
 
-  def require_supervisor
-    redirect_to root_path, alert: 'Unauthorized - Supervisor access required' unless current_user.supervisor? || current_user.admin?
+  # CHANGED: Now allows finance users to approve/reject POs
+  def require_supervisor_or_finance
+    unless current_user.supervisor? || current_user.admin? || current_user.finance?
+      redirect_to root_path, alert: 'Unauthorized - Supervisor or Finance access required'
+    end
   end
 
   def require_finance

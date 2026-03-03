@@ -82,7 +82,7 @@
   <% invoices = (@invoices || []).to_a %>
   <% payment_histories = (@payment_histories || []).to_a %>
 
-  <!-- Progress Bar for VMCOTT Workflow -->
+  <!-- Progress Bar for VMCOTT Workflow (only for agency POs) -->
   <% if is_vmcott? && @purchase_order.vendor == 'VMCOTT' && @purchase_order.fully_accepted? %>
     <div class="card mb-4 border-0 shadow-sm">
       <div class="card-body">
@@ -341,7 +341,7 @@
           </h5>
         </div>
         <div class="card-body">
-          <!-- AGENCY ACTIONS -->
+          <!-- AGENCY ACTIONS (for non-VMCOTT users) -->
           <% if !is_vmcott? %>
             <% if @purchase_order.draft? %>
               <div class="alert alert-info">
@@ -435,9 +435,28 @@
           
           <!-- VMCOTT ACTIONS -->
           <% else %>
+            
+            <!-- APPROVE BUTTON FOR ALL PENDING APPROVAL POS (Procurement POs) -->
+            <% if @purchase_order.pending_approval? %>
+              <div class="alert alert-info">
+                <i class="fas fa-clock me-2"></i>
+                <strong>Pending Approval</strong>
+                <p class="mb-0 mt-2">This purchase order needs your approval before it can be processed.</p>
+              </div>
+              
+              <%= button_to approve_purchase_order_path(@purchase_order),
+                    method: :post,
+                    class: "btn btn-success btn-lg w-100 mb-3",
+                    data: { turbo: false, turbo_confirm: "Approve this purchase order?" } do %>
+                <i class="fas fa-check-circle me-2"></i> Approve Purchase Order
+                <small class="d-block text-white-50">Approve to proceed with this order</small>
+              <% end %>
+            <% end %>
+            
+            <!-- Agency POs (work orders from PTSC) -->
             <% if @purchase_order.vendor == 'VMCOTT' %>
               
-              <!-- Pending Acceptance State -->
+              <!-- Pending Acceptance State (for agency POs) -->
               <% if @purchase_order.acceptance_status == 'pending_acceptance' %>
                 <div class="alert alert-warning">
                   <i class="fas fa-clock me-2"></i>

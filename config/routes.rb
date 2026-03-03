@@ -93,8 +93,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 2. INSPECTOR - Diagnostics and QC (UPDATED - No parts)
-    # 2. INSPECTOR - Diagnostics and QC (UPDATED - No parts)
+    # 2. INSPECTOR - Diagnostics and QC
     namespace :inspector do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "inspection/:vehicle_id/new", to: "dashboard#new_inspection", as: :new_inspection
@@ -117,28 +116,21 @@ Rails.application.routes.draw do
       end
     end
 
-    # 3. PARTS COORDINATOR - Inventory and RFQs (UPDATED with new workflow)
+    # 3. PARTS COORDINATOR - Updated with PO management routes
     namespace :parts_coordinator do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
-      # RFQ Management
-      get "rfq/:part_id/new", to: "dashboard#create_rfq", as: :new_rfq
-      post "rfq/create", to: "dashboard#create_and_send_rfq", as: :create_rfq
-      post "rfq/:id/send", to: "dashboard#send_rfq", as: :send_rfq
-      get "rfq/:id/compare", to: "dashboard#compare_quotations", as: :compare_rfq
-      post "quotation/:id/accept", to: "dashboard#accept_quotation", as: :accept_quotation
-      post "receive_parts", to: "dashboard#receive_parts", as: :receive_parts
-      
-      # New workflow routes
+      # Core workflow routes
       post "mark_in_stock/:id", to: "dashboard#mark_in_stock", as: :mark_in_stock
       post "send_to_billing/:id", to: "dashboard#send_to_billing", as: :send_to_billing
       post "pass_to_workshop/:id", to: "dashboard#pass_to_workshop", as: :pass_to_workshop
-      post "process_request/:id", to: "dashboard#process_request", as: :process_request
-      post "receive_parts/:purchase_order_id", to: "dashboard#receive_parts", as: :receive_parts_with_po
       
-      resources :rfqs, only: [:index, :show, :create] do
-        resources :quotations, only: [:index, :show], controller: 'vendor_quotations'
-      end
+      # NEW: PO management routes
+      post "mark_po_ordered/:id", to: "dashboard#mark_po_ordered", as: :mark_po_ordered
+      post "mark_po_received/:id", to: "dashboard#mark_po_received", as: :mark_po_received
+      
+      # Legacy routes (keep for backward compatibility)
+      post "process_request/:id", to: "dashboard#process_request", as: :process_request
       
       resources :parts, only: [:index, :show] do
         collection do
@@ -148,7 +140,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 4. MECHANIC - Repairs and work orders (UPDATED with parts requests)
+    # 4. MECHANIC - Repairs and work orders
     namespace :mechanic do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "job/:id", to: "dashboard#show_job", as: :job
@@ -201,26 +193,23 @@ Rails.application.routes.draw do
       end
     end
 
-    # 6. BILLING TEAM - RFQs and vendor communication (UPDATED)
+    # 6. BILLING TEAM - RFQ and quotation management
     namespace :billing do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
-      # RFQ Management Routes
+      # RFQ Creation
       get "new_rfq/:parts_request_id", to: "dashboard#new_rfq", as: :new_rfq
       post "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
       post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
       
-      # New RFQ to supplier routes
-      post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers
-      get "rfq/:id/upload_quotation", to: "dashboard#upload_quotation", as: :upload_quotation
-      post "rfq/:id/receive_quotation", to: "dashboard#receive_quotation", as: :receive_quotation
-      
-      # Quotation handling
-      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation_old
+      # Quotation Management
+      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
       post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
-      
-      # Forward quotations to Finance
       post "forward_to_finance/:rfq_id", to: "dashboard#forward_to_finance", as: :forward_to_finance
+      
+      # Legacy routes (keep for backward compatibility)
+      post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers
+      post "rfq/:id/receive_quotation", to: "dashboard#receive_quotation", as: :receive_quotation
       
       # PO Details endpoint for JSON
       get "po_details/:id", to: "invoices#po_details", as: :po_details
@@ -239,23 +228,30 @@ Rails.application.routes.draw do
       end
     end
 
-    # 7. FINANCE TEAM - Quotations to Agency, PO approval, invoicing (UPDATED)
+    # 7. FINANCE TEAM - Agency quotations and PO approval
     namespace :finance do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
-      # Quotation comparison and review (internal)
+      # Agency Quotations (for in-stock parts)
+      get "quotations/new_for_inspection/:inspection_id", to: "dashboard#new_quotation_for_inspection", as: :new_quotation_for_inspection
+      post "quotations/create_for_inspection", to: "dashboard#create_quotation_for_inspection", as: :create_quotation_for_inspection
+      post "quotations/:id/send_to_agency", to: "dashboard#send_quotation_to_agency", as: :send_quotation_to_agency
+      
+      # Vendor Quotation Comparison (from billing)
+      get "compare/:rfq_id", to: "dashboard#compare_quotations", as: :compare_quotations
+      post "select_quotation/:quotation_id", to: "dashboard#select_quotation", as: :select_quotation
+      
+      # PO Approval
+      post "approve_po/:id", to: "dashboard#approve_po", as: :approve_po
+      
+      # Invoice Creation
+      post "create_invoice/:inspection_id", to: "dashboard#create_invoice", as: :create_invoice
+      
+      # Legacy quotation routes (for backward compatibility)
       get "quotations", to: "quotations#index", as: :quotations
       get "quotations/:id", to: "quotations#show", as: :quotation
-      get "compare/:rfq_id", to: "quotations#compare", as: :compare_quotations
-      post "quotations/:id/select", to: "quotations#select", as: :select_quotation
       
-      # NEW: Agency Quotations (from in-stock parts)
-      get "quotations/new_for_inspection/:inspection_id", to: "quotations#new_for_inspection", as: :new_quotation_for_inspection
-      post "quotations/create_for_inspection", to: "quotations#create_for_inspection", as: :create_quotation_for_inspection
-      get "quotations/:id/send_to_agency", to: "quotations#send_to_agency", as: :send_quotation_to_agency
-      post "quotations/:id/awaiting_approval", to: "quotations#mark_as_awaiting_approval", as: :mark_awaiting_approval
-      
-      # PO approval actions
+      # PO approval actions (legacy)
       resources :purchase_orders, only: [:index, :show] do
         member do
           post :approve

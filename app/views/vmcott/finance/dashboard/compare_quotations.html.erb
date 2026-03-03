@@ -1,0 +1,114 @@
+<%# app/views/vmcott/finance/dashboard/compare_quotations.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Compare Quotations - RFQ #<%= @rfq.rfq_number %></h5>
+          <%= link_to "Back to Dashboard", vmcott_finance_dashboard_path, class: "btn btn-light btn-sm" %>
+        </div>
+        <div class="card-body">
+          
+          <!-- RFQ Summary -->
+          <div class="alert alert-info mb-4">
+            <h6>RFQ Summary:</h6>
+            <table class="table table-sm mb-0">
+              <tr>
+                <th style="width: 15%;">Parts Requested:</th>
+                <td>
+                  <% @rfq.vendor_rfq_items.each do |item| %>
+                    <%= item.part&.name || item.custom_part_name || 'Unknown' %> (x<%= item.quantity %>)<br>
+                  <% end %>
+                </td>
+              </tr>
+              <tr>
+                <th>Sent Date:</th>
+                <td><%= @rfq.sent_date&.strftime("%b %d, %Y") || 'N/A' %></td>
+              </tr>
+              <tr>
+                <th>Due Date:</th>
+                <td><%= @rfq.due_date&.strftime("%b %d, %Y") || 'N/A' %></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Quotation Comparison Table -->
+          <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Part</th>
+                  <th>Qty</th>
+                  <% @quotations.each do |quote| %>
+                    <th class="text-center">
+                      <%= quote.supplier&.name %>
+                      <br><small class="text-muted">Quote #<%= quote.id %></small>
+                    </th>
+                  <% end %>
+                </tr>
+              </thead>
+              <tbody>
+                <% @parts_comparison.each do |part_name, data| %>
+                  <tr>
+                    <td><strong><%= part_name %></strong></td>
+                    <td class="text-center"><%= data[:quantity] %></td>
+                    <% @quotations.each do |quote| %>
+                      <% quote_data = data[:quotations].find { |q| q[:quotation_id] == quote.id } %>
+                      <td class="text-center <%= 'table-success' if quote_data && quote_data[:unit_price] == data[:quotations].map { |q| q[:unit_price] }.min %>">
+                        <% if quote_data %>
+                          <%= number_to_currency(quote_data[:unit_price]) %>
+                          <br><small class="text-muted">Total: <%= number_to_currency(quote_data[:total_price]) %></small>
+                        <% else %>
+                          <span class="text-muted">—</span>
+                        <% end %>
+                      </td>
+                    <% end %>
+                  </tr>
+                <% end %>
+              </tbody>
+              <tfoot class="table-light">
+                <tr>
+                  <th colspan="2">Grand Total:</th>
+                  <% @quotations.each do |quote| %>
+                    <% total = @supplier_totals[quote.supplier_id] %>
+                    <th class="text-center <%= 'table-success' if total && total[:total] == @lowest_total[:total] %>">
+                      <%= number_to_currency(total[:total]) if total %>
+                    </th>
+                  <% end %>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- Selection Form -->
+          <div class="row mt-4">
+            <div class="col-12">
+              <h6>Select Best Quotation</h6>
+              <div class="row">
+                <% @quotations.each do |quote| %>
+                  <% total = @supplier_totals[quote.supplier_id] %>
+                  <div class="col-md-4 mb-3">
+                    <div class="card <%= 'border-success' if total && total[:total] == @lowest_total[:total] %>">
+                      <div class="card-body">
+                        <h6 class="card-title"><%= quote.supplier&.name %></h6>
+                        <p class="card-text">
+                          <strong>Total: <%= number_to_currency(total[:total]) if total %></strong>
+                        </p>
+                        <%= button_to "Select This Quote", 
+                              vmcott_finance_select_quotation_path(quotation_id: quote.id),
+                              method: :post,
+                              class: "btn btn-sm btn-primary",
+                              data: { confirm: "Create Purchase Order from this quotation?" } %>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

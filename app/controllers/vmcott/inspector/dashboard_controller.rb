@@ -8,20 +8,29 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   before_action :ensure_can_approve, only: [:approve_for_repair]
 
   def index
-    # FIXED: Only show what inspectors need to see
+    # FIXED: Only show reception logs that don't have any inspection yet
+    # We need to check if an inspection exists for this vehicle
+    vehicle_ids_with_inspections = Inspection.pluck(:vehicle_id).uniq
+    
     @pending_inspections = ReceptionLog.where(status: 'checked_in')
+                                       .where.not(vehicle_id: vehicle_ids_with_inspections)
                                        .includes(:vehicle)
                                        .order(created_at: :desc)
     
-    @in_progress = Inspection.where(inspector: current_user, status: 'pending_inspection')
+    # Show inspections that are in progress (started by current inspector)
+    @in_progress = Inspection.where(inspector: current_user)
+                             .where(status: 'pending_inspection')
+                             .includes(:vehicle, :inspection_jobs)
+                             .order(updated_at: :desc)
     
-    # FIXED: Include vehicle and inspection_jobs for better display
+    # QC pending inspections (completed by mechanics, waiting for inspector QC)
     @qc_pending = Inspection.where(status: 'ready_for_qc')
                             .includes(:vehicle, :inspection_jobs)
                             .order(updated_at: :desc)
     
+    # Recent completed inspections
     @recent_completed = Inspection.where(inspector: current_user)
-                                   .where(status: ['qc_completed', 'ready_for_pickup', 'completed'])
+                                   .where(status: ['qc_completed', 'ready_for_pickup', 'completed', 'approved_for_repair'])
                                    .includes(:vehicle, :inspection_jobs)
                                    .order(created_at: :desc)
                                    .limit(5)
@@ -205,9 +214,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @pre_inspection_data = @inspection.metadata&.[]('pre_inspection')
   end
 
-  # ========================================
-  # FIXED: qc_inspection - Now properly handles inspection QC
-  # ========================================
   def qc_inspection
     @inspection = Inspection.includes(
       :vehicle,
@@ -226,9 +232,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     render 'vmcott/inspector/dashboard/qc_inspection'
   end
 
-  # ========================================
-  # FIXED: complete_qc - Permanently fixed QC failure handling
-  # ========================================
   def complete_qc
     if params[:qc_passed] == 'true'
       @inspection.update!(
@@ -281,9 +284,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     end
   end
 
-  # ========================================
-  # FIXED: Approve Inspection for Repair - Now bypasses validation
-  # ========================================
   def approve_for_repair
     if @inspection.update(status: 'approved_for_repair')
       
@@ -448,9 +448,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     Rails.logger.error "Failed to create notification: #{e.message}"
   end
 
-  # ========================================
-  # NEW: Notify mechanics about rework
-  # ========================================
   def notify_mechanics_for_rework(inspection, reason)
     mechanic_ids = User.where(role: 'mechanic').pluck(:id)
     Notification.create!(

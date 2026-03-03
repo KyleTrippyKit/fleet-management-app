@@ -43,7 +43,7 @@
           <h6><i class="bi bi-clipboard-check me-2"></i>Ready for QC</h6>
           <h2><%= @pending_qc || 0 %></h2>
           <small>Waiting for inspector</small>
-          <% if @pending_qc > 0 %>
+          <% if (@pending_qc || 0) > 0 %>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
               <%= @pending_qc %> pending
             </span>
@@ -53,7 +53,139 @@
     </div>
   </div>
 
-  <!-- COMPLETED - WAITING FOR QC SECTION - Mechanic view only (NO ACTION BUTTON) -->
+  <!-- WORKFLOW STATUS - Simple like Inspector page -->
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Workflow Status</h5>
+    </div>
+    <div class="card-body">
+      <div class="workflow-timeline">
+        <%
+          # Calculate workflow step statuses
+          inspections_complete = @inspections_complete.to_i
+          parts_ready = @parts_complete.to_i
+          parts_pending = @parts_pending.to_i
+          jobs_active = @assigned_jobs_count.to_i
+          jobs_available = @available_jobs_count.to_i
+          jobs_complete = @repairs_complete.to_i
+          qc_pending = @pending_qc.to_i
+          qc_complete = @qc_complete.to_i
+          ready_pickup = @ready_for_pickup.to_i
+          
+          # Determine current active step
+          current_step = if inspections_complete == 0
+            'inspection'
+          elsif parts_pending > 0
+            'parts'
+          elsif jobs_available > 0 || jobs_active > 0
+            'repairs'
+          elsif qc_pending > 0
+            'qc'
+          else
+            'pickup'
+          end
+        %>
+        
+        <% workflow_steps = [
+          { 
+            name: 'Inspection Complete', 
+            completed: inspections_complete > 0,
+            active: current_step == 'inspection',
+            icon: inspections_complete > 0 ? 'bi-check-circle-fill' : 'bi-circle',
+            turn: 'Inspector'
+          },
+          { 
+            name: 'Parts Ready', 
+            completed: parts_ready > 0 && parts_pending == 0,
+            active: current_step == 'parts',
+            detail: parts_pending > 0 ? "#{parts_pending} parts pending" : "#{parts_ready} parts ready",
+            icon: (parts_ready > 0 && parts_pending == 0) ? 'bi-check-circle-fill' : (parts_pending > 0 ? 'bi-hourglass-split' : 'bi-circle'),
+            turn: 'Parts Team'
+          },
+          { 
+            name: 'Repairs', 
+            completed: jobs_complete > 0 && jobs_active == 0 && jobs_available == 0,
+            active: current_step == 'repairs',
+            detail: jobs_active > 0 ? "#{jobs_active} active" : (jobs_available > 0 ? "#{jobs_available} available" : "#{jobs_complete} done"),
+            icon: jobs_complete > 0 && jobs_active == 0 && jobs_available == 0 ? 'bi-check-circle-fill' : (jobs_active > 0 ? 'bi-tools' : (jobs_available > 0 ? 'bi-play-circle' : 'bi-circle')),
+            turn: 'Mechanic'
+          },
+          { 
+            name: 'QC Check', 
+            completed: qc_complete > 0 && qc_pending == 0,
+            active: current_step == 'qc',
+            detail: qc_pending > 0 ? "#{qc_pending} pending" : "#{qc_complete} passed",
+            icon: qc_complete > 0 && qc_pending == 0 ? 'bi-check-circle-fill' : (qc_pending > 0 ? 'bi-clipboard-check' : 'bi-circle'),
+            turn: 'Inspector'
+          },
+          { 
+            name: 'Ready for Pickup', 
+            completed: ready_pickup > 0,
+            active: current_step == 'pickup',
+            detail: ready_pickup > 0 ? "#{ready_pickup} vehicles" : "0 vehicles",
+            icon: ready_pickup > 0 ? 'bi-check-circle-fill' : 'bi-circle',
+            turn: 'Finance'
+          }
+        ] %>
+        
+        <% workflow_steps.each_with_index do |step, index| %>
+          <div class="workflow-step mb-3 p-2 rounded <%= 'bg-light border border-warning' if step[:active] %>">
+            <div class="d-flex align-items-center">
+              <div class="step-indicator me-3">
+                <i class="bi <%= step[:icon] %> 
+                  <%= step[:completed] ? 'text-success' : (step[:active] ? 'text-warning' : 'text-secondary') %> 
+                  fs-4"></i>
+              </div>
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong><%= step[:name] %></strong>
+                    <% if step[:detail].present? %>
+                      <br><small class="text-muted"><%= step[:detail] %></small>
+                    <% end %>
+                  </div>
+                  <% if step[:active] %>
+                    <span class="badge bg-warning text-dark ms-2">
+                      <i class="bi bi-person-walking me-1"></i><%= step[:turn] %>'s Turn
+                    </span>
+                  <% elsif step[:completed] %>
+                    <span class="badge bg-success ms-2">
+                      <i class="bi bi-check-circle me-1"></i>Done
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- Next Action Hint -->
+      <% if current_step == 'repairs' && jobs_available > 0 %>
+        <div class="alert alert-success mt-3 mb-0">
+          <i class="bi bi-play-circle-fill me-2"></i>
+          <strong>Ready to work!</strong> There <%= jobs_available == 1 ? 'is' : 'are' %> <strong><%= jobs_available %></strong> job<%= 's' if jobs_available > 1 %> waiting for you.
+        </div>
+      <% elsif current_step == 'repairs' && jobs_active > 0 %>
+        <div class="alert alert-primary mt-3 mb-0">
+          <i class="bi bi-tools me-2"></i>
+          <strong>Keep going!</strong> You have <strong><%= jobs_active %></strong> active job<%= 's' if jobs_active > 1 %> in progress.
+        </div>
+      <% elsif current_step == 'parts' %>
+        <div class="alert alert-warning mt-3 mb-0">
+          <i class="bi bi-hourglass-split me-2"></i>
+          <strong>Waiting for parts.</strong> <%= parts_pending %> part<%= 's' if parts_pending > 1 %> still need to be ordered.
+        </div>
+      <% elsif current_step == 'qc' %>
+        <div class="alert alert-info mt-3 mb-0">
+          <i class="bi bi-clipboard-check me-2"></i>
+          <strong>QC pending.</strong> <%= qc_pending %> job<%= 's' if qc_pending > 1 %> waiting for inspection.
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- COMPLETED - WAITING FOR QC SECTION -->
   <% if @pending_qc_jobs&.any? %>
     <div class="card mb-4 border-info border-3">
       <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
@@ -117,7 +249,7 @@
   <% if @assigned_jobs&.any? %>
     <div class="card mb-4">
       <div class="card-header bg-primary text-white">
-        <h5 class="mb-0"><i class="bi bi-tools me-2"></i>My Current Jobs</h5>
+        <h5 class="mb-0"><i class="bi bi-tools me-2"></i>My Current Jobs (<%= @assigned_jobs.count %>)</h5>
       </div>
       <div class="card-body">
         <div class="row">
@@ -340,3 +472,26 @@
     </div>
   <% end %>
 </div>
+
+<!-- Add CSS for workflow styling -->
+<style>
+.workflow-step {
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.workflow-step.bg-light.border.border-warning {
+  background-color: #fff3cd !important;
+  border-left: 4px solid #ffc107 !important;
+}
+
+.workflow-step .step-indicator {
+  width: 32px;
+  text-align: center;
+}
+
+.bg-light.border.border-warning {
+  background-color: #fff9e6 !important;
+  border-width: 1px !important;
+}
+</style>

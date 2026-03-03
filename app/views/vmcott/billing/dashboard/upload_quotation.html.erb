@@ -1,0 +1,221 @@
+<%# app/views/vmcott/billing/dashboard/upload_quotation.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-upload me-2"></i>Upload Quotation for RFQ #<%= @rfq.rfq_number %></h5>
+        </div>
+        <div class="card-body">
+          
+          <!-- Display Flash Messages -->
+          <% if flash[:alert].present? %>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <%= flash[:alert] %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          <% end %>
+          
+          <!-- RFQ Summary -->
+          <div class="alert alert-info mb-4">
+            <h6>RFQ Summary:</h6>
+            <table class="table table-sm mb-0">
+              <tr>
+                <th style="width: 30%;">RFQ Number:</th>
+                <td><%= @rfq.rfq_number %></td>
+              </tr>
+              <tr>
+                <th>Status:</th>
+                <td><span class="badge bg-primary"><%= @rfq.status.titleize %></span></td>
+              </tr>
+              <tr>
+                <th>Sent Date:</th>
+                <td><%= @rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %></td>
+              </tr>
+              <tr>
+                <th>Due Date:</th>
+                <td><%= @rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %></td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Parts Requested Summary -->
+          <div class="card bg-light mb-4">
+            <div class="card-header">
+              <h6 class="mb-0">Parts Requested</h6>
+            </div>
+            <div class="card-body">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Part</th>
+                    <th>Description</th>
+                    <th>Quantity</th>
+                    <th>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @rfq.vendor_rfq_items.each do |item| %>
+                    <tr>
+                      <td>
+                        <% if item.part %>
+                          <%= item.part.name %>
+                          <br><small class="text-muted"><%= item.part.part_number %></small>
+                        <% else %>
+                          <span class="text-muted">Custom Part</span>
+                        <% end %>
+                      </td>
+                      <td><%= item.description %></td>
+                      <td><%= item.quantity %></td>
+                      <td><%= item.unit_of_measure %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <%= form_with url: vmcott_billing_create_quotation_path(@rfq), 
+                local: true, 
+                multipart: true,
+                html: { id: "quotation-form" } do |f| %>
+            
+            <!-- Wrap supplier fields in vendor_quotation nested attributes -->
+            <%= fields_for :vendor_quotation do |qf| %>
+              <!-- Select Supplier -->
+              <div class="mb-3">
+                <%= qf.label :supplier_id, "Select Supplier", class: "form-label fw-bold" %>
+                <%= qf.select :supplier_id, 
+                      options_from_collection_for_select(@suppliers, :id, :name, params.dig(:vendor_quotation, :supplier_id)),
+                      { prompt: "-- Choose Supplier --" },
+                      class: "form-select #{'is-invalid' if flash[:alert]&.include?('Supplier')}",
+                      required: true %>
+                <small class="text-muted">Select the supplier who provided this quotation</small>
+              </div>
+
+              <!-- Notes field only (reference_number and valid_until removed) -->
+              <div class="mb-3">
+                <%= qf.label :notes, "Notes", class: "form-label fw-bold" %>
+                <%= qf.text_area :notes, 
+                      value: params.dig(:vendor_quotation, :notes),
+                      class: "form-control", 
+                      rows: 2, 
+                      placeholder: "Any additional notes about this quotation..." %>
+              </div>
+            <% end %>
+
+            <!-- Attachment (outside vendor_quotation fields) -->
+            <div class="mb-4">
+              <%= label_tag :attachment, "Upload Quotation Document (PDF/Image)", class: "form-label fw-bold" %>
+              <%= file_field_tag :attachment, 
+                    class: "form-control #{'is-invalid' if flash[:alert]&.include?('Attachment')}", 
+                    accept: ".pdf,.jpg,.jpeg,.png,.doc,.docx" %>
+              <small class="text-muted">Upload the actual quotation from the supplier</small>
+            </div>
+
+            <!-- Line Items -->
+            <h6 class="fw-bold mb-3">Quotation Line Items</h6>
+            <p class="text-muted small">Enter the prices quoted by the supplier for each part</p>
+
+            <div id="line-items">
+              <% @rfq.vendor_rfq_items.each_with_index do |item, index| %>
+                <div class="card bg-light mb-3">
+                  <div class="card-body">
+                    <h6 class="card-title">Item #<%= index + 1 %>: <%= item.part_name %></h6>
+                    
+                    <%# Hidden fields for item data %>
+                    <input type="hidden" name="items[<%= index %>][part_id]" value="<%= item.part_id %>">
+                    <input type="hidden" name="items[<%= index %>][part_name]" value="<%= item.part_name %>">
+                    <input type="hidden" name="items[<%= index %>][quantity]" value="<%= item.quantity %>">
+                    
+                    <div class="row">
+                      <div class="col-md-6 mb-2">
+                        <label class="form-label">Unit Price ($) <span class="text-danger">*</span></label>
+                        <input type="number" 
+                               name="items[<%= index %>][unit_price]" 
+                               step="0.01"
+                               min="0"
+                               class="form-control price-input"
+                               required
+                               data-index="<%= index %>"
+                               value="<%= params.dig(:items, index.to_s, :unit_price) %>">
+                      </div>
+                      <div class="col-md-6 mb-2">
+                        <label class="form-label">Total Price ($)</label>
+                        <input type="number" 
+                               name="items[<%= index %>][total_price]" 
+                               step="0.01"
+                               class="form-control total-input"
+                               readonly
+                               data-index="<%= index %>"
+                               value="<%= params.dig(:items, index.to_s, :total_price) %>">
+                      </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                      <label class="form-label">Description (optional)</label>
+                      <input type="text" 
+                             name="items[<%= index %>][description]" 
+                             value="<%= item.description %>"
+                             class="form-control">
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <%= link_to "Cancel", vmcott_billing_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Upload Quotation", 
+                    class: "btn btn-success", 
+                    data: { confirm: "Submit this quotation? Make sure all prices are correct." } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript to auto-calculate totals -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const priceInputs = document.querySelectorAll('.price-input');
+    
+    function calculateTotal(index) {
+      const priceInput = document.querySelector(`.price-input[data-index="${index}"]`);
+      const totalInput = document.querySelector(`.total-input[data-index="${index}"]`);
+      
+      // Find quantity - look for the hidden quantity input
+      const quantityInput = document.querySelector(`input[name="items[${index}][quantity]"]`);
+      const quantity = parseFloat(quantityInput?.value) || 1;
+      
+      if (priceInput && totalInput) {
+        const price = parseFloat(priceInput.value) || 0;
+        totalInput.value = (price * quantity).toFixed(2);
+      }
+    }
+    
+    priceInputs.forEach(input => {
+      const index = input.dataset.index;
+      input.addEventListener('input', () => calculateTotal(index));
+      input.addEventListener('blur', () => calculateTotal(index));
+      
+      // Initial calculation
+      calculateTotal(index);
+    });
+    
+    // Add loading state to form submission
+    const form = document.getElementById('quotation-form');
+    if (form) {
+      form.addEventListener('submit', function() {
+        const submitBtn = form.querySelector('input[type="submit"]');
+        if (submitBtn) {
+          submitBtn.value = 'Uploading...';
+          submitBtn.disabled = true;
+        }
+      });
+    }
+  });
+</script>

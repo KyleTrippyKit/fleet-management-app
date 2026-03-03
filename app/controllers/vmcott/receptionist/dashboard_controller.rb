@@ -32,7 +32,50 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
   end
   
   def manual_entry
-    # Get POs that have vehicles assigned for the dropdown
+    # Get all RFQs
+    @rfqs_with_vehicles = if defined?(VendorRfq)
+      VendorRfq.where(status: ['sent', 'draft'])
+                .includes(vendor_rfq_items: :part)
+                .order(created_at: :desc)
+                .map do |rfq|
+                  # Find vehicle for this RFQ
+                  vehicle = find_vehicle_for_rfq(rfq)
+                  
+                  # Debug output to console
+                  Rails.logger.info "=" * 50
+                  Rails.logger.info "RFQ ##{rfq.id} - #{rfq.rfq_number}"
+                  Rails.logger.info "Vehicle found: #{vehicle&.license_plate || 'NONE'}"
+                  Rails.logger.info "Part IDs: #{rfq.vendor_rfq_items.pluck(:part_id).compact}"
+                  Rails.logger.info "=" * 50
+                  
+                  # Add methods to the RFQ instance for the view
+                  rfq.instance_variable_set(:@vehicle, vehicle)
+                  
+                  def rfq.vehicle
+                    @vehicle
+                  end
+                  
+                  def rfq.vehicle_id
+                    @vehicle&.id
+                  end
+                  
+                  def rfq.rfq_number_with_vehicle_info
+                    if @vehicle
+                      "#{rfq_number} - #{@vehicle.license_plate} (#{@vehicle.make} #{@vehicle.model})"
+                    elsif @vehicle.nil? && @show_all
+                      "#{rfq_number} - No vehicle (will create new reception without vehicle)"
+                    else
+                      "#{rfq_number} - No vehicle"
+                    end
+                  end
+                  
+                  rfq
+                end
+    else
+      []
+    end
+    
+    # Also keep POs for backward compatibility
     @purchase_orders_with_vehicles = if defined?(PurchaseOrder)
       PurchaseOrder.where(vendor: 'VMCOTT', status: 'ordered')
                   .where.not(vehicle_id: nil)
@@ -40,6 +83,9 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
     else
       []
     end
+    
+    # Add option to create new vehicle
+    @allow_new_vehicle = true
   end
   
   def receive_vehicle
@@ -47,7 +93,30 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
     if params[:vehicle_id].present?
       @vehicle = Vehicle.find_by(id: params[:vehicle_id])
       
-    # Case 2: Purchase Order selected (must have vehicle)
+    # Case 2: RFQ selected (need to find vehicle through associations)
+    elsif params[:rfq_id].present?
+      @rfq = VendorRfq.find_by(id: params[:rfq_id])
+      
+      if @rfq.present?
+        # Try to find vehicle through various paths
+        @vehicle = find_vehicle_for_rfq(@rfq)
+        
+        # If no vehicle found, we can still proceed but warn the user
+        if @vehicle.nil?
+          # Option 1: Reject with error
+          # flash[:alert] = "Selected RFQ does not have an associated vehicle"
+          # redirect_to vmcott_receptionist_manual_entry_path and return
+          
+          # Option 2: Allow but warn (uncomment this line and comment the above to allow)
+          flash[:warning] = "This RFQ doesn't have an associated vehicle. Please select a vehicle manually or create a new reception without a vehicle link."
+          redirect_to vmcott_receptionist_manual_entry_path and return
+        end
+      else
+        flash[:alert] = "RFQ not found"
+        redirect_to vmcott_receptionist_manual_entry_path and return
+      end
+      
+    # Case 3: Purchase Order selected
     elsif params[:purchase_order_id].present?
       @purchase_order = PurchaseOrder.find_by(id: params[:purchase_order_id])
       
@@ -61,18 +130,23 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
     
     if @vehicle.present?
       # Create reception log
-      @log = ReceptionLog.create!(
+      reception_params = {
         vehicle: @vehicle,
-        user_id: current_user.id,  # Using user_id instead of receptionist
+        user_id: current_user.id,
         agency_id: current_user.agency_id,
         driver_name: params[:driver_name],
         received_at: Time.current,
         check_in_time: Time.current,
         visitor_name: params[:driver_name] || 'Unknown',
         notes: params[:notes],
-        purchase_order_id: params[:purchase_order_id],
-        status: 'checked_in'  # Changed from 'pending_inspection' to valid status
-      )
+        status: 'checked_in'
+      }
+      
+      # Add RFQ or PO reference if present
+      reception_params[:rfq_id] = @rfq.id if @rfq.present?
+      reception_params[:purchase_order_id] = @purchase_order.id if @purchase_order.present?
+      
+      @log = ReceptionLog.create!(reception_params)
       
       # Create vehicle status
       begin
@@ -87,21 +161,20 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
         Rails.logger.error "Failed to create vehicle status: #{e.message}"
       end
       
-      # Create notification for inspectors (FIXED: changed 'link' to 'action_url')
+      # Create notification for inspectors
       if defined?(Notification)
         begin
           Notification.create!(
             title: "Vehicle Received",
             message: "#{@vehicle.license_plate} received and ready for inspection",
             action_url: vmcott_inspector_new_inspection_path(vehicle_id: @vehicle.id),
-            user_id: nil,  # Will be assigned to all inspectors via a job
+            user_id: nil,
             notifiable_type: 'Vehicle',
             notifiable_id: @vehicle.id,
             read: false
           )
           
-          # You might want to create notifications for all inspectors here
-          # Or use a background job to notify all inspectors
+          # Notify all inspectors
           notify_inspectors(@vehicle)
         rescue => e
           Rails.logger.error "Failed to create notification: #{e.message}"
@@ -110,7 +183,7 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
       
       redirect_to vmcott_receptionist_dashboard_path, notice: "Vehicle #{@vehicle.license_plate} received successfully"
     else
-      flash[:alert] = "No vehicle selected. Please search for a vehicle or select a Purchase Order with an associated vehicle."
+      flash[:alert] = "No vehicle selected. Please search for a vehicle or select an RFQ/Purchase Order with an associated vehicle."
       redirect_to vmcott_receptionist_manual_entry_path
     end
   end
@@ -121,6 +194,39 @@ class Vmcott::Receptionist::DashboardController < ApplicationController
     unless current_user.receptionist? || current_user.admin?
       redirect_to root_path, alert: "Access denied. Receptionist privileges required."
     end
+  end
+  
+  def find_vehicle_for_rfq(rfq)
+    # Get all part IDs from this RFQ
+    part_ids = rfq.vendor_rfq_items.pluck(:part_id).compact
+    
+    Rails.logger.info "Finding vehicle for RFQ ##{rfq.id} with part IDs: #{part_ids}"
+    
+    return nil if part_ids.empty?
+    
+    # Path 1: Through parts to maintenance_parts to maintenances to vehicles
+    vehicle = Vehicle.joins(maintenances: :maintenance_parts)
+                    .where(maintenance_parts: { part_id: part_ids })
+                    .first
+    if vehicle
+      Rails.logger.info "Found vehicle via maintenances: #{vehicle.license_plate}"
+      return vehicle
+    end
+    
+    # Path 2: Through parts to parts_requests to inspections to vehicles
+    vehicle = Vehicle.joins(inspections: :parts_requests)
+                    .where(parts_requests: { part_id: part_ids })
+                    .first
+    if vehicle
+      Rails.logger.info "Found vehicle via inspections: #{vehicle.license_plate}"
+      return vehicle
+    end
+    
+    # Path 3: Through parts to purchase_requests to ??? (if purchase_requests have vehicle association)
+    # This depends on your schema
+    
+    Rails.logger.info "No vehicle found for RFQ ##{rfq.id}"
+    nil
   end
   
   def notify_inspectors(vehicle)

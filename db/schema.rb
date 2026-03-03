@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_02_225038) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1440,7 +1440,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_225038) do
   create_table "vendor_quotation_lines", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
-    t.bigint "part_id", null: false
+    t.bigint "part_id"
     t.integer "quantity"
     t.decimal "total_price"
     t.decimal "unit_price"
@@ -1468,7 +1468,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_02_225038) do
     t.datetime "created_at", null: false
     t.string "custom_part_name"
     t.text "description"
-    t.bigint "part_id", null: false
+    t.bigint "part_id"
     t.integer "quantity"
     t.string "unit_of_measure"
     t.datetime "updated_at", null: false

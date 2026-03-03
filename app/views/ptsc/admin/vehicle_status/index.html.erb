@@ -88,11 +88,11 @@
             <thead>
               <tr>
                 <th>Vehicle</th>
-                <th>Description</th>
-                <th>Labor Cost</th>
-                <th>Parts Cost</th>
-                <th>Total</th>
-                <th>Valid Until</th>
+                <th>Quote #</th>
+                <th>Amount</th>
+                <th>Valid From</th>
+                <th>Valid To</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -100,15 +100,31 @@
               <% @pending_quotations.each do |quote| %>
                 <tr>
                   <td><%= quote.vehicle&.license_plate || 'Unknown' %></td>
-                  <td><%= truncate(quote.description || 'No description', length: 50) %></td>
-                  <td>$<%= number_with_delimiter(quote.labor_cost || 0) %></td>
-                  <td>$<%= number_with_delimiter(quote.parts_cost || 0) %></td>
-                  <td><strong>$<%= number_with_delimiter(quote.total_cost || 0) %></strong></td>
-                  <td><%= quote.valid_until&.strftime("%b %d, %Y") || 'N/A' %></td>
+                  <td><%= quote.quote_number %></td>
+                  <td><strong>$<%= number_with_delimiter(quote.amount || 0) %></strong></td>
+                  <td><%= quote.valid_from&.strftime("%b %d, %Y") || 'N/A' %></td>
+                  <td><%= quote.valid_to&.strftime("%b %d, %Y") || 'N/A' %></td>
+                  <td>
+                    <% if quote.status == 'sent' %>
+                      <span class="badge bg-warning">Pending Approval</span>
+                    <% elsif quote.status == 'approved' %>
+                      <span class="badge bg-success">Approved</span>
+                    <% elsif quote.status == 'rejected' %>
+                      <span class="badge bg-danger">Rejected</span>
+                    <% elsif quote.status == 'draft' %>
+                      <span class="badge bg-secondary">Draft</span>
+                    <% else %>
+                      <span class="badge bg-secondary"><%= quote.status&.titleize || 'Unknown' %></span>
+                    <% end %>
+                  </td>
                   <td>
                     <%= link_to "View", quotation_path(quote), class: "btn btn-sm btn-outline-primary" %>
-                    <%= link_to "Accept", accept_quotation_path(quote), method: :post, 
-                        class: "btn btn-sm btn-success", data: { confirm: "Accept this quote?" } %>
+                    <% if quote.status == 'sent' %>
+                      <%= link_to "Accept", accept_quotation_path(quote), method: :post, 
+                          class: "btn btn-sm btn-success", data: { confirm: "Accept this quote?" } %>
+                      <%= link_to "Reject", reject_quotation_path(quote), method: :post, 
+                          class: "btn btn-sm btn-danger", data: { confirm: "Reject this quote?" } %>
+                    <% end %>
                   </td>
                 </tr>
               <% end %>
@@ -210,14 +226,16 @@
                   <!-- Quote Status -->
                   <td>
                     <% if inspection&.quotation.present? %>
-                      <% if inspection.quotation.status == 'pending_agency_approval' || inspection.quotation.status == 'sent' %>
+                      <% if inspection.quotation.status == 'sent' %>
                         <span class="badge bg-warning">Awaiting Your Approval</span>
                       <% elsif inspection.quotation.status == 'approved' %>
-                        <span class="badge bg-success">Approved - PO Sent</span>
+                        <span class="badge bg-success">Approved</span>
                       <% elsif inspection.quotation.status == 'rejected' %>
                         <span class="badge bg-danger">Rejected</span>
+                      <% elsif inspection.quotation.status == 'draft' %>
+                        <span class="badge bg-secondary">Draft</span>
                       <% else %>
-                        <span class="badge bg-secondary"><%= inspection.quotation.status&.titleize %></span>
+                        <span class="badge bg-secondary"><%= inspection.quotation.status&.titleize || 'Unknown' %></span>
                       <% end %>
                     <% else %>
                       <span class="badge bg-secondary">Preparing Quote</span>

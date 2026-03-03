@@ -30,7 +30,7 @@
         <div class="card-body">
           <h5 class="card-title">QC Pending</h5>
           <h2 class="display-4"><%= @qc_pending&.count || 0 %></h2>
-          <% if @qc_pending&.count > 0 %>
+          <% if @qc_pending&.count.to_i > 0 %>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
               <%= @qc_pending.count %> pending
             </span>
@@ -48,7 +48,131 @@
     </div>
   </div>
 
-  <!-- QC PENDING SECTION - NEW HIGHLIGHTED SECTION FOR INSPECTORS -->
+  <!-- WORKFLOW STATUS - Overall System Status -->
+  <div class="card mb-4">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>System Workflow Status</h5>
+    </div>
+    <div class="card-body">
+      <div class="workflow-timeline">
+        <%
+          # Calculate workflow step statuses
+          pending_inspections = @pending_inspections&.count.to_i
+          inspections_in_progress = @in_progress&.count.to_i
+          qc_pending_count = @qc_pending&.count.to_i
+          approved_for_repair = Inspection.where(status: 'approved_for_repair').count.to_i
+          ready_for_pickup = Inspection.where(status: 'ready_for_pickup').count.to_i
+          
+          # Determine current active step
+          current_step = if pending_inspections > 0
+            'inspection'
+          elsif inspections_in_progress > 0
+            'in_progress'
+          elsif qc_pending_count > 0
+            'qc'
+          elsif approved_for_repair > 0
+            'approved'
+          else
+            'pickup'
+          end
+        %>
+        
+        <% workflow_steps = [
+          { 
+            name: 'Pending Inspections', 
+            completed: pending_inspections == 0,
+            active: current_step == 'inspection',
+            detail: pending_inspections > 0 ? "#{pending_inspections} waiting" : "All clear",
+            icon: pending_inspections == 0 ? 'bi-check-circle-fill' : (pending_inspections > 0 ? 'bi-clock-history' : 'bi-circle'),
+            turn: 'Inspector'
+          },
+          { 
+            name: 'Inspections in Progress', 
+            completed: inspections_in_progress == 0 && pending_inspections == 0,
+            active: current_step == 'in_progress',
+            detail: inspections_in_progress > 0 ? "#{inspections_in_progress} active" : "None active",
+            icon: inspections_in_progress > 0 ? 'bi-search' : (inspections_in_progress == 0 && pending_inspections == 0 ? 'bi-check-circle-fill' : 'bi-circle'),
+            turn: 'Inspector'
+          },
+          { 
+            name: 'QC Pending', 
+            completed: qc_pending_count == 0,
+            active: current_step == 'qc',
+            detail: qc_pending_count > 0 ? "#{qc_pending_count} need QC" : "All passed",
+            icon: qc_pending_count == 0 ? 'bi-check-circle-fill' : (qc_pending_count > 0 ? 'bi-clipboard-check' : 'bi-circle'),
+            turn: 'Inspector'
+          },
+          { 
+            name: 'Approved for Repair', 
+            completed: approved_for_repair > 0,
+            active: current_step == 'approved',
+            detail: approved_for_repair > 0 ? "#{approved_for_repair} approved" : "None",
+            icon: approved_for_repair > 0 ? 'bi-check-circle-fill' : 'bi-circle',
+            turn: 'Mechanic'
+          },
+          { 
+            name: 'Ready for Pickup', 
+            completed: ready_for_pickup > 0,
+            active: current_step == 'pickup',
+            detail: ready_for_pickup > 0 ? "#{ready_for_pickup} vehicles" : "0 vehicles",
+            icon: ready_for_pickup > 0 ? 'bi-truck' : 'bi-circle',
+            turn: 'Finance'
+          }
+        ] %>
+        
+        <% workflow_steps.each_with_index do |step, index| %>
+          <div class="workflow-step mb-3 p-2 rounded <%= 'bg-light border border-warning' if step[:active] %>">
+            <div class="d-flex align-items-center">
+              <div class="step-indicator me-3">
+                <i class="bi <%= step[:icon] %> 
+                  <%= step[:completed] ? 'text-success' : (step[:active] ? 'text-warning' : 'text-secondary') %> 
+                  fs-4"></i>
+              </div>
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong><%= step[:name] %></strong>
+                    <% if step[:detail].present? %>
+                      <br><small class="text-muted"><%= step[:detail] %></small>
+                    <% end %>
+                  </div>
+                  <% if step[:active] %>
+                    <span class="badge bg-warning text-dark ms-2">
+                      <i class="bi bi-person-walking me-1"></i><%= step[:turn] %>'s Turn
+                    </span>
+                  <% elsif step[:completed] && step[:name] != 'Ready for Pickup' %>
+                    <span class="badge bg-success ms-2">
+                      <i class="bi bi-check-circle me-1"></i>Done
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <!-- Next Action Hint -->
+      <% if current_step == 'inspection' && pending_inspections > 0 %>
+        <div class="alert alert-warning mt-3 mb-0">
+          <i class="bi bi-clock-history me-2"></i>
+          <strong><%= pending_inspections %></strong> vehicle<%= 's' if pending_inspections > 1 %> waiting for initial inspection.
+        </div>
+      <% elsif current_step == 'qc' && qc_pending_count > 0 %>
+        <div class="alert alert-info mt-3 mb-0">
+          <i class="bi bi-clipboard-check me-2"></i>
+          <strong><%= qc_pending_count %></strong> job<%= 's' if qc_pending_count > 1 %> need quality control inspection.
+        </div>
+      <% elsif current_step == 'approved' && approved_for_repair > 0 %>
+        <div class="alert alert-success mt-3 mb-0">
+          <i class="bi bi-check-circle me-2"></i>
+          <strong><%= approved_for_repair %></strong> inspection<%= 's' if approved_for_repair > 1 %> approved. Mechanics can now work.
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- QC PENDING SECTION -->
   <% if @qc_pending&.any? %>
     <div class="row mt-2">
       <div class="col-12">
@@ -72,6 +196,7 @@
                     <th>Jobs Completed</th>
                     <th>Completed</th>
                     <th>Parts Used</th>
+                    <th>Workflow Status</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -99,9 +224,24 @@
                         <% end %>
                       </td>
                       <td>
+                        <div class="d-flex flex-wrap gap-1">
+                          <% if inspection.inspection_jobs.where(completed_at: nil).any? %>
+                            <span class="badge bg-warning">🔄 Jobs in Progress</span>
+                          <% else %>
+                            <span class="badge bg-success">✅ Ready for QC</span>
+                          <% end %>
+                          <% if inspection.parts_requests.any? %>
+                            <% if inspection.parts_requests.where(status: 'parts_received').count == inspection.parts_requests.count %>
+                              <span class="badge bg-success">✅ All parts in stock</span>
+                            <% else %>
+                              <span class="badge bg-warning">⏳ Parts pending: <%= inspection.parts_requests.where.not(status: 'parts_received').count %></span>
+                            <% end %>
+                          <% end %>
+                        </div>
+                      </td>
+                      <td>
                         <%= link_to vmcott_inspector_qc_path(inspection), 
-                              class: "btn btn-warning btn-sm",
-                              target: "_blank" do %>
+                              class: "btn btn-warning btn-sm" do %>
                           <i class="bi bi-clipboard-check me-1"></i> Start QC
                         <% end %>
                       </td>
@@ -122,9 +262,14 @@
       <div class="card">
         <div class="card-header bg-warning">
           <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Vehicles Waiting for Inspection</h5>
+          <span class="badge bg-dark text-white position-absolute top-0 end-0 mt-2 me-2"><%= @pending_inspections&.count || 0 %></span>
         </div>
         <div class="card-body">
           <% if @pending_inspections && @pending_inspections.any? %>
+            <div class="alert alert-info mb-3">
+              <i class="bi bi-info-circle me-2"></i>
+              Click "Start Inspection" to begin. Vehicle will move to "In Progress".
+            </div>
             <% @pending_inspections.each do |log| %>
               <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
                 <div>
@@ -134,20 +279,94 @@
                     <br>
                     <small>Received: <%= time_ago_in_words(log.received_at) %> ago</small>
                   </div>
+                  <!-- Per-vehicle workflow status -->
+                  <div class="mt-1">
+                    <span class="badge bg-secondary">⏳ Awaiting Inspection</span>
+                  </div>
                 </div>
                 <%= link_to "Start Inspection", vmcott_inspector_pre_inspection_path(log.vehicle_id), 
                       class: "btn btn-sm btn-primary" %>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted text-center py-3">No vehicles waiting for inspection</p>
+            <div class="text-center py-4">
+              <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+              <p class="text-muted mb-0">No vehicles waiting for inspection</p>
+              <small class="text-muted">All caught up!</small>
+            </div>
           <% end %>
         </div>
       </div>
     </div>
     
-    <!-- Approved for Repair Section -->
+    <!-- Inspections In Progress - FIXED ROUTE -->
     <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-gear me-2"></i>🔧 Inspections In Progress</h5>
+          <span class="badge bg-light text-dark position-absolute top-0 end-0 mt-2 me-2"><%= @in_progress&.count || 0 %></span>
+        </div>
+        <div class="card-body">
+          <% if @in_progress && @in_progress.any? %>
+            <div class="alert alert-info mb-3">
+              <i class="bi bi-info-circle me-2"></i>
+              You're working on these. Click "Continue" to resume or "Complete" when done.
+            </div>
+            <% @in_progress.each do |inspection| %>
+              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
+                <div>
+                  <strong><%= inspection.vehicle&.license_plate || "Unknown" %></strong>
+                  <div class="small text-muted">
+                    <%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %>
+                    <br>
+                    <small>Started: <%= time_ago_in_words(inspection.updated_at) %> ago</small>
+                  </div>
+                  <!-- Per-vehicle workflow status -->
+                  <div class="mt-1 d-flex flex-wrap gap-1">
+                    <% if inspection.inspection_jobs.any? %>
+                      <% if inspection.inspection_jobs.where(completed_at: nil).any? %>
+                        <span class="badge bg-warning">🔄 Inspection in Progress</span>
+                      <% else %>
+                        <span class="badge bg-success">✅ Ready for Review</span>
+                      <% end %>
+                    <% else %>
+                      <span class="badge bg-secondary">⏳ No jobs added</span>
+                    <% end %>
+                    
+                    <% if inspection.mileage_at_inspection.present? %>
+                      <span class="badge bg-info">📊 <%= inspection.mileage_at_inspection %> km</span>
+                    <% end %>
+                  </div>
+                </div>
+                <div>
+                  <%= link_to "Continue", vmcott_inspector_inspection_path(inspection), 
+                        class: "btn btn-sm btn-outline-primary me-1" %>
+                  
+                  <!-- FIXED: Using the correct route from your routes -->
+                  <%= button_to "✓ Complete", 
+                        complete_inspection_vmcott_inspector_inspection_path(inspection),
+                        method: :patch,
+                        class: "btn btn-sm btn-success",
+                        data: { confirm: "Mark this inspection as complete and send to mechanics?" },
+                        form: { style: 'display: inline;' } %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-4">
+              <i class="bi bi-hourglass-split text-primary fs-1 mb-3"></i>
+              <p class="text-muted mb-0">No inspections in progress</p>
+              <small class="text-muted">Start an inspection from the waiting list</small>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approved for Repair Section -->
+  <div class="row mt-4">
+    <div class="col-12">
       <div class="card">
         <div class="card-header bg-success text-white">
           <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>✅ Approved for Repair</h5>
@@ -155,20 +374,51 @@
         <div class="card-body">
           <% approved_inspections = Inspection.where(status: 'approved_for_repair').order(updated_at: :desc).limit(5) %>
           <% if approved_inspections.any? %>
-            <% approved_inspections.each do |inspection| %>
-              <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
-                <div>
-                  <strong><%= inspection.vehicle&.license_plate || "Unknown" %></strong>
-                  <div class="small text-muted">
-                    <%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %>
-                    <br>
-                    <small>Approved: <%= time_ago_in_words(inspection.updated_at) %> ago</small>
-                  </div>
-                </div>
-                <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
-                      class: "btn btn-sm btn-success" %>
-              </div>
-            <% end %>
+            <div class="alert alert-success mb-3">
+              <i class="bi bi-check-circle-fill me-2"></i>
+              These inspections are approved. Mechanics can now start working.
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Jobs</th>
+                    <th>Approved</th>
+                    <th>Workflow Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% approved_inspections.each do |inspection| %>
+                    <tr>
+                      <td>
+                        <strong><%= inspection.vehicle&.license_plate || "Unknown" %></strong>
+                        <br><small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
+                      </td>
+                      <td><%= inspection.inspection_jobs.count %></td>
+                      <td><%= time_ago_in_words(inspection.updated_at) %> ago</td>
+                      <td>
+                        <div class="d-flex flex-wrap gap-1">
+                          <span class="badge bg-success">✅ Approved for Repair</span>
+                          <% if inspection.parts_requests.any? %>
+                            <% if inspection.parts_requests.where(status: 'parts_received').count == inspection.parts_requests.count %>
+                              <span class="badge bg-success">✅ All parts ready</span>
+                            <% else %>
+                              <span class="badge bg-warning">⏳ Parts ordered</span>
+                            <% end %>
+                          <% end %>
+                        </div>
+                      </td>
+                      <td>
+                        <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
+                              class: "btn btn-sm btn-outline-success" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
           <% else %>
             <p class="text-muted text-center py-3">No inspections approved for repair</p>
           <% end %>
@@ -193,7 +443,8 @@
                     <th>Vehicle</th>
                     <th>Date</th>
                     <th>Jobs Found</th>
-                    <th>Status</th>
+                    <th>Parts Status</th>
+                    <th>Overall Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -206,6 +457,19 @@
                       </td>
                       <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
                       <td><%= inspection.inspection_jobs.count %></td>
+                      <td>
+                        <% if inspection.parts_requests.any? %>
+                          <% received = inspection.parts_requests.where(status: 'parts_received').count %>
+                          <% total = inspection.parts_requests.count %>
+                          <% if received == total %>
+                            <span class="badge bg-success">✅ All parts received</span>
+                          <% else %>
+                            <span class="badge bg-warning">⏳ <%= received %>/<%= total %> parts received</span>
+                          <% end %>
+                        <% else %>
+                          <span class="badge bg-secondary">No parts needed</span>
+                        <% end %>
+                      </td>
                       <td>
                         <% if inspection.status == 'approved_for_repair' %>
                           <span class="badge bg-success">
@@ -223,14 +487,6 @@
                           <span class="badge bg-warning">
                             <i class="bi bi-hourglass-split me-1"></i>Pending QC
                           </span>
-                        <% elsif inspection.status == 'pending_mechanic_review' %>
-                          <span class="badge bg-warning">
-                            <i class="bi bi-clock me-1"></i>Pending Review
-                          </span>
-                        <% elsif inspection.status == 'parts_coordinator_review' %>
-                          <span class="badge bg-info">
-                            <i class="bi bi-box me-1"></i>Parts Review
-                          </span>
                         <% else %>
                           <span class="badge bg-secondary"><%= inspection.status.titleize %></span>
                         <% end %>
@@ -238,11 +494,6 @@
                       <td>
                         <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
                               class: "btn btn-sm btn-outline-primary" %>
-                        <% if inspection.status == 'ready_for_qc' %>
-                          <%= link_to "QC", vmcott_inspector_qc_path(inspection), 
-                                class: "btn btn-sm btn-warning ms-1",
-                                target: "_blank" %>
-                        <% end %>
                       </td>
                     </tr>
                   <% end %>
@@ -257,3 +508,46 @@
     </div>
   </div>
 </div>
+
+<!-- Add CSS for workflow styling -->
+<style>
+.workflow-step {
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.workflow-step.bg-light.border.border-warning {
+  background-color: #fff3cd !important;
+  border-left: 4px solid #ffc107 !important;
+}
+
+.workflow-step .step-indicator {
+  width: 32px;
+  text-align: center;
+}
+
+.bg-light.border.border-warning {
+  background-color: #fff9e6 !important;
+  border-width: 1px !important;
+}
+
+.card-header {
+  position: relative;
+}
+
+.card-header .badge {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.65rem;
+}
+
+/* Status badge container */
+.d-flex.flex-wrap.gap-1 {
+  max-width: 300px;
+}
+
+/* Status badge styling */
+.badge {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+}
+</style>

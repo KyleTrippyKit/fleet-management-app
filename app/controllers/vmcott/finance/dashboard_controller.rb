@@ -6,35 +6,42 @@ class Vmcott::Finance::DashboardController < ApplicationController
   before_action :ensure_can_approve_po, only: [:approve_po, :reject_po]
 
   def index
-    # FIXED: Only show what finance needs to see
-    @quotations_for_review = VendorRfq.joins(:vendor_quotations)
-                                      .where(vendor_quotations: { status: 'received' })
-                                      .distinct
-                                      .includes(:vendor_rfq_items, :vendor_quotations)
-                                      .order(updated_at: :desc)
+    # TRACK 1: In-stock parts ready for agency quotation
+    @ready_for_quotation = Inspection.where(status: 'awaiting_customer_approval')
+                                     .joins(:parts_requests)
+                                     .where(parts_requests: { in_stock: true })
+                                     .distinct
+                                     .includes(:vehicle, :inspection_jobs, :parts_requests)
+                                     .order(updated_at: :asc)
 
-    @inspections_ready_for_quote = Inspection.where(status: 'parts_coordinator_review')
-                                             .joins(:parts_requests)
-                                             .where(parts_requests: { in_stock: true })
-                                             .distinct
-                                             .includes(:vehicle, :inspection_jobs, :parts_requests)
+    # TRACK 2: Vendor quotations ready for comparison (from billing)
+    # FIXED: Check for quotations with status 'received' instead of RFQ status
+    @quotations_to_review = VendorRfq.where(finance_review_ready: true)
+                                     .joins(:vendor_quotations)
+                                     .where(vendor_quotations: { status: 'received' })
+                                     .distinct
+                                     .includes(:vendor_rfq_items, :vendor_quotations)
+                                     .order(updated_at: :desc)
 
+    # TRACK 3: Purchase orders pending approval (from agency)
     @pending_pos = PurchaseOrder.where(status: 'pending_approval')
-                                .includes(:supplier)
+                                .includes(:supplier, :vehicle)
                                 .order(created_at: :asc)
 
+    # TRACK 4: Vehicles ready for pickup - need invoicing (with PO reference)
     @ready_for_pickup = Inspection.where(status: 'ready_for_pickup')
-                                  .includes(:vehicle)
+                                  .includes(:vehicle, :purchase_order)
                                   .order(ready_for_pickup_at: :asc)
 
+    # Additional work that needs quotation (optional)
     @additional_work_needs_quote = Inspection.where(status: 'qc_completed')
                                              .where("notes LIKE ?", "%additional issues%")
                                              .includes(:vehicle)
                                              .order(updated_at: :desc)
 
     # KPI counts
-    @quotations_to_review_count = @quotations_for_review.count
-    @inspections_ready_for_quote_count = @inspections_ready_for_quote.count
+    @ready_for_quotation_count = @ready_for_quotation.count
+    @quotations_to_review_count = @quotations_to_review.count
     @pending_po_approval_count = @pending_pos.count
     @ready_for_pickup_count = @ready_for_pickup.count
     @additional_work_count = @additional_work_needs_quote.count
@@ -86,8 +93,7 @@ class Vmcott::Finance::DashboardController < ApplicationController
     quotation = VendorQuotation.find(params[:quotation_id])
     rfq = quotation.vendor_rfq
     
-    # Mark selected quotation
-    quotation.update(selected: true)
+    # REMOVED: quotation.update(selected: true) - this column doesn't exist
     
     # Update RFQ with awarded quotation
     rfq.update(
@@ -96,14 +102,15 @@ class Vmcott::Finance::DashboardController < ApplicationController
       status: 'awarded'
     )
     
-    # Create purchase order from quotation
+    # Create purchase order from quotation (for parts procurement)
     po = PurchaseOrder.new(
       supplier_id: quotation.supplier_id,
       vendor: quotation.supplier.name,
       amount: quotation.vendor_quotation_lines.sum(:total_price),
       status: 'pending_approval',
-      notes: "Created from RFQ ##{rfq.rfq_number}",
-      payment_terms: params[:payment_terms] || 'net_30'
+      notes: "Created from RFQ ##{rfq.rfq_number} for parts procurement",
+      payment_terms: params[:payment_terms] || 'net_30',
+      created_by_id: current_user.id  # FIX: Added created_by_id
     )
     
     if po.save
@@ -126,17 +133,19 @@ class Vmcott::Finance::DashboardController < ApplicationController
                    )
       end
       
-      User.where(role: 'parts_coordinator').each do |pc|
-        Notification.create(
-          user: pc,
-          title: "Purchase Order Created",
-          message: "PO ##{po.po_number} has been created and needs ordering.",
-          notifiable: po,
-          link: purchase_order_path(po)
-        )
+      if defined?(Notification)
+        User.where(role: 'parts_coordinator').each do |pc|
+          Notification.create(
+            user: pc,
+            title: "Purchase Order Created",
+            message: "PO ##{po.po_number} has been created and needs ordering.",
+            notifiable: po,
+            link: purchase_order_path(po)
+          )
+        end
       end
       
-      redirect_to purchase_order_path(po), notice: "Quotation selected and purchase order created."
+      redirect_to purchase_order_path(po), notice: "Quotation selected and purchase order created for parts procurement."
     else
       redirect_to vmcott_finance_compare_quotations_path(rfq_id: rfq.id), 
                   alert: "Error creating purchase order: #{po.errors.full_messages.join(', ')}"
@@ -152,14 +161,16 @@ class Vmcott::Finance::DashboardController < ApplicationController
         approved_by_id: current_user.id
       )
       
-      User.where(role: 'parts_coordinator').each do |pc|
-        Notification.create(
-          user: pc,
-          title: "Purchase Order Approved",
-          message: "PO ##{po.po_number} has been approved and is ready to order.",
-          notifiable: po,
-          link: purchase_order_path(po)
-        )
+      if defined?(Notification)
+        User.where(role: 'parts_coordinator').each do |pc|
+          Notification.create(
+            user: pc,
+            title: "Purchase Order Approved",
+            message: "PO ##{po.po_number} has been approved and is ready to order.",
+            notifiable: po,
+            link: purchase_order_path(po)
+          )
+        end
       end
       
       redirect_to purchase_order_path(po), notice: "Purchase order approved."
@@ -178,14 +189,16 @@ class Vmcott::Finance::DashboardController < ApplicationController
         rejected_by_id: current_user.id
       )
       
-      User.where(role: 'billing').each do |billing_user|
-        Notification.create(
-          user: billing_user,
-          title: "Purchase Order Rejected",
-          message: "PO ##{po.po_number} was rejected. Reason: #{params[:rejection_reason]}",
-          notifiable: po,
-          link: vmcott_billing_dashboard_path
-        )
+      if defined?(Notification)
+        User.where(role: 'billing').each do |billing_user|
+          Notification.create(
+            user: billing_user,
+            title: "Purchase Order Rejected",
+            message: "PO ##{po.po_number} was rejected. Reason: #{params[:rejection_reason]}",
+            notifiable: po,
+            link: vmcott_billing_dashboard_path
+          )
+        end
       end
       
       redirect_to vmcott_finance_dashboard_path, notice: "Purchase order rejected."
@@ -194,62 +207,88 @@ class Vmcott::Finance::DashboardController < ApplicationController
     end
   end
 
+  # This creates the quotation that goes to the agency (PTSC)
+  def create_agency_quotation
+    inspection = Inspection.find(params[:inspection_id])
+    
+    # Calculate costs
+    labor_cost = inspection.inspection_jobs.sum(:estimated_labor_cost)
+    parts_cost = inspection.parts_requests.where(in_stock: true).sum { |pr| (pr.part&.sale_price || 0) * pr.quantity }
+    total_amount = labor_cost + parts_cost
+    
+    # Create quotation for agency
+    quotation = Quotation.new(
+      vehicle_id: inspection.vehicle_id,
+      agency_id: inspection.vehicle.agency_id,
+      quote_number: "Q-#{Time.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}",
+      valid_from: Date.today,
+      valid_to: Date.today + 30.days,
+      amount: total_amount,
+      subtotal: total_amount,
+      status: 'draft',
+      vendor: 'VMCOTT',
+      notes: "Quotation for inspection ##{inspection.id}",
+      created_by_id: current_user.id
+    )
+    
+    if quotation.save
+      # Add labor line items
+      inspection.inspection_jobs.each do |job|
+        QuotationLineItem.create(
+          quotation_id: quotation.id,
+          description: "Labor: #{job.description}",
+          quantity: 1,
+          unit_price: job.estimated_labor_cost
+        )
+      end
+      
+      # Add parts line items
+      inspection.parts_requests.where(in_stock: true).each do |pr|
+        QuotationLineItem.create(
+          quotation_id: quotation.id,
+          description: "Part: #{pr.part&.name || pr.custom_part_name}",
+          quantity: pr.quantity,
+          unit_price: pr.part&.sale_price || 0,
+          part_id: pr.part_id
+        )
+      end
+      
+      # Update inspection status
+      inspection.update(status: 'quotation_sent')
+      
+      redirect_to quotation_path(quotation), notice: "Agency quotation created successfully."
+    else
+      redirect_to vmcott_finance_dashboard_path, alert: "Error creating quotation: #{quotation.errors.full_messages.join(', ')}"
+    end
+  end
+
+  # This creates the final invoice that references the agency's PO
   def create_invoice
     inspection = Inspection.find(params[:inspection_id])
     
-    # FIXED: Only allow invoicing for ready_for_pickup
+    # Only allow invoicing for ready_for_pickup
     unless inspection.ready_for_pickup?
       redirect_to vmcott_finance_dashboard_path, alert: "Vehicle is not ready for pickup yet."
       return
     end
     
-    total_labor = inspection.inspection_jobs.sum(:estimated_labor_cost)
+    # Find the agency's PO (Purchase Order from PTSC that authorized the work)
+    agency_po = inspection.purchase_order
     
-    total_parts = 0
-    parts_details = []
-    
-    inspection.parts_requests.each do |pr|
-      if pr.part.present?
-        price = pr.part.sale_price || pr.part.price || 0
-        line_total = price * pr.quantity
-        total_parts += line_total
-        
-        parts_details << {
-          description: pr.part.name,
-          quantity: pr.quantity,
-          unit_price: price,
-          total: line_total,
-          part_id: pr.part_id
-        }
-      elsif pr.purchase_order.present?
-        po_item = pr.purchase_order.purchase_order_items.find_by(part_id: pr.part_id)
-        if po_item
-          line_total = po_item.unit_price * pr.quantity
-          total_parts += line_total
-          
-          parts_details << {
-            description: pr.custom_part_name || po_item.description,
-            quantity: pr.quantity,
-            unit_price: po_item.unit_price,
-            total: line_total,
-            part_id: pr.part_id
-          }
-        end
-      else
-        parts_details << {
-          description: pr.custom_part_name || "Unknown Part",
-          quantity: pr.quantity,
-          unit_price: 0,
-          total: 0
-        }
-      end
+    unless agency_po
+      redirect_to vmcott_finance_dashboard_path, alert: "No agency purchase order found for this inspection. Cannot create invoice without PO reference."
+      return
     end
     
+    # Calculate totals
+    total_labor = inspection.inspection_jobs.sum(:estimated_labor_cost)
+    total_parts = inspection.parts_requests.sum { |pr| (pr.part&.sale_price || 0) * pr.quantity }
     total_amount = total_labor + total_parts
     
+    # Create invoice that references the agency's PO
     invoice = Invoice.new(
       vehicle_id: inspection.vehicle_id,
-      inspection_id: inspection.id,
+      purchase_order_id: agency_po.id,  # CRITICAL: Reference the agency's PO
       invoice_number: "INV-#{Time.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}",
       invoice_date: Date.today,
       due_date: Date.today + 30.days,
@@ -257,12 +296,15 @@ class Vmcott::Finance::DashboardController < ApplicationController
       subtotal: total_amount,
       status: 'pending',
       vendor: 'VMCOTT',
-      payment_terms: params[:payment_terms] || 'net_30'
+      payment_terms: agency_po.payment_terms || 'net_30',
+      notes: "PO Reference: #{agency_po.po_number} - Inspection ##{inspection.id}"
     )
     
     if invoice.save
+      # Add labor line items
       inspection.inspection_jobs.each do |job|
-        invoice.invoice_line_items.create(
+        InvoiceLineItem.create(
+          invoice_id: invoice.id,
           description: "Labor: #{job.description}",
           quantity: 1,
           unit_price: job.estimated_labor_cost,
@@ -270,29 +312,38 @@ class Vmcott::Finance::DashboardController < ApplicationController
         )
       end
       
-      parts_details.each do |part|
-        invoice.invoice_line_items.create(
-          description: "Part: #{part[:description]}",
-          quantity: part[:quantity],
-          unit_price: part[:unit_price],
-          total_price: part[:total],
-          part_id: part[:part_id]
+      # Add parts line items
+      inspection.parts_requests.each do |pr|
+        unit_price = pr.part&.sale_price || 0
+        line_total = unit_price * pr.quantity
+        
+        InvoiceLineItem.create(
+          invoice_id: invoice.id,
+          description: "Part: #{pr.part&.name || pr.custom_part_name}",
+          quantity: pr.quantity,
+          unit_price: unit_price,
+          total_price: line_total,
+          part_id: pr.part_id
         )
       end
       
+      # Update inspection status
       inspection.update(status: 'invoiced')
       
-      User.where(role: 'admin').each do |admin|
-        Notification.create(
-          user: admin,
-          title: "Invoice Created",
-          message: "Invoice ##{invoice.invoice_number} created for vehicle #{inspection.vehicle.license_plate}.",
-          notifiable: invoice,
-          link: invoice_path(invoice)
-        )
+      # Send notifications
+      if defined?(Notification)
+        User.where(role: 'admin').each do |admin|
+          Notification.create(
+            user: admin,
+            title: "Invoice Created",
+            message: "Invoice ##{invoice.invoice_number} created for vehicle #{inspection.vehicle.license_plate} referencing PO ##{agency_po.po_number}.",
+            notifiable: invoice,
+            link: invoice_path(invoice)
+          )
+        end
       end
       
-      redirect_to invoice_path(invoice), notice: "Invoice created successfully."
+      redirect_to invoice_path(invoice), notice: "Invoice created successfully referencing PO ##{agency_po.po_number}."
     else
       redirect_to vmcott_finance_dashboard_path, alert: "Error creating invoice: #{invoice.errors.full_messages.join(', ')}"
     end
@@ -310,9 +361,10 @@ class Vmcott::Finance::DashboardController < ApplicationController
     rfq = VendorRfq.find_by(id: params[:rfq_id])
     return unless rfq
     
-    unless rfq.status == 'quotations_received'
+    # FIXED: Check for received quotations instead of rfq status
+    unless rfq.vendor_quotations.where(status: 'received').any?
       redirect_to vmcott_finance_dashboard_path, 
-                  alert: "This RFQ is not ready for quotation review."
+                  alert: "This RFQ has no quotations received yet."
       return false
     end
   end

@@ -3,22 +3,31 @@
   <div class="row mb-4">
     <div class="col">
       <h1 class="h2">💰 Finance Dashboard</h1>
-      <p class="text-muted">VMCOTT Finance - Review quotations, approve POs, and manage invoices</p>
+      <p class="text-muted">VMCOTT Finance - Create agency quotations, review vendor quotes, approve POs, and manage invoices</p>
     </div>
   </div>
 
   <!-- KPI Cards -->
   <div class="row">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">Ready to Quote</h5>
+          <h2 class="display-4"><%= @ready_for_quotation_count || 0 %></h2>
+          <p class="card-text"><small>In-stock parts for agency</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
       <div class="card bg-warning text-white">
         <div class="card-body">
-          <h5 class="card-title">Quotations to Review</h5>
+          <h5 class="card-title">Quotes to Review</h5>
           <h2 class="display-4"><%= @quotations_to_review_count || 0 %></h2>
           <p class="card-text"><small>From Billing Team</small></p>
         </div>
       </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
       <div class="card bg-info text-white">
         <div class="card-body">
           <h5 class="card-title">Pending PO Approval</h5>
@@ -27,7 +36,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
       <div class="card bg-success text-white">
         <div class="card-body">
           <h5 class="card-title">Ready for Pickup</h5>
@@ -38,16 +47,76 @@
     </div>
   </div>
 
-  <!-- QUOTATIONS FOR REVIEW -->
+  <!-- TRACK 1: IN-STOCK PARTS READY FOR AGENCY QUOTATION -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>In-Stock Parts - Ready for Agency Quotation</h5>
+          <span class="badge bg-light text-dark"><%= @ready_for_quotation&.count || 0 %> ready</span>
+        </div>
+        <div class="card-body">
+          <% if @ready_for_quotation&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Inspection #</th>
+                    <th>Vehicle</th>
+                    <th>Jobs</th>
+                    <th>Parts</th>
+                    <th>Est. Labor</th>
+                    <th>Est. Parts</th>
+                    <th>Total</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @ready_for_quotation.each do |inspection| %>
+                    <% labor_cost = inspection.inspection_jobs.sum(&:estimated_labor_cost) %>
+                    <% parts_cost = inspection.parts_requests.where(in_stock: true).sum { |pr| pr.part&.sale_price.to_f * pr.quantity } %>
+                    <% total = labor_cost + parts_cost %>
+                    <tr>
+                      <td><strong>#<%= inspection.id %></strong></td>
+                      <td>
+                        <%= inspection.vehicle.license_plate %>
+                        <br><small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                      </td>
+                      <td><%= inspection.inspection_jobs.count %></td>
+                      <td><%= inspection.parts_requests.where(in_stock: true).count %></td>
+                      <td><%= number_to_currency(labor_cost) %></td>
+                      <td><%= number_to_currency(parts_cost) %></td>
+                      <td><strong><%= number_to_currency(total) %></strong></td>
+                      <td>
+                        <%= link_to "Create Quotation", 
+                              vmcott_finance_new_quotation_for_inspection_path(inspection_id: inspection.id),
+                              class: "btn btn-sm btn-primary" %>
+                        <%= link_to "View Details", vmcott_inspector_inspection_path(inspection), 
+                              class: "btn btn-sm btn-outline-secondary" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3">No in-stock parts awaiting quotation</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACK 2: VENDOR QUOTATIONS READY FOR COMPARISON (FROM BILLING) -->
   <div class="row mt-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Quotations Ready for Review</h5>
-          <span class="badge bg-light text-dark"><%= @quotations_for_review&.count || 0 %> pending</span>
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Vendor Quotations - Ready for Comparison</h5>
+          <span class="badge bg-light text-dark"><%= @quotations_to_review&.count || 0 %> pending</span>
         </div>
         <div class="card-body">
-          <% if @quotations_for_review&.any? %>
+          <% if @quotations_to_review&.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -62,7 +131,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <% @quotations_for_review.each do |rfq| %>
+                  <% @quotations_to_review.each do |rfq| %>
                     <% 
                       quotes = rfq.vendor_quotations || []
                       prices = quotes.map { |q| q.total_amount }.compact
@@ -73,7 +142,7 @@
                       <td><strong><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></strong></td>
                       <td>
                         <% rfq.vendor_rfq_items.each do |item| %>
-                          <div><%= item.part&.name || 'Unknown' %> (x<%= item.quantity %>)</div>
+                          <div><%= item.part&.name || item.custom_part_name || 'Unknown' %> (x<%= item.quantity %>)</div>
                         <% end %>
                       </td>
                       <td><span class="badge bg-primary"><%= quotes.count %> quotes</span></td>
@@ -101,7 +170,8 @@
                       </td>
                       <td><%= rfq.updated_at&.strftime("%b %d, %Y") %></td>
                       <td>
-                        <%= link_to "Compare & Select", vmcott_vendor_rfq_path(rfq), 
+                        <%= link_to "Compare & Select", 
+                              vmcott_finance_compare_quotations_path(rfq_id: rfq.id), 
                               class: "btn btn-sm btn-warning" %>
                       </td>
                     </tr>
@@ -110,7 +180,7 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No quotations pending review</p>
+            <p class="text-muted text-center py-3">No vendor quotations pending review</p>
           <% end %>
         </div>
       </div>
@@ -152,13 +222,13 @@
                       <td>
                         <div class="btn-group btn-group-sm">
                           <%= link_to "Review", purchase_order_path(po), class: "btn btn-outline-primary" %>
-                          <%= link_to "Approve", approve_purchase_order_path(po), 
+                          <%= button_to "Approve", approve_purchase_order_path(po), 
                                 method: :post, 
-                                class: "btn btn-outline-success", 
+                                class: "btn btn-outline-success btn-sm", 
                                 data: { confirm: "Approve this purchase order?" } %>
-                          <%= link_to "Reject", reject_purchase_order_path(po), 
+                          <%= button_to "Reject", reject_purchase_order_path(po), 
                                 method: :post, 
-                                class: "btn btn-outline-danger", 
+                                class: "btn btn-outline-danger btn-sm", 
                                 data: { confirm: "Reject this purchase order?" } %>
                         </div>
                       </td>
@@ -209,8 +279,11 @@
                       <td><%= inspection.parts_requests.count %></td>
                       <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
                       <td>
-                        <%= link_to "Create Invoice", new_vmcott_billing_invoice_path(inspection_id: inspection.id), 
-                              class: "btn btn-sm btn-success" %>
+                        <%= button_to "Create Invoice", 
+                              vmcott_finance_create_invoice_path(inspection_id: inspection.id), 
+                              method: :post,
+                              class: "btn btn-sm btn-success",
+                              data: { confirm: "Create invoice for this vehicle?" } %>
                         <%= link_to "View Details", vmcott_inspector_inspection_path(inspection), 
                               class: "btn btn-sm btn-outline-secondary" %>
                       </td>

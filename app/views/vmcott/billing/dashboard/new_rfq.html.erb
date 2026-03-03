@@ -1,4 +1,3 @@
-<%# app/views/vmcott/billing/dashboard/new_rfq.html.erb %>
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-md-8 mx-auto">
@@ -51,12 +50,14 @@
             </table>
           </div>
 
-          <%= form_with model: @vendor_rfq, url: vmcott_billing_create_rfq_path(parts_request_id: @parts_request.id), local: true do |f| %>
+          <%= form_with url: vmcott_billing_create_rfq_path(parts_request_id: @parts_request.id), 
+                        local: true, 
+                        data: { turbo: false } do |f| %>
             
             <div class="row mb-3">
               <div class="col-md-6">
-                <%= f.label :due_date, "Response Due Date", class: "form-label fw-bold" %>
-                <%= f.date_field :due_date, class: "form-control", min: Date.today + 3.days, value: Date.today + 7.days %>
+                <%= label_tag 'vendor_rfq[due_date]', "Response Due Date", class: "form-label fw-bold" %>
+                <%= date_field_tag 'vendor_rfq[due_date]', Date.today + 7.days, class: "form-control", min: Date.today + 3.days, required: true %>
               </div>
               <div class="col-md-6">
                 <!-- Wrap the entire section in the controller div -->
@@ -69,7 +70,8 @@
                       multiple: true, 
                       class: "form-select",
                       style: "min-height: 120px;",
-                      data: { supplier_select_target: "select" } %>
+                      data: { supplier_select_target: "select" },
+                      required: true %>
                   <small class="text-muted">Hold Ctrl/Cmd to select multiple suppliers</small>
                   
                   <!-- Selected Suppliers Display -->
@@ -100,62 +102,60 @@
             </div>
 
             <div class="mb-3">
-              <%= f.label :notes, "Special Instructions", class: "form-label fw-bold" %>
-              <%= f.text_area :notes, class: "form-control", rows: 3, placeholder: "Any special requirements for suppliers..." %>
+              <%= label_tag 'vendor_rfq[notes]', "Special Instructions", class: "form-label fw-bold" %>
+              <%= text_area_tag 'vendor_rfq[notes]', nil, class: "form-control", rows: 3, placeholder: "Any special requirements for suppliers..." %>
             </div>
 
             <h6 class="fw-bold mt-4 mb-3">RFQ Items</h6>
             
-            <%= f.fields_for :vendor_rfq_items do |item_form| %>
-              <div class="card bg-light mb-3">
-                <div class="card-body">
-                  <div class="row">
-                    <div class="col-md-12 mb-2">
-                      <%= item_form.label :description, "Part Description", class: "form-label" %>
-                      <%= item_form.text_field :description, 
-                          value: @parts_request.part&.name || @parts_request.custom_part_name,
-                          class: "form-control", 
-                          readonly: true %>
-                    </div>
+            <div class="card bg-light mb-3">
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-12 mb-2">
+                    <label class="form-label">Part Description</label>
+                    <%= text_field_tag 'vendor_rfq_items[][description]', 
+                        @parts_request.part&.name || @parts_request.custom_part_name,
+                        class: "form-control", 
+                        readonly: true %>
                   </div>
-                  <div class="row">
-                    <div class="col-md-4 mb-2">
-                      <%= item_form.label :quantity, "Quantity", class: "form-label" %>
-                      <%= item_form.number_field :quantity, 
-                          value: @parts_request.quantity,
-                          class: "form-control", 
-                          readonly: true %>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                      <%= item_form.label :unit_of_measure, "Unit of Measure", class: "form-label" %>
-                      <%= item_form.text_field :unit_of_measure, 
-                          value: @parts_request.part&.unit_of_measure || 'each',
-                          class: "form-control", 
-                          readonly: true %>
-                    </div>
-                    <div class="col-md-4 mb-2">
-                      <%= item_form.label :part_id, "Part ID", class: "form-label" %>
-                      <%= item_form.text_field :part_id_display, 
-                          value: @parts_request.part&.part_number || 'Custom Part',
-                          class: "form-control", 
-                          readonly: true %>
-                      <%= item_form.hidden_field :part_id, value: @parts_request.part_id %>
-                    </div>
-                  </div>
-                  
-                  <% if @parts_request.custom_part_name.present? %>
-                    <%= item_form.hidden_field :custom_part_name, value: @parts_request.custom_part_name %>
-                    <div class="alert alert-warning mt-2 mb-0 py-1 px-2">
-                      <small><i class="bi bi-info-circle"></i> This is a custom part that will need to be sourced.</small>
-                    </div>
-                  <% end %>
                 </div>
+                <div class="row">
+                  <div class="col-md-4 mb-2">
+                    <label class="form-label">Quantity</label>
+                    <%= number_field_tag 'vendor_rfq_items[][quantity]', 
+                        @parts_request.quantity,
+                        class: "form-control", 
+                        readonly: true %>
+                  </div>
+                  <div class="col-md-4 mb-2">
+                    <label class="form-label">Unit of Measure</label>
+                    <%= text_field_tag 'vendor_rfq_items[][unit_of_measure]', 
+                        @parts_request.part&.unit_of_measure || 'each',
+                        class: "form-control", 
+                        readonly: true %>
+                  </div>
+                  <div class="col-md-4 mb-2">
+                    <label class="form-label">Part ID</label>
+                    <%= text_field_tag 'vendor_rfq_items[][part_number]', 
+                        @parts_request.part&.part_number || 'Custom Part',
+                        class: "form-control", 
+                        readonly: true %>
+                    <%= hidden_field_tag 'vendor_rfq_items[][part_id]', @parts_request.part_id %>
+                  </div>
+                </div>
+                
+                <% if @parts_request.custom_part_name.present? %>
+                  <%= hidden_field_tag 'vendor_rfq_items[][custom_part_name]', @parts_request.custom_part_name %>
+                  <div class="alert alert-warning mt-2 mb-0 py-1 px-2">
+                    <small><i class="bi bi-info-circle"></i> This is a custom part that will need to be sourced.</small>
+                  </div>
+                <% end %>
               </div>
-            <% end %>
+            </div>
 
             <div class="d-flex justify-content-end gap-2 mt-4">
               <%= link_to "Cancel", vmcott_billing_dashboard_path, class: "btn btn-outline-secondary" %>
-              <%= f.submit "Create RFQ", class: "btn btn-primary" %>
+              <%= submit_tag "Create RFQ", class: "btn btn-primary", data: { disable_with: "Creating..." } %>
             </div>
           <% end %>
         </div>
