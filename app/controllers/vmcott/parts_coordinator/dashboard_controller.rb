@@ -7,35 +7,36 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
   before_action :ensure_can_send_to_billing, only: [:send_to_billing]
 
   def index
-    # FIXED: Only show what parts coordinator needs to see
-    @pending_requests = PartsRequest.includes(:inspection, :part, :inspection_job)
-                                    .where(status: 'pending_parts_coordinator')
-                                    .order(created_at: :asc)
+    # Pending parts requests - need review
+    @pending_parts = PartsRequest.includes(:inspection, :part, :inspection_job)
+                                 .where(status: ['pending', 'parts_coordinator_notified'])
+                                 .order(created_at: :asc)
     
     # In-stock parts ready for parts coordinator to process
-    @in_stock_requests = PartsRequest.includes(:inspection, :part, :inspection_job)
-                                     .where(status: 'pending_parts_coordinator', in_stock: true)
-                                     .order(created_at: :asc)
+    @in_stock_requests = @pending_parts.where(in_stock: true)
     
     # Out of stock parts needing RFQ
-    @out_of_stock_requests = PartsRequest.includes(:inspection, :part, :inspection_job)
-                                         .where(status: 'pending_parts_coordinator', in_stock: false)
-                                         .order(created_at: :asc)
+    @out_of_stock_requests = @pending_parts.where(in_stock: false)
     
-    # Parts being processed (RFQ sent, waiting for quotes)
-    @processing_requests = PartsRequest.includes(:inspection, :part, :inspection_job)
-                                       .where(status: ['rfq_sent', 'quotations_received'])
-                                       .order(created_at: :asc)
+    # Parts sent to billing (RFQ created)
+    @pending_billing = PartsRequest.includes(:inspection, :part, :inspection_job)
+                                   .where(status: ['rfq_sent', 'billing_notified'])
+                                   .order(created_at: :asc)
+    
+    # Parts being processed (quotations received, waiting for finance)
+    @pending_finance = PartsRequest.includes(:inspection, :part, :inspection_job)
+                                   .where(status: ['quotations_received', 'finance_review'])
+                                   .order(created_at: :asc)
     
     # Parts ordered (PO created, waiting for delivery)
     @ordered_requests = PartsRequest.includes(:inspection, :part, :inspection_job, :purchase_order)
-                                    .where(status: 'purchase_order_created')
+                                    .where(status: ['purchase_order_created', 'parts_ordered'])
                                     .order(created_at: :asc)
     
     # Parts received and ready for installation
-    @received_requests = PartsRequest.includes(:inspection, :part, :inspection_job)
-                                     .where(status: 'parts_received')
-                                     .order(created_at: :asc)
+    @parts_received = PartsRequest.includes(:inspection, :part, :inspection_job)
+                                  .where(status: 'parts_received')
+                                  .order(created_at: :asc)
     
     # Inspections ready for workshop (all parts received)
     @ready_for_workshop = Inspection.joins(:parts_requests)
@@ -61,16 +62,23 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
                                      .order(created_at: :desc)
                                      .limit(10)
     
-    # Statistics
+    # Statistics for KPI cards
     @stats = {
-      pending_count: @pending_requests.count,
+      pending_parts: @pending_parts.count,
       in_stock_count: @in_stock_requests.count,
       out_of_stock_count: @out_of_stock_requests.count,
-      processing_count: @processing_requests.count,
+      pending_billing: @pending_billing.count,
+      pending_finance: @pending_finance.count,
       ordered_count: @ordered_requests.count,
-      received_count: @received_requests.count,
+      parts_received: @parts_received.count,
       ready_for_workshop_count: @ready_for_workshop.count
     }
+    
+    # KPI counts for view
+    @pending_parts_count = @pending_parts.count
+    @pending_billing_count = @pending_billing.count
+    @pending_finance_count = @pending_finance.count
+    @parts_received_count = @parts_received.count
   end
 
   # Mark part as in-stock (part is available in inventory)
@@ -81,7 +89,8 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       @parts_request.update!(
         in_stock: true,
         processed_by: current_user.id,
-        processed_at: Time.current
+        processed_at: Time.current,
+        status: 'approved'
       )
       
       # Check if all parts for this inspection are now in stock
@@ -92,7 +101,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
         notify_finance_for_quotation(inspection)
       end
       
-      flash[:notice] = "Part marked as in-stock."
+      flash[:notice] = "Part marked as in-stock and approved."
     end
     
     redirect_to vmcott_parts_coordinator_dashboard_path
@@ -103,6 +112,13 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
   # Send to billing to create RFQ (for out-of-stock parts)
   def send_to_billing
     @parts_request = PartsRequest.find(params[:id])
+    
+    @parts_request.update!(
+      status: 'billing_notified',
+      sent_to_billing_at: Time.current,
+      processed_by: current_user.id,
+      processed_at: Time.current
+    )
     
     # Create RFQ for billing team
     create_rfq_for_part(@parts_request)
@@ -131,8 +147,8 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       # Create RFQ
       @rfq = VendorRfq.create!(
         rfq_number: generate_rfq_number,
-        created_by: current_user,
-        processing_agency: current_user.agency,
+        created_by_id: current_user.id,
+        processing_agency_id: current_user.agency_id,
         status: 'sent',
         sent_date: Date.current,
         due_date: params[:due_date] || 7.days.from_now,
@@ -141,7 +157,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       
       # Create RFQ item
       @rfq.vendor_rfq_items.create!(
-        part: @part,
+        part_id: @part.id,
         quantity: @parts_request&.quantity || params[:quantity] || 1,
         description: @part.description,
         unit_of_measure: @part.unit_of_measure
@@ -235,11 +251,11 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       # Create purchase order
       po = PurchaseOrder.create!(
         po_number: generate_po_number,
-        supplier: @quote.supplier,
+        supplier_id: @quote.supplier_id,
         vendor: @quote.supplier.name,
         amount: @quote.total_amount,
         status: 'approved',
-        created_by: current_user,
+        created_by_id: current_user.id,
         payment_terms: 'net_30',
         notes: "Created from RFQ #{@rfq.rfq_number}"
       )
@@ -247,7 +263,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       # Create PO items
       @quote.vendor_quotation_lines.each do |line|
         po.purchase_order_items.create!(
-          part: line.part,
+          part_id: line.part_id,
           description: line.description,
           quantity: line.quantity,
           unit_price: line.unit_price,
@@ -258,7 +274,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       # Update RFQ
       @rfq.update!(
         status: 'awarded',
-        awarded_vendor_quotation: @quote,
+        awarded_vendor_quotation_id: @quote.id,
         awarded_at: Time.current
       )
       
@@ -266,7 +282,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
       if @parts_request.present?
         @parts_request.update!(
           status: 'purchase_order_created',
-          purchase_order: po,
+          purchase_order_id: po.id,
           notified_billing_at: Time.current
         )
       end
@@ -285,22 +301,22 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
     ActiveRecord::Base.transaction do
       # Create vendor invoice
       invoice = VendorInvoice.create!(
-        supplier: @po.supplier,
+        supplier_id: @po.supplier_id,
         invoice_number: params[:invoice_number],
         invoice_date: params[:invoice_date] || Date.current,
         amount: @po.amount,
         status: 'pending',
-        purchase_order: @po,
-        user: current_user
+        purchase_order_id: @po.id,
+        user_id: current_user.id
       )
       
       # Create invoice items and update stock
       @po.purchase_order_items.each do |item|
-        next unless item.part.present?
+        next unless item.part_id.present?
         
         VendorInvoiceItem.create!(
-          vendor_invoice: invoice,
-          part: item.part,
+          vendor_invoice_id: invoice.id,
+          part_id: item.part_id,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.unit_price * item.quantity
@@ -323,7 +339,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
         @parts_request.update!(
           status: 'parts_received',
           parts_received_at: Time.current,
-          vendor_invoice: invoice,
+          vendor_invoice_id: invoice.id,
           in_stock: true
         )
         
@@ -332,7 +348,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
         
         # Check if all parts for this inspection are now received
         inspection = @parts_request.inspection
-        if inspection.parts_requests.where(status: ['pending_parts_coordinator', 'rfq_sent', 'purchase_order_created']).none?
+        if inspection.parts_requests.where(status: ['pending', 'rfq_sent', 'purchase_order_created']).none?
           # All parts are received - update inspection status to approved_for_repair
           inspection.update!(status: 'approved_for_repair')
           notify_mechanics_work_ready(inspection)
@@ -388,7 +404,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
     parts_request = PartsRequest.find_by(id: params[:id])
     return unless parts_request
     
-    unless parts_request.status == 'pending_parts_coordinator'
+    unless ['pending', 'parts_coordinator_notified'].include?(parts_request.status)
       redirect_to vmcott_parts_coordinator_dashboard_path, 
                   alert: "This part request cannot be marked as in-stock at this stage."
       return false
@@ -399,7 +415,7 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
     parts_request = PartsRequest.find_by(id: params[:id])
     return unless parts_request
     
-    unless parts_request.status == 'pending_parts_coordinator' && !parts_request.in_stock?
+    unless ['pending', 'parts_coordinator_notified'].include?(parts_request.status) && !parts_request.in_stock?
       redirect_to vmcott_parts_coordinator_dashboard_path, 
                   alert: "This part request cannot be sent to billing at this stage."
       return false
@@ -424,9 +440,9 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
   end
 
   def notify_finance_for_quotation(inspection)
-    finance_ids = User.where(role: ['finance', 'billing']).pluck(:id)
+    finance_ids = User.where(role: ['finance', 'admin']).pluck(:id)
     
-    labor_cost = inspection.inspection_jobs.sum(&:estimated_labor_cost)
+    labor_cost = inspection.inspection_jobs.sum(:estimated_labor_cost)
     parts_cost = inspection.parts_requests.where(in_stock: true).sum do |pr|
       pr.part&.cost_price.to_f * pr.quantity
     end
@@ -447,21 +463,16 @@ class Vmcott::PartsCoordinator::DashboardController < ApplicationController
   end
 
   def create_rfq_for_part(parts_request)
-    parts_request.update!(
-      status: 'rfq_sent',
-      sent_to_billing_at: Time.current
-    )
-    
     rfq = VendorRfq.create!(
       rfq_number: generate_rfq_number,
-      created_by: current_user,
-      processing_agency: current_user.agency,
+      created_by_id: current_user.id,
+      processing_agency_id: current_user.agency_id,
       status: 'draft',
       notes: "Auto-created from parts request ##{parts_request.id}"
     )
     
     rfq.vendor_rfq_items.create!(
-      part: parts_request.part,
+      part_id: parts_request.part_id,
       quantity: parts_request.quantity,
       description: parts_request.part&.description || parts_request.custom_part_name,
       unit_of_measure: parts_request.part&.unit_of_measure || 'each'

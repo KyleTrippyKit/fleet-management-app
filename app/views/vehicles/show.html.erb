@@ -33,13 +33,28 @@
         <span class="badge <%= service_owner_badge_class(@vehicle.service_owner) %> px-3 py-2 fs-6">
           <i class="bi bi-building me-1"></i><%= @vehicle.service_owner %>
         </span>
-        <!-- Updated status badge with data attribute for real-time updates -->
+        <!-- Vehicle Status Badge -->
         <span class="badge <%= @vehicle.status_badge_class %> px-3 py-2 fs-6"
               data-vehicle-status-id="<%= @vehicle.id %>"
               id="vehicle-status-badge-<%= @vehicle.id %>">
           <i class="bi <%= @vehicle.status == 'active' ? 'bi-check-circle' : 'bi-exclamation-triangle' %> me-1"></i>
           <%= @vehicle.status_display %>
         </span>
+        
+        <!-- INSPECTION STATUS BADGE - ADD THIS -->
+        <% if @vehicle.latest_inspection.present? %>
+          <span class="badge <%= inspection_status_color(@vehicle.latest_inspection.status) %> px-3 py-2 fs-6"
+                id="vehicle-inspection-status-<%= @vehicle.id %>"
+                title="Latest Inspection: <%= inspection_status_display(@vehicle.latest_inspection.status) %>">
+            <i class="bi <%= inspection_status_icon(@vehicle.latest_inspection.status) %> me-1"></i>
+            <%= inspection_status_display(@vehicle.latest_inspection.status) %>
+          </span>
+        <% else %>
+          <span class="badge bg-secondary px-3 py-2 fs-6">
+            <i class="bi bi-question-circle me-1"></i>
+            No Inspection
+          </span>
+        <% end %>
       </div>
     </div>
     
@@ -91,6 +106,26 @@
       </div>
     </div>
   </div>
+
+  <!-- INSPECTION STATUS ALERT - ADD THIS -->
+  <% if @vehicle.latest_inspection.present? %>
+    <div class="alert alert-<%= inspection_status_color(@vehicle.latest_inspection.status) %> mb-4 d-flex align-items-center">
+      <i class="bi <%= inspection_status_icon(@vehicle.latest_inspection.status) %> fs-3 me-3"></i>
+      <div>
+        <strong>Inspection Status:</strong> <%= inspection_status_display(@vehicle.latest_inspection.status) %>
+        <% if @vehicle.latest_inspection.status == 'approved_for_repair' %>
+          <span class="badge bg-success ms-2">✓ Ready for Mechanic</span>
+        <% elsif @vehicle.latest_inspection.status == 'ready_for_pickup' %>
+          <span class="badge bg-info ms-2">🚗 Ready for Pickup</span>
+        <% end %>
+        <br>
+        <small class="text-muted">
+          Last updated: <%= time_ago_in_words(@vehicle.latest_inspection.updated_at) %> ago
+          • <%= link_to "View Inspection", vmcott_inspector_inspection_path(@vehicle.latest_inspection), class: "alert-link" %>
+        </small>
+      </div>
+    </div>
+  <% end %>
 
   <!-- Main Content Tabs -->
   <div class="row">
@@ -525,6 +560,35 @@
         </div>
         <div class="card-body">
           <div class="row g-3">
+            <!-- Latest Inspection Summary - ADD THIS -->
+            <% if @vehicle.latest_inspection.present? %>
+              <div class="col-12">
+                <div class="border rounded p-3 mb-3">
+                  <h6 class="text-muted mb-2">Latest Inspection</h6>
+                  <div class="d-flex align-items-start">
+                    <div class="bg-<%= inspection_status_color(@vehicle.latest_inspection.status) %> bg-opacity-10 rounded-circle p-2 me-3">
+                      <i class="bi <%= inspection_status_icon(@vehicle.latest_inspection.status) %> text-<%= inspection_status_color(@vehicle.latest_inspection.status) %>"></i>
+                    </div>
+                    <div>
+                      <div class="fw-medium"><%= inspection_status_display(@vehicle.latest_inspection.status) %></div>
+                      <div class="small text-muted">
+                        <i class="bi bi-calendar me-1"></i><%= @vehicle.latest_inspection.updated_at.strftime("%b %d, %Y") %>
+                      </div>
+                      <% if @vehicle.latest_inspection.status == 'approved_for_repair' %>
+                        <span class="badge bg-success mt-1">Ready for Mechanic</span>
+                      <% elsif @vehicle.latest_inspection.status == 'ready_for_pickup' %>
+                        <span class="badge bg-info mt-1">Ready for Pickup</span>
+                      <% end %>
+                    </div>
+                  </div>
+                  <div class="mt-2">
+                    <%= link_to "View Inspection", vmcott_inspector_inspection_path(@vehicle.latest_inspection), 
+                          class: "btn btn-sm btn-outline-primary w-100" %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+
             <!-- Mileage -->
             <div class="col-12">
               <div class="d-flex justify-content-between mb-2">
@@ -699,6 +763,13 @@
                 <span class="badge <%= @vehicle.status_badge_class %> px-3 py-2">
                   <%= @vehicle.status_display %>
                 </span>
+                <!-- Add inspection status in modal -->
+                <% if @vehicle.latest_inspection.present? %>
+                  <span class="badge <%= inspection_status_color(@vehicle.latest_inspection.status) %> px-3 py-2">
+                    <i class="bi <%= inspection_status_icon(@vehicle.latest_inspection.status) %> me-1"></i>
+                    <%= inspection_status_display(@vehicle.latest_inspection.status) %>
+                  </span>
+                <% end %>
               </div>
             </div>
           </div>
@@ -796,6 +867,15 @@
                         <p><strong>Driver Contact:</strong> <%= @vehicle.driver.contact_number %></p>
                       <% else %>
                         <p><strong>Current Driver:</strong> <span class="text-muted">Unassigned</span></p>
+                      <% end %>
+                      <!-- Add inspection info in ownership tab -->
+                      <% if @vehicle.latest_inspection.present? %>
+                        <p><strong>Latest Inspection:</strong> 
+                          <span class="badge <%= inspection_status_color(@vehicle.latest_inspection.status) %>">
+                            <%= inspection_status_display(@vehicle.latest_inspection.status) %>
+                          </span>
+                        </p>
+                        <p><strong>Inspection Date:</strong> <%= @vehicle.latest_inspection.updated_at.strftime("%B %d, %Y") %></p>
                       <% end %>
                     </div>
                   </div>

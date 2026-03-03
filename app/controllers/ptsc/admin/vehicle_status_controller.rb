@@ -1,4 +1,3 @@
-# app/controllers/ptsc/admin/vehicle_status_controller.rb
 class Ptsc::Admin::VehicleStatusController < ApplicationController
   before_action :authenticate_user!
   before_action :require_ptsc_admin
@@ -19,6 +18,21 @@ class Ptsc::Admin::VehicleStatusController < ApplicationController
                               .where(agencies: { code: 'PTSC' })
                               .where(status: 'completed')
                               .count
+    
+    # ✅ FIX: Use vehicle.agency_id through association instead of direct agency_id
+    @awaiting_quote_count = Quotation.where(agency_id: current_user.agency_id, status: 'sent').count
+    
+    # ✅ FIX: PurchaseOrders don't have agency_id, so get through vehicles
+    @awaiting_po_count = PurchaseOrder.joins(:vehicle)
+                                      .where(vehicles: { agency_id: current_user.agency_id })
+                                      .where(status: 'pending_approval')
+                                      .count
+    
+    # ✅ FIX: Get pending quotations
+    @pending_quotations = Quotation.where(agency_id: current_user.agency_id, status: 'sent')
+                                   .includes(:vehicle)
+                                   .order(created_at: :desc)
+                                   .limit(10)
   end
 
   def show

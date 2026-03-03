@@ -1,4 +1,3 @@
-<%# app/views/ptsc/admin/vehicle_status.html.erb %>
 <div class="container-fluid py-4">
   <!-- Header -->
   <div class="row mb-4">
@@ -29,7 +28,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-uppercase mb-2">At VMCOTT</h6>
-              <h2 class="mb-0"><%= @at_vmcott_count %></h2>
+              <h2 class="mb-0"><%= @at_vmcott_count || 0 %></h2>
             </div>
             <i class="bi bi-building fs-1 opacity-50"></i>
           </div>
@@ -42,7 +41,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-uppercase mb-2">Awaiting Quote</h6>
-              <h2 class="mb-0"><%= @awaiting_quote_count %></h2>
+              <h2 class="mb-0"><%= @awaiting_quote_count || 0 %></h2>
             </div>
             <i class="bi bi-cash-stack fs-1 opacity-50"></i>
           </div>
@@ -55,7 +54,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-uppercase mb-2">Awaiting PO</h6>
-              <h2 class="mb-0"><%= @awaiting_po_count %></h2>
+              <h2 class="mb-0"><%= @awaiting_po_count || 0 %></h2>
             </div>
             <i class="bi bi-file-text fs-1 opacity-50"></i>
           </div>
@@ -68,7 +67,7 @@
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <h6 class="text-uppercase mb-2">In Progress</h6>
-              <h2 class="mb-0"><%= @in_progress_count %></h2>
+              <h2 class="mb-0"><%= @in_progress_count || 0 %></h2>
             </div>
             <i class="bi bi-gear-wide-connected fs-1 opacity-50"></i>
           </div>
@@ -83,7 +82,7 @@
       <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i>Pending Your Approval - Quotations</h5>
     </div>
     <div class="card-body">
-      <% if @pending_quotations.any? %>
+      <% if @pending_quotations.present? && @pending_quotations.any? %>
         <div class="table-responsive">
           <table class="table">
             <thead>
@@ -100,12 +99,12 @@
             <tbody>
               <% @pending_quotations.each do |quote| %>
                 <tr>
-                  <td><%= quote.vehicle.license_plate %></td>
-                  <td><%= truncate(quote.description, length: 50) %></td>
-                  <td>$<%= quote.labor_cost %></td>
-                  <td>$<%= quote.parts_cost %></td>
-                  <td><strong>$<%= quote.total_cost %></strong></td>
-                  <td><%= quote.valid_until.strftime("%b %d, %Y") %></td>
+                  <td><%= quote.vehicle&.license_plate || 'Unknown' %></td>
+                  <td><%= truncate(quote.description || 'No description', length: 50) %></td>
+                  <td>$<%= number_with_delimiter(quote.labor_cost || 0) %></td>
+                  <td>$<%= number_with_delimiter(quote.parts_cost || 0) %></td>
+                  <td><strong>$<%= number_with_delimiter(quote.total_cost || 0) %></strong></td>
+                  <td><%= quote.valid_until&.strftime("%b %d, %Y") || 'N/A' %></td>
                   <td>
                     <%= link_to "View", quotation_path(quote), class: "btn btn-sm btn-outline-primary" %>
                     <%= link_to "Accept", accept_quotation_path(quote), method: :post, 
@@ -174,59 +173,71 @@
             </tr>
           </thead>
           <tbody>
-            <% @vehicles_at_vmcott.each do |vehicle| %>
-              <% inspection = vehicle.current_inspection %>
-              <tr class="vehicle-row" data-license="<%= vehicle.license_plate %>">
-                <!-- Vehicle Info -->
-                <td>
-                  <div class="d-flex align-items-center">
-                    <div>
-                      <strong class="d-block"><%= vehicle.license_plate %></strong>
-                      <small class="text-muted"><%= vehicle.make %> <%= vehicle.model %></small>
+            <% if @vehicles_at_vmcott.present? %>
+              <% @vehicles_at_vmcott.each do |vehicle| %>
+                <% inspection = vehicle.current_inspection %>
+                <tr class="vehicle-row" data-license="<%= vehicle.license_plate %>">
+                  <!-- Vehicle Info -->
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div>
+                        <strong class="d-block"><%= vehicle.license_plate %></strong>
+                        <small class="text-muted"><%= vehicle.make %> <%= vehicle.model %></small>
+                      </div>
                     </div>
-                  </div>
-                </td>
+                  </td>
 
-                <!-- Check-in Time -->
-                <td>
-                  <%= vehicle.reception_logs.last&.check_in_time&.strftime("%b %d") %>
-                </td>
+                  <!-- Check-in Time -->
+                  <td>
+                    <%= vehicle.reception_logs.last&.check_in_time&.strftime("%b %d") || 'N/A' %>
+                  </td>
 
-                <!-- Current Status -->
-                <td>
-                  <%= status_badge(vehicle.current_status) %>
-                </td>
+                  <!-- Current Status -->
+                  <td>
+                    <%= vehicle_status_badge(vehicle) %>
+                  </td>
 
-                <!-- Jobs Found -->
-                <td>
-                  <%= inspection&.inspection_jobs&.count || 0 %>
-                </td>
+                  <!-- Jobs Found -->
+                  <td>
+                    <%= inspection&.inspection_jobs&.count || 0 %>
+                  </td>
 
-                <!-- Parts Needed -->
-                <td>
-                  <%= inspection&.parts_requests&.count || 0 %>
-                </td>
+                  <!-- Parts Needed -->
+                  <td>
+                    <%= inspection&.parts_requests&.count || 0 %>
+                  </td>
 
-                <!-- Quote Status -->
-                <td>
-                  <% if inspection&.quotation.present? %>
-                    <% if inspection.quotation.status == 'pending_agency_approval' %>
-                      <span class="badge bg-warning">Awaiting Your Approval</span>
-                    <% elsif inspection.quotation.status == 'approved' %>
-                      <span class="badge bg-success">Approved - PO Sent</span>
+                  <!-- Quote Status -->
+                  <td>
+                    <% if inspection&.quotation.present? %>
+                      <% if inspection.quotation.status == 'pending_agency_approval' || inspection.quotation.status == 'sent' %>
+                        <span class="badge bg-warning">Awaiting Your Approval</span>
+                      <% elsif inspection.quotation.status == 'approved' %>
+                        <span class="badge bg-success">Approved - PO Sent</span>
+                      <% elsif inspection.quotation.status == 'rejected' %>
+                        <span class="badge bg-danger">Rejected</span>
+                      <% else %>
+                        <span class="badge bg-secondary"><%= inspection.quotation.status&.titleize %></span>
+                      <% end %>
+                    <% else %>
+                      <span class="badge bg-secondary">Preparing Quote</span>
                     <% end %>
-                  <% else %>
-                    <span class="badge bg-secondary">Preparing Quote</span>
-                  <% end %>
-                </td>
+                  </td>
 
-                <!-- Actions -->
-                <td>
-                  <%= link_to "Details", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary" %>
-                  <% if inspection&.quotation&.status == 'pending_agency_approval' %>
-                    <%= link_to "Review Quote", quotation_path(inspection.quotation), 
-                        class: "btn btn-sm btn-warning" %>
-                  <% end %>
+                  <!-- Actions -->
+                  <td>
+                    <%= link_to "Details", vehicle_path(vehicle), class: "btn btn-sm btn-outline-primary" %>
+                    <% if inspection&.quotation&.status == 'sent' %>
+                      <%= link_to "Review Quote", quotation_path(inspection.quotation), 
+                          class: "btn btn-sm btn-warning" %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="7" class="text-center py-4">
+                  <p class="text-muted mb-0">No vehicles currently at VMCOTT</p>
                 </td>
               </tr>
             <% end %>
@@ -247,7 +258,7 @@
     const rows = document.querySelectorAll('.vehicle-row');
     
     rows.forEach(row => {
-      const license = row.getAttribute('data-license').toUpperCase();
+      const license = row.getAttribute('data-license')?.toUpperCase() || '';
       row.style.display = license.includes(filter) ? '' : 'none';
     });
   }

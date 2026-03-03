@@ -67,6 +67,9 @@ class Vehicle < ApplicationRecord
     end
   end
 
+  def latest_inspection
+    inspections.order(created_at: :desc).first
+  end
   # ------------------------------------------------------------
   # Service Owner Lock (derived from agency)
   # ------------------------------------------------------------

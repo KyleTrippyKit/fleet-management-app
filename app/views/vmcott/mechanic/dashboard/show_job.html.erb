@@ -175,6 +175,7 @@
                     <th class="text-center">Quantity</th>
                     <th class="text-center">Stock Available</th>
                     <th class="text-center">Status</th>
+                    <th class="text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -206,6 +207,18 @@
                           <% end %>
                         <% else %>
                           <span class="badge bg-secondary">Unknown</span>
+                        <% end %>
+                      </td>
+                      <td class="text-center">
+                        <% if part_item.inventory? && part_item.part.present? && part_item.part.current_stock >= part_item.quantity && @assignment&.status == 'in_progress' %>
+                          <button class="btn btn-sm btn-success use-part" 
+                                  data-part-id="<%= part_item.part.id %>"
+                                  data-part-name="<%= part_item.part_name %>"
+                                  data-quantity="<%= part_item.quantity %>">
+                            <i class="bi bi-check-circle"></i> Use Part
+                          </button>
+                        <% elsif part_item.custom? || (part_item.part.present? && part_item.part.current_stock < part_item.quantity) %>
+                          <span class="badge bg-warning">Need to Order</span>
                         <% end %>
                       </td>
                     </tr>
@@ -262,6 +275,16 @@
                   <i class="bi bi-pencil-square me-2"></i>Update Progress
                 </button>
                 
+                <!-- Request Parts Button -->
+                <button type="button" class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#requestPartModal">
+                  <i class="bi bi-box-seam me-2"></i>Request Parts
+                </button>
+                
+                <!-- Additional Finding Button -->
+                <button type="button" class="btn btn-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#additionalFindingModal">
+                  <i class="bi bi-exclamation-triangle me-2"></i>Report Additional Finding
+                </button>
+                
                 <%= button_to "Request QC", vmcott_mechanic_request_qc_path(@job), 
                       method: :post, 
                       class: "btn btn-primary btn-lg",
@@ -278,6 +301,38 @@
               <p class="text-muted small">Assigned to: <strong><%= assigned_mechanic&.name || 'Unknown' %></strong></p>
             <% end %>
           </div>
+        </div>
+      </div>
+
+      <!-- Quick Stats Card -->
+      <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Job Stats</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <i class="bi bi-clock me-2"></i>
+              <strong>Time in progress:</strong> 
+              <% if @assignment&.started_at %>
+                <%= distance_of_time_in_words(@assignment.started_at, Time.current) %>
+              <% else %>
+                Not started
+              <% end %>
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-box-seam me-2"></i>
+              <strong>Parts used:</strong> <%= @job.inspection_job_parts.sum(:quantity) %>
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-cash me-2"></i>
+              <strong>Est. labor:</strong> $<%= number_with_delimiter(@job.estimated_labor_cost || 0) %>
+            </li>
+            <li class="mb-2">
+              <i class="bi bi-cash-stack me-2"></i>
+              <strong>Est. parts:</strong> $<%= number_with_delimiter(@job.estimated_parts_cost || 0) %>
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -337,11 +392,162 @@
       </div>
     </div>
   </div>
+
+  <!-- Request Parts Modal -->
+  <div class="modal fade" id="requestPartModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title">Request Parts</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <%= form_with url: vmcott_mechanic_request_part_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
+          <div class="modal-body">
+            <div class="mb-3">
+              <%= label_tag :part_type, "Part Type", class: "form-label fw-bold" %>
+              <div class="form-check">
+                <%= radio_button_tag :part_type, 'inventory', true, class: 'form-check-input', id: 'part_type_inventory' %>
+                <%= label_tag :part_type_inventory, "Select from Inventory", class: 'form-check-label' %>
+              </div>
+              <div class="form-check">
+                <%= radio_button_tag :part_type, 'custom', false, class: 'form-check-input', id: 'part_type_custom' %>
+                <%= label_tag :part_type_custom, "Custom Part (Not in System)", class: 'form-check-label' %>
+              </div>
+            </div>
+
+            <div id="inventory-part-fields">
+              <div class="mb-3">
+                <%= label_tag :part_id, "Select Part", class: "form-label fw-bold" %>
+                <%= select_tag :part_id, options_from_collection_for_select(Part.active.order(:name), :id, :name_with_stock), 
+                      { prompt: "Choose a part...", class: "form-select", id: "part_select" } %>
+              </div>
+            </div>
+
+            <div id="custom-part-fields" style="display: none;">
+              <div class="mb-3">
+                <%= label_tag :custom_part_name, "Part Name", class: "form-label fw-bold" %>
+                <%= text_field_tag :custom_part_name, nil, class: "form-control", placeholder: "e.g., Special bracket for model XYZ" %>
+                <small class="text-muted">Enter the name of the custom part you need</small>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <%= label_tag :quantity, "Quantity", class: "form-label fw-bold" %>
+              <%= number_field_tag :quantity, 1, class: "form-control", min: 1, required: true %>
+            </div>
+
+            <div class="mb-3">
+              <%= label_tag :description, "Description (Optional)", class: "form-label fw-bold" %>
+              <%= text_area_tag :description, nil, class: "form-control", rows: 2, placeholder: "Any specific requirements..." %>
+            </div>
+
+            <!-- Hidden fields to pass the correct associations -->
+            <%= hidden_field_tag :inspection_id, @job.inspection_id %>
+            <%= hidden_field_tag :inspection_job_id, @job.id %>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <%= f.submit "Submit Request", class: "btn btn-info" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Additional Finding Modal - FIXED VERSION -->
+  <div class="modal fade" id="additionalFindingModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-secondary text-white">
+          <h5 class="modal-title">Report Additional Finding</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <%= form_with url: vmcott_mechanic_create_additional_finding_path(@job.inspection), method: :post, local: true, data: { turbo: false } do |f| %>
+          <div class="modal-body">
+            <div class="mb-3">
+              <%= label_tag :description, "Description of Additional Work Needed", class: "form-label fw-bold" %>
+              <%= text_area_tag :description, nil, class: "form-control", rows: 3, 
+                    placeholder: "Describe what additional work is needed...", required: true %>
+            </div>
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Additional work will require a new quotation from finance.
+            </div>
+            
+            <!-- Add hidden job_id field to ensure we can redirect back -->
+            <%= hidden_field_tag :job_id, @job.id %>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <%= f.submit "Report Finding", class: "btn btn-warning" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- JavaScript for part usage -->
+<!-- JavaScript for part usage and form toggles -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Handle part type toggle
+  const inventoryRadio = document.getElementById('part_type_inventory');
+  const customRadio = document.getElementById('part_type_custom');
+  const inventoryFields = document.getElementById('inventory-part-fields');
+  const customFields = document.getElementById('custom-part-fields');
+  const partSelect = document.getElementById('part_select');
+  const customPartName = document.getElementById('custom_part_name');
+  
+  // Function to update field visibility and required attributes
+  function updatePartFields() {
+    if (inventoryRadio && inventoryRadio.checked) {
+      // Show inventory fields, hide custom fields
+      if (inventoryFields) inventoryFields.style.display = 'block';
+      if (customFields) customFields.style.display = 'none';
+      
+      // Update required attributes
+      if (partSelect) {
+        partSelect.required = true;
+        partSelect.disabled = false;
+      }
+      if (customPartName) {
+        customPartName.required = false;
+        customPartName.disabled = true;
+        customPartName.value = '';
+      }
+      
+    } else if (customRadio && customRadio.checked) {
+      // Show custom fields, hide inventory fields
+      if (inventoryFields) inventoryFields.style.display = 'none';
+      if (customFields) customFields.style.display = 'block';
+      
+      // Update required attributes
+      if (partSelect) {
+        partSelect.required = false;
+        partSelect.disabled = true;
+        partSelect.value = '';
+      }
+      if (customPartName) {
+        customPartName.required = true;
+        customPartName.disabled = false;
+      }
+    }
+  }
+
+  // Set initial state
+  if (inventoryRadio && inventoryRadio.checked) {
+    updatePartFields();
+  }
+
+  // Add event listeners
+  if (inventoryRadio) {
+    inventoryRadio.addEventListener('change', updatePartFields);
+  }
+  
+  if (customRadio) {
+    customRadio.addEventListener('change', updatePartFields);
+  }
+
   // Handle use part clicks
   document.querySelectorAll('.use-part').forEach(button => {
     button.addEventListener('click', function(e) {

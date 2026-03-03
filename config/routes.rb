@@ -94,6 +94,7 @@ Rails.application.routes.draw do
     end
 
     # 2. INSPECTOR - Diagnostics and QC (UPDATED - No parts)
+    # 2. INSPECTOR - Diagnostics and QC (UPDATED - No parts)
     namespace :inspector do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "inspection/:vehicle_id/new", to: "dashboard#new_inspection", as: :new_inspection
@@ -101,6 +102,7 @@ Rails.application.routes.draw do
       get "inspection/:id", to: "dashboard#show_inspection", as: :inspection
       get "qc/:id", to: "dashboard#qc_inspection", as: :qc
       post "qc/:id/complete", to: "dashboard#complete_qc", as: :complete_qc
+      post 'inspection/:id/approve_for_repair', to: 'dashboard#approve_for_repair', as: :approve_inspection_for_repair
       
       # Pre-inspection routes
       get "pre_inspection/:vehicle_id", to: "dashboard#pre_inspection", as: :pre_inspection
@@ -158,6 +160,7 @@ Rails.application.routes.draw do
       # Parts request routes
       post "job/:id/request_part", to: "dashboard#request_part", as: :request_part
       get "job/:id/parts", to: "dashboard#parts_needed", as: :parts_needed
+      post "job/:id/log_parts", to: "dashboard#log_parts", as: :log_parts
       
       # Parts Requests resource
       resources :parts_requests, only: [:new, :create] do

@@ -6,16 +6,12 @@
           <h1 class="h2">🔍 Quality Control Inspection</h1>
           <p class="text-muted">VMCOTT Inspector - Final QC Check</p>
         </div>
-        <% if @internal_po.present? %>
-          <%= link_to "← Back to Work Order", vmcott_mechanic_job_path(@internal_po), class: "btn btn-outline-secondary" %>
-        <% else %>
-          <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
-        <% end %>
+        <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
       </div>
     </div>
   </div>
 
-  <% if @internal_po.present? && @vehicle.present? %>
+  <% if @inspection.present? && @vehicle.present? %>
     <div class="row">
       <div class="col-md-8 mx-auto">
         <div class="card">
@@ -27,62 +23,110 @@
             <div class="alert alert-info mb-4">
               <div class="row">
                 <div class="col-md-6">
-                  <strong>Work Order:</strong> <%= @internal_po.work_order_number %><br>
+                  <strong>Inspection ID:</strong> #<%= @inspection.id %><br>
                   <strong>Vehicle:</strong> <%= @vehicle.make %> <%= @vehicle.model %>
                 </div>
                 <div class="col-md-6">
                   <strong>License Plate:</strong> <%= @vehicle.license_plate %><br>
-                  <strong>Current Mileage:</strong> <%= @vehicle.mileage || 'Not recorded' %><br>
-                  <strong>Assigned To:</strong> <%= @internal_po.assigned_to_id.present? ? User.find_by(id: @internal_po.assigned_to_id)&.name : 'Unassigned' %>
+                  <strong>Current Mileage:</strong> <%= number_with_delimiter(@vehicle.mileage) %> km<br>
+                  <strong>Inspected By:</strong> <%= @inspection.inspector&.name || 'Unknown' %>
                 </div>
               </div>
             </div>
 
-            <%= form_with url: vmcott_inspector_complete_qc_path(@internal_po), method: :post, local: true, id: "qc-form" do |f| %>
+            <!-- Jobs Completed Summary -->
+            <div class="card mb-4">
+              <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="bi bi-tools me-2"></i>Jobs Completed</h6>
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>Job</th>
+                        <th>Description</th>
+                        <th>Completed</th>
+                        <th>Parts Used</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% @inspection.inspection_jobs.each do |job| %>
+                        <tr>
+                          <td><strong>#<%= job.id %></strong></td>
+                          <td><%= job.description %></td>
+                          <td>
+                            <% if job.completed_at %>
+                              <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>
+                                <%= time_ago_in_words(job.completed_at) %> ago
+                              </span>
+                            <% else %>
+                              <span class="badge bg-warning">Not completed</span>
+                            <% end %>
+                          </td>
+                          <td>
+                            <% if job.inspection_job_parts&.any? %>
+                              <% job.inspection_job_parts.each do |part_item| %>
+                                <div><small><%= part_item.part_name %> x<%= part_item.quantity %></small></div>
+                              <% end %>
+                            <% else %>
+                              <small class="text-muted">No parts used</small>
+                            <% end %>
+                          </td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <%= form_with url: vmcott_inspector_complete_qc_path(@inspection), method: :post, local: true, id: "qc-form", data: { controller: "qc-form" } do |f| %>
               
               <div class="mb-4">
                 <h6 class="fw-bold">QC Checklist</h6>
                 
                 <div class="form-check mb-3">
-                  <%= check_box_tag :repairs_completed, "1", false, class: "form-check-input", id: "repairs_completed", required: true %>
+                  <%= check_box_tag :repairs_completed, "1", false, class: "form-check-input", id: "repairs_completed" %>
                   <%= label_tag :repairs_completed, "All repairs completed as specified", class: "form-check-label fw-bold" %>
                 </div>
 
                 <div class="form-check mb-3">
-                  <%= check_box_tag :quality_standards, "1", false, class: "form-check-input", id: "quality_standards", required: true %>
+                  <%= check_box_tag :quality_standards, "1", false, class: "form-check-input", id: "quality_standards" %>
                   <%= label_tag :quality_standards, "Work meets quality standards", class: "form-check-label fw-bold" %>
                 </div>
 
                 <div class="form-check mb-3">
-                  <%= check_box_tag :test_drive, "1", false, class: "form-check-input", id: "test_drive", required: true %>
+                  <%= check_box_tag :test_drive, "1", false, class: "form-check-input", id: "test_drive" %>
                   <%= label_tag :test_drive, "Test drive completed successfully", class: "form-check-label fw-bold" %>
                 </div>
 
                 <div class="form-check mb-3">
-                  <%= check_box_tag :safety_check, "1", false, class: "form-check-input", id: "safety_check", required: true %>
+                  <%= check_box_tag :safety_check, "1", false, class: "form-check-input", id: "safety_check" %>
                   <%= label_tag :safety_check, "All safety systems operational", class: "form-check-label fw-bold" %>
                 </div>
 
                 <div class="form-check mb-3">
-                  <%= check_box_tag :documents_ready, "1", false, class: "form-check-input", id: "documents_ready", required: true %>
+                  <%= check_box_tag :documents_ready, "1", false, class: "form-check-input", id: "documents_ready" %>
                   <%= label_tag :documents_ready, "All documentation ready for pickup", class: "form-check-label fw-bold" %>
                 </div>
               </div>
 
               <div class="mb-4">
-                <%= label_tag :qc_notes, "QC Notes", class: "form-label fw-bold" %>
-                <%= text_area_tag :qc_notes, nil, class: "form-control", rows: 4, placeholder: "Any final observations or notes..." %>
+                <%= label_tag :final_notes, "QC Notes", class: "form-label fw-bold" %>
+                <%= text_area_tag :final_notes, nil, class: "form-control", rows: 4, placeholder: "Any final observations or notes..." %>
               </div>
 
               <div class="mb-4">
                 <label class="form-label fw-bold">QC Result</label>
                 <div class="d-flex gap-3">
                   <div class="form-check">
-                    <%= radio_button_tag :qc_passed, "true", true, class: "form-check-input", id: "qc_passed_true" %>
+                    <%= radio_button_tag :qc_passed, "true", true, class: "form-check-input", id: "qc_passed_true", data: { action: "change->qc-form#toggleRequirements" } %>
                     <%= label_tag :qc_passed_true, "Pass", class: "form-check-label text-success fw-bold" %>
                   </div>
                   <div class="form-check">
-                    <%= radio_button_tag :qc_passed, "false", false, class: "form-check-input", id: "qc_passed_false" %>
+                    <%= radio_button_tag :qc_passed, "false", false, class: "form-check-input", id: "qc_passed_false", data: { action: "change->qc-form#toggleRequirements" } %>
                     <%= label_tag :qc_passed_false, "Fail - Needs Rework", class: "form-check-label text-danger fw-bold" %>
                   </div>
                 </div>
@@ -95,8 +139,8 @@
               </div>
 
               <div class="d-flex justify-content-end gap-2">
-                <%= link_to "Cancel", @internal_po.present? ? vmcott_mechanic_job_path(@internal_po) : vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
-                <%= f.submit "Complete QC", class: "btn btn-primary", data: { confirm: "Are you sure the QC is complete?" } %>
+                <%= link_to "Cancel", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
+                <%= f.submit "Complete QC", class: "btn btn-warning", data: { disable_with: "Processing..." } %>
               </div>
             <% end %>
           </div>
@@ -104,13 +148,21 @@
       </div>
     </div>
 
-    <!-- JavaScript to show/hide failure reason -->
+    <!-- JavaScript to handle QC form logic -->
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         const passRadio = document.getElementById('qc_passed_true');
         const failRadio = document.getElementById('qc_passed_false');
         const failureField = document.getElementById('failure-reason-field');
         const failureTextarea = document.getElementById('failure_reason');
+        const checkboxes = [
+          document.getElementById('repairs_completed'),
+          document.getElementById('quality_standards'),
+          document.getElementById('test_drive'),
+          document.getElementById('safety_check'),
+          document.getElementById('documents_ready')
+        ];
+        const form = document.getElementById('qc-form');
         
         function toggleFailureField() {
           if (failRadio && failRadio.checked) {
@@ -125,9 +177,34 @@
           }
         }
         
+        function validateForm(event) {
+          if (passRadio && passRadio.checked) {
+            // If Pass is selected, check if all checkboxes are checked
+            const allChecked = checkboxes.every(cb => cb && cb.checked);
+            
+            if (!allChecked) {
+              event.preventDefault();
+              alert('Please check all QC checklist items before passing the inspection.');
+              return false;
+            }
+          } else if (failRadio && failRadio.checked) {
+            // If Fail is selected, check if failure reason is provided
+            if (!failureTextarea || !failureTextarea.value.trim()) {
+              event.preventDefault();
+              alert('Please provide a reason for the QC failure.');
+              return false;
+            }
+          }
+          return true;
+        }
+        
         if (passRadio && failRadio) {
           passRadio.addEventListener('change', toggleFailureField);
           failRadio.addEventListener('change', toggleFailureField);
+        }
+        
+        if (form) {
+          form.addEventListener('submit', validateForm);
         }
         
         // Initial state
@@ -136,8 +213,8 @@
     </script>
   <% else %>
     <div class="alert alert-danger">
-      <h4 class="alert-heading">Work Order Not Found</h4>
-      <p>The work order you're looking for doesn't exist or you don't have access to it.</p>
+      <h4 class="alert-heading">Inspection Not Found</h4>
+      <p>The inspection you're looking for doesn't exist or you don't have access to it.</p>
       <hr>
       <%= link_to "Return to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-primary" %>
     </div>

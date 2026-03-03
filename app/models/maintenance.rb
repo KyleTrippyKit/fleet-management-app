@@ -1,4 +1,3 @@
-# app/models/maintenance.rb
 class Maintenance < ApplicationRecord
   # =====================================================
   # Associations
@@ -25,12 +24,12 @@ class Maintenance < ApplicationRecord
   }, default: :routine
 
   # =====================================================
-  # Validations
+  # Validations - FIXED status values to match the enum pattern
   # =====================================================
-  validates :status, inclusion: { in: %w[Pending Completed In\ Progress] }
-  validates :assignment_type, inclusion: { in: %w[stores purchasing] }, allow_nil: true
-  validates :category, inclusion: { in: %w[OilChange TireRotation BrakeService EngineCheck Transmission 
-                                            Electrical BodyWork AirConditioning Suspension General] }, allow_nil: true
+  validates :status, inclusion: { in: ['Pending', 'In Progress', 'Completed', 'Cancelled'] }, allow_nil: true
+  validates :assignment_type, inclusion: { in: ['stores', 'purchasing'] }, allow_nil: true
+  validates :category, inclusion: { in: ['OilChange', 'TireRotation', 'BrakeService', 'EngineCheck', 'Transmission', 
+                                            'Electrical', 'BodyWork', 'AirConditioning', 'Suspension', 'General'] }, allow_nil: true
   validates :service_type, presence: true
   validates :date, presence: true
   validates :start_date, presence: true
@@ -51,6 +50,7 @@ class Maintenance < ApplicationRecord
   scope :pending, -> { where(status: "Pending") }
   scope :in_progress, -> { where(status: "In Progress") }
   scope :completed, -> { where(status: "Completed") }
+  scope :cancelled, -> { where(status: "Cancelled") }
   scope :overdue, -> { 
     where(status: "Pending")
     .where("end_date < ?", Date.today) 
@@ -97,8 +97,12 @@ class Maintenance < ApplicationRecord
     status == "In Progress"
   end
 
+  def cancelled?
+    status == "Cancelled"
+  end
+
   def overdue?
-    return false if status == 'Completed'
+    return false if status == 'Completed' || status == 'Cancelled'
     return false unless end_date
     end_date < Date.today
   end
@@ -194,6 +198,8 @@ class Maintenance < ApplicationRecord
   def status_badge_class
     if completed?
       "bg-success"
+    elsif cancelled?
+      "bg-secondary"
     elsif overdue?
       "bg-danger"
     elsif in_progress?
@@ -333,6 +339,7 @@ class Maintenance < ApplicationRecord
   # =====================================================
   def reminder_status
     return "Completed" if completed?
+    return "Cancelled" if cancelled?
     return "Overdue" if overdue?
     return "Active" if active?
     return "Starting Soon" if start_date.present? && start_date <= Date.today + 3.days
@@ -393,12 +400,14 @@ class Maintenance < ApplicationRecord
     )
   end
 
-  # NEW: Create additional work from this maintenance
+  # =====================================================
+  # FIXED: create_additional_work! - Now uses correct status
+  # =====================================================
   def create_additional_work!(description:, cost: nil, notes: nil)
     child = Maintenance.create!(
       vehicle: vehicle,
       service_type: description,
-      status: "Pending",
+      status: "Pending",  # Using valid status
       start_date: Date.today,
       end_date: Date.today + 7.days,
       date: Date.today,
@@ -421,7 +430,7 @@ class Maintenance < ApplicationRecord
       cancelled_by_agency: true,
       agency_decision_at: Time.current,
       agency_decision_notes: reason,
-      status: "Cancelled"
+      status: "Cancelled"  # Using valid status
     )
   end
 
@@ -464,5 +473,7 @@ class Maintenance < ApplicationRecord
       notifiable_type: 'Maintenance',
       notifiable_id: maintenance.id
     )
+  rescue => e
+    Rails.logger.error "Failed to create notification: #{e.message}"
   end
 end

@@ -1,4 +1,3 @@
-<%# app/views/vmcott/inspector/dashboard/show_inspection.html.erb %>
 <div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
@@ -10,7 +9,6 @@
         <div>
           <%= link_to "← Back to Dashboard", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary me-2" %>
           <% if @inspection.status == 'ready_for_pickup' %>
-            <%# Check for invoice through purchase order or direct association %>
             <% if @inspection.purchase_order&.invoice.present? %>
               <%= link_to "View Invoice", invoice_path(@inspection.purchase_order.invoice), class: "btn btn-primary" %>
             <% elsif @inspection.respond_to?(:invoice) && @inspection.invoice.present? %>
@@ -367,6 +365,23 @@
               </div>
             <% end %>
           </div>
+
+          <!-- APPROVE FOR REPAIR BUTTON - ADDED HERE -->
+          <% if @inspection.status.in?(['pending_mechanic_review', 'parts_coordinator_review']) %>
+            <hr>
+            <div class="text-center mt-3">
+              <%= button_to vmcott_inspector_approve_inspection_for_repair_path(@inspection),
+                    method: :post,
+                    class: "btn btn-success btn-lg w-100",
+                    data: { confirm: "Are you sure? This will make these jobs available to mechanics immediately." } do %>
+                <i class="bi bi-check-circle me-2"></i>✓ Approve for Repair
+              <% end %>
+              <small class="text-muted d-block mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Makes jobs visible to mechanics in "Ready to Start"
+              </small>
+            </div>
+          <% end %>
         </div>
       </div>
 

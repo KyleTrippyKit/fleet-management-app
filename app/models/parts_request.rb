@@ -1,6 +1,6 @@
-# app/models/parts_request.rb
 class PartsRequest < ApplicationRecord
   belongs_to :inspection
+  belongs_to :inspection_job, optional: true  # Link to the specific job
   belongs_to :part, optional: true  # Make part optional for custom parts
   belongs_to :vendor_invoice, optional: true
   belongs_to :purchase_order, optional: true
@@ -34,6 +34,7 @@ class PartsRequest < ApplicationRecord
   scope :needing_finance_action, -> { where(status: :finance_review) }
   scope :custom_parts, -> { where(part_id: nil) }
   scope :inventory_parts, -> { where.not(part_id: nil) }
+  scope :for_job, ->(job_id) { where(inspection_job_id: job_id) }
 
   def part_name
     part&.name || custom_part_name || "Unknown Part"
@@ -120,18 +121,18 @@ class PartsRequest < ApplicationRecord
     latest_rfq&.rfq_number
   end
   
-  # NEW: Helper method to get the part number (for inventory parts)
+  # Helper method to get the part number (for inventory parts)
   def part_number
     part&.part_number
   end
   
-  # NEW: Helper method to get the part's current stock
+  # Helper method to get the part's current stock
   def current_stock
     return 0 if custom? || part.nil?
     part.current_stock
   end
   
-  # NEW: Helper method to get the shortfall quantity
+  # Helper method to get the shortfall quantity
   def shortfall_quantity
     return quantity if custom? || part.nil?
     [quantity - part.current_stock, 0].max

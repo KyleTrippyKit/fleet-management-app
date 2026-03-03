@@ -488,6 +488,10 @@ class Part < ApplicationRecord
     }
   end
 
+  def name_with_stock
+    "#{name} (Stock: #{current_stock})"
+  end
+
   # Check job template usage
   def used_in_job_templates
     job_template_parts.includes(:job_template).map(&:job_template)

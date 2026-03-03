@@ -29,7 +29,12 @@
       <div class="card bg-info text-white">
         <div class="card-body">
           <h5 class="card-title">QC Pending</h5>
-          <h2 class="display-4"><%= InternalPos.where(status: 'pending').where("notes LIKE ?", "%QC%").count %></h2>
+          <h2 class="display-4"><%= @qc_pending&.count || 0 %></h2>
+          <% if @qc_pending&.count > 0 %>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+              <%= @qc_pending.count %> pending
+            </span>
+          <% end %>
         </div>
       </div>
     </div>
@@ -42,6 +47,74 @@
       </div>
     </div>
   </div>
+
+  <!-- QC PENDING SECTION - NEW HIGHLIGHTED SECTION FOR INSPECTORS -->
+  <% if @qc_pending&.any? %>
+    <div class="row mt-2">
+      <div class="col-12">
+        <div class="card mb-4 border-warning border-3">
+          <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>🔍 VEHICLES READY FOR QC - Action Required</h5>
+            <span class="badge bg-dark text-white"><%= @qc_pending.count %> need inspection</span>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-warning mb-3">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <strong>These vehicles have completed repairs and are waiting for your quality inspection.</strong> 
+              Please review the work and complete the QC checklist.
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-warning">
+                  <tr>
+                    <th>Inspection #</th>
+                    <th>Vehicle</th>
+                    <th>Jobs Completed</th>
+                    <th>Completed</th>
+                    <th>Parts Used</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @qc_pending.each do |inspection| %>
+                    <tr>
+                      <td><strong>#<%= inspection.id %></strong></td>
+                      <td>
+                        <%= inspection.vehicle&.license_plate %><br>
+                        <small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
+                      </td>
+                      <td><%= inspection.inspection_jobs.count %></td>
+                      <td>
+                        <span class="badge bg-success">
+                          <i class="bi bi-check-circle me-1"></i>
+                          <%= time_ago_in_words(inspection.updated_at) %> ago
+                        </span>
+                      </td>
+                      <td>
+                        <% total_parts = inspection.inspection_jobs.sum { |j| j.inspection_job_parts.sum(:quantity) } %>
+                        <% if total_parts > 0 %>
+                          <span class="badge bg-info"><%= total_parts %> parts used</span>
+                        <% else %>
+                          <span class="badge bg-secondary">No parts</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <%= link_to vmcott_inspector_qc_path(inspection), 
+                              class: "btn btn-warning btn-sm",
+                              target: "_blank" do %>
+                          <i class="bi bi-clipboard-check me-1"></i> Start QC
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
 
   <div class="row mt-4">
     <!-- Vehicles Waiting for Inspection -->
@@ -62,7 +135,6 @@
                     <small>Received: <%= time_ago_in_words(log.received_at) %> ago</small>
                   </div>
                 </div>
-                <!-- FIXED: Updated link to go to pre-inspection first -->
                 <%= link_to "Start Inspection", vmcott_inspector_pre_inspection_path(log.vehicle_id), 
                       class: "btn btn-sm btn-primary" %>
               </div>
@@ -74,31 +146,31 @@
       </div>
     </div>
     
-    <!-- QC Pending Jobs -->
+    <!-- Approved for Repair Section -->
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>QC Pending Jobs</h5>
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>✅ Approved for Repair</h5>
         </div>
         <div class="card-body">
-          <% qc_pending = InternalPos.where(status: 'pending').where("notes LIKE ?", "%QC%") %>
-          <% if qc_pending.any? %>
-            <% qc_pending.each do |job| %>
+          <% approved_inspections = Inspection.where(status: 'approved_for_repair').order(updated_at: :desc).limit(5) %>
+          <% if approved_inspections.any? %>
+            <% approved_inspections.each do |inspection| %>
               <div class="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
                 <div>
-                  <strong>Work Order: <%= job.work_order_number %></strong>
+                  <strong><%= inspection.vehicle&.license_plate || "Unknown" %></strong>
                   <div class="small text-muted">
-                    Vehicle: <%= job.vehicle&.license_plate || "Unknown" %>
+                    <%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %>
                     <br>
-                    <small>Created: <%= time_ago_in_words(job.created_at) %> ago</small>
+                    <small>Approved: <%= time_ago_in_words(inspection.updated_at) %> ago</small>
                   </div>
                 </div>
-                <%= link_to "Start QC", vmcott_inspector_qc_path(job), 
-                      class: "btn btn-sm btn-warning" %>
+                <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
+                      class: "btn btn-sm btn-success" %>
               </div>
             <% end %>
           <% else %>
-            <p class="text-muted text-center py-3">No QC pending jobs</p>
+            <p class="text-muted text-center py-3">No inspections approved for repair</p>
           <% end %>
         </div>
       </div>
@@ -135,15 +207,42 @@
                       <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
                       <td><%= inspection.inspection_jobs.count %></td>
                       <td>
-                        <% if inspection.purchase_order.present? %>
-                          <span class="badge bg-success">PO Created</span>
+                        <% if inspection.status == 'approved_for_repair' %>
+                          <span class="badge bg-success">
+                            <i class="bi bi-check-circle me-1"></i>Approved for Repair
+                          </span>
+                        <% elsif inspection.status == 'ready_for_pickup' %>
+                          <span class="badge bg-info">
+                            <i class="bi bi-truck me-1"></i>Ready for Pickup
+                          </span>
+                        <% elsif inspection.status == 'qc_completed' %>
+                          <span class="badge bg-primary">
+                            <i class="bi bi-clipboard-check me-1"></i>QC Completed
+                          </span>
+                        <% elsif inspection.status == 'ready_for_qc' %>
+                          <span class="badge bg-warning">
+                            <i class="bi bi-hourglass-split me-1"></i>Pending QC
+                          </span>
+                        <% elsif inspection.status == 'pending_mechanic_review' %>
+                          <span class="badge bg-warning">
+                            <i class="bi bi-clock me-1"></i>Pending Review
+                          </span>
+                        <% elsif inspection.status == 'parts_coordinator_review' %>
+                          <span class="badge bg-info">
+                            <i class="bi bi-box me-1"></i>Parts Review
+                          </span>
                         <% else %>
-                          <span class="badge bg-warning">Pending PO</span>
+                          <span class="badge bg-secondary"><%= inspection.status.titleize %></span>
                         <% end %>
                       </td>
                       <td>
                         <%= link_to "View", vmcott_inspector_inspection_path(inspection), 
                               class: "btn btn-sm btn-outline-primary" %>
+                        <% if inspection.status == 'ready_for_qc' %>
+                          <%= link_to "QC", vmcott_inspector_qc_path(inspection), 
+                                class: "btn btn-sm btn-warning ms-1",
+                                target: "_blank" %>
+                        <% end %>
                       </td>
                     </tr>
                   <% end %>
