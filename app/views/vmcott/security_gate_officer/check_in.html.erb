@@ -1,0 +1,177 @@
+<%# app/views/vmcott/security_gate_officer/check_in.html.erb %>
+<div class="container-fluid py-4">
+  <div class="card">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">🚗 Vehicle Check-In: <%= @vehicle.license_plate %></h5>
+    </div>
+    <div class="card-body">
+      
+      <%= form_with url: submit_check_in_path, local: true do |f| %>
+        
+        <!-- Quick Stats Row -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Fuel Level (%)</label>
+            <div class="input-group">
+              <input type="number" name="fuel_level" class="form-control" min="0" max="100" required>
+              <span class="input-group-text">%</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Odometer (km)</label>
+            <input type="number" name="odometer" class="form-control" required>
+          </div>
+        </div>
+        
+        <!-- Condition Tiles -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-header bg-light">Exterior Damage</div>
+              <div class="card-body">
+                <div class="form-check">
+                  <input type="checkbox" name="exterior[]" value="scratches" class="form-check-input" id="ext_scratches">
+                  <label class="form-check-label" for="ext_scratches">Scratches</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="exterior[]" value="dents" class="form-check-input" id="ext_dents">
+                  <label class="form-check-label" for="ext_dents">Dents</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="exterior[]" value="paint" class="form-check-input" id="ext_paint">
+                  <label class="form-check-label" for="ext_paint">Paint damage</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="exterior[]" value="glass" class="form-check-input" id="ext_glass">
+                  <label class="form-check-label" for="ext_glass">Glass damage</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="exterior[]" value="none" class="form-check-input" id="ext_none">
+                  <label class="form-check-label" for="ext_none">✅ No damage</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-header bg-light">Interior</div>
+              <div class="card-body">
+                <div class="form-check">
+                  <input type="checkbox" name="interior[]" value="clean" class="form-check-input" id="int_clean">
+                  <label class="form-check-label" for="int_clean">✅ Clean</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="interior[]" value="dirty" class="form-check-input" id="int_dirty">
+                  <label class="form-check-label" for="int_dirty">Dirty</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="interior[]" value="seat_damage" class="form-check-input" id="int_seat">
+                  <label class="form-check-label" for="int_seat">Seat damage</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="interior[]" value="odor" class="form-check-input" id="int_odor">
+                  <label class="form-check-label" for="int_odor">Unusual odor</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-header bg-light">Tires</div>
+              <div class="card-body">
+                <div class="form-check">
+                  <input type="radio" name="tire_status" value="good" class="form-check-input" id="tire_good" checked>
+                  <label class="form-check-label" for="tire_good">✅ Good condition</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" name="tire_status" value="low_pressure" class="form-check-input" id="tire_low">
+                  <label class="form-check-label" for="tire_low">Low pressure</label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" name="tire_status" value="damage" class="form-check-input" id="tire_damage">
+                  <label class="form-check-label" for="tire_damage">Visible damage</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-3">
+            <div class="card">
+              <div class="card-header bg-light">Warning Lights</div>
+              <div class="card-body">
+                <div class="form-check">
+                  <input type="checkbox" name="warnings[]" value="none" class="form-check-input" id="warn_none">
+                  <label class="form-check-label" for="warn_none">✅ None</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="warnings[]" value="check_engine" class="form-check-input" id="warn_engine">
+                  <label class="form-check-label" for="warn_engine">Check engine</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" name="warnings[]" value="other" class="form-check-input" id="warn_other">
+                  <label class="form-check-label" for="warn_other">Other lights</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Notes & Photos -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Notes (optional)</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Any visible issues?"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-bold">Photos (quick capture)</label>
+            <div class="d-flex gap-2 flex-wrap">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('front')">📸 Front</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('rear')">📸 Rear</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('sides')">📸 Sides</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('dash')">📸 Dashboard</button>
+            </div>
+            <input type="file" name="photos[]" multiple accept="image/*" class="d-none" id="photo-upload">
+          </div>
+        </div>
+        
+        <!-- Driver Signature -->
+        <div class="card mb-4 bg-light">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Driver Name</label>
+                <input type="text" name="driver_name" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Date/Time</label>
+                <input type="datetime-local" name="signed_at" class="form-control" value="<%= Time.current.strftime('%Y-%m-%dT%H:%M') %>" readonly>
+              </div>
+            </div>
+            
+            <div class="row mt-3">
+              <div class="col-12">
+                <label class="form-label fw-bold">Signature</label>
+                <div style="border: 1px solid #ccc; height: 100px; width: 300px;" id="signature-pad"></div>
+                <input type="hidden" name="signature_data" id="signature-data">
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="clearSignature()">Clear</button>
+              </div>
+            </div>
+            
+            <div class="form-check mt-3">
+              <input type="checkbox" name="terms_agreed" class="form-check-input" id="terms" required>
+              <label class="form-check-label" for="terms">
+                I confirm the vehicle condition above is accurate
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="d-grid gap-2">
+          <button type="submit" class="btn btn-success btn-lg">✓ Complete Check-In</button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

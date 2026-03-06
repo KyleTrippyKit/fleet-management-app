@@ -1,0 +1,560 @@
+<%# app/views/screensaver/show.html.erb %>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Active Plus - Screensaver</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: radial-gradient(circle at 20% 30%, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Animated Particles Background */
+    .particles {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .particle {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      pointer-events: none;
+      animation: float 15s infinite ease-in-out;
+    }
+
+    .particle:nth-child(1) { width: 150px; height: 150px; top: 10%; left: 5%; animation-delay: 0s; }
+    .particle:nth-child(2) { width: 100px; height: 100px; top: 60%; left: 80%; animation-delay: 2s; }
+    .particle:nth-child(3) { width: 200px; height: 200px; top: 70%; left: 20%; animation-delay: 4s; }
+    .particle:nth-child(4) { width: 80px; height: 80px; top: 20%; left: 85%; animation-delay: 6s; }
+    .particle:nth-child(5) { width: 120px; height: 120px; top: 80%; left: 60%; animation-delay: 8s; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+      50% { transform: translateY(-30px) scale(1.1); opacity: 0.5; }
+    }
+
+    /* Grid Overlay */
+    .grid-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 50px 50px;
+      z-index: 2;
+    }
+
+    /* Screensaver Container */
+    .screensaver {
+      position: relative;
+      z-index: 10;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      cursor: none;
+      backdrop-filter: blur(2px);
+    }
+
+    /* Main Logo Container */
+    .logo-container {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo-wrapper {
+      margin-bottom: 20px;
+    }
+
+    .logo-icon {
+      width: 220px;
+      height: 220px;
+      margin: 0 auto;
+      filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3));
+      animation: logoGlow 4s ease-in-out infinite;
+    }
+
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.3)) brightness(1); }
+      50% { filter: drop-shadow(0 30px 60px rgba(102, 126, 234, 0.5)) brightness(1.1); }
+    }
+
+    .logo-icon svg {
+      width: 100%;
+      height: 100%;
+      animation: rotate 20s linear infinite;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .logo-text {
+      opacity: 0;
+      animation: fadeInUp 1s ease-out forwards;
+    }
+
+    .logo-text h1 {
+      font-size: 4.5rem;
+      font-weight: 800;
+      letter-spacing: 4px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      background: linear-gradient(135deg, #fff 0%, #e0e0ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+
+    .logo-text p {
+      font-size: 1.4rem;
+      opacity: 0.9;
+      letter-spacing: 3px;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      font-weight: 300;
+      white-space: nowrap;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Stats Carousel */
+    .stats-container {
+      position: absolute;
+      bottom: 120px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 25px;
+      flex-wrap: wrap;
+      padding: 20px;
+      perspective: 1000px;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 24px;
+      padding: 25px 35px;
+      min-width: 180px;
+      text-align: center;
+      transform-style: preserve-3d;
+      animation: cardFloat 5s ease-in-out infinite;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .stat-card:nth-child(1) { animation-delay: 0s; }
+    .stat-card:nth-child(2) { animation-delay: 0.5s; }
+    .stat-card:nth-child(3) { animation-delay: 1s; }
+    .stat-card:nth-child(4) { animation-delay: 1.5s; }
+
+    @keyframes cardFloat {
+      0%, 100% { transform: translateY(0) rotateX(0deg); }
+      50% { transform: translateY(-15px) rotateX(2deg); }
+    }
+
+    .stat-number {
+      font-size: 3rem;
+      font-weight: 700;
+      color: white;
+      line-height: 1;
+      margin-bottom: 8px;
+      text-shadow: 0 0 30px rgba(255,255,255,0.5);
+    }
+
+    .stat-label {
+      font-size: 1rem;
+      color: rgba(255, 255, 255, 0.9);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 400;
+    }
+
+    /* Floating Messages */
+    .floating-message {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50px;
+      padding: 12px 24px;
+      color: white;
+      font-size: 0.95rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: messageFloat 7s ease-in-out infinite;
+    }
+
+    .floating-message.right {
+      top: 25%;
+      right: 8%;
+    }
+
+    .floating-message.left {
+      bottom: 30%;
+      left: 8%;
+      animation-delay: 1.5s;
+    }
+
+    @keyframes messageFloat {
+      0%, 100% { transform: translateY(0) translateX(0); }
+      33% { transform: translateY(-15px) translateX(5px); }
+      66% { transform: translateY(10px) translateX(-5px); }
+    }
+
+    .message-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .message-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 20px #4ade80;
+      animation: pulse 2s infinite;
+    }
+
+    .message-dot.warning {
+      background: #fbbf24;
+      box-shadow: 0 0 20px #fbbf24;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    /* Touch to Start Button */
+    .touch-to-start {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 1.1rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      z-index: 20;
+      padding: 16px 40px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 50px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: pulse 2s ease-in-out infinite;
+      transition: all 0.3s ease;
+    }
+
+    .touch-to-start:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateX(-50%) scale(1.05);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Time Display */
+    .time-display {
+      position: absolute;
+      top: 30px;
+      right: 30px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 1.1rem;
+      font-weight: 300;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 10px 25px;
+      border-radius: 50px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 30;
+      letter-spacing: 1px;
+    }
+
+    /* Trust Badges */
+    .trust-badges {
+      position: absolute;
+      bottom: 200px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      z-index: 15;
+    }
+
+    .trust-badges p {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.9rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 15px;
+    }
+
+    .badge-group {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .trust-icon {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px 20px;
+      border-radius: 50px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+      animation: fadeInUp 0.5s ease-out forwards;
+      opacity: 0;
+    }
+
+    .trust-icon:nth-child(1) { animation-delay: 0.2s; }
+    .trust-icon:nth-child(2) { animation-delay: 0.4s; }
+    .trust-icon:nth-child(3) { animation-delay: 0.6s; }
+
+    .trust-icon:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .trust-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: white;
+    }
+
+    /* Hide cursor */
+    * {
+      cursor: none;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .logo-icon {
+        width: 150px;
+        height: 150px;
+      }
+
+      .logo-text h1 {
+        font-size: 2.8rem;
+        letter-spacing: 2px;
+      }
+
+      .logo-text p {
+        font-size: 1.1rem;
+        letter-spacing: 2px;
+        white-space: normal;
+      }
+
+      .stat-card {
+        padding: 15px 25px;
+        min-width: 140px;
+      }
+
+      .stat-number {
+        font-size: 2.2rem;
+      }
+
+      .stat-label {
+        font-size: 0.85rem;
+      }
+
+      .floating-message {
+        display: none;
+      }
+      
+      .trust-badges {
+        bottom: 160px;
+      }
+      
+      .badge-group {
+        gap: 10px;
+      }
+      
+      .trust-icon {
+        padding: 6px 15px;
+        font-size: 0.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Animated Particles -->
+  <div class="particles">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+
+  <!-- Grid Overlay -->
+  <div class="grid-overlay"></div>
+
+  <!-- Time Display -->
+  <div class="time-display" id="currentTime"></div>
+
+  <!-- Screensaver Content -->
+  <div class="screensaver" onclick="window.location.href='/'" id="screensaver">
+    
+    <!-- Floating Messages -->
+    <div class="floating-message right">
+      <div class="message-content">
+        <span class="message-dot"></span>
+        <span>PTS-7487 - Oil Change Complete</span>
+      </div>
+    </div>
+    
+    <div class="floating-message left">
+      <div class="message-content">
+        <span class="message-dot warning"></span>
+        <span>TTE-7333 - Ready for QC</span>
+      </div>
+    </div>
+
+    <!-- Main Logo -->
+    <div class="logo-container">
+      <div class="logo-wrapper">
+        <div class="logo-icon">
+          <!-- Your "Active Plus" Icon -->
+          <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100" height="100" rx="20" fill="url(#gradient)" />
+            <path d="M30 50H70M50 30V70" stroke="white" stroke-width="8" stroke-linecap="round"/>
+            <circle cx="50" cy="50" r="15" stroke="white" stroke-width="3" fill="none"/>
+            <defs>
+              <linearGradient id="gradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#4F46E5"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>ACTIVE PLUS</h1>
+          <p>BUSINESS MANAGEMENT SYSTEM</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trust Badges -->
+    <div class="trust-badges">
+      <p>Trusted by leading government agencies</p>
+      <div class="badge-group">
+        <span class="trust-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          Government
+        </span>
+        <span class="trust-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          Public Sector
+        </span>
+        <span class="trust-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          Municipal
+        </span>
+      </div>
+    </div>
+
+    <!-- Stats Carousel -->
+    <div class="stats-container">
+      <div class="stat-card">
+        <div class="stat-number">156</div>
+        <div class="stat-label">Active Vehicles</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">12</div>
+        <div class="stat-label">In Workshop</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">8</div>
+        <div class="stat-label">RFQs Pending</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">5</div>
+        <div class="stat-label">Ready for Pickup</div>
+      </div>
+    </div>
+
+    <!-- Touch to Start -->
+    <div class="touch-to-start" onclick="window.location.href='/'">
+      👆 TOUCH TO START
+    </div>
+  </div>
+
+  <script>
+    // Update time every second
+    function updateTime() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true 
+      });
+      const dateString = now.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      document.getElementById('currentTime').innerHTML = `${dateString} | ${timeString}`;
+    }
+    
+    updateTime();
+    setInterval(updateTime, 1000);
+    
+    // Any click returns to home
+    document.addEventListener('click', function() {
+      window.location.href = '/';
+    });
+    
+    // Also return on keypress
+    document.addEventListener('keypress', function() {
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>

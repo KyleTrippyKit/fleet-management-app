@@ -27,4 +27,15 @@ application.register("quotation-vehicle-search", QuotationVehicleSearchControlle
 import SupplierSelectController from "./supplier_select_controller"
 application.register("supplier-select", SupplierSelectController)
 
-console.log("✅ Controllers registered:", window.Stimulus?.router?.modules?.map(m => m.identifier))
+// Import and register the inactivity controller for screensaver
+import InactivityController from "./inactivity_controller"
+application.register("inactivity", InactivityController)
+
+console.log("✅ Controllers registered:", application.controllers)
+console.log("   • vehicle-catalog")
+console.log("   • loading-button")
+console.log("   • fleet-index")
+console.log("   • alert-search")
+console.log("   • quotation-vehicle-search")
+console.log("   • supplier-select")
+console.log("   • inactivity (screensaver)")

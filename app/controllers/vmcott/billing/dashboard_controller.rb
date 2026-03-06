@@ -26,10 +26,12 @@ class Vmcott::Billing::DashboardController < ApplicationController
                                     .order(updated_at: :desc)
 
     # Parts received (for stock update)
-    @parts_received = PartsRequest.where(status: 'parts_received')
-                                  .where(in_stock: false)
-                                  .includes(:inspection, :part, :purchase_order)
-                                  .order(parts_received_at: :desc)
+    @parts_received = Inspection.joins(:parts_requests)
+                            .where(parts_requests: { status: 'parts_received' })
+                            .where(status: 'parts_coordinator_review')
+                            .distinct
+                            .includes(:vehicle, :inspection_jobs, :parts_requests)
+                            .order(updated_at: :desc)
 
     # KPI counts for dashboard
     @parts_to_quote_count = PartsRequest.where(status: 'billing_notified').count

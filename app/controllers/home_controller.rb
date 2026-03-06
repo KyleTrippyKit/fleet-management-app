@@ -1,16 +1,26 @@
 # app/controllers/home_controller.rb
 class HomeController < ApplicationController
   skip_before_action :authenticate_user!, only: [:index]
+  layout :determine_layout
   
   def index
     if user_signed_in?
       redirect_to_role_dashboard
     else
-      redirect_to new_user_session_path
+      # For non-logged-in users, show the landing page
+      render :index
     end
   end
 
   private
+
+  def determine_layout
+    if user_signed_in?
+      'application'  # Use regular layout for redirects
+    else
+      false          # No layout for landing page (or you can create a landing layout)
+    end
+  end
 
   def redirect_to_role_dashboard
     if current_user.nil?

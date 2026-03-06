@@ -52,6 +52,7 @@ Rails.application.routes.draw do
     end
   end
 
+  get 'screensaver', to: 'screensaver#show'
   # ========================
   # PTSC Namespace - All PTSC-specific dashboards
   # ========================

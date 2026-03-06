@@ -29,6 +29,7 @@ class ApplicationController < ActionController::Base
   before_action :set_agency_theme
   before_action :prevent_real_payments_in_dev
   before_action :set_notification_counts, if: :user_signed_in?
+  before_action :set_screensaver_skip  # NEW: Skip screensaver on certain pages
   
   # Set Current context for POS transactions
   around_action :set_current_context
@@ -247,6 +248,13 @@ class ApplicationController < ActionController::Base
     Rails.logger.error "Error in set_notification_counts: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     # Don't re-raise - we want the app to continue even if notifications fail
+  end
+
+  # =====================================================
+  # SCREENSAVER SETUP - NEW
+  # =====================================================
+  def set_screensaver_skip
+    @skip_screensaver = params[:controller] == 'screensaver' || params[:controller] == 'home'
   end
 
   # =====================================================
