@@ -1,0 +1,291 @@
+<%# app/views/vmcott/procurement/dashboard/index.html.erb %>
+<%# Procurement Dashboard - RFQs and vendor communication %>
+<%# Renamed from billing to procurement %>
+
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">
+        <i class="bi bi-envelope-paper me-2"></i>
+        Procurement Dashboard
+      </h1>
+      <p class="text-muted">Manage RFQs, vendor quotations, and supplier communications</p>
+    </div>
+    <div class="col-auto">
+      <div class="btn-group">
+        <%= link_to "📋 All RFQs", vmcott_vendor_rfqs_path, class: "btn btn-outline-primary" %>
+        <%= link_to "🏢 Suppliers", suppliers_path, class: "btn btn-outline-primary" %>
+        <%= link_to "📦 POs", purchase_orders_path, class: "btn btn-primary" %>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards Row -->
+  <div class="row mb-4 g-3">
+    <!-- Parts to Quote -->
+    <div class="col-md-3">
+      <div class="card bg-primary text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Parts to Quote</h6>
+              <h2 class="mb-0"><%= @stats[:parts_to_quote] %></h2>
+            </div>
+            <i class="bi bi-file-text fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">Need RFQ creation</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active RFQs -->
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-dark-50 mb-1">Active RFQs</h6>
+              <h2 class="mb-0"><%= @stats[:active_rfqs] %></h2>
+            </div>
+            <i class="bi bi-send fs-1 opacity-50"></i>
+          </div>
+          <small class="text-dark-50">Awaiting vendor response</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quotes Received -->
+    <div class="col-md-3">
+      <div class="card bg-success text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Quotes Received</h6>
+              <h2 class="mb-0"><%= @stats[:quotes_received] %></h2>
+            </div>
+            <i class="bi bi-inboxes fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">Ready for finance review</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Forward -->
+    <div class="col-md-3">
+      <div class="card bg-info text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">To Forward</h6>
+              <h2 class="mb-0"><%= @stats[:pending_forward] %></h2>
+            </div>
+            <i class="bi bi-forward fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">Ready for finance</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Workflow Sections -->
+  <div class="row">
+    <!-- Left Column - Parts Requests -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i> Parts Requests Needing RFQ</h5>
+          <span class="badge bg-light text-primary"><%= @stats[:parts_to_quote] %> items</span>
+        </div>
+        <div class="card-body">
+          <% if @pending_parts_requests.any? %>
+            <div class="list-group">
+              <% @pending_parts_requests.each do |pr| %>
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-bold">
+                        <%= pr.part&.name || pr.custom_part_name %>
+                        <span class="badge bg-secondary ms-2">x<%= pr.quantity %></span>
+                      </div>
+                      <small class="text-muted d-block">
+                        Vehicle: <%= pr.inspection&.vehicle&.license_plate || 'N/A' %> • 
+                        <%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %>
+                      </small>
+                      <% if pr.part&.supplier %>
+                        <small class="text-muted">Preferred: <%= pr.part.supplier.name %></small>
+                      <% end %>
+                    </div>
+                    <div>
+                      <%= link_to "Create RFQ", 
+                          vmcott_procurement_new_rfq_path(parts_request_id: pr.id),
+                          class: "btn btn-sm btn-primary" %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-4">No parts requests needing RFQ at this time.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column - Active RFQs -->
+    <div class="col-lg-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-send me-2"></i> Active RFQs</h5>
+          <span class="badge bg-dark text-white"><%= @stats[:active_rfqs] %> RFQs</span>
+        </div>
+        <div class="card-body">
+          <% if @active_rfqs.any? %>
+            <div class="list-group">
+              <% @active_rfqs.each do |rfq| %>
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-bold">
+                        <%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %>
+                        <span class="badge bg-<%= rfq.status == 'sent' ? 'success' : 'secondary' %> ms-2">
+                          <%= rfq.status.humanize %>
+                        </span>
+                      </div>
+                      <small class="text-muted d-block">
+                        Sent: <%= rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %> • 
+                        Due: <%= rfq.due_date&.strftime("%b %d, %Y") %>
+                      </small>
+                      <small class="text-muted">
+                        Suppliers: <%= rfq.vendor_quotations.count %> • 
+                        Quotes received: <%= rfq.vendor_quotations.where(status: 'received').count %>
+                      </small>
+                    </div>
+                    <div>
+                      <% if rfq.status == 'draft' %>
+                        <%= link_to "Send RFQ", 
+                            vmcott_procurement_send_rfq_path(rfq.id),
+                            method: :post,
+                            class: "btn btn-sm btn-warning" %>
+                      <% else %>
+                        <%= link_to "Upload Quote", 
+                            vmcott_procurement_upload_quotation_path(rfq_id: rfq.id),
+                            class: "btn btn-sm btn-success" %>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-4">No active RFQs at this time.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quotations Received Section -->
+  <div class="row mt-2">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-inboxes me-2"></i> Quotations Received - Ready for Finance Review</h5>
+          <span class="badge bg-light text-success"><%= @stats[:quotes_received] %> quotations</span>
+        </div>
+        <div class="card-body">
+          <% if @quotations_received.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>RFQ #</th>
+                    <th>Part</th>
+                    <th>Quotes Received</th>
+                    <th>Price Range</th>
+                    <th>Lowest Bid</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @quotations_received.each do |rfq| %>
+                    <% 
+                      quotes = rfq.vendor_quotations.where(status: 'received')
+                      prices = quotes.map { |q| q.vendor_quotation_lines.sum(:total_price) }
+                      min_price = prices.min
+                      max_price = prices.max
+                    %>
+                    <tr>
+                      <td><strong><%= rfq.rfq_number %></strong></td>
+                      <td>
+                        <% rfq.vendor_rfq_items.each do |item| %>
+                          <div><%= item.part&.name || item.custom_part_name %> x<%= item.quantity %></div>
+                        <% end %>
+                      </td>
+                      <td>
+                        <span class="badge bg-info"><%= quotes.count %> quotes</span>
+                      </td>
+                      <td>
+                        <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                      </td>
+                      <td><strong class="text-success"><%= number_to_currency(min_price) %></strong></td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to "Forward to Finance", 
+                              vmcott_procurement_forward_to_finance_path(rfq_id: rfq.id),
+                              method: :post,
+                              class: "btn btn-success",
+                              data: { confirm: "Forward these quotations to finance team for review?" } %>
+                          <%= link_to "View", 
+                              vmcott_vendor_rfq_path(rfq),
+                              class: "btn btn-outline-secondary" %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-4">No quotations received at this time.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Stats Footer -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card bg-light">
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-md-3 col-6">
+              <h6 class="mb-0"><%= @stats[:parts_to_quote] %></h6>
+              <small class="text-muted">To Quote</small>
+            </div>
+            <div class="col-md-3 col-6">
+              <h6 class="mb-0"><%= @stats[:active_rfqs] %></h6>
+              <small class="text-muted">Active RFQs</small>
+            </div>
+            <div class="col-md-3 col-6">
+              <h6 class="mb-0"><%= @stats[:quotes_received] %></h6>
+              <small class="text-muted">Quotes Received</small>
+            </div>
+            <div class="col-md-3 col-6">
+              <h6 class="mb-0"><%= @stats[:pending_forward] %></h6>
+              <small class="text-muted">To Forward</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Auto-refresh every 5 minutes -->
+<script>
+  setTimeout(function() {
+    location.reload();
+  }, 300000);
+</script>

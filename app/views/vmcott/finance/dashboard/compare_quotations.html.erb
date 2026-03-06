@@ -1,114 +1,117 @@
 <%# app/views/vmcott/finance/dashboard/compare_quotations.html.erb %>
+<%# Compare vendor quotations and select the best option %>
+
 <div class="container-fluid py-4">
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Compare Quotations - RFQ #<%= @rfq.rfq_number %></h5>
-          <%= link_to "Back to Dashboard", vmcott_finance_dashboard_path, class: "btn btn-light btn-sm" %>
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📊 Compare Quotations</h2>
+    <%= link_to "← Back to Dashboard", vmcott_finance_dashboard_path, class: "btn btn-outline-secondary" %>
+  </div>
+
+  <!-- RFQ Info Card -->
+  <div class="card mb-4">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0">RFQ #<%= @rfq.rfq_number %></h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Created:</strong> <%= @rfq.created_at.strftime('%B %d, %Y') %></p>
+          <p><strong>Due Date:</strong> <%= @rfq.due_date&.strftime('%B %d, %Y') || 'Not set' %></p>
         </div>
-        <div class="card-body">
-          
-          <!-- RFQ Summary -->
-          <div class="alert alert-info mb-4">
-            <h6>RFQ Summary:</h6>
-            <table class="table table-sm mb-0">
+        <div class="col-md-6">
+          <p><strong>Quotations Received:</strong> <%= @quotations.count %></p>
+          <p><strong>Lowest Total:</strong> <span class="text-success">$<%= number_with_delimiter(@lowest_total&.[](:total) || 0) %></span></p>
+        </div>
+      </div>
+      <% if @rfq.notes.present? %>
+        <div class="alert alert-secondary mt-2">
+          <small><%= @rfq.notes %></small>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="card">
+    <div class="card-header bg-warning text-dark">
+      <h5 class="mb-0">Price Comparison by Supplier</h5>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Part</th>
+              <th>Qty</th>
+              <% @quotations.each do |quote| %>
+                <th class="text-center">
+                  <%= quote.supplier.name %><br>
+                  <small class="text-muted">Quote #<%= quote.id %></small>
+                </th>
+              <% end %>
+              <th>Best Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @parts_comparison.each do |part_name, data| %>
               <tr>
-                <th style="width: 15%;">Parts Requested:</th>
-                <td>
-                  <% @rfq.vendor_rfq_items.each do |item| %>
-                    <%= item.part&.name || item.custom_part_name || 'Unknown' %> (x<%= item.quantity %>)<br>
+                <td><strong><%= part_name %></strong></td>
+                <td class="text-center"><%= data[:quantity] %></td>
+                
+                <% @quotations.each do |quote| %>
+                  <% quote_data = data[:quotations].find { |q| q[:quotation_id] == quote.id } %>
+                  <td class="text-center <%= 'table-success' if quote_data && quote_data[:unit_price] == data[:quotations].min_by { |q| q[:unit_price] }&.[](:unit_price) %>">
+                    <% if quote_data %>
+                      $<%= number_with_delimiter(quote_data[:unit_price]) %><br>
+                      <small>Total: $<%= number_with_delimiter(quote_data[:unit_price] * data[:quantity]) %></small>
+                    <% else %>
+                      <span class="text-muted">—</span>
+                    <% end %>
+                  </td>
+                <% end %>
+                
+                <td class="text-center table-info">
+                  <% best = data[:quotations].min_by { |q| q[:unit_price] } %>
+                  <% if best %>
+                    <strong>$<%= number_with_delimiter(best[:unit_price]) %></strong><br>
+                    <small>(<%= best[:supplier_name] %>)</small>
                   <% end %>
                 </td>
               </tr>
-              <tr>
-                <th>Sent Date:</th>
-                <td><%= @rfq.sent_date&.strftime("%b %d, %Y") || 'N/A' %></td>
-              </tr>
-              <tr>
-                <th>Due Date:</th>
-                <td><%= @rfq.due_date&.strftime("%b %d, %Y") || 'N/A' %></td>
-              </tr>
-            </table>
-          </div>
-
-          <!-- Quotation Comparison Table -->
-          <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-              <thead class="table-light">
-                <tr>
-                  <th>Part</th>
-                  <th>Qty</th>
-                  <% @quotations.each do |quote| %>
-                    <th class="text-center">
-                      <%= quote.supplier&.name %>
-                      <br><small class="text-muted">Quote #<%= quote.id %></small>
-                    </th>
+            <% end %>
+          </tbody>
+          <tfoot class="table-secondary">
+            <tr>
+              <th colspan="2">Totals</th>
+              <% @quotations.each do |quote| %>
+                <th class="text-center <%= 'table-warning' if @supplier_totals[quote.supplier_id] && @supplier_totals[quote.supplier_id][:total] == @lowest_total[:total] %>">
+                  $<%= number_with_delimiter(@supplier_totals[quote.supplier_id][:total].round(2)) %>
+                  <% if @supplier_totals[quote.supplier_id][:total] == @lowest_total[:total] %>
+                    <br><span class="badge bg-success">Lowest</span>
                   <% end %>
-                </tr>
-              </thead>
-              <tbody>
-                <% @parts_comparison.each do |part_name, data| %>
-                  <tr>
-                    <td><strong><%= part_name %></strong></td>
-                    <td class="text-center"><%= data[:quantity] %></td>
-                    <% @quotations.each do |quote| %>
-                      <% quote_data = data[:quotations].find { |q| q[:quotation_id] == quote.id } %>
-                      <td class="text-center <%= 'table-success' if quote_data && quote_data[:unit_price] == data[:quotations].map { |q| q[:unit_price] }.min %>">
-                        <% if quote_data %>
-                          <%= number_to_currency(quote_data[:unit_price]) %>
-                          <br><small class="text-muted">Total: <%= number_to_currency(quote_data[:total_price]) %></small>
-                        <% else %>
-                          <span class="text-muted">—</span>
-                        <% end %>
-                      </td>
-                    <% end %>
-                  </tr>
-                <% end %>
-              </tbody>
-              <tfoot class="table-light">
-                <tr>
-                  <th colspan="2">Grand Total:</th>
-                  <% @quotations.each do |quote| %>
-                    <% total = @supplier_totals[quote.supplier_id] %>
-                    <th class="text-center <%= 'table-success' if total && total[:total] == @lowest_total[:total] %>">
-                      <%= number_to_currency(total[:total]) if total %>
-                    </th>
-                  <% end %>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          <!-- Selection Form -->
-          <div class="row mt-4">
-            <div class="col-12">
-              <h6>Select Best Quotation</h6>
-              <div class="row">
-                <% @quotations.each do |quote| %>
-                  <% total = @supplier_totals[quote.supplier_id] %>
-                  <div class="col-md-4 mb-3">
-                    <div class="card <%= 'border-success' if total && total[:total] == @lowest_total[:total] %>">
-                      <div class="card-body">
-                        <h6 class="card-title"><%= quote.supplier&.name %></h6>
-                        <p class="card-text">
-                          <strong>Total: <%= number_to_currency(total[:total]) if total %></strong>
-                        </p>
-                        <%= button_to "Select This Quote", 
-                              vmcott_finance_select_quotation_path(quotation_id: quote.id),
-                              method: :post,
-                              class: "btn btn-sm btn-primary",
-                              data: { confirm: "Create Purchase Order from this quotation?" } %>
-                      </div>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-          </div>
-
-        </div>
+                </th>
+              <% end %>
+              <th class="text-center">
+                <strong>$<%= number_with_delimiter(@lowest_total[:total].round(2)) %></strong>
+              </th>
+            </tr>
+          </tfoot>
+        </table>
       </div>
-    </div>
-  </div>
-</div>
+
+      <!-- Selection Form -->
+      <div class="mt-4">
+        <h5>Select Winning Supplier</h5>
+        <%= form_with url: vmcott_finance_select_quotation_path, local: true do |f| %>
+          <%= hidden_field_tag :rfq_id, @rfq.id %>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Choose Supplier</label>
+                <select name="quotation_id" class="form-select" required>
+                  <option value="">-- Select Supplier --</option>
+                  <% @supplier_totals.each do |supplier_id, data| %>
+                    <option value="<%= data[:quotation_id] %>">
+                      <%= data[:supplier_name] %> - $<%= number_with_delimiter(data[:total].round(2)

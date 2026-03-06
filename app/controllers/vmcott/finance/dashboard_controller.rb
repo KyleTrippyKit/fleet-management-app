@@ -1,4 +1,7 @@
 # app/controllers/vmcott/finance/dashboard_controller.rb
+# Finance & Accounting Controller - Handles quotations, PO approval, invoicing
+# Kept as 'finance' for backward compatibility with alias 'finance_accounting'
+
 class Vmcott::Finance::DashboardController < ApplicationController
   before_action :authenticate_user!
   before_action :require_finance
@@ -14,8 +17,7 @@ class Vmcott::Finance::DashboardController < ApplicationController
                                      .includes(:vehicle, :inspection_jobs, :parts_requests)
                                      .order(updated_at: :asc)
 
-    # TRACK 2: Vendor quotations ready for comparison (from billing)
-    # FIXED: Check for quotations with status 'received' instead of RFQ status
+    # TRACK 2: Vendor quotations ready for comparison (from procurement)
     @quotations_to_review = VendorRfq.where(finance_review_ready: true)
                                      .joins(:vendor_quotations)
                                      .where(vendor_quotations: { status: 'received' })
@@ -45,6 +47,25 @@ class Vmcott::Finance::DashboardController < ApplicationController
     @pending_po_approval_count = @pending_pos.count
     @ready_for_pickup_count = @ready_for_pickup.count
     @additional_work_count = @additional_work_needs_quote.count
+    
+    # Financial KPI
+    @total_pending_invoices = Invoice.where(status: ['pending', 'pending_payment']).count
+    @total_overdue_invoices = Invoice.overdue.count
+    @total_pending_amount = Invoice.where(status: ['pending', 'pending_payment']).sum(:amount)
+    @total_overdue_amount = Invoice.overdue.sum(:amount)
+    
+    # Stats for KPI cards
+    @stats = {
+      ready_for_quotation: @ready_for_quotation_count,
+      quotations_to_review: @quotations_to_review_count,
+      pending_po_approval: @pending_po_approval_count,
+      ready_for_pickup: @ready_for_pickup_count,
+      additional_work: @additional_work_count,
+      pending_invoices: @total_pending_invoices,
+      overdue_invoices: @total_overdue_invoices,
+      pending_amount: @total_pending_amount,
+      overdue_amount: @total_overdue_amount
+    }
   end
 
   def compare_quotations
@@ -93,8 +114,6 @@ class Vmcott::Finance::DashboardController < ApplicationController
     quotation = VendorQuotation.find(params[:quotation_id])
     rfq = quotation.vendor_rfq
     
-    # REMOVED: quotation.update(selected: true) - this column doesn't exist
-    
     # Update RFQ with awarded quotation
     rfq.update(
       awarded_vendor_quotation_id: quotation.id,
@@ -110,7 +129,7 @@ class Vmcott::Finance::DashboardController < ApplicationController
       status: 'pending_approval',
       notes: "Created from RFQ ##{rfq.rfq_number} for parts procurement",
       payment_terms: params[:payment_terms] || 'net_30',
-      created_by_id: current_user.id  # FIX: Added created_by_id
+      created_by_id: current_user.id
     )
     
     if po.save
@@ -133,10 +152,11 @@ class Vmcott::Finance::DashboardController < ApplicationController
                    )
       end
       
+      # Notify inventory manager
       if defined?(Notification)
-        User.where(role: 'parts_coordinator').each do |pc|
+        User.where(role: ['inventory_manager', 'admin']).each do |user|
           Notification.create(
-            user: pc,
+            user: user,
             title: "Purchase Order Created",
             message: "PO ##{po.po_number} has been created and needs ordering.",
             notifiable: po,
@@ -161,10 +181,11 @@ class Vmcott::Finance::DashboardController < ApplicationController
         approved_by_id: current_user.id
       )
       
+      # Notify inventory manager
       if defined?(Notification)
-        User.where(role: 'parts_coordinator').each do |pc|
+        User.where(role: ['inventory_manager', 'admin']).each do |user|
           Notification.create(
-            user: pc,
+            user: user,
             title: "Purchase Order Approved",
             message: "PO ##{po.po_number} has been approved and is ready to order.",
             notifiable: po,
@@ -189,14 +210,15 @@ class Vmcott::Finance::DashboardController < ApplicationController
         rejected_by_id: current_user.id
       )
       
+      # Notify procurement team
       if defined?(Notification)
-        User.where(role: 'billing').each do |billing_user|
+        User.where(role: ['procurement', 'admin']).each do |user|
           Notification.create(
-            user: billing_user,
+            user: user,
             title: "Purchase Order Rejected",
             message: "PO ##{po.po_number} was rejected. Reason: #{params[:rejection_reason]}",
             notifiable: po,
-            link: vmcott_billing_dashboard_path
+            link: vmcott_procurement_dashboard_path
           )
         end
       end
@@ -332,6 +354,7 @@ class Vmcott::Finance::DashboardController < ApplicationController
       
       # Send notifications
       if defined?(Notification)
+        # Notify admin
         User.where(role: 'admin').each do |admin|
           Notification.create(
             user: admin,
@@ -341,6 +364,20 @@ class Vmcott::Finance::DashboardController < ApplicationController
             link: invoice_path(invoice)
           )
         end
+        
+        # Notify agency (PTSC) finance team
+        agency = inspection.vehicle.agency
+        if agency && agency.code == 'PTSC'
+          User.where(agency_id: agency.id, role: ['finance', 'fleet_manager']).each do |agency_user|
+            Notification.create(
+              user: agency_user,
+              title: "New Invoice from VMCOTT",
+              message: "Invoice ##{invoice.invoice_number} for #{inspection.vehicle.license_plate} is ready for review.",
+              notifiable: invoice,
+              link: invoice_path(invoice)
+            )
+          end
+        end
       end
       
       redirect_to invoice_path(invoice), notice: "Invoice created successfully referencing PO ##{agency_po.po_number}."
@@ -349,11 +386,49 @@ class Vmcott::Finance::DashboardController < ApplicationController
     end
   end
 
+  # Financial Reports
+  def reports
+    @start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : 30.days.ago.to_date
+    @end_date = params[:end_date].present? ? Date.parse(params[:end_date]) : Date.today
+    
+    @invoices = Invoice.where(created_at: @start_date.beginning_of_day..@end_date.end_of_day)
+    @total_invoiced = @invoices.sum(:amount)
+    @total_paid = @invoices.where(status: 'paid').sum(:amount)
+    @total_pending = @invoices.where(status: ['pending', 'pending_payment']).sum(:amount)
+    
+    @invoices_by_agency = @invoices.joins(vehicle: :agency)
+                                   .group('agencies.code')
+                                   .sum(:amount)
+    
+    @monthly_totals = @invoices.group_by_month(:created_at).sum(:amount)
+  end
+
+  def aging_report
+    @invoices = Invoice.includes(vehicle: :agency)
+                       .where(status: ['pending', 'pending_payment', 'overdue'])
+                       .order(due_date: :asc)
+    
+    @current = @invoices.where('due_date > ?', Date.today)
+    @overdue_1_30 = @invoices.where(due_date: (Date.today - 30.days)..Date.today)
+    @overdue_31_60 = @invoices.where(due_date: (Date.today - 60.days)..(Date.today - 31.days))
+    @overdue_61_90 = @invoices.where(due_date: (Date.today - 90.days)..(Date.today - 61.days))
+    @overdue_90_plus = @invoices.where('due_date < ?', Date.today - 90.days)
+    
+    @aging_summary = {
+      current: @current.sum(:amount),
+      overdue_1_30: @overdue_1_30.sum(:amount),
+      overdue_31_60: @overdue_31_60.sum(:amount),
+      overdue_61_90: @overdue_61_90.sum(:amount),
+      overdue_90_plus: @overdue_90_plus.sum(:amount),
+      total: @invoices.sum(:amount)
+    }
+  end
+
   private
 
   def require_finance
     unless current_user.finance? || current_user.admin?
-      redirect_to root_path, alert: "Access denied. Finance privileges required."
+      redirect_to root_path, alert: "Access denied. Finance & Accounting privileges required."
     end
   end
 
@@ -361,7 +436,6 @@ class Vmcott::Finance::DashboardController < ApplicationController
     rfq = VendorRfq.find_by(id: params[:rfq_id])
     return unless rfq
     
-    # FIXED: Check for received quotations instead of rfq status
     unless rfq.vendor_quotations.where(status: 'received').any?
       redirect_to vmcott_finance_dashboard_path, 
                   alert: "This RFQ has no quotations received yet."

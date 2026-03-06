@@ -5,12 +5,13 @@ module UsersHelper
     when "VMCOTT"
       [
         ["Admin", "admin"],
-        ["Billing Officer", "billing"],
-        ["Finance Officer", "finance"],
-        ["Receptionist", "receptionist"],
+        ["Security Gate Officer", "security_gate_officer"],  # ← UPDATE THIS
         ["Inspector", "inspector"],
-        ["Parts Coordinator", "parts_coordinator"],
+        ["Inventory Manager", "inventory_manager"],          # ← UPDATE THIS
+        ["Procurement", "procurement"],                      # ← UPDATE THIS
+        ["Finance Officer", "finance"],
         ["Mechanic", "mechanic"],
+        ["Workshop Supervisor", "workshop_supervisor"],
         ["VMCOTT Staff", "vmcott_staff"],
         ["Clerk", "clerk"],
         ["Supervisor", "supervisor"]
@@ -42,11 +43,19 @@ module UsersHelper
     case role
     when "admin"
       "bg-danger"
-    when "finance", "billing"
+    when "finance"
+      "bg-success"
+    when "procurement", "billing"  # Keep backward compatibility
       "bg-success"
     when "fleet_manager", "maintenance_supervisor"
       "bg-primary"
-    when "receptionist", "inspector", "parts_coordinator", "mechanic"
+    when "security_gate_officer", "receptionist"  # Keep backward compatibility
+      "bg-info"
+    when "inspector"
+      "bg-info"
+    when "inventory_manager", "parts_coordinator"  # Keep backward compatibility
+      "bg-info"
+    when "mechanic"
       "bg-info"
     when "driver"
       "bg-warning"

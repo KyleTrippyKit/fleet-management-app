@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1076,6 +1076,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
     t.datetime "check_in_time", null: false
     t.datetime "check_out_time"
     t.string "company"
+    t.bigint "condition_report_id"
+    t.string "condition_status", default: "pending"
     t.string "contact_number"
     t.datetime "created_at", null: false
     t.string "driver_name"
@@ -1098,6 +1100,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
     t.index ["agency_id"], name: "index_reception_logs_on_agency_id"
     t.index ["check_in_time", "status"], name: "index_reception_logs_on_check_in_time_and_status"
     t.index ["check_in_time"], name: "index_reception_logs_on_check_in_time"
+    t.index ["condition_report_id"], name: "index_reception_logs_on_condition_report_id"
     t.index ["inspected_at"], name: "index_reception_logs_on_inspected_at"
     t.index ["inspector_id"], name: "index_reception_logs_on_inspector_id"
     t.index ["purchase_order_id"], name: "index_reception_logs_on_purchase_order_id"
@@ -1318,6 +1321,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
     t.index ["make", "model"], name: "index_vehicle_catalog_entries_on_make_and_model", unique: true
     t.index ["make"], name: "index_vehicle_catalog_entries_on_make"
     t.index ["model"], name: "index_vehicle_catalog_entries_on_model"
+  end
+
+  create_table "vehicle_condition_reports", force: :cascade do |t|
+    t.jsonb "acknowledgment", default: {}
+    t.bigint "client_id"
+    t.string "client_type"
+    t.jsonb "condition_data", default: {}
+    t.datetime "created_at", null: false
+    t.integer "fuel_level", null: false
+    t.integer "odometer", null: false
+    t.bigint "reception_log_id"
+    t.bigint "security_officer_id", null: false
+    t.datetime "signed_at"
+    t.string "status", default: "draft"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.index ["acknowledgment"], name: "index_vehicle_condition_reports_on_acknowledgment", using: :gin
+    t.index ["client_type", "client_id"], name: "index_vehicle_condition_reports_on_client"
+    t.index ["condition_data"], name: "index_vehicle_condition_reports_on_condition_data", using: :gin
+    t.index ["reception_log_id"], name: "index_vehicle_condition_reports_on_reception_log_id"
+    t.index ["security_officer_id"], name: "index_vehicle_condition_reports_on_security_officer_id"
+    t.index ["signed_at"], name: "index_vehicle_condition_reports_on_signed_at"
+    t.index ["status"], name: "index_vehicle_condition_reports_on_status"
+    t.index ["vehicle_id", "created_at"], name: "index_vehicle_condition_reports_on_vehicle_id_and_created_at"
+    t.index ["vehicle_id"], name: "index_vehicle_condition_reports_on_vehicle_id"
   end
 
   create_table "vehicle_documents", force: :cascade do |t|
@@ -1620,6 +1648,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
   add_foreign_key "quotations", "vehicles"
   add_foreign_key "reception_logs", "purchase_orders"
   add_foreign_key "reception_logs", "users", column: "inspector_id"
+  add_foreign_key "reception_logs", "vehicle_condition_reports", column: "condition_report_id"
   add_foreign_key "rfq_line_items", "rfqs"
   add_foreign_key "rfqs", "agencies", column: "processing_agency_id"
   add_foreign_key "rfqs", "agencies", column: "requesting_agency_id"
@@ -1631,6 +1660,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_103209) do
   add_foreign_key "transactions", "vehicles"
   add_foreign_key "trips", "drivers"
   add_foreign_key "trips", "vehicles"
+  add_foreign_key "vehicle_condition_reports", "reception_logs"
+  add_foreign_key "vehicle_condition_reports", "users", column: "security_officer_id"
+  add_foreign_key "vehicle_condition_reports", "vehicles"
   add_foreign_key "vehicle_documents", "vehicles"
   add_foreign_key "vehicle_statuses", "users", column: "created_by_id"
   add_foreign_key "vehicle_statuses", "vehicles"

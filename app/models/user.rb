@@ -1,6 +1,11 @@
-# Complete revised version with all 5 workflow roles and Finance role
-# Now includes separate Billing and Finance roles
-# FIXED: Removed invalid associations that don't exist in the database
+# app/models/user.rb
+# Complete revised version with renamed workflow roles:
+# - receptionist → security_gate_officer
+# - parts_coordinator → inventory_manager
+# - billing → procurement
+# - inspector kept as inspector
+# - mechanic kept as mechanic
+# - finance kept as finance (finance_accounting for display)
 
 class User < ApplicationRecord
   include RoleFindable  # Add this line to include the concern
@@ -19,16 +24,6 @@ class User < ApplicationRecord
   has_many :created_purchase_orders, class_name: "PurchaseOrder", foreign_key: :created_by_id
   has_many :approved_purchase_orders, class_name: "PurchaseOrder", foreign_key: :approved_by_id
   
-  # FIXED: Removed associations that don't exist in the database
-  # These were causing the PG::UndefinedColumn error when deleting users
-  # has_many :reception_logs, foreign_key: :receptionist_id, dependent: :nullify
-  # has_many :inspections, foreign_key: :inspector_id, dependent: :nullify
-  # has_many :inspection_jobs, foreign_key: :assigned_mechanic_id, dependent: :nullify
-  # has_many :assigned_internal_pos, class_name: "InternalPos", foreign_key: :assigned_to_id, dependent: :nullify
-
-  # If you need these associations, you'll need to add the foreign key columns to the respective tables first
-  # For now, we'll keep them commented out to prevent errors
-
   # ========================
   # ROLE (Rails 8 safe, simple)
   # ========================
@@ -45,18 +40,22 @@ class User < ApplicationRecord
   ROLE_VMCOTT_STAFF          = "vmcott_staff"
   
   # ========================
-  # NEW WORKFLOW ROLES (4 Roles)
+  # EXISTING WORKFLOW ROLES (keep as is)
   # ========================
-  ROLE_RECEPTIONIST          = "receptionist"
   ROLE_INSPECTOR             = "inspector"
-  ROLE_PARTS_COORDINATOR     = "parts_coordinator"
   ROLE_MECHANIC              = "mechanic"
   
   # ========================
-  # NEW SEPARATE BILLING & FINANCE ROLES
+  # RENAMED WORKFLOW ROLES (NEW NAMES)
   # ========================
-  ROLE_BILLING               = "billing"
-  ROLE_FINANCE_VMCOTT        = "finance"  # Already exists but now separate from billing
+  ROLE_SECURITY_GATE_OFFICER = "security_gate_officer"  # was receptionist
+  ROLE_INVENTORY_MANAGER      = "inventory_manager"      # was parts_coordinator
+  ROLE_PROCUREMENT            = "procurement"            # was billing
+
+  # Keep old constants for backward compatibility during transition
+  ROLE_RECEPTIONIST          = ROLE_SECURITY_GATE_OFFICER
+  ROLE_PARTS_COORDINATOR     = ROLE_INVENTORY_MANAGER
+  ROLE_BILLING               = ROLE_PROCUREMENT
 
   ROLES = [
     ROLE_CLERK,
@@ -68,12 +67,13 @@ class User < ApplicationRecord
     ROLE_MAINTENANCE,
     ROLE_DRIVER,
     ROLE_VMCOTT_STAFF,
-    # NEW ROLES
-    ROLE_RECEPTIONIST,
+    # EXISTING ROLES
     ROLE_INSPECTOR,
-    ROLE_PARTS_COORDINATOR,
     ROLE_MECHANIC,
-    ROLE_BILLING
+    # RENAMED ROLES
+    ROLE_SECURITY_GATE_OFFICER,
+    ROLE_INVENTORY_MANAGER,
+    ROLE_PROCUREMENT
   ].freeze
 
   # Optional: normalize role assignment
@@ -93,12 +93,17 @@ class User < ApplicationRecord
       maintenance: ROLE_MAINTENANCE,
       driver: ROLE_DRIVER,
       vmcott_staff: ROLE_VMCOTT_STAFF,
-      # NEW ROLES
-      receptionist: ROLE_RECEPTIONIST,
+      # EXISTING ROLES
       inspector: ROLE_INSPECTOR,
-      parts_coordinator: ROLE_PARTS_COORDINATOR,
       mechanic: ROLE_MECHANIC,
-      billing: ROLE_BILLING
+      # RENAMED ROLES
+      security_gate_officer: ROLE_SECURITY_GATE_OFFICER,
+      inventory_manager: ROLE_INVENTORY_MANAGER,
+      procurement: ROLE_PROCUREMENT,
+      # Keep old names for backward compatibility
+      receptionist: ROLE_SECURITY_GATE_OFFICER,
+      parts_coordinator: ROLE_INVENTORY_MANAGER,
+      billing: ROLE_PROCUREMENT
     }
   end
 
@@ -116,16 +121,16 @@ class User < ApplicationRecord
   # ========================
   def role_name
     case self[:role]
-    when ROLE_BILLING
-      "Billing Officer"
+    when ROLE_PROCUREMENT
+      "Procurement Officer"
     when ROLE_FINANCE
-      "Finance Officer"
-    when ROLE_RECEPTIONIST
-      "Receptionist"
+      "Finance & Accounting"
+    when ROLE_SECURITY_GATE_OFFICER
+      "Security Gate Officer"
+    when ROLE_INVENTORY_MANAGER
+      "Inventory Manager"
     when ROLE_INSPECTOR
       "Inspector"
-    when ROLE_PARTS_COORDINATOR
-      "Parts Coordinator"
     when ROLE_MECHANIC
       "Mechanic"
     else
@@ -170,23 +175,21 @@ class User < ApplicationRecord
     self[:role] == ROLE_DRIVER || self[:role] == "operator"
   end
 
+  # UPDATED: Exclude users with specific roles from vmcott_staff
   def vmcott_staff?
+    # If the user has any specific role, they are NOT just a generic staff member
+    return false if security_gate_officer? || inspector? || inventory_manager? || 
+                    mechanic? || procurement? || finance? || fleet_manager? || 
+                    maintenance_supervisor?
+    
     self[:role] == ROLE_VMCOTT_STAFF || (agency&.central? && !admin?) || false
   end
 
   # ========================
-  # NEW WORKFLOW ROLE CHECKS
+  # EXISTING ROLE CHECKS (keep as is)
   # ========================
-  def receptionist?
-    self[:role] == ROLE_RECEPTIONIST || vmcott_staff? || admin?
-  end
-
   def inspector?
     self[:role] == ROLE_INSPECTOR || maintenance_supervisor? || vmcott_staff? || admin?
-  end
-
-  def parts_coordinator?
-    self[:role] == ROLE_PARTS_COORDINATOR || vmcott_staff? || admin?
   end
 
   def mechanic?
@@ -194,10 +197,28 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # NEW BILLING & FINANCE ROLE CHECKS
+  # RENAMED ROLE CHECKS
   # ========================
-  def billing?
-    self[:role] == ROLE_BILLING || admin? || finance?
+  def security_gate_officer?
+    self[:role] == ROLE_SECURITY_GATE_OFFICER || vmcott_staff? || admin?
+  end
+  alias_method :receptionist?, :security_gate_officer?  # Keep old method for backward compatibility
+
+  def inventory_manager?
+    self[:role] == ROLE_INVENTORY_MANAGER || vmcott_staff? || admin?
+  end
+  alias_method :parts_coordinator?, :inventory_manager?  # Keep old method for backward compatibility
+
+  def procurement?
+    self[:role] == ROLE_PROCUREMENT || vmcott_staff? || admin?
+  end
+  alias_method :billing?, :procurement?  # Keep old method for backward compatibility
+
+  # ========================
+  # FINANCE ACCOUNTING (display only, keep 'finance' for logic)
+  # ========================
+  def finance_accounting?
+    finance? || admin?
   end
 
   # ========================
@@ -223,7 +244,7 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # SYSTEM USER METHOD (Added for PaymentAudit)
+  # SYSTEM USER METHOD
   # ========================
   def self.system_user
     find_by(email: "system@example.com") ||
@@ -287,19 +308,19 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # DASHBOARD PATH HELPERS
+  # DASHBOARD PATH HELPERS - FIXED ORDER (specific roles first)
   # ========================
   def role_dashboard_path
-    if billing?
-      "/vmcott/billing/dashboard"
+    if procurement?
+      "/vmcott/procurement/dashboard"
     elsif finance?
       "/vmcott/finance/dashboard"
-    elsif receptionist?
-      "/vmcott/receptionist/dashboard"
+    elsif security_gate_officer?
+      "/vmcott/security_gate_officer/dashboard"
     elsif inspector?
       "/vmcott/inspector/dashboard"
-    elsif parts_coordinator?
-      "/vmcott/parts_coordinator/dashboard"
+    elsif inventory_manager?
+      "/vmcott/inventory_manager/dashboard"
     elsif mechanic?
       "/vmcott/mechanic/dashboard"
     elsif vmcott_staff?
@@ -319,15 +340,15 @@ class User < ApplicationRecord
   # POS PERMISSIONS
   # ========================
   def can_access_pos?
-    clerk? || supervisor? || finance? || admin? || fleet_manager? || ptsc_staff? || billing?
+    clerk? || supervisor? || finance? || admin? || fleet_manager? || ptsc_staff? || procurement?
   end
 
   def can_open_register?
-    clerk? || finance? || admin? || supervisor? || fleet_manager? || billing?
+    clerk? || finance? || admin? || supervisor? || fleet_manager? || procurement?
   end
 
   def can_close_register?
-    clerk? || finance? || admin? || supervisor? || fleet_manager? || billing?
+    clerk? || finance? || admin? || supervisor? || fleet_manager? || procurement?
   end
 
   def can_void_transactions?
@@ -347,7 +368,7 @@ class User < ApplicationRecord
   end
 
   def can_manage_invoices?
-    finance? || admin? || billing?
+    finance? || admin? || procurement?
   end
 
   # Enhanced POS permissions with role-based fallback
@@ -382,34 +403,34 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # NEW INVOICE PERMISSIONS (Added for new controller)
+  # INVOICE PERMISSIONS
   # ========================
   def can_create_invoices?
-    vmcott_staff? || admin? || finance? || parts_coordinator? || inspector? || billing?
+    vmcott_staff? || admin? || finance? || inventory_manager? || inspector? || procurement?
   end
 
   def can_edit_invoices?
-    vmcott_staff? || admin? || finance? || parts_coordinator? || billing?
+    vmcott_staff? || admin? || finance? || inventory_manager? || procurement?
   end
 
   def can_review_invoices?
     ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? ||
       health_staff? || education_staff? || other_agency_staff? ||
-      fleet_manager? || finance? || admin? || inspector? || billing?
+      fleet_manager? || finance? || admin? || inspector? || procurement?
   end
 
   def can_pay_invoices?
-    finance? || admin? || parts_coordinator? || billing?
+    finance? || admin? || inventory_manager? || procurement?
   end
 
   def can_dispute_invoices?
     ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? ||
       health_staff? || education_staff? || other_agency_staff? ||
-      fleet_manager? || admin? || inspector? || billing?
+      fleet_manager? || admin? || inspector? || procurement?
   end
 
   def can_view_invoice_reports?
-    finance? || fleet_manager? || admin? || parts_coordinator? || billing?
+    finance? || fleet_manager? || admin? || inventory_manager? || procurement?
   end
 
   def can_sync_quickbooks?
@@ -421,23 +442,23 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # NEW QUOTATION PERMISSIONS (Added for quotations controller)
+  # QUOTATION PERMISSIONS
   # ========================
   def can_manage_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || vmcott_staff? || inventory_manager? || procurement?
   end
 
   def can_view_quotations?
     finance? || admin? || fleet_manager? || maintenance_supervisor? ||
-      ptsc_staff? || ttps_staff? || ttdf_staff? || parts_coordinator? || billing?
+      ptsc_staff? || ttps_staff? || ttdf_staff? || inventory_manager? || procurement?
   end
 
   def can_create_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || vmcott_staff? || inventory_manager? || procurement?
   end
 
   def can_edit_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || vmcott_staff? || inventory_manager? || procurement?
   end
 
   def can_delete_quotations?
@@ -445,27 +466,27 @@ class User < ApplicationRecord
   end
 
   def can_accept_quotations?
-    finance? || admin? || parts_coordinator?
+    finance? || admin? || inventory_manager?
   end
 
   def can_reject_quotations?
-    finance? || admin? || fleet_manager? || parts_coordinator?
+    finance? || admin? || fleet_manager? || inventory_manager?
   end
 
   def can_convert_quotations_to_po?
-    finance? || admin? || parts_coordinator?
+    finance? || admin? || inventory_manager?
   end
 
   def can_export_quotations?
-    finance? || admin? || fleet_manager? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || inventory_manager? || procurement?
   end
 
   def can_view_quotation_reports?
-    finance? || admin? || fleet_manager? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || inventory_manager? || procurement?
   end
 
   def can_send_quotations?
-    finance? || admin? || fleet_manager? || vmcott_staff? || parts_coordinator? || billing?
+    finance? || admin? || fleet_manager? || vmcott_staff? || inventory_manager? || procurement?
   end
 
   # ========================
@@ -516,7 +537,7 @@ class User < ApplicationRecord
   end
 
   def agency_invoices
-    if admin? || finance? || fleet_manager? || parts_coordinator? || billing?
+    if admin? || finance? || fleet_manager? || inventory_manager? || procurement?
       Invoice.all
     elsif vmcott_staff?
       Invoice.all
@@ -533,7 +554,7 @@ class User < ApplicationRecord
   end
 
   def agency_quotations
-    if admin? || finance? || fleet_manager? || parts_coordinator? || billing?
+    if admin? || finance? || fleet_manager? || inventory_manager? || procurement?
       Quotation.all
     elsif vmcott_staff?
       Quotation.all
@@ -548,7 +569,7 @@ class User < ApplicationRecord
   # DASHBOARD PERMISSIONS
   # ========================
   def can_see_financial_data?
-    finance? || fleet_manager? || admin? || parts_coordinator? || billing?
+    finance? || fleet_manager? || admin? || inventory_manager? || procurement?
   end
 
   def can_see_maintenance_data?
@@ -560,7 +581,7 @@ class User < ApplicationRecord
   end
 
   def can_see_analytics?
-    fleet_manager? || admin? || parts_coordinator? || inspector? || billing?
+    fleet_manager? || admin? || inventory_manager? || inspector? || procurement?
   end
 
   def can_manage_drivers?
@@ -593,11 +614,11 @@ class User < ApplicationRecord
   # CONVENIENCE METHODS
   # ========================
   def is_agency_staff?
-    !vmcott_staff? && !admin? && !finance? && !maintenance_supervisor? && !billing?
+    !vmcott_staff? && !admin? && !finance? && !maintenance_supervisor? && !procurement?
   end
 
   def is_service_provider?
-    vmcott_staff? || billing? || finance?
+    vmcott_staff? || procurement? || finance?
   end
 
   def is_subordinate_agency?
@@ -605,7 +626,7 @@ class User < ApplicationRecord
   end
 
   def accessible_agencies
-    if admin? || finance? || fleet_manager? || parts_coordinator? || billing?
+    if admin? || finance? || fleet_manager? || inventory_manager? || procurement?
       Agency.all
     elsif agency.present?
       [agency]
@@ -615,7 +636,7 @@ class User < ApplicationRecord
   end
 
   def can_access_agency?(agency_to_check)
-    return true if admin? || finance? || fleet_manager? || parts_coordinator? || billing?
+    return true if admin? || finance? || fleet_manager? || inventory_manager? || procurement?
     agency == agency_to_check
   end
 
@@ -628,7 +649,7 @@ class User < ApplicationRecord
   end
 
   def can_access_vehicle?(vehicle)
-    return true if admin? || finance? || fleet_manager? || inspector? || mechanic? || parts_coordinator? || billing?
+    return true if admin? || finance? || fleet_manager? || inspector? || mechanic? || inventory_manager? || procurement?
     return false unless agency && vehicle.agency_id
 
     if driver?
@@ -783,21 +804,21 @@ class User < ApplicationRecord
     if admin?
       "System Administrator - Full access to all features"
     elsif finance?
-      "Finance Manager - Quotations, PO approval, invoicing, and financial reports"
-    elsif billing?
-      "Billing Officer - RFQs and vendor communication"
+      "Finance & Accounting - Quotations, PO approval, invoicing, and financial reports"
+    elsif procurement?
+      "Procurement Officer - RFQs and vendor communication"
     elsif fleet_manager?
       "Fleet Manager - Vehicles, maintenance, drivers, and quotations"
     elsif maintenance_supervisor?
       "Maintenance Supervisor - Vehicle maintenance and scheduling"
     elsif vmcott_staff?
       "VMCOTT Staff - Service provider with quotation and invoice creation"
-    elsif receptionist?
-      "Receptionist - Vehicle reception and check-in"
+    elsif security_gate_officer?
+      "Security Gate Officer - Vehicle reception and check-in"
     elsif inspector?
       "Inspector - Vehicle diagnostics and QC inspection"
-    elsif parts_coordinator?
-      "Parts Coordinator - Inventory, RFQs, and vendor management"
+    elsif inventory_manager?
+      "Inventory Manager - Parts inventory, RFQs, and vendor management"
     elsif mechanic?
       "Mechanic - Vehicle repairs and maintenance"
     elsif ptsc_staff? || ttps_staff? || ttdf_staff? || fire_staff? || health_staff? || education_staff?
@@ -822,15 +843,15 @@ class User < ApplicationRecord
 
   # PTSC-specific POS methods
   def can_process_ptsc_transactions?
-    ptsc_staff? || finance? || admin? || fleet_manager? || billing?
+    ptsc_staff? || finance? || admin? || fleet_manager? || procurement?
   end
 
   def can_manage_fare_rules?
-    fleet_manager? || finance? || admin? || ptsc_staff? || billing?
+    fleet_manager? || finance? || admin? || ptsc_staff? || procurement?
   end
 
   def can_view_route_reports?
-    ptsc_staff? || fleet_manager? || finance? || admin? || billing?
+    ptsc_staff? || fleet_manager? || finance? || admin? || procurement?
   end
 
   # Current user context for callbacks

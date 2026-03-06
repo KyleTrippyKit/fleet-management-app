@@ -1,0 +1,189 @@
+<%# app/views/vmcott/security_gate_officer/reception_logs/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-receipt me-2"></i>
+      Check-in Details
+    </h1>
+    <div>
+      <%= link_to "← Back", vmcott_security_gate_officer_reception_logs_path, class: "btn btn-outline-secondary me-2" %>
+      <%= link_to "Dashboard", vmcott_security_gate_officer_dashboard_path, class: "btn btn-outline-primary" %>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Main Details -->
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Vehicle Information</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th width="40%">License Plate:</th>
+                  <td><strong><%= @log.vehicle&.license_plate || 'N/A' %></strong></td>
+                </tr>
+                <tr>
+                  <th>Make/Model:</th>
+                  <td><%= @log.vehicle&.make %> <%= @log.vehicle&.model %></td>
+                </tr>
+                <tr>
+                  <th>Year:</th>
+                  <td><%= @log.vehicle&.year_of_manufacture %></td>
+                </tr>
+                <tr>
+                  <th>Color:</th>
+                  <td><%= @log.vehicle&.color %></td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-md-6">
+              <table class="table table-sm">
+                <tr>
+                  <th width="40%">Agency:</th>
+                  <td><span class="badge bg-primary"><%= @log.vehicle&.agency&.code || 'Public' %></span></td>
+                </tr>
+                <tr>
+                  <th>Check-in Time:</th>
+                  <td><%= @log.received_at.strftime("%B %d, %Y at %I:%M %p") %></td>
+                </tr>
+                <tr>
+                  <th>Driver:</th>
+                  <td><%= @log.driver_name %></td>
+                </tr>
+                <tr>
+                  <th>ID Number:</th>
+                  <td><%= @log.id_number.presence || 'Not provided' %></td>
+                </tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Condition Report Card -->
+      <% if @log.condition_report %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-header <%= @log.condition_report.exterior_damage? ? 'bg-warning' : 'bg-success' %> text-white">
+            <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i> Condition Report</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="fw-bold">Quick Stats</h6>
+                <table class="table table-sm">
+                  <tr>
+                    <th>Fuel Level:</th>
+                    <td><%= @log.condition_report.fuel_level %>%</td>
+                  </tr>
+                  <tr>
+                    <th>Odometer:</th>
+                    <td><%= @log.condition_report.odometer %> km</td>
+                  </tr>
+                  <tr>
+                    <th>Signed:</th>
+                    <td><%= @log.condition_report.signed_at&.strftime("%I:%M %p") || 'N/A' %></td>
+                  </tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <h6 class="fw-bold">Condition Summary</h6>
+                <ul class="list-unstyled">
+                  <li><strong>Exterior:</strong> <%= @log.condition_report.exterior_damage_summary %></li>
+                  <li><strong>Interior:</strong> <%= @log.condition_report.interior_summary %></li>
+                  <li><strong>Tires:</strong> <%= @log.condition_report.tire_status_display %></li>
+                  <li><strong>Warnings:</strong> <%= @log.condition_report.warning_lights_display %></li>
+                </ul>
+              </div>
+            </div>
+
+            <% if @log.condition_report.additional_notes.present? %>
+              <div class="mt-3 p-3 bg-light rounded">
+                <strong>Notes:</strong><br>
+                <%= @log.condition_report.additional_notes %>
+              </div>
+            <% end %>
+
+            <div class="mt-3 text-end">
+              <%= link_to "View Full Report", vmcott_vehicle_condition_report_path(@log.condition_report), 
+                  class: "btn btn-outline-primary btn-sm" %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-md-4">
+      <!-- Driver Signature Card -->
+      <% if @log.condition_report&.signature_data.present? %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-pen me-2"></i> Driver Signature</h5>
+          </div>
+          <div class="card-body text-center">
+            <img src="<%= @log.condition_report.signature_data %>" style="max-width: 100%; max-height: 150px; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+            <p class="mt-2 mb-0">
+              <strong><%= @log.condition_report.driver_name %></strong><br>
+              <small class="text-muted">Signed at <%= @log.condition_report.signed_at&.strftime("%I:%M %p") %></small>
+            </p>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Photos Card -->
+      <% if @log.condition_report&.condition_photos&.attached? %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-camera me-2"></i> Photos</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-2">
+              <% @log.condition_report.condition_photos.each do |photo| %>
+                <div class="col-6">
+                  <%= link_to photo, target: "_blank" do %>
+                    <%= image_tag photo, class: "img-fluid rounded", style: "width: 100%; height: 100px; object-fit: cover;" %>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Status Card -->
+      <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i> Status</h5>
+        </div>
+        <div class="card-body">
+          <ul class="list-unstyled">
+            <li class="mb-2">
+              <strong>Check-in:</strong><br>
+              <span class="badge bg-success">Completed</span>
+            </li>
+            <li class="mb-2">
+              <strong>Inspection:</strong><br>
+              <% if @log.inspected? %>
+                <span class="badge bg-success">Completed</span>
+              <% else %>
+                <span class="badge bg-warning">Pending</span>
+              <% end %>
+            </li>
+            <li class="mb-2">
+              <strong>Condition Report:</strong><br>
+              <% if @log.condition_report %>
+                <span class="badge bg-success">Completed</span>
+              <% else %>
+                <span class="badge bg-danger">Missing</span>
+              <% end %>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

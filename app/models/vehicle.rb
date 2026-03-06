@@ -1,5 +1,6 @@
 # app/models/vehicle.rb
 # COMPLETE REVISED VERSION with comprehensive location fix and vehicle_statuses association
+# UPDATED: Added vehicle_condition_reports association for Security Gate Officer
 
 class Vehicle < ApplicationRecord
   has_many :alerts, dependent: :destroy
@@ -20,7 +21,8 @@ class Vehicle < ApplicationRecord
   has_many :maintenances, dependent: :destroy
   has_many :trips, dependent: :destroy
   has_many :vehicle_documents, dependent: :destroy
-  has_many :vehicle_statuses, dependent: :destroy  # <-- ADDED THIS LINE
+  has_many :vehicle_statuses, dependent: :destroy
+  has_many :vehicle_condition_reports, dependent: :nullify  # <-- ADDED THIS LINE for Security Gate Officer check-ins
 
   # ✅ ActiveStorage attachments for real photo uploads
   has_one_attached :primary_photo  # Main vehicle photo
@@ -1435,5 +1437,42 @@ class Vehicle < ApplicationRecord
     months = 1 if months < 1
     
     (total_cost_of_ownership / months).round(2)
+  end
+  
+  # ------------------------------------------------------------
+  # CONDITION REPORT METHODS (NEW)
+  # ------------------------------------------------------------
+  
+  # Get the most recent condition report
+  def latest_condition_report
+    vehicle_condition_reports.completed.order(created_at: :desc).first
+  end
+  
+  # Check if vehicle had damage noted on arrival
+  def had_damage_on_arrival?
+    latest_condition_report&.exterior_damage? || false
+  end
+  
+  # Get arrival condition summary
+  def arrival_condition_summary
+    report = latest_condition_report
+    return "No arrival condition record" unless report
+    
+    {
+      date: report.created_at,
+      fuel_level: report.fuel_level,
+      odometer: report.odometer,
+      exterior: report.exterior_damage_summary,
+      interior: report.interior_summary,
+      tires: report.tire_status_display,
+      warnings: report.warning_lights_display,
+      driver: report.driver_name,
+      signed_at: report.signed_at
+    }
+  end
+  
+  # Check if vehicle condition was documented
+  def condition_documented?
+    vehicle_condition_reports.completed.any?
   end
 end

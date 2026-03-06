@@ -1,6 +1,7 @@
 <%# app/views/shared/_navigation.html.erb - COMPLETE VMCOTT WORKFLOW NAVIGATION %>
-<%# Includes PTSC Admin Vehicle Status Tracking and PROCUREMENT for PTSC Finance %>
-<%# UPDATED: Added RFQ Inbox for VMCOTT Finance users %>
+<%# UPDATED: Renamed roles - security_gate_officer (was receptionist), inventory_manager (was parts_coordinator), procurement (was billing) %>
+<%# KEPT: inspector, mechanic as is %>
+<%# finance kept as finance (finance_accounting for display) %>
 
 <% return unless current_user.present? %>
 
@@ -36,10 +37,11 @@
   @in_progress_count_ptsc ||= 0
   @ready_for_pickup_count_ptsc ||= 0
   @pending_rfq_responses_count ||= 0
+  @pending_condition_reports_count ||= 0  # NEW for gate officer
 %>
 
 <%# ============================================================
-    VMCOTT ROLE DEFINITIONS
+    VMCOTT ROLE DEFINITIONS - RENAMED
    ============================================================ %>
 <% is_vmcott_admin = is_admin && agency_code == "VMCOTT" %>
 <% is_vmcott_staff = user_role == 'vmcott_staff' %>
@@ -47,13 +49,18 @@
 <% is_vmcott_workshop_manager = user_role == 'workshop_manager' && agency_code == "VMCOTT" %>
 <% is_vmcott_inventory_clerk = user_role == 'inventory_clerk' && agency_code == "VMCOTT" %>
 
-<%# Explicit VMCOTT workflow roles %>
-<% is_vmcott_receptionist = user_role == 'receptionist' && agency_code == "VMCOTT" %>
-<% is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT" %>
-<% is_vmcott_parts_coordinator = user_role == 'parts_coordinator' && agency_code == "VMCOTT" %>
-<% is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT" %>
-<% is_vmcott_billing = user_role == 'billing' && agency_code == "VMCOTT" %>
-<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>
+<%# Explicit VMCOTT workflow roles - RENAMED %>
+<% is_vmcott_security_gate_officer = user_role == 'security_gate_officer' && agency_code == "VMCOTT" %>  <%# was receptionist %>
+<% is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT" %>  <%# KEPT AS IS %>
+<% is_vmcott_inventory_manager = user_role == 'inventory_manager' && agency_code == "VMCOTT" %>  <%# was parts_coordinator %>
+<% is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT" %>  <%# KEPT AS IS %>
+<% is_vmcott_procurement = user_role == 'procurement' && agency_code == "VMCOTT" %>  <%# was billing %>
+<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>  <%# KEPT AS finance %>
+
+<%# Keep old names for backward compatibility in views %>
+<% is_vmcott_receptionist = is_vmcott_security_gate_officer %>
+<% is_vmcott_parts_coordinator = is_vmcott_inventory_manager %>
+<% is_vmcott_billing = is_vmcott_procurement %>
 
 <%# PTSC Role Definitions %>
 <% is_ptsc_admin = is_admin && agency_code == "PTSC" %>
@@ -74,11 +81,11 @@
   <% case agency_code %>
   <% when 'VMCOTT' %>
     <% is_vmcott_admin = true %>
-    <% is_vmcott_receptionist = true %>
+    <% is_vmcott_security_gate_officer = true %>
     <% is_vmcott_inspector = true %>
-    <% is_vmcott_parts_coordinator = true %>
+    <% is_vmcott_inventory_manager = true %>
     <% is_vmcott_mechanic = true %>
-    <% is_vmcott_billing = true %>
+    <% is_vmcott_procurement = true %>
     <% is_vmcott_finance = true %>
     <% is_vmcott_workshop_manager = true %>
     <% is_vmcott_inventory_clerk = true %>
@@ -107,11 +114,11 @@
     HELPER: Calculate total alerts for a role
    ============================================================ %>
 <% 
-  reception_alerts = @pending_inspections_count.to_i
+  security_gate_alerts = @pending_condition_reports_count.to_i + @pending_inspections_count.to_i
   inspector_alerts = @pending_inspections_count.to_i + @pending_qc_inspections_count.to_i
-  parts_alerts = @pending_parts_count.to_i + @low_stock_alert_count.to_i
-  billing_alerts = @pending_parts_requests_count.to_i
-  finance_alerts = @quotations_to_review_count.to_i + @pending_po_approval_count.to_i
+  inventory_alerts = @pending_parts_count.to_i + @low_stock_alert_count.to_i
+  procurement_alerts = @pending_parts_requests_count.to_i
+  finance_alerts = @quotations_to_review_count.to_i + @pending_po_approval_count.to_i + @ready_for_pickup_count.to_i
   mechanic_alerts = @available_jobs_count.to_i + @pending_qc_count.to_i
 %>
 
@@ -126,20 +133,20 @@
           <!-- ================= VMCOTT WORKFLOW ================= -->
           <% if agency_code == "VMCOTT" %>
 
-            <!-- STEP 1: RECEPTION -->
-            <% if is_vmcott_receptionist || is_vmcott_admin %>
-              <%= link_to vmcott_receptionist_dashboard_path,
-                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_receptionist_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
-                <i class="bi bi-door-open me-1"></i> Reception
-                <% if reception_alerts > 0 %>
+            <!-- STEP 1: SECURITY GATE OFFICER (was Reception) -->
+            <% if is_vmcott_security_gate_officer || is_vmcott_admin %>
+              <%= link_to vmcott_security_gate_officer_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_security_gate_officer_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-door-open me-1"></i> Gate
+                <% if security_gate_alerts > 0 %>
                   <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    <%= reception_alerts %>
+                    <%= security_gate_alerts %>
                   </span>
                 <% end %>
               <% end %>
             <% end %>
 
-            <!-- STEP 2: INSPECTOR -->
+            <!-- STEP 2: INSPECTOR (KEPT AS IS) -->
             <% if is_vmcott_inspector || is_vmcott_admin %>
               <%= link_to vmcott_inspector_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_inspector_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
@@ -152,33 +159,33 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 3: PARTS COORDINATOR -->
-            <% if is_vmcott_parts_coordinator || is_vmcott_admin %>
-              <%= link_to vmcott_parts_coordinator_dashboard_path,
-                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_parts_coordinator_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
-                <i class="bi bi-box-seam me-1"></i> Parts
-                <% if parts_alerts > 0 %>
+            <!-- STEP 3: INVENTORY MANAGER (was Parts Coordinator) -->
+            <% if is_vmcott_inventory_manager || is_vmcott_admin %>
+              <%= link_to vmcott_inventory_manager_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_inventory_manager_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-box-seam me-1"></i> Inventory
+                <% if inventory_alerts > 0 %>
                   <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    <%= parts_alerts %>
+                    <%= inventory_alerts %>
                   </span>
                 <% end %>
               <% end %>
             <% end %>
 
-            <!-- STEP 4: BILLING -->
-            <% if is_vmcott_billing || is_vmcott_admin %>
-              <%= link_to vmcott_billing_dashboard_path,
-                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_billing_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
-                <i class="bi bi-envelope-paper me-1"></i> Billing
-                <% if billing_alerts > 0 %>
+            <!-- STEP 4: PROCUREMENT (was Billing) -->
+            <% if is_vmcott_procurement || is_vmcott_admin %>
+              <%= link_to vmcott_procurement_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_procurement_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-envelope-paper me-1"></i> Procurement
+                <% if procurement_alerts > 0 %>
                   <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    <%= billing_alerts %>
+                    <%= procurement_alerts %>
                   </span>
                 <% end %>
               <% end %>
             <% end %>
 
-            <!-- STEP 5: FINANCE -->
+            <!-- STEP 5: FINANCE (kept as Finance) -->
             <% if is_vmcott_finance || is_vmcott_admin %>
               <%= link_to vmcott_finance_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_finance_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
@@ -191,7 +198,7 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 5.5: RFQ INBOX - Added for Finance -->
+            <!-- STEP 5.5: RFQ INBOX - For Finance -->
             <% if is_vmcott_finance || is_vmcott_admin %>
               <%= link_to vmcott_vendor_rfqs_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_vendor_rfqs_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
@@ -204,7 +211,7 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 6: MECHANIC -->
+            <!-- STEP 6: MECHANIC (KEPT AS IS) -->
             <% if is_vmcott_mechanic || is_vmcott_admin %>
               <%= link_to vmcott_mechanic_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_mechanic_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
@@ -254,7 +261,7 @@
               <% end %>
             <% end %>
 
-            <!-- PTSC FINANCE - PROCUREMENT DROPDOWN (RESTORED) -->
+            <!-- PTSC FINANCE - PROCUREMENT DROPDOWN -->
             <% if is_ptsc_finance || is_ptsc_admin %>
               <div class="dropdown nav-dd">
                 <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle position-relative"
@@ -441,26 +448,40 @@
               <li class="dropdown-section">⚡ QUICK LINKS</li>
               
               <% if agency_code == "VMCOTT" %>
-                <!-- VMCOTT Quick Links -->
+                <!-- VMCOTT Quick Links - UPDATED WITH NEW ROLE NAMES AND CORRECT ROUTES -->
                 <% if is_vmcott_admin %>
                   <li><%= link_to "All RFQs", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "All POs", purchase_orders_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Parts Catalog", vmcott_parts_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_path, class: "dropdown-item" %></li>
-                <% elsif is_vmcott_parts_coordinator %>
+                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item" %></li>
+                <% elsif is_vmcott_inventory_manager %>
                   <li><%= link_to "Parts Catalog", vmcott_parts_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Inventory", vmcott_inventory_dashboard_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
-                <% elsif is_vmcott_billing %>
+                  <li><%= link_to "Low Stock", vmcott_parts_low_stock_path, class: "dropdown-item" %></li>
+                <% elsif is_vmcott_procurement %>
                   <li><%= link_to "All RFQs", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Quotations Received", vmcott_vendor_rfqs_path(status: 'quotations_received'), class: "dropdown-item" %></li>
                 <% elsif is_vmcott_finance %>
-                  <!-- RFQ INBOX FOR FINANCE IN DROPDOWN -->
                   <li><%= link_to "RFQ Inbox", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "All POs", purchase_orders_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Invoices", vmcott_finance_invoices_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Quotations", vmcott_finance_quotations_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Aging Report", vmcott_finance_invoices_aging_report_path, class: "dropdown-item" %></li>
+                <% elsif is_vmcott_security_gate_officer %>
+                  <li><%= link_to "Today's Check-ins", today_vmcott_security_gate_officer_reception_logs_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Manual Entry", vmcott_security_gate_officer_manual_entry_path, class: "dropdown-item" %></li>
+                <% elsif is_vmcott_inspector %>
+                  <li><%= link_to "Pending QC", vmcott_inspector_dashboard_path(anchor: 'qc-pending'), class: "dropdown-item" %></li>
+                  <li><%= link_to "Inspections Today", vmcott_inspector_inspections_path(today: true), class: "dropdown-item" %></li>
+                <% elsif is_vmcott_mechanic %>
+                  <li><%= link_to "My Jobs", vmcott_mechanic_jobs_assigned_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Available Jobs", vmcott_mechanic_jobs_available_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Parts Request", "#", class: "dropdown-item", onclick: "return false;" %></li>
                 <% end %>
 
               <% elsif agency_code == "PTSC" %>
@@ -510,6 +531,8 @@
                 <!-- Create New User - Agency specific -->
                 <% if agency_code == "VMCOTT" %>
                   <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
+                  <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item" %></li>
                 <% elsif agency_code == "PTSC" %>
                   <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
                   <!-- PTSC Admin Reports -->
@@ -520,7 +543,7 @@
                 <% end %>
               <% end %>
 
-              <!-- ACCOUNT SECTION -->
+              <!-- ACCOUNT SECTION - FIXED with placeholder links -->
               <li><hr class="dropdown-divider"></li>
               <li class="dropdown-section">👤 ACCOUNT</li>
               <li><%= link_to "Profile", "#", class: "dropdown-item", onclick: "return false;" %></li>

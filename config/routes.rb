@@ -1,4 +1,11 @@
-# frozen_string_literal: true
+# config/routes.rb
+# UPDATED: Renamed role namespaces:
+# - receptionist → security_gate_officer
+# - parts_coordinator → inventory_manager
+# - billing → procurement
+# - finance → finance_accounting (kept as finance for compatibility)
+# - inspector kept as inspector
+# - mechanic kept as mechanic
 
 Rails.application.routes.draw do
 
@@ -53,6 +60,7 @@ Rails.application.routes.draw do
   end
 
   get 'screensaver', to: 'screensaver#show'
+  
   # ========================
   # PTSC Namespace - All PTSC-specific dashboards
   # ========================
@@ -77,16 +85,36 @@ Rails.application.routes.draw do
   # ========================
   namespace :vmcott do
     # ========================
-    # VMCOTT ROLE-SPECIFIC DASHBOARDS
+    # VMCOTT ROLE-SPECIFIC DASHBOARDS - RENAMED
     # ========================
     
-    # 1. RECEPTIONIST - Vehicle check-in
-    namespace :receptionist do
+    # 1. SECURITY GATE OFFICER (was receptionist)
+    namespace :security_gate_officer do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "scan", to: "dashboard#scan"
       get "manual_entry", to: "dashboard#manual_entry"
       post "receive_vehicle", to: "dashboard#receive_vehicle"
       
+      # NEW: Vehicle condition check-in
+      get "condition_check/:vehicle_id", to: "dashboard#condition_check", as: :condition_check
+      post "submit_condition/:vehicle_id", to: "dashboard#submit_condition", as: :submit_condition
+      
+      resources :reception_logs, only: [:index, :show] do
+        collection do
+          get :today
+        end
+        member do
+          get :condition_report  # View condition report for this log
+        end
+      end
+    end
+    
+    # BACKWARD COMPATIBILITY: Keep old receptionist routes redirecting to new ones
+    namespace :receptionist do
+      get "dashboard", to: redirect("/vmcott/security_gate_officer/dashboard")
+      get "scan", to: redirect("/vmcott/security_gate_officer/scan")
+      get "manual_entry", to: redirect("/vmcott/security_gate_officer/manual_entry")
+      post "receive_vehicle", to: redirect("/vmcott/security_gate_officer/receive_vehicle")
       resources :reception_logs, only: [:index, :show] do
         collection do
           get :today
@@ -94,7 +122,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 2. INSPECTOR - Diagnostics and QC
+    # 2. INSPECTOR - Diagnostics and QC (KEPT AS IS)
     namespace :inspector do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "inspection/:vehicle_id/new", to: "dashboard#new_inspection", as: :new_inspection
@@ -117,21 +145,24 @@ Rails.application.routes.draw do
       end
     end
 
-    # 3. PARTS COORDINATOR - Updated with PO management routes
-    namespace :parts_coordinator do
+    # 3. INVENTORY MANAGER (was parts_coordinator)
+    namespace :inventory_manager do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
       # Core workflow routes
       post "mark_in_stock/:id", to: "dashboard#mark_in_stock", as: :mark_in_stock
-      post "send_to_billing/:id", to: "dashboard#send_to_billing", as: :send_to_billing
+      post "send_to_procurement/:id", to: "dashboard#send_to_procurement", as: :send_to_procurement  # was send_to_billing
       post "pass_to_workshop/:id", to: "dashboard#pass_to_workshop", as: :pass_to_workshop
       
-      # NEW: PO management routes
+      # PO management routes
       post "mark_po_ordered/:id", to: "dashboard#mark_po_ordered", as: :mark_po_ordered
       post "mark_po_received/:id", to: "dashboard#mark_po_received", as: :mark_po_received
       
-      # Legacy routes (keep for backward compatibility)
-      post "process_request/:id", to: "dashboard#process_request", as: :process_request
+      # RFQ management
+      get "create_rfq/:parts_request_id", to: "dashboard#create_rfq", as: :create_rfq
+      post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
+      get "compare_quotations/:id", to: "dashboard#compare_quotations", as: :compare_quotations
+      post "accept_quotation/:id", to: "dashboard#accept_quotation", as: :accept_quotation
       
       resources :parts, only: [:index, :show] do
         collection do
@@ -140,8 +171,59 @@ Rails.application.routes.draw do
         end
       end
     end
+    
+    # BACKWARD COMPATIBILITY: Keep old parts_coordinator routes
+    namespace :parts_coordinator do
+      get "dashboard", to: redirect("/vmcott/inventory_manager/dashboard")
+      post "mark_in_stock/:id", to: redirect("/vmcott/inventory_manager/mark_in_stock/%{id}")
+      post "send_to_billing/:id", to: redirect("/vmcott/inventory_manager/send_to_procurement/%{id}")
+      post "pass_to_workshop/:id", to: redirect("/vmcott/inventory_manager/pass_to_workshop/%{id}")
+    end
 
-    # 4. MECHANIC - Repairs and work orders
+    # 4. PROCUREMENT (was billing)
+    namespace :procurement do
+      get "dashboard", to: "dashboard#index", as: :dashboard
+      
+      # RFQ Creation
+      get "new_rfq/:parts_request_id", to: "dashboard#new_rfq", as: :new_rfq
+      post "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
+      post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
+      
+      # Quotation Management
+      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
+      post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
+      post "forward_to_finance/:rfq_id", to: "dashboard#forward_to_finance", as: :forward_to_finance
+      
+      # Legacy routes
+      post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers
+      post "rfq/:id/receive_quotation", to: "dashboard#receive_quotation", as: :receive_quotation
+      
+      # PO Details endpoint
+      get "po_details/:id", to: "invoices#po_details", as: :po_details
+      
+      # Invoice Management
+      resources :invoices, only: [:index, :show, :new, :create] do
+        member do
+          post :process_payment
+          get :print
+        end
+        collection do
+          get :pending
+          get :paid
+          get :overdue
+        end
+      end
+    end
+    
+    # BACKWARD COMPATIBILITY: Keep old billing routes
+    namespace :billing do
+      get "dashboard", to: redirect("/vmcott/procurement/dashboard")
+      get "new_rfq/:parts_request_id", to: redirect("/vmcott/procurement/new_rfq/%{parts_request_id}")
+      post "create_rfq", to: redirect("/vmcott/procurement/create_rfq")
+      post "send_rfq/:id", to: redirect("/vmcott/procurement/send_rfq/%{id}")
+    end
+
+    # 5. MECHANIC (KEPT AS IS)
     namespace :mechanic do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "job/:id", to: "dashboard#show_job", as: :job
@@ -179,57 +261,7 @@ Rails.application.routes.draw do
       end
     end
 
-    # 5. WORKSHOP SUPERVISOR - Oversee workshop
-    namespace :workshop_supervisor do
-      get "dashboard", to: "dashboard#index", as: :dashboard
-      resources :jobs, only: [:index, :show] do
-        member do
-          post :assign
-          post :reassign
-        end
-        collection do
-          get :overdue
-          get :stats
-        end
-      end
-    end
-
-    # 6. BILLING TEAM - RFQ and quotation management
-    namespace :billing do
-      get "dashboard", to: "dashboard#index", as: :dashboard
-      
-      # RFQ Creation
-      get "new_rfq/:parts_request_id", to: "dashboard#new_rfq", as: :new_rfq
-      post "create_rfq", to: "dashboard#create_rfq", as: :create_rfq
-      post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
-      
-      # Quotation Management
-      get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
-      post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
-      post "forward_to_finance/:rfq_id", to: "dashboard#forward_to_finance", as: :forward_to_finance
-      
-      # Legacy routes (keep for backward compatibility)
-      post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers
-      post "rfq/:id/receive_quotation", to: "dashboard#receive_quotation", as: :receive_quotation
-      
-      # PO Details endpoint for JSON
-      get "po_details/:id", to: "invoices#po_details", as: :po_details
-      
-      # Invoice Management
-      resources :invoices, only: [:index, :show, :new, :create] do
-        member do
-          post :process_payment
-          get :print
-        end
-        collection do
-          get :pending
-          get :paid
-          get :overdue
-        end
-      end
-    end
-
-    # 7. FINANCE TEAM - Agency quotations and PO approval
+    # 6. FINANCE & ACCOUNTING (kept as finance for backward compatibility)
     namespace :finance do
       get "dashboard", to: "dashboard#index", as: :dashboard
       
@@ -238,7 +270,7 @@ Rails.application.routes.draw do
       post "quotations/create_for_inspection", to: "dashboard#create_quotation_for_inspection", as: :create_quotation_for_inspection
       post "quotations/:id/send_to_agency", to: "dashboard#send_quotation_to_agency", as: :send_quotation_to_agency
       
-      # Vendor Quotation Comparison (from billing)
+      # Vendor Quotation Comparison (from procurement)
       get "compare/:rfq_id", to: "dashboard#compare_quotations", as: :compare_quotations
       post "select_quotation/:quotation_id", to: "dashboard#select_quotation", as: :select_quotation
       
@@ -248,7 +280,7 @@ Rails.application.routes.draw do
       # Invoice Creation
       post "create_invoice/:inspection_id", to: "dashboard#create_invoice", as: :create_invoice
       
-      # Legacy quotation routes (for backward compatibility)
+      # Legacy quotation routes
       get "quotations", to: "quotations#index", as: :quotations
       get "quotations/:id", to: "quotations#show", as: :quotation
       
@@ -279,6 +311,29 @@ Rails.application.routes.draw do
       get "reports", to: "reports#index", as: :reports
       get "reports/aging", to: "reports#aging", as: :aging_report
       get "reports/monthly", to: "reports#monthly", as: :monthly_report
+    end
+    
+    # Alias for finance_accounting (points to same controllers)
+    namespace :finance_accounting do
+      get "dashboard", to: redirect("/vmcott/finance/dashboard")
+      get "compare/:rfq_id", to: redirect("/vmcott/finance/compare/%{rfq_id}")
+      post "approve_po/:id", to: redirect("/vmcott/finance/approve_po/%{id}")
+      post "create_invoice/:inspection_id", to: redirect("/vmcott/finance/create_invoice/%{inspection_id}")
+    end
+
+    # 7. WORKSHOP SUPERVISOR - Keep as is
+    namespace :workshop_supervisor do
+      get "dashboard", to: "dashboard#index", as: :dashboard
+      resources :jobs, only: [:index, :show] do
+        member do
+          post :assign
+          post :reassign
+        end
+        collection do
+          get :overdue
+          get :stats
+        end
+      end
     end
 
     # ========================
@@ -442,6 +497,20 @@ Rails.application.routes.draw do
         get :pending_agency_decisions
       end
     end
+    
+    # ========================
+    # VEHICLE CONDITION REPORTS (NEW)
+    # ========================
+    resources :vehicle_condition_reports, only: [:index, :show] do
+      member do
+        get :print  # Print PDF report
+        post :dispute  # Mark as disputed
+      end
+      collection do
+        get :today
+        get :with_damage
+      end
+    end
   end
 
   # ========================
@@ -453,6 +522,8 @@ Rails.application.routes.draw do
   get "ttdf-dashboard",   to: "ttdf_dashboard#index",   as: :ttdf_dashboard
   get "main-dashboard",   to: "main_dashboard#index",   as: :main_dashboard
   get "welcome",          to: "welcome#index",          as: :welcome
+  # Add this new route for admin clarity
+  get "vmcott-admin-dashboard", to: "vmcott_dashboard#index", as: :vmcott_admin_dashboard
 
   post "main-dashboard/alerts/:id/acknowledge",
        to: "main_dashboard#acknowledge_alert",
@@ -596,6 +667,7 @@ Rails.application.routes.draw do
       post :create_maintenance_alert
       post :resolve_all_alerts
       get  :status_history
+      get  :condition_reports  # NEW: View all condition reports for this vehicle
     end
 
     resources :maintenances do

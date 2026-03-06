@@ -1,98 +1,231 @@
 <%# app/views/vmcott/finance/dashboard/index.html.erb %>
+<%# Finance & Accounting Dashboard - Handles quotations, PO approval, and invoicing %>
+
 <div class="container-fluid py-4">
+  <!-- Header -->
   <div class="row mb-4">
     <div class="col">
-      <h1 class="h2">💰 Finance Dashboard</h1>
-      <p class="text-muted">VMCOTT Finance - Create agency quotations, review vendor quotes, approve POs, and manage invoices</p>
+      <h1 class="h2">
+        <i class="bi bi-cash-stack me-2"></i>
+        Finance & Accounting Dashboard
+      </h1>
+      <p class="text-muted">
+        <%= Date.current.strftime("%A, %B %d, %Y") %>
+      </p>
     </div>
-  </div>
-
-  <!-- KPI Cards -->
-  <div class="row">
-    <div class="col-md-3 mb-3">
-      <div class="card bg-primary text-white">
-        <div class="card-body">
-          <h5 class="card-title">Ready to Quote</h5>
-          <h2 class="display-4"><%= @ready_for_quotation_count || 0 %></h2>
-          <p class="card-text"><small>In-stock parts for agency</small></p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-warning text-white">
-        <div class="card-body">
-          <h5 class="card-title">Quotes to Review</h5>
-          <h2 class="display-4"><%= @quotations_to_review_count || 0 %></h2>
-          <p class="card-text"><small>From Billing Team</small></p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-info text-white">
-        <div class="card-body">
-          <h5 class="card-title">Pending PO Approval</h5>
-          <h2 class="display-4"><%= @pending_po_approval_count || 0 %></h2>
-          <p class="card-text"><small>Awaiting finance approval</small></p>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card bg-success text-white">
-        <div class="card-body">
-          <h5 class="card-title">Ready for Pickup</h5>
-          <h2 class="display-4"><%= @ready_for_pickup_count || 0 %></h2>
-          <p class="card-text"><small>Vehicles to invoice</small></p>
-        </div>
+    <div class="col-auto">
+      <div class="btn-group">
+        <%= link_to "📊 Aging Report", vmcott_finance_aging_report_path, class: "btn btn-outline-primary" %>
+        <%= link_to "📈 Reports", vmcott_finance_reports_path, class: "btn btn-outline-primary" %>
+        <%= link_to "📋 All Invoices", invoices_path, class: "btn btn-primary" %>
       </div>
     </div>
   </div>
 
-  <!-- TRACK 1: IN-STOCK PARTS READY FOR AGENCY QUOTATION -->
-  <div class="row mt-4">
+  <!-- KPI Cards Row -->
+  <div class="row mb-4 g-3">
+    <!-- Ready for Quotation -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-primary text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Ready for Quote</h6>
+              <h2 class="mb-0"><%= @stats[:ready_for_quotation] %></h2>
+            </div>
+            <i class="bi bi-file-text fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">In-stock parts waiting</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quotations to Review -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-warning text-dark h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-dark-50 mb-1">To Review</h6>
+              <h2 class="mb-0"><%= @stats[:quotations_to_review] %></h2>
+            </div>
+            <i class="bi bi-inboxes fs-1 opacity-50"></i>
+          </div>
+          <small class="text-dark-50">Vendor quotes received</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending PO Approval -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-info text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">POs to Approve</h6>
+              <h2 class="mb-0"><%= @stats[:pending_po_approval] %></h2>
+            </div>
+            <i class="bi bi-file-check fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">Pending approval</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready for Pickup -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-success text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Ready for Pickup</h6>
+              <h2 class="mb-0"><%= @stats[:ready_for_pickup] %></h2>
+            </div>
+            <i class="bi bi-truck fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">Need invoicing</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Invoices -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-danger text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Pending Invoices</h6>
+              <h2 class="mb-0"><%= @stats[:pending_invoices] %></h2>
+            </div>
+            <i class="bi bi-receipt fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50"><%= number_to_currency(@stats[:pending_amount]) %></small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overdue Invoices -->
+    <div class="col-xl-2 col-md-4 col-6">
+      <div class="card bg-dark text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Overdue</h6>
+              <h2 class="mb-0"><%= @stats[:overdue_invoices] %></h2>
+            </div>
+            <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50"><%= number_to_currency(@stats[:overdue_amount]) %></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Workflow Tabs -->
+  <div class="row mb-4">
     <div class="col-12">
+      <ul class="nav nav-tabs" id="financeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="track1-tab" data-bs-toggle="tab" data-bs-target="#track1" type="button" role="tab">
+            <i class="bi bi-file-text me-1"></i>
+            Track 1: Agency Quotations
+            <% if @stats[:ready_for_quotation] > 0 %>
+              <span class="badge bg-primary ms-2"><%= @stats[:ready_for_quotation] %></span>
+            <% end %>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="track2-tab" data-bs-toggle="tab" data-bs-target="#track2" type="button" role="tab">
+            <i class="bi bi-inboxes me-1"></i>
+            Track 2: Vendor Quotes Review
+            <% if @stats[:quotations_to_review] > 0 %>
+              <span class="badge bg-warning ms-2"><%= @stats[:quotations_to_review] %></span>
+            <% end %>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="track3-tab" data-bs-toggle="tab" data-bs-target="#track3" type="button" role="tab">
+            <i class="bi bi-file-check me-1"></i>
+            Track 3: PO Approval
+            <% if @stats[:pending_po_approval] > 0 %>
+              <span class="badge bg-info ms-2"><%= @stats[:pending_po_approval] %></span>
+            <% end %>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="track4-tab" data-bs-toggle="tab" data-bs-target="#track4" type="button" role="tab">
+            <i class="bi bi-truck me-1"></i>
+            Track 4: Invoicing
+            <% if @stats[:ready_for_pickup] > 0 %>
+              <span class="badge bg-success ms-2"><%= @stats[:ready_for_pickup] %></span>
+            <% end %>
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="aging-tab" data-bs-toggle="tab" data-bs-target="#aging" type="button" role="tab">
+            <i class="bi bi-clock-history me-1"></i>
+            Aging Summary
+            <% if @stats[:overdue_invoices] > 0 %>
+              <span class="badge bg-danger ms-2"><%= @stats[:overdue_invoices] %></span>
+            <% end %>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tab Content -->
+  <div class="tab-content" id="financeTabsContent">
+    
+    <!-- TRACK 1: Agency Quotations (In-stock parts) -->
+    <div class="tab-pane fade show active" id="track1" role="tabpanel">
       <div class="card">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>In-Stock Parts - Ready for Agency Quotation</h5>
-          <span class="badge bg-light text-dark"><%= @ready_for_quotation&.count || 0 %> ready</span>
+          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i> Ready for Agency Quotation</h5>
+          <span class="badge bg-light text-primary"><%= @stats[:ready_for_quotation] %> items</span>
         </div>
         <div class="card-body">
-          <% if @ready_for_quotation&.any? %>
+          <% if @ready_for_quotation.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
-                    <th>Inspection #</th>
                     <th>Vehicle</th>
-                    <th>Jobs</th>
+                    <th>Agency</th>
                     <th>Parts</th>
-                    <th>Est. Labor</th>
-                    <th>Est. Parts</th>
+                    <th>Labor Cost</th>
+                    <th>Parts Cost</th>
                     <th>Total</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @ready_for_quotation.each do |inspection| %>
-                    <% labor_cost = inspection.inspection_jobs.sum(&:estimated_labor_cost) %>
-                    <% parts_cost = inspection.parts_requests.where(in_stock: true).sum { |pr| pr.part&.sale_price.to_f * pr.quantity } %>
-                    <% total = labor_cost + parts_cost %>
+                    <% 
+                      labor_cost = inspection.inspection_jobs.sum(:estimated_labor_cost)
+                      parts_cost = inspection.parts_requests.where(in_stock: true).sum { |pr| (pr.part&.sale_price || 0) * pr.quantity }
+                      total = labor_cost + parts_cost
+                    %>
                     <tr>
-                      <td><strong>#<%= inspection.id %></strong></td>
                       <td>
-                        <%= inspection.vehicle.license_plate %>
-                        <br><small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                        <strong><%= inspection.vehicle.license_plate %></strong><br>
+                        <small><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
                       </td>
-                      <td><%= inspection.inspection_jobs.count %></td>
-                      <td><%= inspection.parts_requests.where(in_stock: true).count %></td>
+                      <td>
+                        <span class="badge bg-primary"><%= inspection.vehicle.agency&.code || 'N/A' %></span>
+                      </td>
+                      <td>
+                        <% inspection.parts_requests.where(in_stock: true).each do |pr| %>
+                          <div><small><%= pr.part&.name || pr.custom_part_name %> x<%= pr.quantity %></small></div>
+                        <% end %>
+                      </td>
                       <td><%= number_to_currency(labor_cost) %></td>
                       <td><%= number_to_currency(parts_cost) %></td>
                       <td><strong><%= number_to_currency(total) %></strong></td>
                       <td>
                         <%= link_to "Create Quotation", 
-                              vmcott_finance_new_quotation_for_inspection_path(inspection_id: inspection.id),
-                              class: "btn btn-sm btn-primary" %>
-                        <%= link_to "View Details", vmcott_inspector_inspection_path(inspection), 
-                              class: "btn btn-sm btn-outline-secondary" %>
+                            vmcott_finance_new_quotation_for_inspection_path(inspection.id),
+                            class: "btn btn-sm btn-primary" %>
                       </td>
                     </tr>
                   <% end %>
@@ -100,79 +233,57 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No in-stock parts awaiting quotation</p>
+            <p class="text-muted text-center py-4">No vehicles ready for quotation at this time.</p>
           <% end %>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- TRACK 2: VENDOR QUOTATIONS READY FOR COMPARISON (FROM BILLING) -->
-  <div class="row mt-4">
-    <div class="col-12">
+    <!-- TRACK 2: Vendor Quotations Review (from procurement) -->
+    <div class="tab-pane fade" id="track2" role="tabpanel">
       <div class="card">
-        <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Vendor Quotations - Ready for Comparison</h5>
-          <span class="badge bg-light text-dark"><%= @quotations_to_review&.count || 0 %> pending</span>
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-inboxes me-2"></i> Vendor Quotations to Review</h5>
+          <span class="badge bg-dark text-white"><%= @stats[:quotations_to_review] %> RFQs</span>
         </div>
         <div class="card-body">
-          <% if @quotations_to_review&.any? %>
+          <% if @quotations_to_review.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>RFQ #</th>
-                    <th>Parts</th>
+                    <th>Part</th>
                     <th>Quotes Received</th>
                     <th>Price Range</th>
-                    <th>Vendors</th>
-                    <th>Received</th>
+                    <th>Lowest Bid</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @quotations_to_review.each do |rfq| %>
                     <% 
-                      quotes = rfq.vendor_quotations || []
-                      prices = quotes.map { |q| q.total_amount }.compact
-                      min_price = prices.min if prices.any?
-                      max_price = prices.max if prices.any?
+                      quotes = rfq.vendor_quotations.where(status: 'received')
+                      prices = quotes.map { |q| q.vendor_quotation_lines.sum(:total_price) }
+                      min_price = prices.min
+                      max_price = prices.max
                     %>
                     <tr>
-                      <td><strong><%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %></strong></td>
+                      <td><strong><%= rfq.rfq_number %></strong></td>
                       <td>
                         <% rfq.vendor_rfq_items.each do |item| %>
-                          <div><%= item.part&.name || item.custom_part_name || 'Unknown' %> (x<%= item.quantity %>)</div>
+                          <div><%= item.part&.name || item.custom_part_name %> x<%= item.quantity %></div>
                         <% end %>
                       </td>
-                      <td><span class="badge bg-primary"><%= quotes.count %> quotes</span></td>
+                      <td><span class="badge bg-info"><%= quotes.count %> quotes</span></td>
                       <td>
-                        <% if min_price && max_price %>
-                          <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
-                          <% if prices.size > 1 %>
-                            <br><small class="text-success">Save <%= number_to_currency(max_price - min_price) %></small>
-                          <% end %>
-                        <% else %>
-                          <span class="text-muted">N/A</span>
-                        <% end %>
+                        <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
                       </td>
+                      <td><strong class="text-success"><%= number_to_currency(min_price) %></strong></td>
                       <td>
-                        <% if quotes.any? %>
-                          <% quotes.first(2).each do |quote| %>
-                            <div><%= quote.supplier&.name || 'Unknown' %></div>
-                          <% end %>
-                          <% if quotes.count > 2 %>
-                            <span class="badge bg-secondary">+<%= quotes.count - 2 %> more</span>
-                          <% end %>
-                        <% else %>
-                          <span class="text-muted">No vendors</span>
-                        <% end %>
-                      </td>
-                      <td><%= rfq.updated_at&.strftime("%b %d, %Y") %></td>
-                      <td>
-                        <%= link_to "Compare & Select", 
-                              vmcott_finance_compare_quotations_path(rfq_id: rfq.id), 
-                              class: "btn btn-sm btn-warning" %>
+                        <%= link_to "Compare", 
+                            vmcott_finance_compare_quotations_path(rfq_id: rfq.id),
+                            class: "btn btn-sm btn-warning" %>
                       </td>
                     </tr>
                   <% end %>
@@ -180,56 +291,72 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No vendor quotations pending review</p>
+            <p class="text-muted text-center py-4">No vendor quotations to review at this time.</p>
           <% end %>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- PURCHASE ORDERS PENDING APPROVAL -->
-  <div class="row mt-4">
-    <div class="col-12">
+    <!-- TRACK 3: Purchase Order Approval -->
+    <div class="tab-pane fade" id="track3" role="tabpanel">
       <div class="card">
         <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-receipt me-2"></i>Purchase Orders Pending Approval</h5>
-          <span class="badge bg-light text-dark"><%= @pending_pos&.count || 0 %> pending</span>
+          <h5 class="mb-0"><i class="bi bi-file-check me-2"></i> Purchase Orders Pending Approval</h5>
+          <span class="badge bg-light text-info"><%= @stats[:pending_po_approval] %> POs</span>
         </div>
         <div class="card-body">
-          <% if @pending_pos&.any? %>
+          <% if @pending_pos.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>PO #</th>
-                    <th>Vendor</th>
-                    <th>Amount</th>
+                    <th>Supplier</th>
+                    <th>Vehicle</th>
                     <th>Items</th>
+                    <th>Amount</th>
                     <th>Created</th>
-                    <th>Payment Terms</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @pending_pos.each do |po| %>
                     <tr>
-                      <td><strong><%= link_to po.po_number, purchase_order_path(po) %></strong></td>
+                      <td><strong><%= po.po_number %></strong></td>
                       <td><%= po.vendor %></td>
-                      <td><%= number_to_currency(po.amount) %></td>
-                      <td><%= po.purchase_order_items.count %></td>
-                      <td><%= po.created_at.strftime("%b %d, %Y") %></td>
-                      <td><%= po.payment_terms || 'Net 30' %></td>
+                      <td>
+                        <% if po.vehicle %>
+                          <%= po.vehicle.license_plate %><br>
+                          <small><%= po.vehicle.make %> <%= po.vehicle.model %></small>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <% po.purchase_order_items.limit(2).each do |item| %>
+                          <div><small><%= item.description %> x<%= item.quantity %></small></div>
+                        <% end %>
+                        <% if po.purchase_order_items.count > 2 %>
+                          <small class="text-muted">+<%= po.purchase_order_items.count - 2 %> more</small>
+                        <% end %>
+                      </td>
+                      <td><strong><%= number_to_currency(po.amount) %></strong></td>
+                      <td><%= time_ago_in_words(po.created_at) %> ago</td>
                       <td>
                         <div class="btn-group btn-group-sm">
-                          <%= link_to "Review", purchase_order_path(po), class: "btn btn-outline-primary" %>
-                          <%= button_to "Approve", approve_purchase_order_path(po), 
-                                method: :post, 
-                                class: "btn btn-outline-success btn-sm", 
-                                data: { confirm: "Approve this purchase order?" } %>
-                          <%= button_to "Reject", reject_purchase_order_path(po), 
-                                method: :post, 
-                                class: "btn btn-outline-danger btn-sm", 
-                                data: { confirm: "Reject this purchase order?" } %>
+                          <%= link_to "Approve", 
+                              approve_po_purchase_order_path(po),
+                              method: :post,
+                              class: "btn btn-success",
+                              data: { confirm: "Approve this purchase order?" } %>
+                          <%= link_to "Reject", 
+                              reject_po_purchase_order_path(po),
+                              method: :post,
+                              class: "btn btn-danger",
+                              data: { confirm: "Reject this purchase order?" } %>
+                          <%= link_to "View", 
+                              purchase_order_path(po),
+                              class: "btn btn-outline-secondary" %>
                         </div>
                       </td>
                     </tr>
@@ -238,54 +365,65 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No purchase orders pending approval</p>
+            <p class="text-muted text-center py-4">No purchase orders pending approval.</p>
           <% end %>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- VEHICLES READY FOR PICKUP -->
-  <div class="row mt-4">
-    <div class="col-12">
+    <!-- TRACK 4: Invoicing (Ready for Pickup) -->
+    <div class="tab-pane fade" id="track4" role="tabpanel">
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Vehicles Ready for Pickup</h5>
-          <span class="badge bg-light text-dark"><%= @ready_for_pickup&.count || 0 %> ready</span>
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Vehicles Ready for Pickup - Create Invoice</h5>
+          <span class="badge bg-light text-success"><%= @stats[:ready_for_pickup] %> vehicles</span>
         </div>
         <div class="card-body">
-          <% if @ready_for_pickup&.any? %>
+          <% if @ready_for_pickup.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
-                    <th>Inspection #</th>
                     <th>Vehicle</th>
-                    <th>Jobs Completed</th>
-                    <th>Parts Used</th>
-                    <th>Completed</th>
+                    <th>Agency</th>
+                    <th>PO Reference</th>
+                    <th>Labor</th>
+                    <th>Parts</th>
+                    <th>Total</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% @ready_for_pickup.each do |inspection| %>
+                    <% 
+                      labor_cost = inspection.inspection_jobs.sum(:estimated_labor_cost)
+                      parts_cost = inspection.parts_requests.sum { |pr| (pr.part&.sale_price || 0) * pr.quantity }
+                      total = labor_cost + parts_cost
+                    %>
                     <tr>
-                      <td><strong>#<%= inspection.id %></strong></td>
                       <td>
-                        <%= inspection.vehicle.license_plate %>
-                        <br><small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                        <strong><%= inspection.vehicle.license_plate %></strong><br>
+                        <small><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
                       </td>
-                      <td><%= inspection.inspection_jobs.count %></td>
-                      <td><%= inspection.parts_requests.count %></td>
-                      <td><%= inspection.completed_at&.strftime("%b %d, %Y") %></td>
                       <td>
-                        <%= button_to "Create Invoice", 
-                              vmcott_finance_create_invoice_path(inspection_id: inspection.id), 
-                              method: :post,
-                              class: "btn btn-sm btn-success",
-                              data: { confirm: "Create invoice for this vehicle?" } %>
-                        <%= link_to "View Details", vmcott_inspector_inspection_path(inspection), 
-                              class: "btn btn-sm btn-outline-secondary" %>
+                        <span class="badge bg-primary"><%= inspection.vehicle.agency&.code || 'N/A' %></span>
+                      </td>
+                      <td>
+                        <% if inspection.purchase_order %>
+                          <strong><%= inspection.purchase_order.po_number %></strong>
+                        <% else %>
+                          <span class="text-danger">No PO</span>
+                        <% end %>
+                      </td>
+                      <td><%= number_to_currency(labor_cost) %></td>
+                      <td><%= number_to_currency(parts_cost) %></td>
+                      <td><strong><%= number_to_currency(total) %></strong></td>
+                      <td>
+                        <%= link_to "Create Invoice", 
+                            vmcott_finance_create_invoice_path(inspection.id),
+                            method: :post,
+                            class: "btn btn-sm btn-success",
+                            data: { confirm: "Create invoice for this vehicle?" } %>
                       </td>
                     </tr>
                   <% end %>
@@ -293,10 +431,232 @@
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-3">No vehicles ready for pickup</p>
+            <p class="text-muted text-center py-4">No vehicles ready for pickup at this time.</p>
           <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- AGING SUMMARY TAB -->
+    <div class="tab-pane fade" id="aging" role="tabpanel">
+      <div class="row">
+        <!-- Aging Summary Card -->
+        <div class="col-lg-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-dark text-white">
+              <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i> Accounts Receivable Aging</h5>
+            </div>
+            <div class="card-body">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Period</th>
+                    <th>Count</th>
+                    <th>Amount</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="table-success">
+                    <td>Current</td>
+                    <td><%= @current&.count || 0 %></td>
+                    <td><%= number_to_currency(@aging_summary[:current] || 0) %></td>
+                    <td>
+                      <% if @aging_summary[:total] > 0 %>
+                        <%= number_to_percentage((@aging_summary[:current] / @aging_summary[:total] * 100), precision: 1) %>
+                      <% else %>
+                        0%
+                      <% end %>
+                    </td>
+                  </tr>
+                  <tr class="table-warning">
+                    <td>1-30 days</td>
+                    <td><%= @overdue_1_30&.count || 0 %></td>
+                    <td><%= number_to_currency(@aging_summary[:overdue_1_30] || 0) %></td>
+                    <td>
+                      <% if @aging_summary[:total] > 0 %>
+                        <%= number_to_percentage((@aging_summary[:overdue_1_30] / @aging_summary[:total] * 100), precision: 1) %>
+                      <% else %>
+                        0%
+                      <% end %>
+                    </td>
+                  </tr>
+                  <tr class="table-warning">
+                    <td>31-60 days</td>
+                    <td><%= @overdue_31_60&.count || 0 %></td>
+                    <td><%= number_to_currency(@aging_summary[:overdue_31_60] || 0) %></td>
+                    <td>
+                      <% if @aging_summary[:total] > 0 %>
+                        <%= number_to_percentage((@aging_summary[:overdue_31_60] / @aging_summary[:total] * 100), precision: 1) %>
+                      <% else %>
+                        0%
+                      <% end %>
+                    </td>
+                  </tr>
+                  <tr class="table-danger">
+                    <td>61-90 days</td>
+                    <td><%= @overdue_61_90&.count || 0 %></td>
+                    <td><%= number_to_currency(@aging_summary[:overdue_61_90] || 0) %></td>
+                    <td>
+                      <% if @aging_summary[:total] > 0 %>
+                        <%= number_to_percentage((@aging_summary[:overdue_61_90] / @aging_summary[:total] * 100), precision: 1) %>
+                      <% else %>
+                        0%
+                      <% end %>
+                    </td>
+                  </tr>
+                  <tr class="table-danger">
+                    <td>90+ days</td>
+                    <td><%= @overdue_90_plus&.count || 0 %></td>
+                    <td><%= number_to_currency(@aging_summary[:overdue_90_plus] || 0) %></td>
+                    <td>
+                      <% if @aging_summary[:total] > 0 %>
+                        <%= number_to_percentage((@aging_summary[:overdue_90_plus] / @aging_summary[:total] * 100), precision: 1) %>
+                      <% else %>
+                        0%
+                      <% end %>
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot class="table-dark">
+                  <tr>
+                    <th>Total</th>
+                    <th><%= (@current&.count || 0) + (@overdue_1_30&.count || 0) + (@overdue_31_60&.count || 0) + (@overdue_61_90&.count || 0) + (@overdue_90_plus&.count || 0) %></th>
+                    <th><%= number_to_currency(@aging_summary[:total] || 0) %></th>
+                    <th>100%</th>
+                  </tr>
+                </tfoot>
+              </table>
+              
+              <div class="mt-3">
+                <%= link_to "View Full Aging Report", vmcott_finance_aging_report_path, class: "btn btn-outline-dark btn-sm" %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Overdue Invoices -->
+        <div class="col-lg-6 mb-4">
+          <div class="card h-100">
+            <div class="card-header bg-danger text-white">
+              <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i> Overdue Invoices</h5>
+            </div>
+            <div class="card-body">
+              <% if @overdue_90_plus&.any? || @overdue_61_90&.any? %>
+                <div class="list-group">
+                  <% (@overdue_61_90 + @overdue_90_plus).first(5).each do |invoice| %>
+                    <%= link_to invoice_path(invoice), class: "list-group-item list-group-item-action d-flex justify-content-between align-items-center" do %>
+                      <div>
+                        <div class="fw-bold"><%= invoice.invoice_number %></div>
+                        <small class="text-muted">
+                          <%= invoice.vehicle&.license_plate %> • 
+                          <%= invoice.vehicle&.agency&.code %>
+                        </small>
+                      </div>
+                      <div class="text-end">
+                        <div class="fw-bold text-danger"><%= number_to_currency(invoice.amount) %></div>
+                        <small class="text-muted">Due: <%= invoice.due_date.strftime("%b %d") %></small>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+                
+                <% if (@overdue_61_90.count + @overdue_90_plus.count) > 5 %>
+                  <div class="mt-3 text-center">
+                    <%= link_to "View All Overdue", vmcott_finance_aging_report_path, class: "btn btn-sm btn-outline-danger" %>
+                  </div>
+                <% end %>
+              <% else %>
+                <p class="text-muted text-center py-4">No overdue invoices at this time.</p>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Additional Work Section (if any) -->
+  <% if @additional_work_needs_quote.any? %>
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card border-warning">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-exclamation-diamond me-2"></i> Additional Work Needs Quotation</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Agency</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @additional_work_needs_quote.each do |inspection| %>
+                    <tr>
+                      <td><%= inspection.vehicle.license_plate %></td>
+                      <td><span class="badge bg-primary"><%= inspection.vehicle.agency&.code %></span></td>
+                      <td><small><%= truncate(inspection.notes, length: 50) %></small></td>
+                      <td>
+                        <%= link_to "Create Quotation", 
+                            vmcott_finance_new_quotation_for_inspection_path(inspection.id),
+                            class: "btn btn-sm btn-warning" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Quick Stats Footer -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card bg-light">
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= @stats[:pending_invoices] %></h6>
+              <small class="text-muted">Pending Invoices</small>
+            </div>
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= number_to_currency(@stats[:pending_amount]) %></h6>
+              <small class="text-muted">Pending Amount</small>
+            </div>
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= @stats[:overdue_invoices] %></h6>
+              <small class="text-muted">Overdue</small>
+            </div>
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= number_to_currency(@stats[:overdue_amount]) %></h6>
+              <small class="text-muted">Overdue Amount</small>
+            </div>
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= @stats[:quotations_to_review] %></h6>
+              <small class="text-muted">Quotes to Review</small>
+            </div>
+            <div class="col-md-2 col-6">
+              <h6 class="mb-0"><%= @stats[:ready_for_pickup] %></h6>
+              <small class="text-muted">Ready for Pickup</small>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Auto-refresh every 5 minutes (optional) -->
+<script>
+  setTimeout(function() {
+    location.reload();
+  }, 300000); // 5 minutes
+</script>

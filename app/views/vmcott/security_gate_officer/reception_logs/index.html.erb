@@ -1,0 +1,95 @@
+<%# app/views/vmcott/security_gate_officer/reception_logs/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-list-check me-2"></i>
+      <%= params[:action] == 'today' ? "Today's Check-ins" : "All Check-ins" %>
+    </h1>
+    <%= link_to "← Back to Dashboard", vmcott_security_gate_officer_dashboard_path, class: "btn btn-outline-primary" %>
+  </div>
+
+  <!-- Date Filter for Today's view -->
+  <% if params[:action] == 'today' %>
+    <div class="alert alert-info mb-4">
+      <i class="bi bi-calendar-day me-2"></i>
+      Showing check-ins for <strong><%= Date.current.strftime("%B %d, %Y") %></strong>
+    </div>
+  <% end %>
+
+  <!-- Logs Table -->
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Time</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Condition</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @logs.each do |log| %>
+              <tr>
+                <td>
+                  <strong><%= log.received_at.strftime("%I:%M %p") %></strong><br>
+                  <small class="text-muted"><%= time_ago_in_words(log.received_at) %> ago</small>
+                </td>
+                <td>
+                  <strong><%= log.vehicle&.license_plate || 'N/A' %></strong><br>
+                  <small class="text-muted"><%= log.vehicle&.make %> <%= log.vehicle&.model %></small>
+                </td>
+                <td>
+                  <%= log.driver_name %><br>
+                  <small class="text-muted"><%= log.id_number.presence || 'No ID' %></small>
+                </td>
+                <td>
+                  <% if log.condition_report %>
+                    <% if log.condition_report.exterior_damage? %>
+                      <span class="badge bg-warning">⚠️ Damage</span>
+                      <small class="d-block text-muted"><%= log.condition_report.exterior_damage_summary %></small>
+                    <% else %>
+                      <span class="badge bg-success">✅ Clean</span>
+                    <% end %>
+                  <% else %>
+                    <span class="badge bg-secondary">No Report</span>
+                  <% end %>
+                </td>
+                <td>
+                  <% if log.inspected? %>
+                    <span class="badge bg-success">Inspected</span>
+                  <% else %>
+                    <span class="badge bg-warning">Pending</span>
+                  <% end %>
+                </td>
+                <td class="text-end">
+                  <%= link_to vmcott_security_gate_officer_reception_log_path(log), 
+                      class: "btn btn-sm btn-outline-primary" do %>
+                    <i class="bi bi-eye"></i> View
+                  <% end %>
+                  <% if log.condition_report %>
+                    <%= link_to vmcott_vehicle_condition_report_path(log.condition_report), 
+                        class: "btn btn-sm btn-outline-info" do %>
+                      <i class="bi bi-clipboard-check"></i> Report
+                    <% end %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <% if @logs.respond_to?(:total_pages) && @logs.total_pages > 1 %>
+      <div class="card-footer">
+        <div class="d-flex justify-content-center">
+          <%= paginate @logs %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
