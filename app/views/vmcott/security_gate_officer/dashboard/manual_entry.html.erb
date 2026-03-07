@@ -1,0 +1,449 @@
+<%# app/views/vmcott/security_gate_officer/dashboard/manual_entry.html.erb %>
+<div class="container-fluid min-vh-100 py-4" style="background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)), url('https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1964&q=80');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;">
+  
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-white bg-dark bg-opacity-50 p-3 rounded-3">
+      <i class="bi bi-pencil-square me-2"></i>
+      Manual Vehicle Entry
+    </h1>
+    <%= link_to "← Back to Dashboard", vmcott_security_gate_officer_dashboard_path, class: "btn btn-light" %>
+  </div>
+
+  <!-- Flash Messages -->
+  <% if flash[:alert] %>
+    <div class="row">
+      <div class="col-md-8 mx-auto">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <%= flash[:alert] %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="row">
+    <div class="col-md-8 mx-auto">
+      <div class="card shadow-lg border-0" style="backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.95);">
+        <div class="card-header bg-primary text-white border-0">
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Enter Vehicle Information</h5>
+        </div>
+        <div class="card-body">
+          
+          <%= form_with url: vmcott_security_gate_officer_receive_vehicle_path, 
+                        method: :post,
+                        local: true, 
+                        class: "needs-validation", 
+                        id: "vehicle-form",
+                        data: { turbo: false } do |f| %>
+            
+            <!-- Hidden field to track selection method -->
+            <input type="hidden" name="selection_method" id="selection-method" value="">
+            
+            <!-- License Plate Entry with Live Search -->
+            <div class="mb-4 position-relative">
+              <label for="license-plate-search" class="form-label fw-bold">License Plate Number</label>
+              <div class="input-group input-group-lg">
+                <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                <input type="text" 
+                       name="license_plate_search" 
+                       id="license-plate-search"
+                       class="form-control" 
+                       placeholder="e.g., ABC-1234" 
+                       autofocus
+                       autocomplete="off"
+                       aria-describedby="searchHelp">
+              </div>
+              <div id="searchHelp" class="form-text">Start typing to search for existing vehicles (minimum 3 characters)</div>
+              
+              <!-- Search Results Dropdown -->
+              <div id="search-results" class="list-group mt-2" style="display: none; position: absolute; z-index: 1000; width: 100%; max-height: 300px; overflow-y: auto;" role="listbox"></div>
+            </div>
+            
+            <hr class="my-4">
+            
+            <!-- New Vehicle Option -->
+            <% if @allow_new_vehicle %>
+              <div class="mb-4">
+                <div class="alert alert-secondary">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-plus-circle me-3 fs-4"></i>
+                    <div>
+                      <strong>New Vehicle?</strong><br>
+                      <small class="text-muted">If the vehicle isn't in our system, you can create a new record.</small>
+                    </div>
+                    <div class="ms-auto">
+                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#newVehicleForm" aria-expanded="false" aria-controls="newVehicleForm">
+                        Add New
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="collapse mt-3" id="newVehicleForm">
+                  <div class="card card-body bg-light">
+                    <h6 class="fw-bold mb-3">New Vehicle Details</h6>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <%= label_tag :new_vehicle_make, "Make", class: "form-label" %>
+                        <%= text_field_tag "new_vehicle[make]", nil, class: "form-control", id: "new_vehicle_make" %>
+                      </div>
+                      <div class="col-md-6">
+                        <%= label_tag :new_vehicle_model, "Model", class: "form-label" %>
+                        <%= text_field_tag "new_vehicle[model]", nil, class: "form-control", id: "new_vehicle_model" %>
+                      </div>
+                      <div class="col-md-4">
+                        <%= label_tag :new_vehicle_year, "Year", class: "form-label" %>
+                        <%= number_field_tag "new_vehicle[year]", nil, class: "form-control", id: "new_vehicle_year", min: 1900, max: Time.current.year + 1 %>
+                      </div>
+                      <div class="col-md-4">
+                        <%= label_tag :new_vehicle_color, "Color", class: "form-label" %>
+                        <%= text_field_tag "new_vehicle[color]", nil, class: "form-control", id: "new_vehicle_color" %>
+                      </div>
+                      <div class="col-md-4">
+                        <%= label_tag :new_vehicle_vehicle_type, "Vehicle Type", class: "form-label" %>
+                        <%= select_tag "new_vehicle[vehicle_type]", 
+                            options_for_select(["Car", "SUV", "Pickup", "Van", "Bus", "Truck"]), 
+                            prompt: "Select...", 
+                            class: "form-select", 
+                            id: "new_vehicle_vehicle_type" %>
+                      </div>
+                      <div class="col-12">
+                        <%= label_tag :new_vehicle_license_plate, "License Plate", class: "form-label" %>
+                        <%= text_field_tag "new_vehicle[license_plate]", nil, class: "form-control", id: "new_vehicle_license_plate", placeholder: "e.g., ABC-1234" %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+            
+            <hr class="my-4">
+            
+            <!-- Driver Information -->
+            <div class="mb-4">
+              <h6 class="fw-bold mb-3">Driver Information</h6>
+              <div class="row g-3">
+                <div class="col-md-8">
+                  <%= label_tag :driver_name, "Driver Name", class: "form-label" %>
+                  <%= text_field_tag :driver_name, nil, class: "form-control", required: true, id: "driver_name" %>
+                  <div class="invalid-feedback">Please enter driver name</div>
+                </div>
+                <div class="col-md-4">
+                  <%= label_tag :driver_id, "ID Number (Optional)", class: "form-label" %>
+                  <%= text_field_tag :driver_id, nil, class: "form-control", id: "driver_id" %>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mb-4">
+              <%= label_tag :notes, "Notes (Optional)", class: "form-label" %>
+              <%= text_area_tag :notes, nil, class: "form-control", rows: 2, placeholder: "Any special instructions or notes", id: "notes" %>
+            </div>
+            
+            <div class="d-grid gap-2">
+              <%= submit_tag "Proceed to Condition Check", class: "btn btn-primary btn-lg", id: "submit-btn", data: { disable_with: "Processing..." } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Spinner (hidden by default) -->
+<div id="loading-spinner" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;">
+  <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
+
+<!-- JavaScript for live search and form handling - SIMPLIFIED VERSION -->
+<script>
+  (function() {
+    'use strict';
+    
+    console.log('🔧 Manual Entry: Script loaded');
+    
+    // Simple initialization function
+    function init() {
+      console.log('🔍 Initializing...');
+      
+      // Get elements
+      const searchInput = document.getElementById('license-plate-search');
+      const resultsDiv = document.getElementById('search-results');
+      const selectionMethod = document.getElementById('selection-method');
+      const vehicleForm = document.getElementById('vehicle-form');
+      const submitBtn = document.getElementById('submit-btn');
+      const loadingSpinner = document.getElementById('loading-spinner');
+      const newVehicleForm = document.getElementById('newVehicleForm');
+      
+      // Check if we're on the right page
+      if (!searchInput) {
+        console.log('❌ Search input not found');
+        return;
+      }
+      
+      console.log('✅ Elements found, attaching listeners');
+      
+      // State
+      let searchTimeout;
+      let selectedVehicleId = null;
+      
+      // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+      function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+      
+      function clearSelection() {
+        selectedVehicleId = null;
+        document.getElementById('selected-vehicle-id')?.remove();
+        searchInput.disabled = false;
+        searchInput.value = '';
+        selectionMethod.value = '';
+      }
+      
+      function showSuccess(message) {
+        // Remove existing alert
+        document.querySelector('.alert-success')?.remove();
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+        alertDiv.innerHTML = `
+          <i class="bi bi-check-circle me-2"></i>
+          ${escapeHtml(message)}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        searchInput.parentElement.appendChild(alertDiv);
+      }
+      
+      // ============================================
+      // SEARCH FUNCTIONALITY
+      // ============================================
+      searchInput.addEventListener('input', function(e) {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 3) {
+          resultsDiv.style.display = 'none';
+          return;
+        }
+        
+        resultsDiv.innerHTML = '<div class="list-group-item text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Searching...</div>';
+        resultsDiv.style.display = 'block';
+        
+        searchTimeout = setTimeout(() => {
+          fetch(`/vehicles/search?q=${encodeURIComponent(query)}`, {
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              resultsDiv.innerHTML = '';
+              data.forEach(vehicle => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.innerHTML = `
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>${escapeHtml(vehicle.license_plate || 'N/A')}</strong>
+                      ${vehicle.make ? `- ${escapeHtml(vehicle.make)} ${escapeHtml(vehicle.model || '')}` : ''}
+                    </div>
+                    <span class="badge bg-primary">Select</span>
+                  </div>
+                `;
+                item.onclick = (e) => {
+                  e.preventDefault();
+                  selectVehicle(vehicle);
+                };
+                resultsDiv.appendChild(item);
+              });
+            } else {
+              resultsDiv.innerHTML = '<div class="list-group-item text-muted">No vehicles found</div>';
+            }
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+            resultsDiv.innerHTML = '<div class="list-group-item text-danger">Error searching</div>';
+          });
+        }, 300);
+      });
+      
+      // ============================================
+      // SELECT VEHICLE
+      // ============================================
+      function selectVehicle(vehicle) {
+        console.log('Selected:', vehicle);
+        
+        // Clear previous selection
+        clearSelection();
+        
+        // Set new selection
+        selectedVehicleId = vehicle.id;
+        selectionMethod.value = 'vehicle_search';
+        
+        // Add hidden input
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'vehicle_id';
+        input.id = 'selected-vehicle-id';
+        input.value = vehicle.id;
+        vehicleForm.appendChild(input);
+        
+        // Update UI
+        searchInput.value = `${vehicle.license_plate || ''} - ${vehicle.make || ''} ${vehicle.model || ''}`.trim();
+        searchInput.disabled = true;
+        resultsDiv.style.display = 'none';
+        
+        showSuccess(`Selected: ${vehicle.license_plate || 'Unknown'}`);
+      }
+      
+      window.selectVehicle = selectVehicle;
+      
+      // ============================================
+      // CLICK OUTSIDE
+      // ============================================
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+          resultsDiv.style.display = 'none';
+        }
+      });
+      
+      // ============================================
+      // NEW VEHICLE FORM
+      // ============================================
+      if (newVehicleForm) {
+        const trigger = document.querySelector('[data-bs-target="#newVehicleForm"]');
+        if (trigger) {
+          trigger.addEventListener('click', () => {
+            clearSelection();
+            selectionMethod.value = 'new_vehicle';
+            searchInput.disabled = true;
+            searchInput.value = 'Entering new vehicle details';
+          });
+        }
+        
+        newVehicleForm.addEventListener('hide.bs.collapse', () => {
+          if (!selectedVehicleId) {
+            searchInput.disabled = false;
+            searchInput.value = '';
+            selectionMethod.value = '';
+          }
+        });
+      }
+      
+      // ============================================
+      // FORM SUBMIT
+      // ============================================
+      vehicleForm.addEventListener('submit', (e) => {
+        const driverName = document.getElementById('driver_name').value.trim();
+        
+        if (!driverName) {
+          e.preventDefault();
+          document.getElementById('driver_name').classList.add('is-invalid');
+          alert('Please enter driver name');
+          return;
+        }
+        
+        const hasVehicle = document.getElementById('selected-vehicle-id');
+        const newMake = document.getElementById('new_vehicle_make')?.value;
+        const newModel = document.getElementById('new_vehicle_model')?.value;
+        const newPlate = document.getElementById('new_vehicle_license_plate')?.value;
+        const formExpanded = document.querySelector('#newVehicleForm.collapse.show');
+        
+        if (!hasVehicle && !(newMake && newModel && newPlate) && !formExpanded) {
+          e.preventDefault();
+          alert('Please select a vehicle or add new vehicle details');
+          return;
+        }
+        
+        if (loadingSpinner) loadingSpinner.style.display = 'block';
+        if (submitBtn) submitBtn.disabled = true;
+      });
+      
+      console.log('✅ Ready');
+    }
+    
+    // Initialize with multiple methods
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+    
+    document.addEventListener('turbo:load', init);
+    document.addEventListener('turbolinks:load', init);
+    
+  })();
+</script>
+
+<style>
+  #search-results {
+    position: absolute;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    z-index: 1050;
+    background: white;
+    border-radius: 4px;
+  }
+  
+  #search-results .list-group-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  #search-results .list-group-item:hover {
+    background-color: #f8f9fa;
+  }
+  
+  .alert-success {
+    animation: fadeIn 0.3s;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .bg-dark.bg-opacity-50 {
+    backdrop-filter: blur(5px);
+  }
+  
+  .form-control.is-invalid {
+    border-color: #dc3545;
+  }
+  
+  .invalid-feedback {
+    display: none;
+  }
+  
+  .form-control.is-invalid ~ .invalid-feedback {
+    display: block;
+  }
+  
+  #loading-spinner {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+</style>

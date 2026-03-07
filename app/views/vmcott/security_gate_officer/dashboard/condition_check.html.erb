@@ -1,0 +1,703 @@
+<%# app/views/vmcott/security_gate_officer/dashboard/condition_check.html.erb %>
+<div class="container-fluid py-4" style="background: linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), url('https://images.unsplash.com/photo-1580273916550-e323be2ae537?ixlib=rb-4.0.3&auto=format&fit=crop&w=1964&q=80');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;">
+  
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-white bg-dark bg-opacity-50 p-3 rounded-3">
+      <i class="bi bi-clipboard-check me-2"></i>
+      Vehicle Condition Check
+    </h1>
+    <div>
+      <%= link_to "← Back", vmcott_security_gate_officer_manual_entry_path, class: "btn btn-light me-2" %>
+      <%= link_to "Dashboard", vmcott_security_gate_officer_dashboard_path, class: "btn btn-outline-light" %>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card shadow-lg border-0" style="backdrop-filter: blur(5px); background-color: rgba(255, 255, 255, 0.98);">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Vehicle: <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %></h5>
+        </div>
+        <div class="card-body">
+          
+          <%= form_with url: vmcott_security_gate_officer_submit_condition_path(@vehicle.id), 
+                        method: :post,
+                        local: true, 
+                        class: "needs-validation", 
+                        id: "condition-form",
+                        data: { turbo: false } do |f| %>
+            
+            <!-- Quick Stats Row -->
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Fuel Level (%)</label>
+                <div class="input-group">
+                  <input type="number" name="fuel_level" class="form-control" min="0" max="100" value="50" required>
+                  <span class="input-group-text">%</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Odometer (km)</label>
+                <input type="number" name="odometer" class="form-control" value="<%= @vehicle.mileage || 0 %>" required>
+              </div>
+            </div>
+
+            <!-- EXTERIOR DAMAGE - Horizontal Tiles -->
+            <div class="card mb-4">
+              <div class="card-header bg-warning bg-opacity-25">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-exclamation-triangle me-2"></i> Exterior Damage</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="scratches" class="btn-check" id="ext_scratches" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_scratches">Scratches</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="dents" class="btn-check" id="ext_dents" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_dents">Dents</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="paint" class="btn-check" id="ext_paint" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_paint">Paint damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="glass" class="btn-check" id="ext_glass" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_glass">Glass/Windshield</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="mirror" class="btn-check" id="ext_mirror" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_mirror">Mirror</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="lights" class="btn-check" id="ext_lights" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="ext_lights">Lights</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="none" class="btn-check" id="ext_none" autocomplete="off" checked>
+                    <label class="btn btn-outline-success btn-sm" for="ext_none">✅ None</label>
+                  </div>
+                </div>
+                <input type="text" name="exterior_notes" class="form-control" placeholder="Location of damage (if any)">
+              </div>
+            </div>
+
+            <!-- INTERIOR CONDITION -->
+            <div class="card mb-4">
+              <div class="card-header bg-info bg-opacity-25">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2"></i> Interior Condition</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="clean" class="btn-check" id="int_clean" autocomplete="off" checked>
+                    <label class="btn btn-outline-success btn-sm" for="int_clean">✅ Clean</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="dirty" class="btn-check" id="int_dirty" autocomplete="off">
+                    <label class="btn btn-outline-warning btn-sm" for="int_dirty">Dirty</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="seat_damage" class="btn-check" id="int_seat" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="int_seat">Seat damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="carpet_damage" class="btn-check" id="int_carpet" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="int_carpet">Carpet damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="odor" class="btn-check" id="int_odor" autocomplete="off">
+                    <label class="btn btn-outline-danger btn-sm" for="int_odor">Unusual odor</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TIRES & WHEELS -->
+            <div class="card mb-4">
+              <div class="card-header bg-success bg-opacity-25">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-circle me-2"></i> Tires & Wheels</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-3 mb-3">
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="good" class="form-check-input" id="tire_good" checked>
+                    <label class="form-check-label" for="tire_good">✅ Good</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="low_pressure" class="form-check-input" id="tire_low">
+                    <label class="form-check-label" for="tire_low">⚠️ Low pressure</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="damage" class="form-check-input" id="tire_damage">
+                    <label class="form-check-label" for="tire_damage">🔴 Visible damage</label>
+                  </div>
+                </div>
+                <input type="text" name="tire_notes" class="form-control" placeholder="Tire notes (if any)">
+              </div>
+            </div>
+
+            <!-- WARNING LIGHTS -->
+            <div class="card mb-4">
+              <div class="card-header bg-danger bg-opacity-25">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-exclamation-diamond me-2"></i> Warning Lights</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="none" class="btn-check" id="warn_none" autocomplete="off" checked>
+                    <label class="btn btn-outline-success btn-sm" for="warn_none">✅ None</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="check_engine" class="btn-check" id="warn_engine" autocomplete="off">
+                    <label class="btn btn-outline-warning btn-sm" for="warn_engine">Check engine</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="other" class="btn-check" id="warn_other" autocomplete="off">
+                    <label class="btn btn-outline-warning btn-sm" for="warn_other">Other lights</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PHOTOS SECTION -->
+            <div class="card mb-4">
+              <div class="card-header bg-secondary text-white">
+                <h6 class="mb-0"><i class="bi bi-camera me-2"></i> Photos (Quick Capture)</h6>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Front View</label>
+                    <input type="file" name="photo_front" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Rear View</label>
+                    <input type="file" name="photo_rear" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Left Side</label>
+                    <input type="file" name="photo_left" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Right Side</label>
+                    <input type="file" name="photo_right" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Dashboard</label>
+                    <input type="file" name="photo_dashboard" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Odometer</label>
+                    <input type="file" name="photo_odometer" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Fuel Gauge</label>
+                    <input type="file" name="photo_fuel" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label fw-bold">Damage (if any)</label>
+                    <input type="file" name="photo_damage" accept="image/*" class="form-control" capture="environment">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ADDITIONAL NOTES -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Additional Notes</label>
+              <textarea name="notes" class="form-control" rows="2" placeholder="Any other observations?"></textarea>
+            </div>
+
+            <!-- DRIVER SIGNATURE SECTION - Added ID for scrolling -->
+            <div class="card mb-4 border-warning" id="signature-section">
+              <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i> Driver Acknowledgment & Signature</h6>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-warning">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  The driver must review the condition above and sign below.
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-md-8">
+                    <label class="form-label fw-bold">Driver Full Name</label>
+                    <input type="text" name="driver_name" class="form-control" required value="<%= session[:driver_name] %>">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label fw-bold">ID Number (Optional)</label>
+                    <input type="text" name="driver_id_number" class="form-control">
+                  </div>
+                </div>
+
+                <!-- Signature Pad -->
+                <div class="mb-3" id="signature-wrapper">
+                  <label class="form-label fw-bold">Driver Signature</label>
+                  <div class="border rounded bg-light" style="height: 150px; width: 100%; cursor: pointer;" id="signature-pad" onclick="openSignatureModal()">
+                    <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+                      <i class="bi bi-pencil fs-1 mb-2"></i>
+                      <span>Click to sign</span>
+                    </div>
+                  </div>
+                  <input type="hidden" name="signature_data" id="signature-data">
+                </div>
+
+                <!-- Signature Modal - Canvas appears at bottom of page -->
+                <div class="modal fade" id="signatureModal" tabindex="-1" aria-hidden="true">
+                  <div class="modal-dialog modal-dialog-bottom modal-lg">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Driver Signature</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                        <!-- Canvas with explicit dimensions and background -->
+                        <div style="background: white; border: 2px solid #dee2e6; border-radius: 8px; padding: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                          <canvas id="signature-canvas" 
+                                  width="600" 
+                                  height="200" 
+                                  style="width: 100%; height: 200px; display: block; background: white; cursor: crosshair; border: 1px dashed #aaa;"
+                                  ></canvas>
+                        </div>
+                        
+                        <!-- Instructions -->
+                        <div class="alert alert-info mt-3 mb-2 py-2">
+                          <div class="d-flex align-items-center">
+                            <i class="bi bi-mouse fs-5 me-2"></i>
+                            <div>
+                              <strong>How to sign:</strong> 
+                              Click and hold the left mouse button on the white area to draw. 
+                              Release to stop. Use the Clear button to start over.
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Buttons -->
+                        <div class="d-flex gap-2 mt-3">
+                          <button type="button" class="btn btn-outline-secondary flex-grow-1" id="clear-signature">
+                            <i class="bi bi-eraser me-1"></i> Clear
+                          </button>
+                          <button type="button" class="btn btn-success flex-grow-1" id="save-signature">
+                            <i class="bi bi-check-lg me-1"></i> Save Signature
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Terms and conditions -->
+                <div class="form-check mt-3">
+                  <input type="checkbox" name="terms_agreed" class="form-check-input" id="terms" required>
+                  <label class="form-check-label" for="terms">
+                    I confirm that the vehicle condition above accurately reflects the state of the vehicle upon arrival.
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-success btn-lg" id="submit-btn">
+                <i class="bi bi-check-circle me-2"></i>
+                Complete Check-in & Save
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Signature Pad JavaScript - WITH BOTTOM POSITIONED MODAL -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    let canvas, ctx, drawing = false;
+    
+    // Auto-uncheck "None" when other checkboxes are checked
+    document.querySelectorAll('input[name="exterior[]"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const noneCheckbox = document.getElementById('ext_none');
+        if (this.value !== 'none' && this.checked) {
+          noneCheckbox.checked = false;
+        }
+        if (this.value === 'none' && this.checked) {
+          document.querySelectorAll('input[name="exterior[]"]:not(#ext_none)').forEach(cb => cb.checked = false);
+        }
+      });
+    });
+    
+    document.querySelectorAll('input[name="interior[]"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const cleanCheckbox = document.getElementById('int_clean');
+        if (this.value !== 'clean' && this.checked) {
+          cleanCheckbox.checked = false;
+        }
+        if (this.value === 'clean' && this.checked) {
+          document.querySelectorAll('input[name="interior[]"]:not(#int_clean)').forEach(cb => cb.checked = false);
+        }
+      });
+    });
+    
+    document.querySelectorAll('input[name="warnings[]"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const noneCheckbox = document.getElementById('warn_none');
+        if (this.value !== 'none' && this.checked) {
+          noneCheckbox.checked = false;
+        }
+        if (this.value === 'none' && this.checked) {
+          document.querySelectorAll('input[name="warnings[]"]:not(#warn_none)').forEach(cb => cb.checked = false);
+        }
+      });
+    });
+
+    // ============================================
+    // SIGNATURE PAD FUNCTIONS
+    // ============================================
+    
+    // Function to open modal and initialize canvas
+    window.openSignatureModal = function() {
+      const modalEl = document.getElementById('signatureModal');
+      const modal = new bootstrap.Modal(modalEl, {
+        backdrop: 'static',
+        keyboard: true
+      });
+      modal.show();
+      
+      // Remove any lingering backdrops
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+      
+      // Small delay to ensure modal is rendered
+      setTimeout(initCanvas, 300);
+      
+      // Scroll to the bottom of the page when modal opens
+      setTimeout(function() {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    };
+    
+    // Initialize canvas separately
+    function initCanvas() {
+      canvas = document.getElementById('signature-canvas');
+      if (!canvas) {
+        console.error('Canvas element not found!');
+        return;
+      }
+      
+      // Set fixed dimensions
+      canvas.width = 600;
+      canvas.height = 200;
+      
+      ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error('Could not get canvas context!');
+        return;
+      }
+      
+      // Set drawing styles
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Clear canvas (white background)
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Remove old event listeners
+      canvas.removeEventListener('mousedown', startDrawing);
+      canvas.removeEventListener('mousemove', draw);
+      canvas.removeEventListener('mouseup', stopDrawing);
+      canvas.removeEventListener('mouseleave', stopDrawing);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', stopDrawing);
+      
+      // Add fresh event listeners
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDrawing);
+      canvas.addEventListener('mouseleave', stopDrawing);
+      
+      // Touch events for mobile
+      canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+      canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+      canvas.addEventListener('touchend', stopDrawing);
+      
+      console.log('Canvas initialized successfully');
+    }
+    
+    function startDrawing(e) {
+      e.preventDefault();
+      drawing = true;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+    
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+    
+    function handleTouchStart(e) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+      
+      drawing = true;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+    
+    function handleTouchMove(e) {
+      e.preventDefault();
+      if (!drawing) return;
+      
+      const touch = e.touches[0];
+      const rect = canvas.getBoundingClientRect();
+      const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+      
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+    
+    function stopDrawing(e) {
+      if (e) e.preventDefault();
+      drawing = false;
+      ctx.closePath();
+    }
+    
+    // Clear signature
+    document.getElementById('clear-signature')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    });
+    
+    // Save signature
+    document.getElementById('save-signature')?.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (!canvas || !ctx) {
+        alert('Signature canvas not initialized. Please try again.');
+        return;
+      }
+      
+      // Check if canvas is empty
+      const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const isCanvasEmpty = !pixelData.some(value => value !== 255);
+      
+      if (isCanvasEmpty) {
+        if (!confirm('No signature detected. Save anyway?')) {
+          return;
+        }
+      }
+      
+      const signatureData = canvas.toDataURL('image/png');
+      document.getElementById('signature-data').value = signatureData;
+      
+      // Update the signature pad display
+      const pad = document.getElementById('signature-pad');
+      pad.innerHTML = `<img src="${signatureData}" style="width: 100%; height: 100%; object-fit: contain; background: white;">`;
+      pad.onclick = null;
+      
+      // Close modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('signatureModal'));
+      if (modal) modal.hide();
+      
+      // Remove backdrops after closing
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+    });
+
+    // Form validation
+    document.getElementById('condition-form').addEventListener('submit', function(e) {
+      const signature = document.getElementById('signature-data').value;
+      const driverName = document.querySelector('input[name="driver_name"]').value.trim();
+      const termsAgreed = document.getElementById('terms').checked;
+      
+      if (!signature) {
+        e.preventDefault();
+        alert('Please capture driver signature');
+        return false;
+      }
+      
+      if (!driverName) {
+        e.preventDefault();
+        alert('Please enter driver name');
+        return false;
+      }
+      
+      if (!termsAgreed) {
+        e.preventDefault();
+        alert('Please agree to the terms');
+        return false;
+      }
+      
+      return true;
+    });
+    
+    // Ensure modal cleanup when closed
+    document.getElementById('signatureModal')?.addEventListener('hidden.bs.modal', function() {
+      drawing = false;
+      // Remove any lingering backdrops
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+    });
+    
+    // Prevent zoom on double-tap for mobile
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(event) {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, false);
+    
+    // Prevent pinch zoom
+    document.addEventListener('touchmove', function(event) {
+      if (event.scale !== 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+    
+  });
+</script>
+
+<style>
+  /* Prevent zoom on input focus for mobile */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  
+  /* Prevent text size adjustment */
+  body {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  #signature-pad {
+    transition: all 0.3s ease;
+  }
+  
+  #signature-pad:hover {
+    background-color: #e9ecef !important;
+  }
+  
+  .btn-check:checked + .btn-outline-danger {
+    background-color: #dc3545;
+    color: white;
+  }
+  
+  .btn-check:checked + .btn-outline-success {
+    background-color: #198754;
+    color: white;
+  }
+  
+  .btn-check:checked + .btn-outline-warning {
+    background-color: #ffc107;
+    color: black;
+  }
+  
+  canvas {
+    cursor: crosshair;
+    background: white;
+    touch-action: none;
+  }
+  
+  /* Modal positioned at bottom */
+  .modal-dialog-bottom {
+    margin: 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 100%;
+  }
+  
+  .modal-dialog-bottom .modal-content {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: none;
+  }
+  
+  /* Modal adjustments */
+  .modal-lg {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  
+  @media (max-width: 768px) {
+    .modal-lg {
+      max-width: 100%;
+    }
+  }
+  
+  .alert-info {
+    background-color: #cff4fc;
+    border-color: #b6effb;
+    color: #055160;
+  }
+  
+  /* Fix modal backdrop issues */
+  .modal-backdrop {
+    z-index: 1040 !important;
+  }
+  
+  .modal {
+    z-index: 1050 !important;
+  }
+  
+  .modal-dialog {
+    pointer-events: auto;
+  }
+  
+  .modal-content {
+    pointer-events: auto;
+  }
+  
+  /* Ensure canvas is interactable */
+  #signature-canvas {
+    pointer-events: auto !important;
+    touch-action: none;
+  }
+  
+  /* Remove any potential overlays */
+  .modal.show {
+    background-color: transparent;
+  }
+  
+  /* Prevent zooming on the entire page */
+  meta[name=viewport] {
+    content: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+  }
+</style>
+
+<!-- Add viewport meta tag to prevent zoom -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">

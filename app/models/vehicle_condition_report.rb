@@ -165,6 +165,43 @@ class VehicleConditionReport < ApplicationRecord
     (warning_lights || []).map { |l| light_map[l] || l }.compact.join(', ')
   end
   
+  # ========================
+  # FORMATTING METHODS - ADDED FOR VIEWS
+  # ========================
+  
+  # Safely format signed_at for display (handles both String and DateTime)
+  def formatted_signed_at
+    return nil if signed_at.blank?
+    
+    if signed_at.is_a?(String)
+      begin
+        # Try to parse the string into a time
+        Time.zone.parse(signed_at).strftime("%I:%M %p")
+      rescue
+        # If parsing fails, return the original string
+        signed_at
+      end
+    else
+      # It's a DateTime/Time object
+      signed_at.strftime("%I:%M %p")
+    end
+  end
+  
+  # Get full formatted date time for signed_at
+  def formatted_signed_at_full
+    return nil if signed_at.blank?
+    
+    if signed_at.is_a?(String)
+      begin
+        Time.zone.parse(signed_at).strftime("%b %d, %Y at %I:%M %p")
+      rescue
+        signed_at
+      end
+    else
+      signed_at.strftime("%b %d, %Y at %I:%M %p")
+    end
+  end
+  
   # Check if all required photos were taken
   def photos_complete?
     required_photos = ['front', 'rear', 'left', 'right', 'dashboard', 'odometer', 'fuel_gauge']
@@ -186,7 +223,7 @@ class VehicleConditionReport < ApplicationRecord
     {
       vehicle: vehicle.license_plate,
       driver: driver_name,
-      signed_at: signed_at,
+      signed_at: formatted_signed_at_full,
       exterior: exterior_damage_summary,
       interior: interior_summary,
       tires: tire_status_display,

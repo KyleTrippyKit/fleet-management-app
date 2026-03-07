@@ -163,6 +163,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     session[:check_in_rfq_id] = @rfq&.id
     session[:check_in_po_id] = @po&.id
     session[:driver_name] = params[:driver_name]
+    session[:driver_id] = params[:driver_id] if params[:driver_id].present?
+    session[:notes] = params[:notes] if params[:notes].present?
     
     # Redirect to condition check form
     redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id)
@@ -185,6 +187,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     
     # Pre-fill from session if available
     @driver_name = session[:driver_name]
+    @driver_id = session[:driver_id]
+    @notes = session[:notes]
   end
   
   def submit_condition
@@ -194,6 +198,12 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     unless session[:check_in_vehicle_id].to_i == @vehicle.id
       flash[:alert] = "Session expired. Please start over."
       redirect_to vmcott_security_gate_officer_manual_entry_path and return
+    end
+    
+    # Validate signature
+    if params[:signature_data].blank?
+      flash[:alert] = "Driver signature is required."
+      redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id) and return
     end
     
     # Create condition report
@@ -214,19 +224,22 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     # Handle condition data
     condition_data = {}
     
-    # Exterior damage (array)
-    condition_data[:exterior_damage] = params[:exterior] || []
+    # Exterior damage (array) - filter out empty strings
+    exterior = Array(params[:exterior]).reject(&:blank?)
+    condition_data[:exterior_damage] = exterior
     condition_data[:exterior_notes] = params[:exterior_notes]
     
-    # Interior issues (array)
-    condition_data[:interior_issues] = params[:interior] || []
+    # Interior issues (array) - filter out empty strings
+    interior = Array(params[:interior]).reject(&:blank?)
+    condition_data[:interior_issues] = interior
     
     # Tire status (radio)
     condition_data[:tire_status] = params[:tire_status] || 'good'
     condition_data[:tire_notes] = params[:tire_notes]
     
-    # Warning lights (array)
-    condition_data[:warning_lights] = params[:warnings] || ['none']
+    # Warning lights (array) - filter out empty strings
+    warnings = Array(params[:warnings]).reject(&:blank?)
+    condition_data[:warning_lights] = warnings
     
     # Additional notes
     condition_data[:additional_notes] = params[:notes]
@@ -296,6 +309,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       session.delete(:check_in_rfq_id)
       session.delete(:check_in_po_id)
       session.delete(:driver_name)
+      session.delete(:driver_id)
+      session.delete(:notes)
       
       # Notify inspectors
       notify_inspectors(@vehicle, @condition_report)
@@ -379,7 +394,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   
   def attach_photos(report, params)
     # Front view
-    if params[:photo_front].present?
+    if params[:photo_front].present? && params[:photo_front].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_front],
         filename: "front_#{Time.current.to_i}.jpg",
@@ -388,7 +403,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Rear view
-    if params[:photo_rear].present?
+    if params[:photo_rear].present? && params[:photo_rear].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_rear],
         filename: "rear_#{Time.current.to_i}.jpg",
@@ -397,7 +412,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Left side
-    if params[:photo_left].present?
+    if params[:photo_left].present? && params[:photo_left].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_left],
         filename: "left_#{Time.current.to_i}.jpg",
@@ -406,7 +421,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Right side
-    if params[:photo_right].present?
+    if params[:photo_right].present? && params[:photo_right].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_right],
         filename: "right_#{Time.current.to_i}.jpg",
@@ -415,7 +430,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Dashboard
-    if params[:photo_dashboard].present?
+    if params[:photo_dashboard].present? && params[:photo_dashboard].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_dashboard],
         filename: "dashboard_#{Time.current.to_i}.jpg",
@@ -424,7 +439,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Odometer
-    if params[:photo_odometer].present?
+    if params[:photo_odometer].present? && params[:photo_odometer].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_odometer],
         filename: "odometer_#{Time.current.to_i}.jpg",
@@ -433,7 +448,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Fuel gauge
-    if params[:photo_fuel].present?
+    if params[:photo_fuel].present? && params[:photo_fuel].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_fuel],
         filename: "fuel_#{Time.current.to_i}.jpg",
@@ -442,7 +457,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
     
     # Damage photos
-    if params[:photo_damage].present?
+    if params[:photo_damage].present? && params[:photo_damage].respond_to?(:read)
       report.condition_photos.attach(
         io: params[:photo_damage],
         filename: "damage_#{Time.current.to_i}.jpg",
@@ -455,6 +470,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     return unless defined?(Notification)
     
     inspector_ids = User.where(role: 'inspector').pluck(:id)
+    return if inspector_ids.empty?
     
     damage_notice = condition_report.exterior_damage? ? "Damage noted: #{condition_report.exterior_damage_summary}" : "No damage reported"
     

@@ -29,7 +29,7 @@
         </div>
       <% end %>
 
-      <%= form_with url: vmcott_inspector_inspections_path, method: :post, local: true do |f| %>
+      <%= form_with url: vmcott_inspector_inspections_path, method: :post, local: true, id: "inspection-form", data: { turbo: false } do |f| %>
         <%= hidden_field_tag :vehicle_id, @vehicle.id %>
 
         <!-- Custom Jobs Section -->
@@ -113,129 +113,186 @@
   </div>
 </div>
 
-<!-- JavaScript for Custom Jobs Management -->
+<!-- JavaScript for Custom Jobs Management - TURBO FIXED VERSION -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const customJobInput = document.getElementById('custom-job-input');
-  const addJobBtn = document.getElementById('add-custom-job-btn');
-  const customJobsList = document.getElementById('custom-jobs-list');
-  const noJobsMessage = document.getElementById('no-jobs-message');
-  const submitBtn = document.getElementById('submit-btn');
+(function() {
+  'use strict';
   
-  // Array to store custom jobs
-  let customJobs = [];
+  console.log('🔧 Custom Jobs script loaded');
   
-  // Function to add a new custom job
-  function addCustomJob(description) {
-    if (!description.trim()) return;
+  function initializeCustomJobs() {
+    console.log('🔍 Initializing custom jobs...');
     
-    // Create unique ID for this job
-    const jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const customJobInput = document.getElementById('custom-job-input');
+    const addJobBtn = document.getElementById('add-custom-job-btn');
+    const customJobsList = document.getElementById('custom-jobs-list');
+    const noJobsMessage = document.getElementById('no-jobs-message');
+    const form = document.getElementById('inspection-form');
     
-    // Create job element
-    const jobDiv = document.createElement('div');
-    jobDiv.className = 'custom-job-item card mb-2 border-start border-4 border-success';
-    jobDiv.dataset.jobId = jobId;
-    jobDiv.innerHTML = `
-      <div class="card-body py-3">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-wrench text-success me-3 fs-5"></i>
-            <div>
-              <span class="fw-medium">${escapeHtml(description)}</span>
-              <input type="hidden" name="custom_jobs[][description]" value="${escapeHtml(description)}">
+    // Check if elements exist
+    if (!customJobInput || !addJobBtn || !customJobsList || !noJobsMessage || !form) {
+      console.log('❌ Required elements not found');
+      return;
+    }
+    
+    console.log('✅ Elements found, attaching event listeners');
+    
+    // Remove any existing event listeners by cloning and replacing
+    const newInput = customJobInput.cloneNode(true);
+    const newButton = addJobBtn.cloneNode(true);
+    const newForm = form.cloneNode(true);
+    
+    customJobInput.parentNode.replaceChild(newInput, customJobInput);
+    addJobBtn.parentNode.replaceChild(newButton, addJobBtn);
+    form.parentNode.replaceChild(newForm, form);
+    
+    // Update references
+    const updatedInput = document.getElementById('custom-job-input');
+    const updatedButton = document.getElementById('add-custom-job-btn');
+    const updatedForm = document.getElementById('inspection-form');
+    const updatedList = document.getElementById('custom-jobs-list');
+    const updatedNoJobs = document.getElementById('no-jobs-message');
+    
+    // Function to add a new custom job
+    function addCustomJob(description) {
+      if (!description.trim()) return;
+      
+      console.log('➕ Adding job:', description);
+      
+      // Create job element
+      const jobDiv = document.createElement('div');
+      jobDiv.className = 'custom-job-item card mb-2 border-start border-4 border-success';
+      jobDiv.style.animation = 'slideIn 0.3s ease';
+      jobDiv.innerHTML = `
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+              <i class="bi bi-wrench text-success me-3 fs-5"></i>
+              <div>
+                <span class="fw-medium">${escapeHtml(description)}</span>
+                <input type="hidden" name="custom_jobs[][description]" value="${escapeHtml(description)}">
+              </div>
             </div>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-custom-job" title="Remove job">
+              <i class="bi bi-trash"></i>
+            </button>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-danger remove-custom-job" title="Remove job">
-            <i class="bi bi-trash"></i>
-          </button>
         </div>
-      </div>
-    `;
-    
-    // Add remove functionality
-    jobDiv.querySelector('.remove-custom-job').addEventListener('click', function() {
-      jobDiv.remove();
-      customJobs = customJobs.filter(job => job.id !== jobId);
+      `;
+      
+      // Add remove functionality
+      const removeBtn = jobDiv.querySelector('.remove-custom-job');
+      removeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🗑️ Removing job');
+        jobDiv.style.animation = 'slideOut 0.2s ease';
+        setTimeout(() => {
+          jobDiv.remove();
+          updateJobsListVisibility();
+        }, 150);
+      });
+      
+      // Add to list
+      updatedList.appendChild(jobDiv);
+      
+      // Clear input and focus
+      updatedInput.value = '';
+      updatedInput.focus();
+      
+      // Update visibility
       updateJobsListVisibility();
-    });
-    
-    // Add to list
-    customJobsList.appendChild(jobDiv);
-    
-    // Store in array
-    customJobs.push({
-      id: jobId,
-      description: description
-    });
-    
-    // Update visibility
-    updateJobsListVisibility();
-  }
-  
-  // Helper function to escape HTML
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-  
-  // Function to update visibility of jobs list and messages
-  function updateJobsListVisibility() {
-    if (customJobs.length === 0) {
-      noJobsMessage.style.display = 'block';
-      customJobsList.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-inbox fs-1 d-block mb-2"></i>No jobs added yet. Add a custom job above.</div>';
-    } else {
-      noJobsMessage.style.display = 'none';
     }
-  }
-  
-  // Add job on button click
-  addJobBtn.addEventListener('click', function() {
-    if (customJobInput.value.trim()) {
-      addCustomJob(customJobInput.value.trim());
-      customJobInput.value = '';
-      customJobInput.focus();
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
-  });
-  
-  // Add job on Enter key
-  customJobInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (this.value.trim()) {
-        addCustomJob(this.value.trim());
-        this.value = '';
+    
+    // Function to update visibility of jobs list and messages
+    function updateJobsListVisibility() {
+      const jobsCount = document.querySelectorAll('input[name="custom_jobs[][description]"]').length;
+      console.log('📊 Jobs count:', jobsCount);
+      
+      if (jobsCount === 0) {
+        updatedNoJobs.style.display = 'block';
+        
+        // Only show empty message if no jobs exist
+        if (!updatedList.querySelector('.custom-job-item')) {
+          updatedList.innerHTML = '<div class="text-center text-muted py-4" id="empty-jobs-message"><i class="bi bi-inbox fs-1 d-block mb-2"></i>No jobs added yet. Add a custom job above.</div>';
+        }
+      } else {
+        updatedNoJobs.style.display = 'none';
+        // Remove empty message if it exists
+        const emptyMsg = document.getElementById('empty-jobs-message');
+        if (emptyMsg) emptyMsg.remove();
       }
     }
-  });
-  
-  // Form validation before submit
-  submitBtn.addEventListener('click', function(e) {
-    const customJobsCount = document.querySelectorAll('input[name="custom_jobs[][description]"]').length;
     
-    if (customJobsCount === 0) {
+    // Add job on button click
+    updatedButton.addEventListener('click', function(e) {
       e.preventDefault();
-      noJobsMessage.style.display = 'block';
-      noJobsMessage.classList.add('alert', 'alert-warning');
-      customJobsList.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      e.stopPropagation();
+      addCustomJob(updatedInput.value);
+    });
+    
+    // Add job on Enter key
+    updatedInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        addCustomJob(this.value);
+      }
+    });
+    
+    // Form validation before submit
+    updatedForm.addEventListener('submit', function(e) {
+      const jobsCount = document.querySelectorAll('input[name="custom_jobs[][description]"]').length;
+      console.log('📝 Form submit, jobs count:', jobsCount);
       
-      // Shake animation for attention
-      noJobsMessage.style.animation = 'shake 0.5s';
-      setTimeout(() => {
-        noJobsMessage.style.animation = '';
-      }, 500);
-    }
-  });
+      if (jobsCount === 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        updatedNoJobs.style.display = 'block';
+        updatedList.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Shake animation for attention
+        updatedNoJobs.style.animation = 'shake 0.5s';
+        setTimeout(() => {
+          updatedNoJobs.style.animation = '';
+        }, 500);
+      }
+    });
+    
+    // Initialize with empty state message
+    updateJobsListVisibility();
+    
+    // Focus on input on page load
+    updatedInput.focus();
+    
+    console.log('✅ Custom jobs initialized successfully');
+  }
   
-  // Initialize with empty state message
-  updateJobsListVisibility();
+  // Try multiple initialization methods
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCustomJobs);
+  } else {
+    initializeCustomJobs();
+  }
   
-  // Focus on input on page load
-  customJobInput.focus();
-});
+  // Handle Turbolinks/Turbo
+  document.addEventListener('turbo:load', initializeCustomJobs);
+  document.addEventListener('turbolinks:load', initializeCustomJobs);
+  
+  // Also try after a short delay as fallback
+  setTimeout(initializeCustomJobs, 100);
+  setTimeout(initializeCustomJobs, 500);
+  
+})();
 
-// Add shake animation
+// Add animations
 const style = document.createElement('style');
 style.textContent = `
 @keyframes shake {
@@ -243,12 +300,62 @@ style.textContent = `
   10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
   20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(20px); }
+}
+
 .custom-job-item {
+  background-color: #f8f9fa;
+  border-left: 4px solid #28a745 !important;
   transition: all 0.2s ease;
 }
+
 .custom-job-item:hover {
+  background-color: #f0f9ff;
   transform: translateX(5px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+#custom-job-input:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+#add-custom-job-btn {
+  min-width: 100px;
+}
+
+/* Loading state */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.btn-loading:after {
+  content: '';
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  top: 50%;
+  left: 50%;
+  margin-left: -0.5rem;
+  margin-top: -0.5rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spinner 0.6s linear infinite;
+}
+
+@keyframes spinner {
+  to { transform: rotate(360deg); }
 }
 `;
 document.head.appendChild(style);

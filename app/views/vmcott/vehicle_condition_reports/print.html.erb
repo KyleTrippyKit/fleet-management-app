@@ -1,0 +1,188 @@
+<%# app/views/vmcott/vehicle_condition_reports/print.html.erb %>
+<% @page_title = "Vehicle Condition Report ##{@report.id}" %>
+
+<div class="document-header">
+  <h1>VMCOTT - Vehicle Condition Report</h1>
+  <h2>Vehicle Check-in Record</h2>
+  <p>Republic of Trinidad and Tobago</p>
+</div>
+
+<!-- Report Info Section -->
+<div class="section">
+  <div class="section-header">
+    <h3>Report Information</h3>
+  </div>
+  <div class="section-body">
+    <div class="details-grid">
+      <div class="detail-item">
+        <span class="detail-label">Report ID</span>
+        <span class="detail-value">#<%= @report.id %></span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Date/Time</span>
+        <span class="detail-value"><%= @report.created_at.strftime("%B %d, %Y at %I:%M %p") %></span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Officer</span>
+        <span class="detail-value"><%= @report.security_gate_officer&.name || 'Unknown' %></span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">Status</span>
+        <span class="detail-value">
+          <span class="badge <%= @report.status == 'completed' ? 'bg-success' : 'bg-warning' %>">
+            <%= @report.status&.titleize %>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vehicle Info Section -->
+<div class="section">
+  <div class="section-header">
+    <h3>Vehicle Information</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">License Plate</th>
+        <td><strong><%= @report.vehicle&.license_plate || 'N/A' %></strong></td>
+        <th width="25%">Agency</th>
+        <td><%= @report.vehicle&.agency&.name || 'Public' %></td>
+      </tr>
+      <tr>
+        <th>Make/Model</th>
+        <td><%= @report.vehicle&.make %> <%= @report.vehicle&.model %></td>
+        <th>Year</th>
+        <td><%= @report.vehicle&.year_of_manufacture %></td>
+      </tr>
+      <tr>
+        <th>Color</th>
+        <td><%= @report.vehicle&.color %></td>
+        <th>Vehicle Type</th>
+        <td><%= @report.vehicle&.vehicle_type %></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Quick Stats Section -->
+<div class="section">
+  <div class="section-header">
+    <h3>Check-in Measurements</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">Fuel Level</th>
+        <td><strong><%= @report.fuel_level %>%</strong></td>
+        <th width="25%">Odometer</th>
+        <td><strong><%= @report.odometer %> km</strong></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Condition Details Section -->
+<div class="section">
+  <div class="section-header">
+    <h3>Vehicle Condition</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">Exterior</th>
+        <td><%= @report.exterior_damage_summary %></td>
+      </tr>
+      <% if @report.exterior_notes.present? %>
+      <tr>
+        <th>Exterior Notes</th>
+        <td><%= @report.exterior_notes %></td>
+      </tr>
+      <% end %>
+      <tr>
+        <th>Interior</th>
+        <td><%= @report.interior_summary %></td>
+      </tr>
+      <tr>
+        <th>Tires</th>
+        <td><%= @report.tire_status_display %></td>
+      </tr>
+      <% if @report.tire_notes.present? %>
+      <tr>
+        <th>Tire Notes</th>
+        <td><%= @report.tire_notes %></td>
+      </tr>
+      <% end %>
+      <tr>
+        <th>Warning Lights</th>
+        <td><%= @report.warning_lights_display %></td>
+      </tr>
+      <% if @report.additional_notes.present? %>
+      <tr>
+        <th>Additional Notes</th>
+        <td><%= @report.additional_notes %></td>
+      </tr>
+      <% end %>
+    </table>
+  </div>
+</div>
+
+<!-- Driver Signature Section -->
+<div class="section">
+  <div class="section-header">
+    <h3>Driver Acknowledgment</h3>
+  </div>
+  <div class="section-body">
+    <table>
+      <tr>
+        <th width="25%">Driver Name</th>
+        <td><strong><%= @report.driver_name %></strong></td>
+      </tr>
+      <% if @report.driver_id_number.present? %>
+      <tr>
+        <th>ID Number</th>
+        <td><%= @report.driver_id_number %></td>
+      </tr>
+      <% end %>
+      <tr>
+        <th>Signed At</th>
+        <td>
+          <% if @report.signed_at.present? %>
+            <% if @report.signed_at.is_a?(String) %>
+              <%= @report.signed_at %>
+            <% else %>
+              <%= @report.signed_at.strftime("%B %d, %Y at %I:%M %p") %>
+            <% end %>
+          <% else %>
+            N/A
+          <% end %>
+        </td>
+      </tr>
+      <tr>
+        <th>IP Address</th>
+        <td><%= @report.ip_address || 'N/A' %></td>
+      </tr>
+    </table>
+    
+    <!-- Signature Image -->
+    <% if @report.signature_data.present? %>
+    <div style="margin-top: 20px; text-align: center;">
+      <p><strong>Driver Signature:</strong></p>
+      <img src="<%= @report.signature_data %>" style="max-width: 400px; max-height: 150px; border: 1px solid #ccc; padding: 10px; background: #fff;">
+    </div>
+    <% end %>
+    
+    <!-- Terms confirmation -->
+    <div style="margin-top: 20px; font-style: italic;">
+      <p>I confirm that the vehicle condition above accurately reflects the state of the vehicle upon arrival at VMCOTT.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="document-footer">
+  <p>This is a computer-generated document. No signature is required.</p>
+  <p>VMCOTT • Vehicle Maintenance Company of Trinidad and Tobago • <%= Date.today.year %></p>
+</div>

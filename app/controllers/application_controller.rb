@@ -45,7 +45,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # AFTER SIGN IN REDIRECT - FIXED WITH SEPARATE BILLING & FINANCE
+  # AFTER SIGN IN REDIRECT - UPDATED WITH NEW ROLE NAMES
   # =====================================================
   def after_sign_in_path_for(resource)
     # Debug logging
@@ -72,24 +72,24 @@ class ApplicationController < ActionController::Base
     Rails.logger.info "=============================="
 
     # ============================================
-    # VMCOTT ROLE-BASED DASHBOARDS (Namespaced under vmcott)
+    # VMCOTT ROLE-BASED DASHBOARDS (UPDATED WITH NEW ROLE NAMES)
     # ============================================
     if user.agency&.code == 'VMCOTT'
       case user.role
-      when 'receptionist'
-        return vmcott_receptionist_dashboard_path
+      when 'security_gate_officer'  # was 'receptionist'
+        return vmcott_security_gate_officer_dashboard_path
       when 'inspector'
         return vmcott_inspector_dashboard_path
-      when 'parts_coordinator'
-        return vmcott_parts_coordinator_dashboard_path
+      when 'inventory_manager'      # was 'parts_coordinator'
+        return vmcott_inventory_manager_dashboard_path
       when 'mechanic'
         return vmcott_mechanic_dashboard_path
+      when 'procurement'            # was 'billing'
+        return vmcott_procurement_dashboard_path
+      when 'finance'
+        return vmcott_finance_dashboard_path
       when 'maintenance_supervisor', 'workshop_supervisor'
         return vmcott_workshop_supervisor_dashboard_path
-      when 'billing'  # ← FIXED: Billing officer goes to billing dashboard
-        return vmcott_billing_dashboard_path
-      when 'finance'   # ← FIXED: Finance officer goes to finance dashboard
-        return vmcott_finance_dashboard_path
       when 'admin'
         return vmcott_dashboard_path
       else
@@ -153,7 +153,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES - FIXED for read_at
+  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES - UPDATED
   # =====================================================
   def set_notification_counts
     return unless current_user.present?
@@ -188,7 +188,7 @@ class ApplicationController < ActionController::Base
                                           .limit(5)
     end
     
-    # Role-specific counts for VMCOTT users
+    # Role-specific counts for VMCOTT users - UPDATED WITH NEW ROLE NAMES
     if current_user.agency&.code == 'VMCOTT'
       
       # Inspector counts
@@ -197,8 +197,8 @@ class ApplicationController < ActionController::Base
         @pending_qc_count = Inspection.where(status: 'ready_for_qc').count
       end
       
-      # Parts Coordinator counts
-      if current_user.parts_coordinator? || current_user.admin?
+      # Inventory Manager counts (was parts_coordinator)
+      if current_user.inventory_manager? || current_user.admin?
         @pending_parts_count = PartsRequest.where(status: 'pending').count
         @pending_parts_review_count = PartsRequest.where(status: 'pending').count
         @parts_received_count = PartsRequest.where(status: 'parts_received').count
@@ -213,13 +213,13 @@ class ApplicationController < ActionController::Base
         @my_assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id, completed_at: nil).count
       end
       
-      # Billing Team counts (SEPARATE from Finance)
-      if current_user.billing? || current_user.admin?
-        @pending_parts_requests_count = PartsRequest.where(status: 'billing_notified').count
+      # Procurement counts (was billing)
+      if current_user.procurement? || current_user.admin?
+        @pending_parts_requests_count = PartsRequest.where(status: 'procurement_notified').count
         @pending_rfqs_count = VendorRfq.where(status: 'draft').count if defined?(VendorRfq)
       end
       
-      # Finance Team counts (SEPARATE from Billing)
+      # Finance counts
       if current_user.finance? || current_user.admin?
         @quotations_to_review_count = VendorQuotation.where(status: 'received').count if defined?(VendorQuotation)
         @pending_po_approval_count = PurchaseOrder.where(status: 'pending_approval').count if defined?(PurchaseOrder)
@@ -258,18 +258,18 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # Helper Methods
+  # Helper Methods - UPDATED WITH NEW ROLE NAMES
   # =====================================================
   helper_method :current_agency, 
                 :admin?, 
                 :manager?, 
                 :vmcott?,
-                :receptionist?,
+                :security_gate_officer?,  # was receptionist?
                 :inspector?,
-                :parts_coordinator?,
+                :inventory_manager?,      # was parts_coordinator?
                 :mechanic?,
                 :workshop_supervisor?,
-                :billing_officer?,
+                :procurement?,            # was billing_officer?
                 :finance_officer?,
                 :current_user_role,
                 :owner_color,
@@ -297,18 +297,18 @@ class ApplicationController < ActionController::Base
                 :pending_parts_requests_count,
                 :quotations_to_review_count,
                 :pending_po_approval_count,
-                # VMCOTT Namespaced Route Helpers
-                :vmcott_receptionist_dashboard_path,
+                # VMCOTT Namespaced Route Helpers - UPDATED
+                :vmcott_security_gate_officer_dashboard_path,
                 :vmcott_inspector_dashboard_path,
-                :vmcott_parts_coordinator_dashboard_path,
+                :vmcott_inventory_manager_dashboard_path,
                 :vmcott_mechanic_dashboard_path,
                 :vmcott_workshop_supervisor_dashboard_path,
-                :vmcott_billing_dashboard_path,
+                :vmcott_procurement_dashboard_path,
                 :vmcott_finance_dashboard_path,
                 :vmcott_dashboard_path
 
   # =====================================================
-  # Public Methods
+  # Public Methods - UPDATED WITH NEW ROLE NAMES
   # =====================================================
 
   def current_agency
@@ -330,17 +330,17 @@ class ApplicationController < ActionController::Base
   end
   alias_method :is_vmcott?, :vmcott?
 
-  # New role check methods
-  def receptionist?
-    current_user&.receptionist? || false
+  # New role check methods - UPDATED
+  def security_gate_officer?
+    current_user&.security_gate_officer? || false
   end
 
   def inspector?
     current_user&.inspector? || false
   end
 
-  def parts_coordinator?
-    current_user&.parts_coordinator? || false
+  def inventory_manager?
+    current_user&.inventory_manager? || false
   end
 
   def mechanic?
@@ -351,12 +351,25 @@ class ApplicationController < ActionController::Base
     current_user&.maintenance_supervisor? || false
   end
 
-  def billing_officer?
-    current_user&.billing? || false
+  def procurement?
+    current_user&.procurement? || false
   end
 
   def finance_officer?
     current_user&.finance? || false
+  end
+
+  # Keep old methods for backward compatibility during transition
+  def receptionist?
+    current_user&.receptionist? || false
+  end
+
+  def parts_coordinator?
+    current_user&.parts_coordinator? || false
+  end
+
+  def billing_officer?
+    current_user&.billing? || false
   end
 
   def is_ptsc?
@@ -503,7 +516,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # Authorization Methods
+  # Authorization Methods - UPDATED WITH NEW ROLE NAMES
   # =====================================================
   
   def require_vmcott_user
@@ -511,10 +524,10 @@ class ApplicationController < ActionController::Base
     redirect_to root_path, alert: "Access denied. VMCOTT users only." unless vmcott?
   end
 
-  # Role-specific authorization methods
-  def require_receptionist
-    unless receptionist? || admin?
-      redirect_to root_path, alert: "Access denied. Receptionist access only."
+  # Role-specific authorization methods - UPDATED
+  def require_security_gate_officer
+    unless security_gate_officer? || admin?
+      redirect_to root_path, alert: "Access denied. Security Gate Officer access only."
     end
   end
 
@@ -524,9 +537,9 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  def require_parts_coordinator
-    unless parts_coordinator? || admin?
-      redirect_to root_path, alert: "Access denied. Parts Coordinator access only."
+  def require_inventory_manager
+    unless inventory_manager? || admin?
+      redirect_to root_path, alert: "Access denied. Inventory Manager access only."
     end
   end
 
@@ -542,15 +555,34 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  def require_billing_officer
-    unless billing_officer? || admin?
-      redirect_to root_path, alert: "Access denied. Billing Officer access only."
+  def require_procurement
+    unless procurement? || admin?
+      redirect_to root_path, alert: "Access denied. Procurement access only."
     end
   end
 
   def require_finance_officer
     unless finance_officer? || admin?
       redirect_to root_path, alert: "Access denied. Finance Officer access only."
+    end
+  end
+
+  # Keep old methods for backward compatibility
+  def require_receptionist
+    unless receptionist? || admin?
+      redirect_to root_path, alert: "Access denied. Receptionist access only."
+    end
+  end
+
+  def require_parts_coordinator
+    unless parts_coordinator? || admin?
+      redirect_to root_path, alert: "Access denied. Parts Coordinator access only."
+    end
+  end
+
+  def require_billing_officer
+    unless billing_officer? || admin?
+      redirect_to root_path, alert: "Access denied. Billing Officer access only."
     end
   end
   
