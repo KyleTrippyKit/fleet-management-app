@@ -7,7 +7,7 @@ ruby "3.3.10"
 gem "rails", "~> 8.1.1"
 
 # Database
-gem "sqlite3", "~> 2.8", group: [:development, :test]
+gem "sqlite3", "~> 2.9", group: [:development, :test]
 gem "pg", "~> 1.6", group: :production
 
 # Server
