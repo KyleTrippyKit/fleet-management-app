@@ -307,7 +307,7 @@
                   <li><hr class="dropdown-divider"></li>
                   <li class="dropdown-section">📊 REVIEW</li>
 
-                  <% if respond_to?(:ptsc_quotation_review_path) %>
+                  <% if defined?(ptsc_quotation_review_path) %>
                     <li>
                       <%= link_to ptsc_quotation_review_path, class: "dropdown-item" do %>
                         <i class="bi bi-ui-checks me-2"></i> Quotation Review
@@ -315,7 +315,7 @@
                     </li>
                   <% end %>
 
-                  <% if respond_to?(:ptsc_po_acceptance_path) %>
+                  <% if defined?(ptsc_po_acceptance_path) %>
                     <li>
                       <%= link_to ptsc_po_acceptance_path, class: "dropdown-item" do %>
                         <i class="bi bi-clipboard-check me-2"></i> PO Acceptance Queue
@@ -381,7 +381,7 @@
 
         </div>
 
-        <!-- RIGHT SIDE - NOTIFICATIONS, AGENCY, USER MENU -->
+        <!-- RIGHT SIDE - NOTIFICATIONS, AGENCY, USER MENU (THEME TOGGLE REMOVED) -->
         <div class="d-flex gap-2 align-items-center">
 
           <!-- AGENCY BADGE -->
@@ -394,7 +394,7 @@
             </span>
           <% end %>
 
-          <!-- NOTIFICATION CENTER -->
+          <!-- NOTIFICATION CENTER - FIXED VERSION -->
           <div class="dropdown nav-dd">
             <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 position-relative"
                     type="button"
@@ -413,6 +413,7 @@
               <% if @recent_notifications && @recent_notifications.any? %>
                 <% @recent_notifications.first(5).each do |notification| %>
                   <li>
+                    <%# FIXED: Use the safe read? method from the model instead of direct attribute %>
                     <%= link_to notification_path(notification), class: "dropdown-item #{'fw-bold' unless notification.read?}" do %>
                       <div class="d-flex align-items-center">
                         <div class="me-2"><%= notification.title %></div>
@@ -448,7 +449,7 @@
               <li class="dropdown-section">⚡ QUICK LINKS</li>
               
               <% if agency_code == "VMCOTT" %>
-                <!-- VMCOTT Quick Links - UPDATED WITH NEW ROLE NAMES AND CORRECT ROUTES -->
+                <!-- VMCOTT Quick Links - FIXED WITH CORRECT ROUTES -->
                 <% if is_vmcott_admin %>
                   <li><%= link_to "All RFQs", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "All POs", purchase_orders_path, class: "dropdown-item" %></li>
@@ -460,7 +461,7 @@
                   <li><%= link_to "Parts Catalog", vmcott_parts_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Low Stock", vmcott_parts_low_stock_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Low Stock", low_stock_vmcott_inventory_manager_parts_path, class: "dropdown-item" %></li>
                 <% elsif is_vmcott_procurement %>
                   <li><%= link_to "All RFQs", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
@@ -470,7 +471,7 @@
                   <li><%= link_to "All POs", purchase_orders_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Invoices", vmcott_finance_invoices_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Quotations", vmcott_finance_quotations_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Aging Report", vmcott_finance_invoices_aging_report_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Aging Report", vmcott_finance_aging_report_path, class: "dropdown-item" %></li>
                 <% elsif is_vmcott_security_gate_officer %>
                   <li><%= link_to "Today's Check-ins", today_vmcott_security_gate_officer_reception_logs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item" %></li>
@@ -479,7 +480,6 @@
                   <li><%= link_to "Pending QC", vmcott_inspector_dashboard_path(anchor: 'qc-pending'), class: "dropdown-item" %></li>
                   <li><%= link_to "Inspections Today", vmcott_inspector_inspections_path(today: true), class: "dropdown-item" %></li>
                 <% elsif is_vmcott_mechanic %>
-                  <!-- CORRECTED MECHANIC ROUTES -->
                   <li><%= link_to "Dashboard", vmcott_mechanic_dashboard_path, class: "dropdown-item" %></li>
                   <li><%= link_to "My Jobs", assigned_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
                   <li><%= link_to "Available Jobs", available_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
@@ -535,19 +535,23 @@
                 <!-- Create New User - Agency specific -->
                 <% if agency_code == "VMCOTT" %>
                   <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
-                  <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item" %></li>
+                  <% if defined?(admin_roles_path) %>
+                    <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item" %></li>
+                  <% end %>
+                  <% if defined?(admin_settings_path) %>
+                    <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item" %></li>
+                  <% end %>
                 <% elsif agency_code == "PTSC" %>
                   <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
                   <!-- PTSC Admin Reports -->
                   <li><%= link_to "Vehicle Status Report", ptsc_admin_vehicle_status_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "RFQ Reports", "#", class: "dropdown-item" %></li>
+                  <li><%= link_to "RFQ Reports", "#", class: "dropdown-item", onclick: "return false;" %></li>
                 <% else %>
                   <li><%= link_to "Create New User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
                 <% end %>
               <% end %>
 
-              <!-- ACCOUNT SECTION - FIXED with placeholder links -->
+              <!-- ACCOUNT SECTION -->
               <li><hr class="dropdown-divider"></li>
               <li class="dropdown-section">👤 ACCOUNT</li>
               <li><%= link_to "Profile", "#", class: "dropdown-item", onclick: "return false;" %></li>

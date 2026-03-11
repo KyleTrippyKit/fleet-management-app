@@ -35,6 +35,9 @@ class ApplicationController < ActionController::Base
   around_action :set_current_context
   # POS transaction current user setup
   around_action :set_pos_transaction_current_user, unless: :skip_pos_transaction_callback?
+  
+  # NEW: Dashboard data caching
+  around_action :cache_dashboard_data, if: :dashboard_controller?
 
   # =====================================================
   # AFTER SIGN OUT
@@ -153,7 +156,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES - UPDATED
+  # NOTIFICATION COUNTS FOR VMCOTT WORKFLOW ROLES - FIXED
   # =====================================================
   def set_notification_counts
     return unless current_user.present?
@@ -178,87 +181,214 @@ class ApplicationController < ActionController::Base
     @pending_parts_requests_count = 0
     @quotations_to_review_count = 0
     @pending_po_approval_count = 0
+    @pending_condition_reports_count = 0
+    @low_stock_alert_count = 0
+    @parts_to_order_count = 0
+    @pending_qc_inspections_count = 0
+    @inspections_today_count = 0
+    @assigned_jobs_count = 0
+    @in_progress_count = 0
+    @at_vmcott_count = 0
+    @in_progress_count_ptsc = 0
+    @ready_for_pickup_count_ptsc = 0
+    @pending_rfq_responses_count = 0
     
-    # General notifications for all users
+    # General notifications for all users - FIXED WITH SAFE COLUMN DETECTION
     if defined?(Notification)
-      # Use read_at: nil for unread notifications (not read: false)
-      @unread_notifications_count = Notification.where(user: current_user, read_at: nil).count
-      @recent_notifications = Notification.where(user: current_user)
-                                          .order(created_at: :desc)
-                                          .limit(5)
+      begin
+        # Safely detect which column exists
+        if Notification.column_names.include?('read_at')
+          # Use read_at: nil for unread notifications
+          @unread_notifications_count = Notification.where(user: current_user, read_at: nil).count
+          @recent_notifications = Notification.where(user: current_user)
+                                              .where(read_at: nil)
+                                              .order(created_at: :desc)
+                                              .limit(5)
+        elsif Notification.column_names.include?('read')
+          # Use read: false for unread notifications
+          @unread_notifications_count = Notification.where(user: current_user, read: false).count
+          @recent_notifications = Notification.where(user: current_user)
+                                              .where(read: false)
+                                              .order(created_at: :desc)
+                                              .limit(5)
+        else
+          # Fallback - count all notifications in the last 7 days
+          @unread_notifications_count = Notification.where(user: current_user)
+                                                    .where('created_at > ?', 7.days.ago)
+                                                    .count
+          @recent_notifications = Notification.where(user: current_user)
+                                              .where('created_at > ?', 7.days.ago)
+                                              .order(created_at: :desc)
+                                              .limit(5)
+        end
+      rescue => e
+        Rails.logger.error "Notification query error: #{e.message}"
+        @unread_notifications_count = 0
+        @recent_notifications = []
+      end
     end
     
     # Role-specific counts for VMCOTT users - UPDATED WITH NEW ROLE NAMES
     if current_user.agency&.code == 'VMCOTT'
       
+      # Security Gate Officer counts (was receptionist)
+      if current_user.security_gate_officer? || current_user.admin?
+        if defined?(VehicleConditionReport)
+          @pending_condition_reports_count = VehicleConditionReport.where(agency_id: current_user.agency_id, status: 'pending').count rescue 0
+        end
+        if defined?(ReceptionLog)
+          @inspections_today_count = ReceptionLog.where(agency_id: current_user.agency_id)
+                                                .where('DATE(check_in_time) = ?', Date.current)
+                                                .count rescue 0
+        end
+      end
+      
       # Inspector counts
       if current_user.inspector? || current_user.admin?
-        @pending_inspections_count = Inspection.where(status: 'pending_inspection').count
-        @pending_qc_count = Inspection.where(status: 'ready_for_qc').count
+        if defined?(Inspection)
+          @pending_inspections_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_inspection').count rescue 0
+          @pending_qc_inspections_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+          @pending_qc_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+          @inspections_today_count = Inspection.where(agency_id: current_user.agency_id)
+                                              .where('DATE(created_at) = ?', Date.current)
+                                              .count rescue 0
+        end
       end
       
       # Inventory Manager counts (was parts_coordinator)
       if current_user.inventory_manager? || current_user.admin?
-        @pending_parts_count = PartsRequest.where(status: 'pending').count
-        @pending_parts_review_count = PartsRequest.where(status: 'pending').count
-        @parts_received_count = PartsRequest.where(status: 'parts_received').count
+        if defined?(PartsRequest)
+          @pending_parts_count = PartsRequest.where(status: 'pending').count rescue 0
+          @pending_parts_review_count = PartsRequest.where(status: 'pending').count rescue 0
+          @parts_received_count = PartsRequest.where(status: 'parts_received').count rescue 0
+          @parts_to_order_count = PartsRequest.where(status: 'needs_order').count rescue 0
+        end
+        if defined?(Part)
+          @low_stock_alert_count = Part.where('current_stock <= reorder_point').count rescue 0
+        end
       end
       
       # Mechanic counts
       if current_user.mechanic? || current_user.admin?
-        @available_jobs_count = InspectionJob.where(assigned_mechanic_id: nil, completed_at: nil)
-                                            .where.not(inspection_id: Inspection.where(status: 'pending_inspection').select(:id))
-                                            .count
-        @pending_qc_count = Inspection.where(status: 'ready_for_qc').count
-        @my_assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id, completed_at: nil).count
+        if defined?(InspectionJob)
+          @available_jobs_count = InspectionJob.where(assigned_mechanic_id: nil, completed_at: nil)
+                                              .where.not(inspection_id: Inspection.where(status: 'pending_inspection').select(:id))
+                                              .count rescue 0
+          @my_assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id, completed_at: nil).count rescue 0
+          @assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id).count rescue 0
+          @in_progress_count = InspectionJob.where(assigned_mechanic_id: current_user.id, status: 'in_progress').count rescue 0
+        end
+        @pending_qc_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
       end
       
       # Procurement counts (was billing)
       if current_user.procurement? || current_user.admin?
-        @pending_parts_requests_count = PartsRequest.where(status: 'procurement_notified').count
-        @pending_rfqs_count = VendorRfq.where(status: 'draft').count if defined?(VendorRfq)
+        if defined?(PartsRequest)
+          @pending_parts_requests_count = PartsRequest.where(status: 'procurement_notified').count rescue 0
+        end
+        if defined?(VendorRfq)
+          @pending_rfqs_count = VendorRfq.where(status: 'draft').count rescue 0
+          @pending_rfq_responses_count = VendorRfq.where(status: 'quotations_received').count rescue 0
+        end
       end
       
       # Finance counts
       if current_user.finance? || current_user.admin?
-        @quotations_to_review_count = VendorQuotation.where(status: 'received').count if defined?(VendorQuotation)
-        @pending_po_approval_count = PurchaseOrder.where(status: 'pending_approval').count if defined?(PurchaseOrder)
-        @ready_for_pickup_count = Inspection.where(status: 'ready_for_pickup').count
-        @pending_invoices_count = Invoice.where(status: 'pending').count if defined?(Invoice)
+        if defined?(VendorQuotation)
+          @quotations_to_review_count = VendorQuotation.where(status: 'received').count rescue 0
+        end
+        if defined?(PurchaseOrder)
+          @pending_po_approval_count = PurchaseOrder.where(status: 'pending_approval').count rescue 0
+        end
+        if defined?(Inspection)
+          @ready_for_pickup_count = Inspection.where(agency_id: current_user.agency_id, status: 'ready_for_pickup').count rescue 0
+        end
+        if defined?(Invoice)
+          @pending_invoices_count = Invoice.where(status: 'pending').count rescue 0
+        end
+        if defined?(VendorRfq)
+          @pending_rfq_responses_count = VendorRfq.where(status: 'quotations_received').count rescue 0
+        end
       end
       
       # Workshop Supervisor counts
       if current_user.maintenance_supervisor? || current_user.admin?
-        # Count overdue internal POS work orders
         if defined?(InternalPos)
           @overdue_jobs_count = InternalPos.where('estimated_completion_date < ?', Date.today)
                                           .where.not(status: ['completed', 'cancelled'])
-                                          .count
+                                          .count rescue 0
         end
-        @pending_supervisor_review_count = Inspection.where(status: 'ready_for_qc').count
+        @pending_supervisor_review_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+        if defined?(Vehicle)
+          @at_vmcott_count = Vehicle.where(agency_id: current_user.agency_id, current_location: 'VMCOTT').count rescue 0
+        end
       end
       
+    elsif current_user.agency&.code == 'PTSC'
+      # PTSC-specific counts
+      if current_user.finance? || current_user.admin?
+        if defined?(VendorRfq)
+          @pending_rfq_responses_count = VendorRfq.where(processing_agency_id: current_user.agency_id, status: 'quotations_received').count rescue 0
+        end
+      end
+      if current_user.fleet_manager? || current_user.admin? || current_user.maintenance_supervisor?
+        if defined?(Vehicle)
+          @at_vmcott_count = Vehicle.where(agency_id: current_user.agency_id, current_location: 'VMCOTT').count rescue 0
+        end
+        if defined?(InternalPos)
+          @in_progress_count_ptsc = InternalPos.where(status: 'in_progress').count rescue 0
+        end
+        if defined?(Inspection)
+          @ready_for_pickup_count_ptsc = Inspection.where(agency_id: current_user.agency_id, status: 'ready_for_pickup').count rescue 0
+        end
+      end
     else
-      # Non-VMCOTT users (agencies) see alerts
+      # Non-VMCOTT/PTSC users (agencies) see alerts
       if defined?(Alert)
-        @alerts_count = Alert.where(agency_id: current_user.agency_id, status: 'active').count
+        @alerts_count = Alert.where(agency_id: current_user.agency_id, status: 'active').count rescue 0
       end
     end
   rescue => e
     Rails.logger.error "Error in set_notification_counts: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     # Don't re-raise - we want the app to continue even if notifications fail
+    # Set defaults to avoid nil errors
+    @unread_notifications_count = 0
+    @recent_notifications = []
   end
 
   # =====================================================
-  # SCREENSAVER SETUP - NEW
+  # SCREENSAVER SETUP - UPDATED
   # =====================================================
   def set_screensaver_skip
-    @skip_screensaver = params[:controller] == 'screensaver' || params[:controller] == 'home'
+    @skip_screensaver = params[:controller] == 'screensaver' || 
+                        params[:controller] == 'home' ||
+                        params[:controller] == 'devise/sessions' ||
+                        params[:controller] == 'devise/passwords' ||
+                        params[:controller] == 'devise/registrations'
   end
 
   # =====================================================
-  # Helper Methods - UPDATED WITH NEW ROLE NAMES
+  # DASHBOARD CACHING - NEW
+  # =====================================================
+  def cache_dashboard_data
+    return yield unless current_user.present?
+    
+    cache_key = "dashboard/#{current_user.role}/#{current_user.id}/#{Date.current.strftime('%Y%m%d')}"
+    cache_key << "/#{params[:action]}" if params[:action].present?
+    
+    Rails.cache.fetch(cache_key, expires_in: 1.hour) do
+      yield
+    end
+  end
+  
+  def dashboard_controller?
+    controller_path.start_with?('vmcott/') && 
+    (params[:action] == 'index' || params[:action] == 'dashboard')
+  end
+
+  # =====================================================
+  # Helper Methods - UPDATED WITH NEW ROLE NAMES AND SKIP_NAVIGATION
   # =====================================================
   helper_method :current_agency, 
                 :admin?, 
@@ -305,7 +435,9 @@ class ApplicationController < ActionController::Base
                 :vmcott_workshop_supervisor_dashboard_path,
                 :vmcott_procurement_dashboard_path,
                 :vmcott_finance_dashboard_path,
-                :vmcott_dashboard_path
+                :vmcott_dashboard_path,
+                # Navigation helper
+                :skip_navigation?
 
   # =====================================================
   # Public Methods - UPDATED WITH NEW ROLE NAMES
@@ -427,6 +559,15 @@ class ApplicationController < ActionController::Base
 
   def pending_po_approval_count
     @pending_po_approval_count || 0
+  end
+
+  # NEW: Helper method to determine if navigation should be hidden
+  def skip_navigation?
+    params[:controller] == 'screensaver' || 
+    (params[:controller] == 'home' && params[:action] == 'index' && !user_signed_in?) ||
+    params[:controller] == 'devise/sessions' ||
+    params[:controller] == 'devise/passwords' ||
+    params[:controller] == 'devise/registrations'
   end
 
   # POS permissions

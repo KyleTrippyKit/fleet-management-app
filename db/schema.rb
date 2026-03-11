@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -194,6 +194,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["user_id"], name: "index_cashier_sessions_on_user_id"
   end
 
+  create_table "clients", force: :cascade do |t|
+    t.string "address"
+    t.bigint "agency_id"
+    t.integer "client_type", default: 0
+    t.datetime "created_at", null: false
+    t.decimal "credit_limit", precision: 10, scale: 2
+    t.string "email"
+    t.boolean "is_active", default: true
+    t.string "name", null: false
+    t.integer "payment_terms", default: 0
+    t.string "phone"
+    t.datetime "updated_at", null: false
+    t.index ["agency_id"], name: "index_clients_on_agency_id"
+  end
+
   create_table "damage_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "description"
@@ -321,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["inspector_id"], name: "index_inspections_on_inspector_id"
     t.index ["metadata"], name: "index_inspections_on_metadata", using: :gin
     t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
+    t.index ["status", "created_at"], name: "index_inspections_on_status_and_created_at"
     t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
   end
 
@@ -379,6 +395,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.datetime "approved_at"
     t.integer "approved_by_id"
     t.string "category"
+    t.bigint "client_id"
+    t.string "client_type"
     t.datetime "created_at", null: false
     t.integer "created_by_id"
     t.integer "days_overdue", default: 0
@@ -626,6 +644,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.datetime "updated_at", null: false
     t.bigint "user_id"
     t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable_type_and_notifiable_id"
+    t.index ["user_id", "read", "created_at"], name: "index_notifications_on_user_id_and_read_and_created_at"
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
@@ -693,6 +712,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["inspection_job_id"], name: "index_parts_requests_on_inspection_job_id"
     t.index ["part_id"], name: "index_parts_requests_on_part_id"
     t.index ["purchase_order_id"], name: "index_parts_requests_on_purchase_order_id"
+    t.index ["status", "created_at"], name: "index_parts_requests_on_status_and_created_at"
     t.index ["vendor_invoice_id"], name: "index_parts_requests_on_vendor_invoice_id"
   end
 
@@ -911,6 +931,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["payment_status"], name: "index_purchase_orders_on_payment_status"
     t.index ["po_number"], name: "index_purchase_orders_on_po_number", unique: true
     t.index ["quotation_id"], name: "index_purchase_orders_on_quotation_id", unique: true
+    t.index ["status", "created_at"], name: "index_purchase_orders_on_status_and_created_at"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["vehicle_id"], name: "index_purchase_orders_on_vehicle_id"
     t.index ["vendor", "status"], name: "index_purchase_orders_on_vendor_and_status"
@@ -1048,6 +1069,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.datetime "accepted_at"
     t.bigint "agency_id", null: false
     t.decimal "amount", precision: 10, scale: 2, null: false
+    t.bigint "client_id"
+    t.string "client_type"
     t.datetime "converted_at"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
@@ -1104,6 +1127,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["inspected_at"], name: "index_reception_logs_on_inspected_at"
     t.index ["inspector_id"], name: "index_reception_logs_on_inspector_id"
     t.index ["purchase_order_id"], name: "index_reception_logs_on_purchase_order_id"
+    t.index ["received_at", "status"], name: "index_reception_logs_on_received_at_and_status"
     t.index ["received_at"], name: "index_reception_logs_on_received_at"
     t.index ["status"], name: "index_reception_logs_on_status"
     t.index ["user_id"], name: "index_reception_logs_on_user_id"
@@ -1289,6 +1313,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.datetime "created_at", null: false
     t.datetime "current_sign_in_at"
     t.string "current_sign_in_ip"
+    t.boolean "dark_mode"
     t.string "division"
     t.string "email", default: "", null: false
     t.string "employee_id"
@@ -1374,7 +1399,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
   end
 
   create_table "vehicles", force: :cascade do |t|
-    t.bigint "agency_id", null: false
+    t.bigint "agency_id"
     t.string "body_style"
     t.string "chassis_number"
     t.string "color"
@@ -1394,6 +1419,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.string "model"
     t.text "modifications"
     t.string "owner"
+    t.bigint "owner_id"
+    t.string "owner_type"
     t.string "picture"
     t.string "registration_number"
     t.string "rfid_tag"
@@ -1408,6 +1435,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["driver_id"], name: "index_vehicles_on_driver_id"
     t.index ["insurance_expiry_date"], name: "index_vehicles_on_insurance_expiry_date"
     t.index ["latitude", "longitude"], name: "index_vehicles_on_latitude_and_longitude"
+    t.index ["owner_type", "owner_id"], name: "index_vehicles_on_owner"
     t.index ["rfid_tag"], name: "index_vehicles_on_rfid_tag", unique: true
   end
 
@@ -1539,6 +1567,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
     t.index ["finance_review_ready"], name: "index_vendor_rfqs_on_finance_review_ready"
     t.index ["processing_agency_id"], name: "index_vendor_rfqs_on_processing_agency_id"
     t.index ["rfq_number"], name: "index_vendor_rfqs_on_rfq_number", unique: true
+    t.index ["status", "created_at"], name: "index_vendor_rfqs_on_status_and_created_at"
     t.index ["status"], name: "index_vendor_rfqs_on_status"
   end
 
@@ -1557,6 +1586,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_06_134921) do
   add_foreign_key "cashier_sessions", "agencies"
   add_foreign_key "cashier_sessions", "users"
   add_foreign_key "cashier_sessions", "users", column: "closed_by_id"
+  add_foreign_key "clients", "agencies"
   add_foreign_key "damage_reports", "drivers"
   add_foreign_key "damage_reports", "vehicles"
   add_foreign_key "drivers_vehicles", "drivers"

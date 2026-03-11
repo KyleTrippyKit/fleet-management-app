@@ -1,46 +1,28 @@
 # app/controllers/vmcott/security_gate_officer/dashboard_controller.rb
-# Security Gate Officer Controller - Handles vehicle check-in and condition reporting
-# Renamed from receptionist to security_gate_officer
-
 class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
+  # Skip the dashboard caching for this controller - THIS IS THE FIX!
+  skip_around_action :cache_dashboard_data, if: :dashboard_controller?
+  
   before_action :authenticate_user!
   before_action :require_security_gate_officer
+  # Optional: Keep debug logging if you want - remove if not needed
+  before_action :log_debug_info, only: [:index, :manual_entry]
   
+  # Disable all caching for this controller
+  before_action :disable_caching
+
   def index
-    # Vehicles expected today (from scheduled appointments)
-    @expected_arrivals = if defined?(PurchaseOrder) && defined?(ReceptionLog)
-      # Get POs that are expected but not yet checked in
-      purchase_orders = PurchaseOrder.where(vendor: 'VMCOTT', status: 'ordered')
-                                    .where.not(id: ReceptionLog.where.not(purchase_order_id: nil).pluck(:purchase_order_id))
-      
-      # Format for display
-      @expected_arrivals_count = purchase_orders.count
-      purchase_orders.limit(10).map do |po|
-        OpenStruct.new(
-          vehicle: po.vehicle,
-          agency: po.vehicle&.agency,
-          purpose: "Service Work - PO ##{po.po_number}",
-          scheduled_time: po.created_at,
-          checked_in: ReceptionLog.exists?(purchase_order_id: po.id)
-        )
-      end
+    log_section("DASHBOARD INDEX START") if respond_to?(:log_section)
+    
+    # Today's check-ins
+    @today_checkins = if defined?(ReceptionLog)
+      ReceptionLog.where(received_at: Date.current.all_day).count
     else
-      @expected_arrivals_count = 0
-      []
+      0
     end
     
-    # Recent check-ins (last 24 hours)
-    @recent_checkins = if defined?(ReceptionLog)
-      ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report)
-                  .where(received_at: 24.hours.ago..Time.current)
-                  .order(received_at: :desc)
-                  .limit(10)
-    else
-      []
-    end
-    
-    # Vehicles currently on site (checked in but not checked out)
-    @vehicles_on_site = if defined?(ReceptionLog) && defined?(VehicleStatus)
+    # Vehicles on site (checked in but not checked out)
+    @vehicles_on_site = if defined?(ReceptionLog)
       ReceptionLog.where(check_out_time: nil)
                   .where('received_at > ?', 24.hours.ago)
                   .count
@@ -48,134 +30,189 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       0
     end
     
-    # Vehicles ready for pickup (from finance)
-    @ready_for_pickup = if defined?(Inspection)
-      Inspection.where(status: 'ready_for_pickup')
-                .includes(:vehicle)
-                .count
-    else
-      0
-    end
-    
-    # Today's counts
-    @today_checkins = if defined?(ReceptionLog)
-      ReceptionLog.where(received_at: Date.current.all_day).count
-    else
-      0
-    end
-    
+    # Pending condition reports
     @pending_condition_reports = if defined?(VehicleConditionReport)
       VehicleConditionReport.where(status: 'draft').count
     else
       0
     end
     
-    # Stats for KPI cards
+    # Recent check-ins (last 24 hours)
+    @recent_checkins = if defined?(ReceptionLog)
+      ReceptionLog.includes(:vehicle, :condition_report)
+                  .where(received_at: 24.hours.ago..Time.current)
+                  .order(received_at: :desc)
+                  .limit(10)
+    else
+      []
+    end
+    
+    # Stats hash for the view - THIS IS CRITICAL
     @stats = {
       today_checkins: @today_checkins,
       vehicles_on_site: @vehicles_on_site,
-      ready_for_pickup: @ready_for_pickup,
-      expected_arrivals: @expected_arrivals_count,
       pending_reports: @pending_condition_reports
     }
+    
+    log_debug_variables if respond_to?(:log_debug_variables)
+    log_section("DASHBOARD INDEX END") if respond_to?(:log_section)
+    
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    # Render with default application layout
+    render layout: 'application'
   end
   
   def scan
+    log_section("SCAN ACTION") if respond_to?(:log_section)
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
     # Renders QR code scanner view
-    # Will handle both QR code scanning and manual entry fallback
+    render layout: 'application'
   end
   
   def manual_entry
-    # Get all RFQs with vehicles
-    @rfqs_with_vehicles = if defined?(VendorRfq)
-      VendorRfq.where(status: ['sent', 'draft'])
-                .includes(vendor_rfq_items: :part)
-                .order(created_at: :desc)
-                .map do |rfq|
-                  vehicle = find_vehicle_for_rfq(rfq)
-                  
-                  # Add vehicle to rfq instance for view
-                  rfq.instance_variable_set(:@vehicle, vehicle)
-                  
-                  def rfq.vehicle
-                    @vehicle
-                  end
-                  
-                  def rfq.vehicle_id
-                    @vehicle&.id
-                  end
-                  
-                  def rfq.display_name
-                    if @vehicle
-                      "#{rfq_number} - #{@vehicle.license_plate} (#{@vehicle.make} #{@vehicle.model})"
-                    else
-                      "#{rfq_number} - No vehicle"
-                    end
-                  end
-                  
-                  rfq
-                end
-    else
-      []
-    end
+    log_section("MANUAL ENTRY START") if respond_to?(:log_section)
     
-    # Get POs with vehicles (backward compatibility)
-    @purchase_orders_with_vehicles = if defined?(PurchaseOrder)
-      PurchaseOrder.where(vendor: 'VMCOTT', status: 'ordered')
-                  .where.not(vehicle_id: nil)
-                  .order(created_at: :desc)
-    else
-      []
-    end
-    
-    # Allow creation of new vehicle if needed
+    @agencies = Agency.where(code: ['PTSC', 'TTPS', 'TTDF', 'VMCOTT']).order(:name)
     @allow_new_vehicle = true
+    @is_new_vehicle_mode = params[:create_new_vehicle] == 'true'
+    
+    Rails.logger.info "Agencies found: #{@agencies.count}" if Rails.env.development?
+    Rails.logger.info "New vehicle mode: #{@is_new_vehicle_mode}" if Rails.env.development?
+    
+    log_section("MANUAL ENTRY END") if respond_to?(:log_section)
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def receive_vehicle
-    # Find or create vehicle
-    if params[:vehicle_id].present?
-      @vehicle = Vehicle.find_by(id: params[:vehicle_id])
-    elsif params[:rfq_id].present?
-      @rfq = VendorRfq.find_by(id: params[:rfq_id])
-      @vehicle = find_vehicle_for_rfq(@rfq) if @rfq
-    elsif params[:purchase_order_id].present?
-      @po = PurchaseOrder.find_by(id: params[:purchase_order_id])
-      @vehicle = @po&.vehicle
-    elsif params[:new_vehicle].present?
-      # Create new vehicle (for public clients)
-      @vehicle = Vehicle.new(vehicle_params)
-      if @vehicle.save
-        # Success
-      else
-        flash[:alert] = "Could not create vehicle: #{@vehicle.errors.full_messages.join(', ')}"
-        redirect_to vmcott_security_gate_officer_manual_entry_path and return
+    log_section("RECEIVE VEHICLE START") if respond_to?(:log_section)
+    Rails.logger.info "Params: #{params.except(:authenticity_token).inspect}" if Rails.env.development?
+    
+    begin
+      ActiveRecord::Base.transaction do
+        vehicle = nil
+        owner = nil
+        
+        # CASE 1: Existing vehicle selected
+        if params[:vehicle_id].present?
+          vehicle = Vehicle.find(params[:vehicle_id])
+          owner = vehicle.owner
+          Rails.logger.info "Found existing vehicle: #{vehicle.license_plate}" if Rails.env.development?
+          
+        # CASE 2: New vehicle being created
+        elsif params[:new_vehicle].present? && params[:create_new_vehicle] == 'true'
+          Rails.logger.info "Creating new vehicle" if Rails.env.development?
+          
+          # Determine owner based on client type
+          if params[:client_type] == 'agency'
+            owner = Agency.find(params[:agency_id])
+            Rails.logger.info "Owner is agency: #{owner.code}" if Rails.env.development?
+          else # public client
+            # Create or find client by phone number
+            owner = Client.find_or_initialize_by(phone: params[:client][:phone])
+            
+            if owner.new_record?
+              owner.assign_attributes(
+                name: params[:client][:name],
+                email: params[:client][:email],
+                address: params[:client][:address],
+                client_type: params[:client][:client_type] || 2, # Default to Individual
+                payment_terms: params[:client][:payment_terms] || 0, # Default to Cash
+                credit_limit: params[:client][:credit_limit],
+                is_active: true
+              )
+              owner.save!
+              Rails.logger.info "Created new client: #{owner.name}" if Rails.env.development?
+            else
+              Rails.logger.info "Found existing client: #{owner.name}" if Rails.env.development?
+            end
+          end
+          
+          # Create the vehicle using new_vehicle_params
+          vehicle = Vehicle.new(new_vehicle_params)
+          vehicle.owner = owner
+          
+          unless vehicle.save
+            error_msg = "Could not create vehicle: #{vehicle.errors.full_messages.join(', ')}"
+            Rails.logger.error error_msg
+            flash[:alert] = error_msg
+            redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+          end
+          
+          Rails.logger.info "Created new vehicle: #{vehicle.license_plate}" if Rails.env.development?
+        else
+          flash[:alert] = "No vehicle selected. Please search for a vehicle or add a new one."
+          redirect_to vmcott_security_gate_officer_manual_entry_path and return
+        end
+        
+        if vehicle.nil?
+          flash[:alert] = "No vehicle selected. Please search for a vehicle or add a new one."
+          redirect_to vmcott_security_gate_officer_manual_entry_path and return
+        end
+        
+        # Store vehicle in session for condition check
+        session[:check_in_vehicle_id] = vehicle.id
+        session[:driver_name] = params[:driver_name]
+        session[:driver_id] = params[:driver_id] if params[:driver_id].present?
+        session[:notes] = params[:notes] if params[:notes].present?
+        session[:client_type] = params[:client_type] if params[:client_type].present?
+        session[:agency_id] = params[:agency_id] if params[:agency_id].present?
+        session[:client_params] = params[:client] if params[:client].present?
+        
+        # Store new vehicle params in session if this was a new vehicle
+        if params[:new_vehicle].present?
+          session[:new_vehicle_params] = new_vehicle_params.to_h
+        end
+        
+        Rails.logger.info "Session stored with vehicle_id: #{vehicle.id}" if Rails.env.development?
+        log_section("RECEIVE VEHICLE END - SUCCESS") if respond_to?(:log_section)
+        
+        # Redirect to condition check form
+        redirect_to vmcott_security_gate_officer_condition_check_path(vehicle.id)
       end
+    rescue => e
+      Rails.logger.error "Error in receive_vehicle: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      flash[:alert] = "Error processing vehicle: #{e.message}"
+      redirect_to vmcott_security_gate_officer_manual_entry_path
     end
-    
-    if @vehicle.nil?
-      flash[:alert] = "No vehicle selected. Please search for a vehicle or select an RFQ."
-      redirect_to vmcott_security_gate_officer_manual_entry_path and return
-    end
-    
-    # Store vehicle in session for condition check
-    session[:check_in_vehicle_id] = @vehicle.id
-    session[:check_in_rfq_id] = @rfq&.id
-    session[:check_in_po_id] = @po&.id
-    session[:driver_name] = params[:driver_name]
-    session[:driver_id] = params[:driver_id] if params[:driver_id].present?
-    session[:notes] = params[:notes] if params[:notes].present?
-    
-    # Redirect to condition check form
-    redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id)
   end
   
   def condition_check
-    @vehicle = Vehicle.find(params[:vehicle_id])
+    log_section("CONDITION CHECK START") if respond_to?(:log_section)
+    
+    # Handle different ways vehicle_id might be passed
+    if params[:vehicle_id].present?
+      @vehicle = Vehicle.find(params[:vehicle_id])
+      Rails.logger.info "Found vehicle by params: #{@vehicle.license_plate}" if Rails.env.development?
+    elsif session[:check_in_vehicle_id].present?
+      @vehicle = Vehicle.find(session[:check_in_vehicle_id])
+      Rails.logger.info "Found vehicle by session: #{@vehicle.license_plate}" if Rails.env.development?
+    elsif params[:create_new_vehicle] == 'true' && session[:new_vehicle_params].present?
+      Rails.logger.info "Creating vehicle from session" if Rails.env.development?
+      @vehicle = create_vehicle_from_session
+    else
+      flash[:alert] = "No vehicle selected. Please start the check-in process."
+      redirect_to vmcott_security_gate_officer_manual_entry_path and return
+    end
     
     # Check if we have a pending check-in
-    unless session[:check_in_vehicle_id].to_i == @vehicle.id
-      flash[:alert] = "Please start the check-in process first."
+    if session[:check_in_vehicle_id].present? && session[:check_in_vehicle_id].to_i != @vehicle.id
+      Rails.logger.error "Session mismatch: session=#{session[:check_in_vehicle_id]}, vehicle=#{@vehicle.id}"
+      flash[:alert] = "Session mismatch. Please start over."
       redirect_to vmcott_security_gate_officer_manual_entry_path and return
     end
     
@@ -189,13 +226,40 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     @driver_name = session[:driver_name]
     @driver_id = session[:driver_id]
     @notes = session[:notes]
+    
+    # Store client info in session for later use
+    @client_type = session[:client_type]
+    @agency_id = session[:agency_id]
+    @client_params = session[:client_params]
+    
+    log_section("CONDITION CHECK END") if respond_to?(:log_section)
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def submit_condition
-    @vehicle = Vehicle.find(params[:vehicle_id])
+    log_section("SUBMIT CONDITION START") if respond_to?(:log_section)
     
-    # Verify session
-    unless session[:check_in_vehicle_id].to_i == @vehicle.id
+    # Determine which vehicle we're working with
+    if params[:vehicle_id].present?
+      @vehicle = Vehicle.find(params[:vehicle_id])
+    elsif params[:create_new_vehicle] == 'true' && params[:new_vehicle].present?
+      # Handle creating a new vehicle right here in condition check
+      @vehicle = create_vehicle_from_params(params[:new_vehicle], params)
+    elsif session[:check_in_vehicle_id].present?
+      @vehicle = Vehicle.find(session[:check_in_vehicle_id])
+    else
+      flash[:alert] = "No vehicle selected. Please start over."
+      redirect_to vmcott_security_gate_officer_manual_entry_path and return
+    end
+    
+    # Verify session (if we have one)
+    if session[:check_in_vehicle_id].present? && session[:check_in_vehicle_id].to_i != @vehicle.id
       flash[:alert] = "Session expired. Please start over."
       redirect_to vmcott_security_gate_officer_manual_entry_path and return
     end
@@ -206,263 +270,207 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id) and return
     end
     
-    # Create condition report
-    @condition_report = VehicleConditionReport.new(
-      vehicle: @vehicle,
-      security_gate_officer: current_user,
-      fuel_level: params[:fuel_level],
-      odometer: params[:odometer],
-      driver_name: params[:driver_name],
-      driver_id_number: params[:driver_id_number],
-      signature_data: params[:signature_data],
-      signed_at: Time.current,
-      status: 'completed',
-      ip_address: request.remote_ip,
-      user_agent: request.user_agent
-    )
-    
-    # Handle condition data
-    condition_data = {}
-    
-    # Exterior damage (array) - filter out empty strings
-    exterior = Array(params[:exterior]).reject(&:blank?)
-    condition_data[:exterior_damage] = exterior
-    condition_data[:exterior_notes] = params[:exterior_notes]
-    
-    # Interior issues (array) - filter out empty strings
-    interior = Array(params[:interior]).reject(&:blank?)
-    condition_data[:interior_issues] = interior
-    
-    # Tire status (radio)
-    condition_data[:tire_status] = params[:tire_status] || 'good'
-    condition_data[:tire_notes] = params[:tire_notes]
-    
-    # Warning lights (array) - filter out empty strings
-    warnings = Array(params[:warnings]).reject(&:blank?)
-    condition_data[:warning_lights] = warnings
-    
-    # Additional notes
-    condition_data[:additional_notes] = params[:notes]
-    
-    # Photos taken checklist
-    photos_taken = []
-    photos_taken << 'front' if params[:photo_front].present?
-    photos_taken << 'rear' if params[:photo_rear].present?
-    photos_taken << 'left' if params[:photo_left].present?
-    photos_taken << 'right' if params[:photo_right].present?
-    photos_taken << 'dashboard' if params[:photo_dashboard].present?
-    photos_taken << 'odometer' if params[:photo_odometer].present?
-    photos_taken << 'fuel_gauge' if params[:photo_fuel].present?
-    photos_taken << 'damage' if params[:photo_damage].present?
-    condition_data[:photos_taken] = photos_taken
-    
-    @condition_report.condition_data = condition_data
-    
-    # Handle acknowledgment
-    acknowledgment = {
-      driver_name: params[:driver_name],
-      driver_id_number: params[:driver_id_number],
-      signature_data: params[:signature_data],
-      signed_at: Time.current,
-      ip_address: request.remote_ip,
-      user_agent: request.user_agent
-    }
-    @condition_report.acknowledgment = acknowledgment
-    
-    # Save the report
-    if @condition_report.save
-      # Attach photos if any
-      attach_photos(@condition_report, params)
-      
-      # Create reception log
-      reception_log = ReceptionLog.create!(
-        vehicle: @vehicle,
-        security_gate_officer: current_user,
-        driver_name: params[:driver_name],
-        received_at: Time.current,
-        check_in_time: Time.current,
-        visitor_name: params[:driver_name],
-        notes: params[:notes],
-        status: 'checked_in',
-        condition_report: @condition_report,
-        condition_status: @condition_report.exterior_damage? ? 'damage_noted' : 'clean'
-      )
-      
-      # Add RFQ or PO reference if present
-      if session[:check_in_rfq_id].present?
-        reception_log.update(rfq_id: session[:check_in_rfq_id])
-      elsif session[:check_in_po_id].present?
-        reception_log.update(purchase_order_id: session[:check_in_po_id])
+    begin
+      ActiveRecord::Base.transaction do
+        # Determine client for condition report
+        client = determine_client_from_params(params)
+        
+        # Create condition report
+        @condition_report = VehicleConditionReport.new(
+          vehicle: @vehicle,
+          security_gate_officer: current_user,
+          fuel_level: params[:fuel_level],
+          odometer: params[:odometer],
+          driver_name: params[:driver_name],
+          driver_id_number: params[:driver_id_number],
+          signature_data: params[:signature_data],
+          signed_at: Time.current,
+          status: 'completed',
+          ip_address: request.remote_ip,
+          user_agent: request.user_agent,
+          client: client
+        )
+        
+        # Handle condition data
+        condition_data = {
+          exterior_damage: Array(params[:exterior]).reject(&:blank?),
+          exterior_notes: params[:exterior_notes],
+          interior_issues: Array(params[:interior]).reject(&:blank?),
+          tire_status: params[:tire_status] || 'good',
+          tire_notes: params[:tire_notes],
+          warning_lights: Array(params[:warnings]).reject(&:blank?),
+          additional_notes: params[:notes]
+        }
+        @condition_report.condition_data = condition_data
+        
+        # Handle acknowledgment
+        @condition_report.acknowledgment = {
+          driver_name: params[:driver_name],
+          driver_id_number: params[:driver_id_number],
+          signature_data: params[:signature_data],
+          signed_at: Time.current,
+          ip_address: request.remote_ip,
+          user_agent: request.user_agent
+        }
+        
+        # Save the report
+        unless @condition_report.save
+          raise "Error saving condition report: #{@condition_report.errors.full_messages.join(', ')}"
+        end
+        
+        # Attach photos if any
+        attach_photos(@condition_report, params)
+        
+        # Create reception log
+        ReceptionLog.create!(
+          vehicle: @vehicle,
+          security_gate_officer: current_user,
+          driver_name: params[:driver_name],
+          received_at: Time.current,
+          check_in_time: Time.current,
+          visitor_name: params[:driver_name],
+          notes: params[:notes],
+          status: 'checked_in',
+          condition_report: @condition_report,
+          condition_status: @condition_report.exterior_damage? ? 'damage_noted' : 'clean',
+          client: client
+        )
+        
+        # Create vehicle status
+        VehicleStatus.create!(
+          vehicle: @vehicle,
+          created_by: current_user,
+          status: 'vehicle_received',
+          current: true,
+          notes: "Vehicle received from #{params[:driver_name]}. Condition: #{@condition_report.exterior_damage? ? 'Damage noted' : 'Clean'}"
+        )
+        
+        # Clear session
+        clear_check_in_session
+        
+        # Notify inspectors
+        notify_inspectors(@vehicle, @condition_report)
+        
+        flash[:notice] = "Vehicle #{@vehicle.license_plate} checked in successfully."
+        log_section("SUBMIT CONDITION END - SUCCESS") if respond_to?(:log_section)
+        redirect_to vmcott_security_gate_officer_dashboard_path
       end
-      
-      # Create vehicle status
-      VehicleStatus.create!(
-        vehicle: @vehicle,
-        created_by: current_user,
-        status: 'vehicle_received',
-        current: true,
-        notes: "Vehicle received from #{params[:driver_name]}. Condition: #{@condition_report.exterior_damage? ? 'Damage noted' : 'Clean'}"
-      )
-      
-      # Clear session
-      session.delete(:check_in_vehicle_id)
-      session.delete(:check_in_rfq_id)
-      session.delete(:check_in_po_id)
-      session.delete(:driver_name)
-      session.delete(:driver_id)
-      session.delete(:notes)
-      
-      # Notify inspectors
-      notify_inspectors(@vehicle, @condition_report)
-      
-      flash[:notice] = "Vehicle #{@vehicle.license_plate} checked in successfully. Driver acknowledgment captured."
-      redirect_to vmcott_security_gate_officer_dashboard_path
-    else
-      flash[:alert] = "Error saving condition report: #{@condition_report.errors.full_messages.join(', ')}"
-      render :condition_check
+    rescue => e
+      Rails.logger.error "Error in submit_condition: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      flash[:alert] = "An error occurred: #{e.message}"
+      redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id)
     end
-  rescue => e
-    Rails.logger.error "Error in submit_condition: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
-    flash[:alert] = "An error occurred: #{e.message}"
-    redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id)
   end
   
   def reception_logs
-    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report)
+    log_section("RECEPTION LOGS") if respond_to?(:log_section)
+    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :client)
                         .order(received_at: :desc)
                         .page(params[:page])
                         .per(20)
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def show_reception_log
-    @log = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :inspector)
+    @log = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :inspector, :client)
                        .find(params[:id])
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def today_logs
-    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer)
+    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :client)
                         .where(received_at: Date.current.all_day)
                         .order(received_at: :desc)
-  end
-  
-  def condition_report
-    @report = VehicleConditionReport.includes(:vehicle, :security_gate_officer)
-                                    .find(params[:id])
     
-    respond_to do |format|
-      format.html
-      format.pdf do
-        # Generate PDF for printing/signing
-        pdf = generate_condition_report_pdf(@report)
-        send_data pdf.render, filename: "condition_report_#{@report.id}.pdf", type: 'application/pdf'
-      end
-    end
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   private
   
   def require_security_gate_officer
     unless current_user.security_gate_officer? || current_user.admin?
+      Rails.logger.error "ACCESS DENIED - User: #{current_user.email}, Role: #{current_user.role}"
       redirect_to root_path, alert: "Access denied. Security Gate Officer privileges required."
     end
   end
   
-  def vehicle_params
-    params.require(:vehicle).permit(
-      :license_plate, :make, :model, :year_of_manufacture,
-      :vehicle_type, :color, :agency_id
+  # Add this method to disable caching for all actions
+  def disable_caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+  end
+  
+  # Debug logging methods - keep for development, remove in production if desired
+  def log_debug_info
+    return unless Rails.env.development?
+    
+    Rails.logger.info "=" * 80
+    Rails.logger.info "CONTROLLER: Vmcott::SecurityGateOfficer::DashboardController"
+    Rails.logger.info "ACTION: #{action_name}"
+    Rails.logger.info "USER: #{current_user&.email} (ID: #{current_user&.id})"
+    Rails.logger.info "USER ROLE: #{current_user&.role}"
+    Rails.logger.info "USER AGENCY: #{current_user&.agency&.code}"
+    Rails.logger.info "security_gate_officer?: #{current_user&.security_gate_officer?}"
+    Rails.logger.info "REQUEST PATH: #{request.path}"
+    Rails.logger.info "REQUEST METHOD: #{request.method}"
+    Rails.logger.info "PARAMS: #{params.except(:authenticity_token, :controller, :action).inspect}"
+    Rails.logger.info "SESSION: #{session.to_hash.select { |k| k.to_s.include?('vehicle') || k.to_s.include?('client') }.inspect}"
+  end
+  
+  def log_section(title)
+    return unless Rails.env.development?
+    Rails.logger.info "-" * 40
+    Rails.logger.info title
+    Rails.logger.info "-" * 40
+  end
+  
+  def log_debug_variables
+    return unless Rails.env.development?
+    Rails.logger.info "INSTANCE VARIABLES:"
+    Rails.logger.info "  @today_checkins: #{@today_checkins}"
+    Rails.logger.info "  @vehicles_on_site: #{@vehicles_on_site}"
+    Rails.logger.info "  @pending_condition_reports: #{@pending_condition_reports}"
+    Rails.logger.info "  @recent_checkins count: #{@recent_checkins&.count || 0}"
+    Rails.logger.info "  @stats: #{@stats.inspect}"
+  end
+  
+  def new_vehicle_params
+    params.require(:new_vehicle).permit(
+      :license_plate, :make, :model, :year_of_manufacture, :color,
+      :vehicle_type, :chassis_number, :serial_number,
+      :engine_number
     )
   end
   
-  def find_vehicle_for_rfq(rfq)
-    return nil unless rfq
-    
-    # Get all part IDs from this RFQ
-    part_ids = rfq.vendor_rfq_items.pluck(:part_id).compact
-    
-    return nil if part_ids.empty?
-    
-    # Try to find vehicle through parts associations
-    Vehicle.joins(maintenances: :maintenance_parts)
-           .where(maintenance_parts: { part_id: part_ids })
-           .first ||
-    Vehicle.joins(inspections: :parts_requests)
-           .where(parts_requests: { part_id: part_ids })
-           .first
-  end
-  
   def attach_photos(report, params)
-    # Front view
-    if params[:photo_front].present? && params[:photo_front].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_front],
-        filename: "front_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_front].content_type
-      )
-    end
-    
-    # Rear view
-    if params[:photo_rear].present? && params[:photo_rear].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_rear],
-        filename: "rear_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_rear].content_type
-      )
-    end
-    
-    # Left side
-    if params[:photo_left].present? && params[:photo_left].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_left],
-        filename: "left_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_left].content_type
-      )
-    end
-    
-    # Right side
-    if params[:photo_right].present? && params[:photo_right].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_right],
-        filename: "right_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_right].content_type
-      )
-    end
-    
-    # Dashboard
-    if params[:photo_dashboard].present? && params[:photo_dashboard].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_dashboard],
-        filename: "dashboard_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_dashboard].content_type
-      )
-    end
-    
-    # Odometer
-    if params[:photo_odometer].present? && params[:photo_odometer].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_odometer],
-        filename: "odometer_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_odometer].content_type
-      )
-    end
-    
-    # Fuel gauge
-    if params[:photo_fuel].present? && params[:photo_fuel].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_fuel],
-        filename: "fuel_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_fuel].content_type
-      )
-    end
-    
-    # Damage photos
-    if params[:photo_damage].present? && params[:photo_damage].respond_to?(:read)
-      report.condition_photos.attach(
-        io: params[:photo_damage],
-        filename: "damage_#{Time.current.to_i}.jpg",
-        content_type: params[:photo_damage].content_type
-      )
+    %w[front rear left right dashboard odometer fuel damage].each do |photo_type|
+      param_key = "photo_#{photo_type}".to_sym
+      if params[param_key].present? && params[param_key].respond_to?(:read)
+        report.condition_photos.attach(
+          io: params[param_key],
+          filename: "#{photo_type}_#{Time.current.to_i}.jpg",
+          content_type: params[param_key].content_type
+        )
+      end
     end
   end
   
@@ -472,11 +480,9 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     inspector_ids = User.where(role: 'inspector').pluck(:id)
     return if inspector_ids.empty?
     
-    damage_notice = condition_report.exterior_damage? ? "Damage noted: #{condition_report.exterior_damage_summary}" : "No damage reported"
-    
     Notification.create!(
       title: "Vehicle Ready for Inspection",
-      message: "#{vehicle.license_plate} received. #{damage_notice}",
+      message: "#{vehicle.license_plate} received. #{condition_report.exterior_damage? ? 'Damage noted' : 'No damage'}",
       link: vmcott_inspector_pre_inspection_path(vehicle.id),
       user_id: inspector_ids,
       notifiable_type: 'Vehicle',
@@ -486,9 +492,162 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     Rails.logger.error "Failed to create notification: #{e.message}"
   end
   
-  def generate_condition_report_pdf(report)
-    # This would use Prawn or similar to generate a PDF
-    # For now, just return nil
-    nil
+  def clear_check_in_session
+    session.delete(:check_in_vehicle_id)
+    session.delete(:driver_name)
+    session.delete(:driver_id)
+    session.delete(:notes)
+    session.delete(:client_type)
+    session.delete(:agency_id)
+    session.delete(:client_params)
+    session.delete(:new_vehicle_params)
+  end
+  
+  # Helper method to determine client from params or session
+  def determine_client_from_params(params)
+    client = nil
+    
+    # First check params
+    if params[:client_type] == 'agency' && params[:agency_id].present?
+      client = Agency.find(params[:agency_id])
+    elsif params[:client_type] == 'public' && params[:client].present?
+      client_params = params[:client]
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
+      
+      if client.new_record?
+        client.assign_attributes(
+          name: client_params[:name],
+          email: client_params[:email],
+          address: client_params[:address],
+          client_type: client_params[:client_type] || 2,
+          payment_terms: client_params[:payment_terms] || 0,
+          credit_limit: client_params[:credit_limit],
+          is_active: true
+        )
+        client.save!
+      end
+    # Then check session
+    elsif session[:client_type] == 'agency' && session[:agency_id].present?
+      client = Agency.find(session[:agency_id])
+    elsif session[:client_type] == 'public' && session[:client_params].present?
+      client_params = session[:client_params]
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
+      
+      if client.new_record?
+        client.assign_attributes(
+          name: client_params[:name],
+          email: client_params[:email],
+          address: client_params[:address],
+          client_type: client_params[:client_type] || 2,
+          payment_terms: client_params[:payment_terms] || 0,
+          credit_limit: client_params[:credit_limit],
+          is_active: true
+        )
+        client.save!
+      end
+    end
+    
+    client
+  end
+  
+  # Helper method to create a vehicle from params (for direct creation in condition check)
+  def create_vehicle_from_params(vehicle_params, all_params)
+    owner = nil
+    
+    # Determine owner
+    if all_params[:client_type] == 'agency' && all_params[:agency_id].present?
+      owner = Agency.find(all_params[:agency_id])
+    elsif all_params[:client_type] == 'public' && all_params[:client].present?
+      client_params = all_params[:client]
+      owner = Client.find_or_initialize_by(phone: client_params[:phone])
+      
+      if owner.new_record?
+        owner.assign_attributes(
+          name: client_params[:name],
+          email: client_params[:email],
+          address: client_params[:address],
+          client_type: client_params[:client_type] || 2,
+          payment_terms: client_params[:payment_terms] || 0,
+          credit_limit: client_params[:credit_limit],
+          is_active: true
+        )
+        owner.save!
+      end
+    end
+    
+    # Create vehicle
+    vehicle = Vehicle.new(vehicle_params)
+    vehicle.owner = owner
+    
+    unless vehicle.save
+      raise "Could not create vehicle: #{vehicle.errors.full_messages.join(', ')}"
+    end
+    
+    vehicle
+  end
+  
+  # Helper method to create vehicle from session (for condition check when vehicle wasn't pre-selected)
+  def create_vehicle_from_session
+    return nil unless session[:new_vehicle_params].present?
+    
+    owner = nil
+    
+    # Determine owner from session
+    if session[:client_type] == 'agency' && session[:agency_id].present?
+      owner = Agency.find(session[:agency_id])
+    elsif session[:client_type] == 'public' && session[:client_params].present?
+      client_params = session[:client_params]
+      owner = Client.find_or_initialize_by(phone: client_params[:phone])
+      
+      if owner.new_record?
+        owner.assign_attributes(
+          name: client_params[:name],
+          email: client_params[:email],
+          address: client_params[:address],
+          client_type: client_params[:client_type] || 2,
+          payment_terms: client_params[:payment_terms] || 0,
+          credit_limit: client_params[:credit_limit],
+          is_active: true
+        )
+        owner.save!
+      end
+    end
+    
+    # Create vehicle
+    vehicle = Vehicle.new(session[:new_vehicle_params])
+    vehicle.owner = owner
+    
+    unless vehicle.save
+      raise "Could not create vehicle from session: #{vehicle.errors.full_messages.join(', ')}"
+    end
+    
+    vehicle
+  end
+  
+  # API endpoint for vehicle search (used by the condition check form)
+  def search_vehicles
+    query = params[:q].to_s.strip
+    
+    if query.length < 2
+      render json: [] and return
+    end
+    
+    vehicles = Vehicle.includes(:owner)
+                      .search(query)
+                      .limit(10)
+                      .map do |v|
+      {
+        id: v.id,
+        license_plate: v.license_plate,
+        make: v.make,
+        model: v.model,
+        owner_type: v.owner_type,
+        owner_name: v.owner_name,
+        agency_code: v.owner.is_a?(Agency) ? v.owner.code : nil,
+        display: "#{v.license_plate} - #{v.make} #{v.model}"
+      }
+    end
+    
+    render json: vehicles
   end
 end

@@ -1,13 +1,24 @@
 # app/controllers/vmcott/mechanic/dashboard_controller.rb
 class Vmcott::Mechanic::DashboardController < ApplicationController
+  # Skip the dashboard caching for this controller - THIS IS THE FIX!
+  skip_around_action :cache_dashboard_data, if: :dashboard_controller?
+  
   before_action :authenticate_user!
   before_action :require_mechanic
   before_action :set_job_context, only: [:show_job, :start_job, :update_progress, :log_parts, :request_qc, :request_part]
   before_action :ensure_can_take_job, only: [:assign_self]
   before_action :ensure_can_start_job, only: [:start_job]
   before_action :ensure_can_request_parts, only: [:log_parts, :request_part]
+  
+  # Disable all caching for this controller
+  before_action :disable_caching
 
   def index
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
     # ========================================
     # MY CURRENT JOBS - What I'm working on
     # ========================================
@@ -51,7 +62,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     # ========================================
     # QC PENDING JOBS - Jobs that need quality check
     # ========================================
-    # In your controller, replace the @pending_qc_jobs query with:
     @pending_qc_jobs = InspectionJob.includes(inspection: { vehicle: :agency })
                                 .joins(:inspection)
                                 .where.not(completed_at: nil)
@@ -99,6 +109,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   end
 
   def verification_queue
+    # Disable caching for this action
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
     @jobs_needing_verification = InspectionJob.includes(inspection: :vehicle)
                                               .where(assigned_mechanic_id: nil, 
                                                      completed_at: nil,
@@ -116,6 +131,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     end
     
     @job.update(assigned_mechanic_id: current_user.id) if @job.assigned_mechanic_id.nil?
+    
+    # Disable caching for this action
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     render 'vmcott/mechanic/dashboard/verify_job'
   end
@@ -253,6 +273,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
 
   def new_additional_finding
     @inspection = Inspection.find(params[:inspection_id])
+    
+    # Disable caching for this action
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     # Ensure we're not trying to modify an already-approved job
     unless @inspection.approved_for_repair?
@@ -712,6 +737,13 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     )
   rescue => e
     Rails.logger.error "Failed to create notification: #{e.message}"
+  end
+
+  # Add this method to disable caching for all actions
+  def disable_caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
   # ========================================

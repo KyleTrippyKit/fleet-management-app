@@ -121,7 +121,7 @@ class Admin::UsersController < ApplicationController
 
   def user_params
     params.require(:user).permit(
-      :email, :name, :role, :employee_id, :time_zone, :is_active
+      :email, :name, :role, :employee_id, :time_zone, :is_active, :theme_preference
     )
   end
 

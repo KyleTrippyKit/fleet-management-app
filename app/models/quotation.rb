@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+# app/models/quotation.rb
+# UPDATED: Added polymorphic client association for Agency/Client
+# UPDATED: Improved client type handling
+
 class Quotation < ApplicationRecord
   # ------------------------------------------------------------
   # Safety: clear any problematic alias that can break associations
@@ -12,7 +16,12 @@ class Quotation < ApplicationRecord
   # ------------------------------------------------------------
   belongs_to :vehicle, optional: true
   belongs_to :rfq, optional: true
-  belongs_to :agency  # NOT NULL in schema
+  
+  # Keep agency for backward compatibility
+  belongs_to :agency, optional: true
+  
+  # NEW: Polymorphic client association (can be Agency or Client)
+  belongs_to :client, polymorphic: true, optional: true
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :submitted_by, class_name: "User", optional: true
@@ -37,7 +46,6 @@ class Quotation < ApplicationRecord
   accepts_nested_attributes_for :line_items,
     allow_destroy: true,
     reject_if: proc { |attributes| attributes["description"].blank? }
-
 
   has_many :quotation_jobs, dependent: :destroy
   accepts_nested_attributes_for :quotation_jobs, 
@@ -67,7 +75,7 @@ class Quotation < ApplicationRecord
   validates :vendor, presence: true
   validates :valid_from, :valid_to, presence: true
   validates :amount, numericality: { greater_than_or_equal_to: 0 }
-  # ✅ FIX 3: Only require amount > 0 for non-draft statuses
+  # ✅ Only require amount > 0 for non-draft statuses
   validates :amount, numericality: { greater_than: 0 }, if: :requires_positive_amount?
 
   validate :valid_date_range
@@ -88,6 +96,10 @@ class Quotation < ApplicationRecord
   scope :by_vendor, ->(vendor) { vendor.present? ? where("vendor ILIKE ?", "%#{vendor}%") : all }
   scope :search, ->(term) { return all unless term.present?; where("quote_number ILIKE :t OR vendor ILIKE :t OR notes ILIKE :t", t: "%#{term}%") }
   scope :for_agency, ->(agency) { return all unless agency.present?; left_joins(:vehicle).where("quotations.agency_id = :aid OR vehicles.agency_id = :aid", aid: agency.id) }
+  # NEW: Scope for client type
+  scope :for_client, ->(client) { where(client: client) if client.present? }
+  scope :agency_quotations, -> { where(client_type: 'Agency') }
+  scope :client_quotations, -> { where(client_type: ['corporate', 'individual']) }
 
   # ------------------------------------------------------------
   # Callbacks
@@ -95,10 +107,51 @@ class Quotation < ApplicationRecord
   before_validation :generate_quote_number, on: :create
   before_validation :set_default_dates, on: :create
   before_validation :set_agency_from_vehicle, if: -> { agency_id.blank? && vehicle_id.present? }
-  # ✅ FIX 1: Agency fallback for create
+  before_validation :set_client_from_vehicle, if: -> { client_id.blank? && vehicle_id.present? }
+  # ✅ Agency fallback for create
   before_validation :set_agency_fallback, on: :create
   before_validation :recalculate_amount_from_children
   before_save :update_status_timestamps, if: :will_save_change_to_status?
+
+  # ------------------------------------------------------------
+  # Client Helper Methods
+  # ------------------------------------------------------------
+  
+  # Get the client name regardless of type
+  def client_name
+    if client.is_a?(Agency)
+      client.name
+    elsif client.is_a?(Client)
+      client.name
+    elsif agency.present?
+      agency.name
+    else
+      "Unknown"
+    end
+  end
+  
+  # Get display info about the client type
+  def client_type_display
+    if client.is_a?(Agency)
+      "Agency: #{client.code}"
+    elsif client.is_a?(Client)
+      "Client: #{client.client_type.humanize}"
+    elsif agency.present?
+      "Agency: #{agency.code}"
+    else
+      "Unknown"
+    end
+  end
+  
+  # Check if client is an agency
+  def for_agency?
+    client.is_a?(Agency) || agency.present?
+  end
+  
+  # Check if client is a client
+  def for_client?
+    client.is_a?(Client)
+  end
 
   # ------------------------------------------------------------
   # User-friendly Status Methods
@@ -110,13 +163,13 @@ class Quotation < ApplicationRecord
     when :draft
       '⚪ Draft - VMCOTT Processing'
     when :sent
-      '🔵 Sent to Agency'
+      '🔵 Sent to Client'
     when :pending_acceptance
-      '🟡 Under Agency Review'
+      '🟡 Under Client Review'
     when :accepted
-      '🟢 Accepted by Agency'
+      '🟢 Accepted by Client'
     when :rejected
-      '🔴 Rejected by Agency'
+      '🔴 Rejected by Client'
     when :expired
       '⚫ Expired'
     when :converted
@@ -128,17 +181,17 @@ class Quotation < ApplicationRecord
     end
   end
 
-  # Friendly status name for Agency/Finance view
-  def agency_friendly_status
+  # Friendly status name for Client/Finance view
+  def client_friendly_status
     case status.to_sym
     when :draft
       '⚪ Draft'
     when :sent
-      '🔵 Awaiting Finance Team'
+      '🔵 Under Review'
     when :pending_acceptance
-      '🟡 Agency Review in Progress'
+      '🟡 Awaiting Your Decision'
     when :accepted
-      '🟢 Ready for PO Creation'
+      '🟢 Accepted - Ready for PO'
     when :rejected
       '🔴 Rejected'
     when :expired
@@ -309,14 +362,14 @@ class Quotation < ApplicationRecord
     update(status: :expired)
   end
 
-  def send_to_vendor!
+  def send_to_client!
     return false if locked?
     update(status: :sent, sent_at: Time.current)
   end
 
   def submit_to_agency!
     return unless vendor == "VMCOTT"
-    send_to_vendor!
+    send_to_client!
   end
 
   def convert_to_purchase_order!
@@ -335,7 +388,7 @@ class Quotation < ApplicationRecord
   def display_status
     case status.to_sym
     when :draft then "Draft"
-    when :sent then "Sent to Agency"
+    when :sent then "Sent to Client"
     when :accepted then "Accepted"
     when :rejected then "Rejected"
     when :expired then "Expired"
@@ -422,12 +475,20 @@ class Quotation < ApplicationRecord
     end
   end
 
-  def agency_name
-    agency&.name || vehicle&.agency&.name || "Fleet Management"
+  def client_name_display
+    client_name
   end
 
-  def agency_code
-    agency&.code || vehicle&.agency&.code
+  def client_code_display
+    if client.is_a?(Agency)
+      client.code
+    elsif client.is_a?(Client)
+      client.client_type
+    elsif agency.present?
+      agency.code
+    else
+      "N/A"
+    end
   end
 
   # Aliases for backward compatibility
@@ -448,11 +509,11 @@ class Quotation < ApplicationRecord
     events << { event: "Quotation Created", date: created_at, user: created_by, description: "Quotation #{quote_number} created", icon: "file-earmark-plus", active: true }
 
     if sent? || accepted? || rejected? || converted?
-      events << { event: "Sent to Agency", date: sent_at || updated_at, description: "Quotation sent to requesting agency", icon: "send", active: sent_at.present? }
+      events << { event: "Sent to Client", date: sent_at || updated_at, description: "Quotation sent to client", icon: "send", active: sent_at.present? }
     end
 
     if accepted? && accepted_at
-      events << { event: "Accepted", date: accepted_at, description: "Quotation accepted by agency", icon: "check-circle", active: true }
+      events << { event: "Accepted", date: accepted_at, description: "Quotation accepted by client", icon: "check-circle", active: true }
     end
 
     if rejected? && rejected_at
@@ -475,7 +536,7 @@ class Quotation < ApplicationRecord
     will_save_change_to_status? && status.to_sym == :converted
   end
 
-  # ✅ FIX 3: Helper for positive amount requirement
+  # Helper for positive amount requirement
   def requires_positive_amount?
     !draft?
   end
@@ -507,14 +568,20 @@ class Quotation < ApplicationRecord
     self.agency = vehicle.agency if vehicle&.agency
   end
 
-  # ✅ FIX 1: Agency fallback for create
+  # NEW: Set client from vehicle's polymorphic owner
+  def set_client_from_vehicle
+    return unless vehicle&.owner.present?
+    self.client = vehicle.owner
+  end
+
+  # Agency fallback for create
   def set_agency_fallback
-    return if agency_id.present?
+    return if agency_id.present? || client_id.present?
     self.agency_id = created_by&.agency_id || Agency.find_by(code: "VMCOTT")&.id || Agency.first&.id
   end
   private :set_agency_fallback
 
-  # ✅ FIX 2: Generate quote number that doesn't depend on vendor being present yet
+  # Generate quote number that doesn't depend on vendor being present yet
   def generate_quote_number
     return if quote_number.present?
     date_part   = Time.current.strftime("%Y%m%d")

@@ -29,8 +29,175 @@
                         local: true, 
                         class: "needs-validation", 
                         id: "condition-form",
-                        data: { turbo: false } do |f| %>
+                        data: { 
+                          turbo: false,
+                          controller: "vehicle-catalog",
+                          vehicle_catalog_url_value: "/vehicles/catalog_search"
+                        } do |f| %>
             
+            <!-- Hidden field for vehicle selection -->
+            <input type="hidden" name="vehicle_id" id="selected-vehicle-id" value="<%= @vehicle.id %>">
+            <input type="hidden" name="create_new_vehicle" id="create-new-vehicle" value="false">
+            
+            <!-- VEHICLE SELECTION - Like the vehicle form with catalog search -->
+            <div class="card mb-4 border-primary">
+              <div class="card-header bg-primary bg-opacity-10 border-bottom border-primary py-3">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-search text-primary fs-4 me-2"></i>
+                  <h6 class="fw-bold mb-0 text-primary">Vehicle Selection</h6>
+                </div>
+              </div>
+              <div class="card-body">
+                
+                <!-- Mode Toggle Cards - Like manual_entry -->
+                <div class="row g-3 mb-4">
+                  <div class="col-md-6">
+                    <div class="card h-100 border-2" id="existing-mode-card" style="cursor: pointer; transition: all 0.2s;">
+                      <div class="card-body text-center p-4">
+                        <i class="bi bi-search display-4 text-primary mb-3"></i>
+                        <h5 class="fw-bold">Search Existing</h5>
+                        <p class="small text-muted mb-0">Find vehicle by license plate</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card h-100 border-2" id="new-mode-card" style="cursor: pointer; transition: all 0.2s;">
+                      <div class="card-body text-center p-4">
+                        <i class="bi bi-plus-circle display-4 text-success mb-3"></i>
+                        <h5 class="fw-bold">Add New Vehicle</h5>
+                        <p class="small text-muted mb-0">Register a new vehicle</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Current vehicle display (when vehicle is pre-selected) -->
+                <% if @vehicle.present? %>
+                  <div class="alert alert-info mb-3 d-flex align-items-center" id="current-vehicle-alert">
+                    <i class="bi bi-info-circle-fill me-2 fs-4"></i>
+                    <div>
+                      <strong>Current Vehicle:</strong> 
+                      <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %> 
+                      (<%= @vehicle.owner_name %>)
+                      <button type="button" class="btn btn-sm btn-outline-primary ms-3" id="change-vehicle-btn">
+                        <i class="bi bi-pencil me-1"></i> Change
+                      </button>
+                    </div>
+                  </div>
+                <% end %>
+                
+                <!-- License Plate Entry with Live Search (for selecting existing vehicles) -->
+                <div id="existing-vehicle-section" class="mb-3 position-relative" style="<%= 'display: none;' if @vehicle.present? %>">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-upc-scan text-primary me-2"></i>
+                    <label for="license-plate-search" class="form-label fw-bold mb-0">Search Vehicle</label>
+                    <span class="badge bg-primary bg-opacity-10 text-primary ms-2">Required</span>
+                  </div>
+                  
+                  <div class="input-group input-group-lg">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-upc-scan text-muted"></i></span>
+                    <input type="text" 
+                           id="license-plate-search"
+                           class="form-control border-start-0 ps-0" 
+                           placeholder="Enter license plate (e.g., ABC-1234)" 
+                           autofocus
+                           autocomplete="off"
+                           data-vehicle-catalog-target="query"
+                           data-action="input->vehicle-catalog#search keydown->vehicle-catalog#keydown">
+                  </div>
+                  <div class="form-text text-muted mt-2">
+                    <i class="bi bi-info-circle me-1"></i> Type at least 3 characters to search
+                  </div>
+                  
+                  <!-- Search Results Dropdown - Like vehicle form -->
+                  <div data-vehicle-catalog-target="results"
+                       class="list-group position-absolute w-100 shadow"
+                       style="display:none; z-index:2000; max-height:260px; overflow:auto;">
+                  </div>
+                </div>
+                
+                <!-- New Vehicle Form (hidden by default) -->
+                <div id="newVehicleForm" class="mb-3" style="display: none;">
+                  <div class="card border-2 border-success">
+                    <div class="card-header bg-success bg-opacity-10 border-bottom border-success py-2">
+                      <div class="d-flex align-items-center">
+                        <i class="bi bi-plus-circle text-success fs-5 me-2"></i>
+                        <h6 class="fw-bold mb-0 text-success">New Vehicle Registration</h6>
+                      </div>
+                    </div>
+                    <div class="card-body bg-light">
+                      <div class="row g-2">
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_make, "Make", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= text_field_tag "new_vehicle[make]", nil, class: "form-control form-control-sm", id: "new_vehicle_make", placeholder: "e.g., Toyota" %>
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_model, "Model", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= text_field_tag "new_vehicle[model]", nil, class: "form-control form-control-sm", id: "new_vehicle_model", placeholder: "e.g., Hilux" %>
+                        </div>
+                        
+                        <div class="col-md-4">
+                          <%= label_tag :new_vehicle_year_of_manufacture, "Year", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= number_field_tag "new_vehicle[year_of_manufacture]", nil, class: "form-control form-control-sm", id: "new_vehicle_year_of_manufacture", placeholder: "2023", min: 1900, max: Time.current.year + 1 %>
+                        </div>
+                        
+                        <div class="col-md-4">
+                          <%= label_tag :new_vehicle_color, "Color", class: "form-label fw-bold small" %>
+                          <%= text_field_tag "new_vehicle[color]", nil, class: "form-control form-control-sm", id: "new_vehicle_color", placeholder: "e.g., White" %>
+                        </div>
+                        
+                        <div class="col-md-4">
+                          <%= label_tag :new_vehicle_vehicle_type, "Type", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= select_tag "new_vehicle[vehicle_type]", 
+                              options_for_select(["Car", "SUV", "Pickup", "Van", "Bus", "Truck", "Motorcycle", "Other"]), 
+                              prompt: "Select...", 
+                              class: "form-select form-select-sm", 
+                              id: "new_vehicle_vehicle_type" %>
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_chassis_number, "Chassis / VIN", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= text_field_tag "new_vehicle[chassis_number]", nil, class: "form-control form-control-sm", id: "new_vehicle_chassis_number", placeholder: "VIN number" %>
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_serial_number, "Serial Number", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= text_field_tag "new_vehicle[serial_number]", nil, class: "form-control form-control-sm", id: "new_vehicle_serial_number", placeholder: "Serial number" %>
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_engine_number, "Engine Number", class: "form-label fw-bold small" %>
+                          <%= text_field_tag "new_vehicle[engine_number]", nil, class: "form-control form-control-sm", id: "new_vehicle_engine_number", placeholder: "Engine number" %>
+                        </div>
+                        
+                        <div class="col-md-6">
+                          <%= label_tag :new_vehicle_license_plate, "License Plate", class: "form-label fw-bold small" %>
+                          <span class="text-danger">*</span>
+                          <%= text_field_tag "new_vehicle[license_plate]", nil, class: "form-control form-control-sm", id: "new_vehicle_license_plate", placeholder: "e.g., ABC-1234" %>
+                        </div>
+                        
+                        <!-- Owner fields - hidden for condition check, will be set by controller -->
+                        <%= hidden_field_tag "client_type", session[:client_type] || 'agency' %>
+                        <%= hidden_field_tag "agency_id", session[:agency_id] if session[:agency_id] %>
+                        <% if session[:client_params].present? %>
+                          <% session[:client_params].each do |key, value| %>
+                            <%= hidden_field_tag "client[#{key}]", value %>
+                          <% end %>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Quick Stats Row -->
             <div class="row g-3 mb-4">
               <div class="col-md-6">
@@ -213,7 +380,7 @@
               <textarea name="notes" class="form-control" rows="2" placeholder="Any other observations?"></textarea>
             </div>
 
-            <!-- DRIVER SIGNATURE SECTION - Added ID for scrolling -->
+            <!-- DRIVER SIGNATURE SECTION -->
             <div class="card mb-4 border-warning" id="signature-section">
               <div class="card-header bg-warning text-dark">
                 <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i> Driver Acknowledgment & Signature</h6>
@@ -247,7 +414,7 @@
                   <input type="hidden" name="signature_data" id="signature-data">
                 </div>
 
-                <!-- Signature Modal - Canvas appears at bottom of page -->
+                <!-- Signature Modal -->
                 <div class="modal fade" id="signatureModal" tabindex="-1" aria-hidden="true">
                   <div class="modal-dialog modal-dialog-bottom modal-lg">
                     <div class="modal-content">
@@ -256,28 +423,22 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                       </div>
                       <div class="modal-body">
-                        <!-- Canvas with explicit dimensions and background -->
-                        <div style="background: white; border: 2px solid #dee2e6; border-radius: 8px; padding: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">
+                        <div style="background: white; border: 2px solid #dee2e6; border-radius: 8px; padding: 10px;">
                           <canvas id="signature-canvas" 
                                   width="600" 
                                   height="200" 
-                                  style="width: 100%; height: 200px; display: block; background: white; cursor: crosshair; border: 1px dashed #aaa;"
-                                  ></canvas>
+                                  style="width: 100%; height: 200px; display: block; background: white; cursor: crosshair; border: 1px dashed #aaa;"></canvas>
                         </div>
                         
-                        <!-- Instructions -->
                         <div class="alert alert-info mt-3 mb-2 py-2">
                           <div class="d-flex align-items-center">
                             <i class="bi bi-mouse fs-5 me-2"></i>
                             <div>
-                              <strong>How to sign:</strong> 
-                              Click and hold the left mouse button on the white area to draw. 
-                              Release to stop. Use the Clear button to start over.
+                              <strong>How to sign:</strong> Click and hold to draw.
                             </div>
                           </div>
                         </div>
                         
-                        <!-- Buttons -->
                         <div class="d-flex gap-2 mt-3">
                           <button type="button" class="btn btn-outline-secondary flex-grow-1" id="clear-signature">
                             <i class="bi bi-eraser me-1"></i> Clear
@@ -315,10 +476,192 @@
   </div>
 </div>
 
-<!-- Signature Pad JavaScript - WITH BOTTOM POSITIONED MODAL -->
+<!-- JavaScript for vehicle search and mode switching -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    let canvas, ctx, drawing = false;
+    // ============================================
+    // MODE TOGGLE FUNCTIONALITY
+    // ============================================
+    const existingModeCard = document.getElementById('existing-mode-card');
+    const newModeCard = document.getElementById('new-mode-card');
+    const existingSection = document.getElementById('existing-vehicle-section');
+    const newSection = document.getElementById('newVehicleForm');
+    const currentVehicleAlert = document.getElementById('current-vehicle-alert');
+    const createNewVehicle = document.getElementById('create-new-vehicle');
+    const selectedVehicleId = document.getElementById('selected-vehicle-id');
+    
+    let isNewVehicleMode = false;
+    
+    function setMode(isNew) {
+      isNewVehicleMode = isNew;
+      createNewVehicle.value = isNew ? 'true' : 'false';
+      
+      if (isNew) {
+        // New vehicle mode
+        if (existingSection) existingSection.style.display = 'none';
+        if (newSection) newSection.style.display = 'block';
+        if (existingModeCard) {
+          existingModeCard.classList.remove('border-primary', 'bg-light');
+          newModeCard.classList.add('border-primary', 'bg-light');
+        }
+        if (currentVehicleAlert) currentVehicleAlert.style.display = 'none';
+        
+        // Clear any selected vehicle
+        if (selectedVehicleId) selectedVehicleId.value = '';
+        
+      } else {
+        // Existing vehicle mode
+        if (existingSection) existingSection.style.display = 'block';
+        if (newSection) newSection.style.display = 'none';
+        if (existingModeCard) {
+          newModeCard.classList.remove('border-primary', 'bg-light');
+          existingModeCard.classList.add('border-primary', 'bg-light');
+        }
+        if (currentVehicleAlert) currentVehicleAlert.style.display = 'flex';
+      }
+    }
+    
+    if (existingModeCard) {
+      existingModeCard.addEventListener('click', () => setMode(false));
+    }
+    if (newModeCard) {
+      newModeCard.addEventListener('click', () => setMode(true));
+    }
+    
+    // Change vehicle button
+    const changeVehicleBtn = document.getElementById('change-vehicle-btn');
+    if (changeVehicleBtn) {
+      changeVehicleBtn.addEventListener('click', function() {
+        if (currentVehicleAlert) currentVehicleAlert.style.display = 'none';
+        if (existingSection) existingSection.style.display = 'block';
+        if (selectedVehicleId) selectedVehicleId.value = '';
+      });
+    }
+    
+    // ============================================
+    // VEHICLE CATALOG SEARCH
+    // ============================================
+    const searchInput = document.getElementById('license-plate-search');
+    const resultsDiv = document.querySelector('[data-vehicle-catalog-target="results"]');
+    
+    if (searchInput && resultsDiv) {
+      let searchTimeout;
+      
+      searchInput.addEventListener('input', function(e) {
+        const query = this.value.trim();
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+          resultsDiv.style.display = 'none';
+          return;
+        }
+        
+        resultsDiv.innerHTML = '<div class="list-group-item text-center py-2"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Searching...</div>';
+        resultsDiv.style.display = 'block';
+        
+        searchTimeout = setTimeout(() => {
+          fetch(`/vehicles/search?q=${encodeURIComponent(query)}`, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              resultsDiv.innerHTML = '';
+              data.forEach(vehicle => {
+                const ownerDisplay = vehicle.agency_code ? 
+                  `(${vehicle.agency_code})` : 
+                  (vehicle.owner_type === 'Client' ? '(Public)' : '');
+                
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action py-2';
+                item.setAttribute('data-vehicle-id', vehicle.id);
+                item.setAttribute('data-vehicle-make', vehicle.make || '');
+                item.setAttribute('data-vehicle-model', vehicle.model || '');
+                item.setAttribute('data-vehicle-plate', vehicle.license_plate || '');
+                item.innerHTML = `
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>${escapeHtml(vehicle.license_plate || 'N/A')}</strong>
+                      <br><small>${escapeHtml(vehicle.make || '')} ${escapeHtml(vehicle.model || '')} ${ownerDisplay}</small>
+                    </div>
+                    <span class="badge bg-primary">Select</span>
+                  </div>
+                `;
+                item.addEventListener('click', function() {
+                  selectVehicle(vehicle);
+                });
+                resultsDiv.appendChild(item);
+              });
+            } else {
+              resultsDiv.innerHTML = '<div class="list-group-item text-center py-3 text-muted">No vehicles found. <a href="#" onclick="switchToNewMode(); return false;">Add new vehicle?</a></div>';
+            }
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+            resultsDiv.innerHTML = '<div class="list-group-item text-center py-3 text-danger">Error searching vehicles</div>';
+          });
+        }, 300);
+      });
+      
+      // Close results when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+          resultsDiv.style.display = 'none';
+        }
+      });
+    }
+    
+    // Function to select a vehicle
+    window.selectVehicle = function(vehicle) {
+      if (selectedVehicleId) selectedVehicleId.value = vehicle.id;
+      if (searchInput) {
+        searchInput.value = `${vehicle.license_plate || ''} - ${vehicle.make || ''} ${vehicle.model || ''}`.trim();
+      }
+      if (resultsDiv) resultsDiv.style.display = 'none';
+      
+      // Show success message
+      showTemporaryMessage(`Selected: ${vehicle.license_plate}`);
+    };
+    
+    // Function to switch to new vehicle mode
+    window.switchToNewMode = function() {
+      setMode(true);
+      if (resultsDiv) resultsDiv.style.display = 'none';
+    };
+    
+    // Helper: escape HTML
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
+    // Helper: show temporary message
+    function showTemporaryMessage(message) {
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+      alertDiv.innerHTML = `
+        <div class="d-flex align-items-center">
+          <i class="bi bi-check-circle-fill me-2"></i>
+          <span>${escapeHtml(message)}</span>
+          <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      if (searchInput && searchInput.parentElement) {
+        searchInput.parentElement.appendChild(alertDiv);
+        setTimeout(() => alertDiv.remove(), 3000);
+      }
+    }
+    
+    // ============================================
+    // CHECKBOX BEHAVIOR
+    // ============================================
     
     // Auto-uncheck "None" when other checkboxes are checked
     document.querySelectorAll('input[name="exterior[]"]').forEach(checkbox => {
@@ -361,79 +704,40 @@
     // SIGNATURE PAD FUNCTIONS
     // ============================================
     
-    // Function to open modal and initialize canvas
+    let canvas, ctx, drawing = false;
+    
     window.openSignatureModal = function() {
       const modalEl = document.getElementById('signatureModal');
-      const modal = new bootstrap.Modal(modalEl, {
-        backdrop: 'static',
-        keyboard: true
-      });
+      const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
       modal.show();
       
-      // Remove any lingering backdrops
-      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-      
-      // Small delay to ensure modal is rendered
       setTimeout(initCanvas, 300);
-      
-      // Scroll to the bottom of the page when modal opens
-      setTimeout(function() {
-        window.scrollTo({
-          top: document.body.scrollHeight,
-          behavior: 'smooth'
-        });
-      }, 100);
     };
     
-    // Initialize canvas separately
     function initCanvas() {
       canvas = document.getElementById('signature-canvas');
-      if (!canvas) {
-        console.error('Canvas element not found!');
-        return;
-      }
+      if (!canvas) return;
       
-      // Set fixed dimensions
       canvas.width = 600;
       canvas.height = 200;
-      
       ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('Could not get canvas context!');
-        return;
-      }
       
-      // Set drawing styles
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       
-      // Clear canvas (white background)
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Remove old event listeners
-      canvas.removeEventListener('mousedown', startDrawing);
-      canvas.removeEventListener('mousemove', draw);
-      canvas.removeEventListener('mouseup', stopDrawing);
-      canvas.removeEventListener('mouseleave', stopDrawing);
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', stopDrawing);
-      
-      // Add fresh event listeners
       canvas.addEventListener('mousedown', startDrawing);
       canvas.addEventListener('mousemove', draw);
       canvas.addEventListener('mouseup', stopDrawing);
       canvas.addEventListener('mouseleave', stopDrawing);
       
-      // Touch events for mobile
       canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
       canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
       canvas.addEventListener('touchend', stopDrawing);
-      
-      console.log('Canvas initialized successfully');
     }
     
     function startDrawing(e) {
@@ -442,7 +746,6 @@
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-      
       ctx.beginPath();
       ctx.moveTo(x, y);
     }
@@ -450,11 +753,9 @@
     function draw(e) {
       if (!drawing) return;
       e.preventDefault();
-      
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-      
       ctx.lineTo(x, y);
       ctx.stroke();
     }
@@ -465,7 +766,6 @@
       const rect = canvas.getBoundingClientRect();
       const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
       const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
-      
       drawing = true;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -474,12 +774,10 @@
     function handleTouchMove(e) {
       e.preventDefault();
       if (!drawing) return;
-      
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
       const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
-      
       ctx.lineTo(x, y);
       ctx.stroke();
     }
@@ -490,7 +788,6 @@
       ctx.closePath();
     }
     
-    // Clear signature
     document.getElementById('clear-signature')?.addEventListener('click', function(e) {
       e.preventDefault();
       if (ctx && canvas) {
@@ -500,45 +797,26 @@
       }
     });
     
-    // Save signature
     document.getElementById('save-signature')?.addEventListener('click', function(e) {
       e.preventDefault();
-      if (!canvas || !ctx) {
-        alert('Signature canvas not initialized. Please try again.');
-        return;
-      }
-      
-      // Check if canvas is empty
-      const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      const isCanvasEmpty = !pixelData.some(value => value !== 255);
-      
-      if (isCanvasEmpty) {
-        if (!confirm('No signature detected. Save anyway?')) {
-          return;
-        }
-      }
+      if (!canvas || !ctx) return;
       
       const signatureData = canvas.toDataURL('image/png');
       document.getElementById('signature-data').value = signatureData;
       
-      // Update the signature pad display
       const pad = document.getElementById('signature-pad');
       pad.innerHTML = `<img src="${signatureData}" style="width: 100%; height: 100%; object-fit: contain; background: white;">`;
       pad.onclick = null;
       
-      // Close modal
       const modal = bootstrap.Modal.getInstance(document.getElementById('signatureModal'));
       if (modal) modal.hide();
-      
-      // Remove backdrops after closing
-      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
     });
 
     // Form validation
-    document.getElementById('condition-form').addEventListener('submit', function(e) {
+    document.getElementById('condition-form')?.addEventListener('submit', function(e) {
       const signature = document.getElementById('signature-data').value;
-      const driverName = document.querySelector('input[name="driver_name"]').value.trim();
-      const termsAgreed = document.getElementById('terms').checked;
+      const driverName = document.querySelector('input[name="driver_name"]')?.value.trim();
+      const termsAgreed = document.getElementById('terms')?.checked;
       
       if (!signature) {
         e.preventDefault();
@@ -561,53 +839,25 @@
       return true;
     });
     
-    // Ensure modal cleanup when closed
-    document.getElementById('signatureModal')?.addEventListener('hidden.bs.modal', function() {
-      drawing = false;
-      // Remove any lingering backdrops
-      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-    });
-    
-    // Prevent zoom on double-tap for mobile
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', function(event) {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, false);
-    
-    // Prevent pinch zoom
-    document.addEventListener('touchmove', function(event) {
-      if (event.scale !== 1) {
-        event.preventDefault();
-      }
-    }, { passive: false });
-    
   });
 </script>
 
 <style>
-  /* Prevent zoom on input focus for mobile */
-  input, select, textarea {
-    font-size: 16px !important;
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
   
-  /* Prevent text size adjustment */
-  body {
-    -webkit-text-size-adjust: 100%;
-    -moz-text-size-adjust: 100%;
-    -ms-text-size-adjust: 100%;
-    text-size-adjust: 100%;
+  .border-2 {
+    border-width: 2px !important;
   }
   
-  #signature-pad {
-    transition: all 0.3s ease;
+  #existing-mode-card, #new-mode-card {
+    transition: all 0.2s ease;
   }
   
-  #signature-pad:hover {
-    background-color: #e9ecef !important;
+  #existing-mode-card:hover, #new-mode-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
   
   .btn-check:checked + .btn-outline-danger {
@@ -631,7 +881,6 @@
     touch-action: none;
   }
   
-  /* Modal positioned at bottom */
   .modal-dialog-bottom {
     margin: 0;
     position: fixed;
@@ -644,58 +893,37 @@
   .modal-dialog-bottom .modal-content {
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
+  }
+  
+  /* Search results styling */
+  [data-vehicle-catalog-target="results"] {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 2000;
+  }
+  
+  [data-vehicle-catalog-target="results"] .list-group-item {
+    border-left: none;
+    border-right: none;
+    padding: 8px 12px;
+  }
+  
+  [data-vehicle-catalog-target="results"] .list-group-item:first-child {
+    border-top: none;
+  }
+  
+  [data-vehicle-catalog-target="results"] .list-group-item:last-child {
     border-bottom: none;
   }
   
-  /* Modal adjustments */
-  .modal-lg {
-    max-width: 700px;
-    margin: 0 auto;
+  /* Prevent zoom on mobile */
+  input, select, textarea {
+    font-size: 16px !important;
   }
   
-  @media (max-width: 768px) {
-    .modal-lg {
-      max-width: 100%;
-    }
-  }
-  
-  .alert-info {
-    background-color: #cff4fc;
-    border-color: #b6effb;
-    color: #055160;
-  }
-  
-  /* Fix modal backdrop issues */
-  .modal-backdrop {
-    z-index: 1040 !important;
-  }
-  
-  .modal {
-    z-index: 1050 !important;
-  }
-  
-  .modal-dialog {
-    pointer-events: auto;
-  }
-  
-  .modal-content {
-    pointer-events: auto;
-  }
-  
-  /* Ensure canvas is interactable */
-  #signature-canvas {
-    pointer-events: auto !important;
-    touch-action: none;
-  }
-  
-  /* Remove any potential overlays */
-  .modal.show {
-    background-color: transparent;
-  }
-  
-  /* Prevent zooming on the entire page */
-  meta[name=viewport] {
-    content: "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+  body {
+    -webkit-text-size-adjust: 100%;
   }
 </style>
 

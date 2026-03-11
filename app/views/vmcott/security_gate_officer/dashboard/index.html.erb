@@ -1,98 +1,12 @@
 <%# app/views/vmcott/security_gate_officer/dashboard/index.html.erb %>
-<%# Simple dashboard for Security Gate Officer - Just check-ins %>
-
-<div class="container-fluid py-4">
-  <!-- Header -->
-  <div class="row mb-4">
-    <div class="col">
-      <h1 class="h2">
-        <i class="bi bi-shield-check me-2"></i>
-        Security Gate Officer
-      </h1>
-      <p class="text-muted">Vehicle check-in & condition reporting</p>
-    </div>
-    <div class="col-auto">
-      <div class="btn-group">
-        <%= link_to vmcott_security_gate_officer_scan_path, class: "btn btn-primary btn-lg" do %>
-          <i class="bi bi-qr-code-scan me-2"></i> Scan QR
-        <% end %>
-        <%= link_to vmcott_security_gate_officer_manual_entry_path, class: "btn btn-outline-primary btn-lg" do %>
-          <i class="bi bi-pencil-square me-2"></i> Manual Entry
-        <% end %>
-      </div>
-    </div>
-  </div>
-
-  <!-- Quick Stats Row - Simplified -->
-  <div class="row mb-4 g-3">
-    <div class="col-md-4">
-      <div class="card bg-primary text-white">
-        <div class="card-body">
-          <h6 class="text-white-50">Today's Check-ins</h6>
-          <h2 class="mb-0"><%= @stats[:today_checkins] %></h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card bg-info text-white">
-        <div class="card-body">
-          <h6 class="text-white-50">Vehicles on Site</h6>
-          <h2 class="mb-0"><%= @stats[:vehicles_on_site] %></h2>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card bg-warning text-dark">
-        <div class="card-body">
-          <h6 class="text-dark-50">Pending Reports</h6>
-          <h2 class="mb-0"><%= @stats[:pending_reports] %></h2>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Check-ins - Simple List -->
-  <div class="card shadow-sm">
-    <div class="card-header bg-light">
-      <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i> Recent Check-ins</h5>
-    </div>
-    <div class="card-body p-0">
-      <div class="list-group list-group-flush">
-        <% if @recent_checkins.any? %>
-          <% @recent_checkins.first(5).each do |log| %>
-            <div class="list-group-item">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <div class="fw-bold">
-                    <%= log.vehicle&.license_plate || 'Unknown' %>
-                    <% if log.condition_report&.exterior_damage? %>
-                      <span class="badge bg-warning ms-2">⚠️ Damage</span>
-                    <% else %>
-                      <span class="badge bg-success ms-2">✅ Clean</span>
-                    <% end %>
-                  </div>
-                  <small class="text-muted">
-                    <%= log.driver_name %> • <%= time_ago_in_words(log.received_at) %> ago
-                  </small>
-                </div>
-                <div>
-                  <%= link_to "View", vmcott_security_gate_officer_reception_log_path(log), class: "btn btn-sm btn-outline-primary" %>
-                </div>
-              </div>
-            </div>
-          <% end %>
-        <% else %>
-          <div class="list-group-item text-center text-muted py-4">
-            No check-ins in the last 24 hours
-          </div>
-        <% end %>
-      </div>
-    </div>
-    <% if @recent_checkins.any? %>
-      <div class="card-footer text-center">
-        <%= link_to "View All Check-ins", vmcott_security_gate_officer_reception_logs_path, class: "btn btn-sm btn-outline-secondary" %>
-        <%= link_to "Today's Log", today_vmcott_security_gate_officer_reception_logs_path, class: "btn btn-sm btn-outline-secondary ms-2" %>
-      </div>
-    <% end %>
+<div style="background: #00ff00; padding: 30px; margin: 20px; border: 5px solid #0000ff;">
+  <h1 style="color: #000;">✅ DASHBOARD IS WORKING!</h1>
+  <p>Time: <%= Time.current %></p>
+  <p>User: <%= current_user&.email %></p>
+  <p>Stats: <%= @stats.inspect %></p>
+  
+  <div style="margin-top: 20px;">
+    <%= link_to "Manual Entry", vmcott_security_gate_officer_manual_entry_path, 
+        style: "background: #00f; color: #fff; padding: 10px; text-decoration: none; border-radius: 5px;" %>
   </div>
 </div>

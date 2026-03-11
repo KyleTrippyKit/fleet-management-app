@@ -2,34 +2,56 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static values = { timeout: { type: Number, default: 300000 } } // 5 minutes default
+  static values = { timeout: { type: Number, default: 30000 } } // 30 seconds default
   
   connect() {
-    this.timeout = setTimeout(() => {
-      window.location.href = '/screensaver'
-    }, this.timeoutValue)
+    console.log("⏰ Inactivity controller connected with timeout:", this.timeoutValue);
     
-    this.resetTimeout = this.resetTimeout.bind(this)
-    document.addEventListener('mousemove', this.resetTimeout)
-    document.addEventListener('keypress', this.resetTimeout)
-    document.addEventListener('click', this.resetTimeout)
-    document.addEventListener('scroll', this.resetTimeout)
-    document.addEventListener('touchstart', this.resetTimeout) // For mobile
+    // Don't set up timer if we're on the screensaver page
+    if (window.location.pathname.includes('/screensaver')) {
+      console.log("⏰ On screensaver page, not starting inactivity timer");
+      return;
+    }
+    
+    this.setupTimer();
+    this.setupListeners();
+  }
+  
+  setupTimer() {
+    this.timeout = setTimeout(() => {
+      this.redirectToScreensaver();
+    }, this.timeoutValue);
+  }
+  
+  setupListeners() {
+    this.resetTimeout = this.resetTimeout.bind(this);
+    this.activityEvents = ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
+    this.activityEvents.forEach(event => {
+      document.addEventListener(event, this.resetTimeout);
+    });
   }
   
   resetTimeout() {
-    clearTimeout(this.timeout)
-    this.timeout = setTimeout(() => {
-      window.location.href = '/screensaver'
-    }, this.timeoutValue)
+    clearTimeout(this.timeout);
+    this.setupTimer();
+  }
+  
+  redirectToScreensaver() {
+    // Don't redirect if already on screensaver or home page
+    const currentPath = window.location.pathname;
+    if (!currentPath.includes('/screensaver') && currentPath !== '/') {
+      console.log("⏰ Inactivity timeout reached, redirecting to screensaver");
+      window.location.href = '/screensaver';
+    }
   }
   
   disconnect() {
-    clearTimeout(this.timeout)
-    document.removeEventListener('mousemove', this.resetTimeout)
-    document.removeEventListener('keypress', this.resetTimeout)
-    document.removeEventListener('click', this.resetTimeout)
-    document.removeEventListener('scroll', this.resetTimeout)
-    document.removeEventListener('touchstart', this.resetTimeout)
+    console.log("⏰ Inactivity controller disconnecting");
+    clearTimeout(this.timeout);
+    if (this.activityEvents) {
+      this.activityEvents.forEach(event => {
+        document.removeEventListener(event, this.resetTimeout);
+      });
+    }
   }
 }

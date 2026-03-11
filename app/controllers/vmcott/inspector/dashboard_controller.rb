@@ -1,11 +1,17 @@
 # app/controllers/vmcott/inspector/dashboard_controller.rb
 class Vmcott::Inspector::DashboardController < ApplicationController
+  # Skip the dashboard caching for this controller - THIS IS THE FIX!
+  skip_around_action :cache_dashboard_data, if: :dashboard_controller?
+  
   before_action :authenticate_user!
   before_action :require_inspector
   before_action :set_inspection, only: [:show_inspection, :qc_inspection, :complete_qc, :approve_for_repair]
   before_action :ensure_can_edit, only: [:create_inspection]
   before_action :ensure_can_qc, only: [:complete_qc]
   before_action :ensure_can_approve, only: [:approve_for_repair]
+  
+  # Disable all caching for this controller
+  before_action :disable_caching
 
   def index
     # FIXED: Only show reception logs that don't have any inspection yet
@@ -34,6 +40,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
                                    .includes(:vehicle, :inspection_jobs)
                                    .order(created_at: :desc)
                                    .limit(5)
+    
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
   def pre_inspection
@@ -46,6 +57,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     
     @inspection = Inspection.find_by(vehicle: @vehicle, status: 'pending_inspection')
     @original_request = find_original_request(@vehicle)
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     render "vmcott/inspector/dashboard/pre_inspection"
   end
@@ -124,6 +140,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @inspection = Inspection.new(vehicle: @vehicle, inspector: current_user)
     @job_templates = JobTemplate.for_vehicle(@vehicle).active
     @pre_inspection_data = session[:pre_inspection_data]
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
   def create_inspection
@@ -212,6 +233,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     ).find(params[:id])
     
     @pre_inspection_data = @inspection.metadata&.[]('pre_inspection')
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
   def qc_inspection
@@ -228,6 +254,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       flash[:alert] = "This inspection is not ready for QC. Current status: #{@inspection.status}"
       redirect_to vmcott_inspector_inspection_path(@inspection) and return
     end
+    
+    # Disable caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     render 'vmcott/inspector/dashboard/qc_inspection'
   end
@@ -350,6 +381,13 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     unless current_user.inspector? || current_user.maintenance_supervisor? || current_user.admin?
       redirect_to root_path, alert: "Access denied."
     end
+  end
+  
+  # Add this method to disable caching for all actions
+  def disable_caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
   def find_original_request(vehicle)

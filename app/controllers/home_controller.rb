@@ -4,11 +4,14 @@ class HomeController < ApplicationController
   layout :determine_layout
   
   def index
+    # Set flag to skip screensaver on home page
+    @skip_screensaver = true
+    
     if user_signed_in?
       redirect_to_role_dashboard
     else
-      # For non-logged-in users, show the landing page
-      render :index
+      # For non-logged-in users, redirect to login page instead of blank layout
+      redirect_to new_user_session_path
     end
   end
 
@@ -16,9 +19,9 @@ class HomeController < ApplicationController
 
   def determine_layout
     if user_signed_in?
-      'application'  # Use regular layout for redirects
+      'application'
     else
-      false          # No layout for landing page (or you can create a landing layout)
+      false
     end
   end
 
@@ -27,15 +30,41 @@ class HomeController < ApplicationController
       redirect_to new_user_session_path and return
     end
 
-    # Log for debugging (you can remove this after confirming it works)
     Rails.logger.info "HomeController: User #{current_user.email}, Agency: #{current_user.agency&.code}, Role: #{current_user.role}"
 
-    # PTSC Admin goes to PTSC dashboard
-    if current_user.agency&.code == 'PTSC' && current_user.admin?
-      redirect_to ptsc_dashboard_path and return
+    # ============================================
+    # VMCOTT ROLE-BASED DASHBOARDS - UPDATED WITH NEW ROLE NAMES
+    # ============================================
+    if current_user.agency&.code == 'VMCOTT'
+      case current_user.role
+      when 'security_gate_officer'  # was 'receptionist'
+        redirect_to vmcott_security_gate_officer_dashboard_path and return
+      when 'inspector'
+        redirect_to vmcott_inspector_dashboard_path and return
+      when 'inventory_manager'      # was 'parts_coordinator'
+        redirect_to vmcott_inventory_manager_dashboard_path and return
+      when 'mechanic'
+        redirect_to vmcott_mechanic_dashboard_path and return
+      when 'procurement'            # was 'billing'
+        redirect_to vmcott_procurement_dashboard_path and return
+      when 'finance'
+        redirect_to vmcott_finance_dashboard_path and return
+      when 'maintenance_supervisor', 'workshop_supervisor'
+        if respond_to?(:vmcott_workshop_supervisor_dashboard_path)
+          redirect_to vmcott_workshop_supervisor_dashboard_path and return
+        end
+        redirect_to vmcott_dashboard_path and return
+      when 'admin'
+        redirect_to vmcott_dashboard_path and return
+      else
+        Rails.logger.warn "Unknown VMCOTT role: #{current_user.role}, redirecting to main dashboard"
+        redirect_to vmcott_dashboard_path and return
+      end
     end
 
-    # PTSC users by role
+    # ============================================
+    # PTSC ROLE-BASED DASHBOARDS
+    # ============================================
     if current_user.agency&.code == 'PTSC'
       case current_user.role
       when 'fleet_manager'
@@ -46,17 +75,32 @@ class HomeController < ApplicationController
         redirect_to ptsc_driver_dashboard_path and return
       when 'maintenance_supervisor', 'maintenance'
         redirect_to ptsc_maintenance_dashboard_path and return
+      when 'admin'
+        redirect_to ptsc_dashboard_path and return
       else
         redirect_to ptsc_dashboard_path and return
       end
     end
 
-    # VMCOTT users (including admins) always go to VMCOTT dashboard
-    if current_user.agency&.code == 'VMCOTT'
-      redirect_to vmcott_dashboard_path and return
+    # ============================================
+    # OTHER AGENCY DASHBOARDS
+    # ============================================
+    case current_user.agency&.code
+    when "TTPS"
+      redirect_to (respond_to?(:ttps_dashboard_path) ? ttps_dashboard_path : main_dashboard_path) and return
+    when "TTDF"
+      redirect_to (respond_to?(:ttdf_dashboard_path) ? ttdf_dashboard_path : main_dashboard_path) and return
+    when "FIRE"
+      redirect_to (respond_to?(:fire_dashboard_path) ? fire_dashboard_path : main_dashboard_path) and return
+    when "HEALTH"
+      redirect_to (respond_to?(:health_dashboard_path) ? health_dashboard_path : main_dashboard_path) and return
+    when "EDUCATION"
+      redirect_to (respond_to?(:education_dashboard_path) ? education_dashboard_path : main_dashboard_path) and return
     end
 
-    # For other agencies, use role-based routing
+    # ============================================
+    # FALLBACK - Use role-based routing
+    # ============================================
     case current_user.role
     when 'admin'
       redirect_to main_dashboard_path
@@ -73,13 +117,7 @@ class HomeController < ApplicationController
     when 'maintenance_supervisor', 'maintenance'
       redirect_to main_dashboard_path
     else
-      # Legacy agency-based dashboards as fallback
-      case current_user.agency&.code
-      when "TTPS"   then ttps_dashboard_path
-      when "TTDF"   then ttdf_dashboard_path
-      else
-        main_dashboard_path
-      end
+      redirect_to main_dashboard_path
     end
   end
 end

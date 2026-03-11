@@ -30,7 +30,7 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <h6 class="text-white-50 mb-1">Parts to Quote</h6>
-              <h2 class="mb-0"><%= @stats[:parts_to_quote] %></h2>
+              <h2 class="mb-0"><%= @stats&.[](:parts_to_quote) || 0 %></h2>
             </div>
             <i class="bi bi-file-text fs-1 opacity-50"></i>
           </div>
@@ -46,7 +46,7 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <h6 class="text-dark-50 mb-1">Active RFQs</h6>
-              <h2 class="mb-0"><%= @stats[:active_rfqs] %></h2>
+              <h2 class="mb-0"><%= @stats&.[](:active_rfqs) || 0 %></h2>
             </div>
             <i class="bi bi-send fs-1 opacity-50"></i>
           </div>
@@ -62,7 +62,7 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <h6 class="text-white-50 mb-1">Quotes Received</h6>
-              <h2 class="mb-0"><%= @stats[:quotes_received] %></h2>
+              <h2 class="mb-0"><%= @stats&.[](:quotes_received) || 0 %></h2>
             </div>
             <i class="bi bi-inboxes fs-1 opacity-50"></i>
           </div>
@@ -78,7 +78,7 @@
           <div class="d-flex justify-content-between align-items-start">
             <div>
               <h6 class="text-white-50 mb-1">To Forward</h6>
-              <h2 class="mb-0"><%= @stats[:pending_forward] %></h2>
+              <h2 class="mb-0"><%= @stats&.[](:pending_forward) || 0 %></h2>
             </div>
             <i class="bi bi-forward fs-1 opacity-50"></i>
           </div>
@@ -95,22 +95,22 @@
       <div class="card h-100">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="bi bi-file-text me-2"></i> Parts Requests Needing RFQ</h5>
-          <span class="badge bg-light text-primary"><%= @stats[:parts_to_quote] %> items</span>
+          <span class="badge bg-light text-primary"><%= @stats&.[](:parts_to_quote) || 0 %> items</span>
         </div>
         <div class="card-body">
-          <% if @pending_parts_requests.any? %>
+          <% if @pending_parts_requests.present? && @pending_parts_requests.any? %>
             <div class="list-group">
               <% @pending_parts_requests.each do |pr| %>
                 <div class="list-group-item">
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
                       <div class="fw-bold">
-                        <%= pr.part&.name || pr.custom_part_name %>
-                        <span class="badge bg-secondary ms-2">x<%= pr.quantity %></span>
+                        <%= pr.part&.name || pr.custom_part_name || 'Unknown Part' %>
+                        <span class="badge bg-secondary ms-2">x<%= pr.quantity || 1 %></span>
                       </div>
                       <small class="text-muted d-block">
                         Vehicle: <%= pr.inspection&.vehicle&.license_plate || 'N/A' %> • 
-                        <%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %>
+                        <%= pr.inspection&.vehicle&.make || '' %> <%= pr.inspection&.vehicle&.model || '' %>
                       </small>
                       <% if pr.part&.supplier %>
                         <small class="text-muted">Preferred: <%= pr.part.supplier.name %></small>
@@ -137,28 +137,28 @@
       <div class="card h-100">
         <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="bi bi-send me-2"></i> Active RFQs</h5>
-          <span class="badge bg-dark text-white"><%= @stats[:active_rfqs] %> RFQs</span>
+          <span class="badge bg-dark text-white"><%= @active_rfqs&.count || 0 %> RFQs</span>
         </div>
         <div class="card-body">
-          <% if @active_rfqs.any? %>
+          <% if @active_rfqs.present? && @active_rfqs.any? %>
             <div class="list-group">
               <% @active_rfqs.each do |rfq| %>
                 <div class="list-group-item">
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
                       <div class="fw-bold">
-                        <%= link_to rfq.rfq_number, vmcott_vendor_rfq_path(rfq) %>
+                        <%= link_to rfq.rfq_number.presence || 'RFQ', vmcott_vendor_rfq_path(rfq) %>
                         <span class="badge bg-<%= rfq.status == 'sent' ? 'success' : 'secondary' %> ms-2">
-                          <%= rfq.status.humanize %>
+                          <%= rfq.status&.humanize || 'Draft' %>
                         </span>
                       </div>
                       <small class="text-muted d-block">
                         Sent: <%= rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %> • 
-                        Due: <%= rfq.due_date&.strftime("%b %d, %Y") %>
+                        Due: <%= rfq.due_date&.strftime("%b %d, %Y") || 'N/A' %>
                       </small>
                       <small class="text-muted">
-                        Suppliers: <%= rfq.vendor_quotations.count %> • 
-                        Quotes received: <%= rfq.vendor_quotations.where(status: 'received').count %>
+                        Suppliers: <%= rfq.vendor_quotations&.count || 0 %> • 
+                        Quotes received: <%= rfq.vendor_quotations&.where(status: 'received')&.count || 0 %>
                       </small>
                     </div>
                     <div>
@@ -191,10 +191,10 @@
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
           <h5 class="mb-0"><i class="bi bi-inboxes me-2"></i> Quotations Received - Ready for Finance Review</h5>
-          <span class="badge bg-light text-success"><%= @stats[:quotes_received] %> quotations</span>
+          <span class="badge bg-light text-success"><%= @quotations_received&.count || 0 %> quotations</span>
         </div>
         <div class="card-body">
-          <% if @quotations_received.any? %>
+          <% if @quotations_received.present? && @quotations_received.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -210,25 +210,39 @@
                 <tbody>
                   <% @quotations_received.each do |rfq| %>
                     <% 
-                      quotes = rfq.vendor_quotations.where(status: 'received')
-                      prices = quotes.map { |q| q.vendor_quotation_lines.sum(:total_price) }
+                      quotes = rfq.vendor_quotations&.where(status: 'received') || []
+                      prices = quotes.map { |q| q.vendor_quotation_lines&.sum(:total_price) || 0 }.compact
                       min_price = prices.min
                       max_price = prices.max
                     %>
                     <tr>
-                      <td><strong><%= rfq.rfq_number %></strong></td>
+                      <td><strong><%= rfq.rfq_number.presence || 'RFQ' %></strong></td>
                       <td>
-                        <% rfq.vendor_rfq_items.each do |item| %>
-                          <div><%= item.part&.name || item.custom_part_name %> x<%= item.quantity %></div>
+                        <% if rfq.vendor_rfq_items.present? %>
+                          <% rfq.vendor_rfq_items.each do |item| %>
+                            <div><%= item.part&.name || item.custom_part_name || 'Unknown Part' %> x<%= item.quantity || 1 %></div>
+                          <% end %>
+                        <% else %>
+                          <span class="text-muted">No items</span>
                         <% end %>
                       </td>
                       <td>
                         <span class="badge bg-info"><%= quotes.count %> quotes</span>
                       </td>
                       <td>
-                        <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                        <% if min_price && max_price %>
+                          <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
                       </td>
-                      <td><strong class="text-success"><%= number_to_currency(min_price) %></strong></td>
+                      <td>
+                        <% if min_price %>
+                          <strong class="text-success"><%= number_to_currency(min_price) %></strong>
+                        <% else %>
+                          <span class="text-muted">N/A</span>
+                        <% end %>
+                      </td>
                       <td>
                         <div class="btn-group btn-group-sm">
                           <%= link_to "Forward to Finance", 
@@ -261,19 +275,19 @@
         <div class="card-body">
           <div class="row text-center">
             <div class="col-md-3 col-6">
-              <h6 class="mb-0"><%= @stats[:parts_to_quote] %></h6>
+              <h6 class="mb-0"><%= @stats&.[](:parts_to_quote) || 0 %></h6>
               <small class="text-muted">To Quote</small>
             </div>
             <div class="col-md-3 col-6">
-              <h6 class="mb-0"><%= @stats[:active_rfqs] %></h6>
+              <h6 class="mb-0"><%= @stats&.[](:active_rfqs) || 0 %></h6>
               <small class="text-muted">Active RFQs</small>
             </div>
             <div class="col-md-3 col-6">
-              <h6 class="mb-0"><%= @stats[:quotes_received] %></h6>
+              <h6 class="mb-0"><%= @stats&.[](:quotes_received) || 0 %></h6>
               <small class="text-muted">Quotes Received</small>
             </div>
             <div class="col-md-3 col-6">
-              <h6 class="mb-0"><%= @stats[:pending_forward] %></h6>
+              <h6 class="mb-0"><%= @stats&.[](:pending_forward) || 0 %></h6>
               <small class="text-muted">To Forward</small>
             </div>
           </div>

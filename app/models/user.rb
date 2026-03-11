@@ -1,11 +1,5 @@
 # app/models/user.rb
-# Complete revised version with renamed workflow roles:
-# - receptionist → security_gate_officer
-# - parts_coordinator → inventory_manager
-# - billing → procurement
-# - inspector kept as inspector
-# - mechanic kept as mechanic
-# - finance kept as finance (finance_accounting for display)
+# Complete revised version with renamed workflow roles and fixed circular dependencies
 
 class User < ApplicationRecord
   include RoleFindable  # Add this line to include the concern
@@ -23,7 +17,7 @@ class User < ApplicationRecord
   has_many :quotations, foreign_key: :created_by_id
   has_many :created_purchase_orders, class_name: "PurchaseOrder", foreign_key: :created_by_id
   has_many :approved_purchase_orders, class_name: "PurchaseOrder", foreign_key: :approved_by_id
-  
+
   # ========================
   # ROLE (Rails 8 safe, simple)
   # ========================
@@ -175,12 +169,22 @@ class User < ApplicationRecord
     self[:role] == ROLE_DRIVER || self[:role] == "operator"
   end
 
-  # UPDATED: Exclude users with specific roles from vmcott_staff
+  # FIXED: Remove circular dependency with security_gate_officer? etc.
   def vmcott_staff?
-    # If the user has any specific role, they are NOT just a generic staff member
-    return false if security_gate_officer? || inspector? || inventory_manager? || 
-                    mechanic? || procurement? || finance? || fleet_manager? || 
-                    maintenance_supervisor?
+    # Check if user has any specific role that would make them NOT a generic staff member
+    specific_roles = [
+      ROLE_SECURITY_GATE_OFFICER,
+      ROLE_INSPECTOR,
+      ROLE_INVENTORY_MANAGER,
+      ROLE_MECHANIC,
+      ROLE_PROCUREMENT,
+      ROLE_FINANCE,
+      ROLE_FLEET_MANAGER,
+      ROLE_MAINTENANCE_SUPERVISOR
+    ]
+    
+    # If user has a specific role, they are NOT just a generic staff member
+    return false if specific_roles.include?(self[:role])
     
     self[:role] == ROLE_VMCOTT_STAFF || (agency&.central? && !admin?) || false
   end
@@ -197,20 +201,20 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # RENAMED ROLE CHECKS
+  # RENAMED ROLE CHECKS - FIXED: No circular dependencies
   # ========================
   def security_gate_officer?
-    self[:role] == ROLE_SECURITY_GATE_OFFICER || vmcott_staff? || admin?
+    self[:role] == ROLE_SECURITY_GATE_OFFICER || admin?
   end
   alias_method :receptionist?, :security_gate_officer?  # Keep old method for backward compatibility
 
   def inventory_manager?
-    self[:role] == ROLE_INVENTORY_MANAGER || vmcott_staff? || admin?
+    self[:role] == ROLE_INVENTORY_MANAGER || admin?
   end
   alias_method :parts_coordinator?, :inventory_manager?  # Keep old method for backward compatibility
 
   def procurement?
-    self[:role] == ROLE_PROCUREMENT || vmcott_staff? || admin?
+    self[:role] == ROLE_PROCUREMENT || admin?
   end
   alias_method :billing?, :procurement?  # Keep old method for backward compatibility
 

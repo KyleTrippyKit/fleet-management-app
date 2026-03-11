@@ -1,32 +1,42 @@
 # app/models/vehicle.rb
-# COMPLETE REVISED VERSION with comprehensive location fix and vehicle_statuses association
+# COMPLETE REVISED VERSION with polymorphic owner association and comprehensive features
 # UPDATED: Added vehicle_condition_reports association for Security Gate Officer
+# UPDATED: Replaced belongs_to :agency with polymorphic :owner (backward compatible)
+# FIXED: Owner code methods now properly handle Client objects
 
 class Vehicle < ApplicationRecord
-  has_many :alerts, dependent: :destroy
   # ------------------------------------------------------------
-  # Virtual attributes for form handling
+  # Polymorphic Association (replaces belongs_to :agency)
   # ------------------------------------------------------------
-  attr_accessor :remove_primary_photo
-  # Virtual attributes for form UI helpers (not DB columns)
-  attr_accessor :make_model_ui, :license_registration_ui
-
+  # Owner can be either Agency or Client (polymorphic)
+  belongs_to :owner, polymorphic: true, optional: false  # Now required
+  
+  # Keep agency_id for backward compatibility during transition
+  # This allows existing code to still work while we migrate
+  belongs_to :agency, optional: true
   
   # ------------------------------------------------------------
   # Associations
   # ------------------------------------------------------------
-  belongs_to :agency
+  has_many :alerts, dependent: :destroy
   belongs_to :driver, optional: true   # One driver per vehicle
 
   has_many :maintenances, dependent: :destroy
   has_many :trips, dependent: :destroy
   has_many :vehicle_documents, dependent: :destroy
   has_many :vehicle_statuses, dependent: :destroy
-  has_many :vehicle_condition_reports, dependent: :nullify  # <-- ADDED THIS LINE for Security Gate Officer check-ins
+  has_many :vehicle_condition_reports, dependent: :nullify  # For Security Gate Officer check-ins
 
   # ✅ ActiveStorage attachments for real photo uploads
   has_one_attached :primary_photo  # Main vehicle photo
   has_many_attached :gallery_photos  # Additional photos
+
+  # ------------------------------------------------------------
+  # Virtual attributes for form handling
+  # ------------------------------------------------------------
+  attr_accessor :remove_primary_photo
+  # Virtual attributes for form UI helpers (not DB columns)
+  attr_accessor :make_model_ui, :license_registration_ui
 
   # ------------------------------------------------------------
   # Trinidad & Tobago license plate rules
@@ -40,20 +50,20 @@ class Vehicle < ApplicationRecord
   before_validation :normalize_license_plate
   before_validation :sync_registration_number_from_license_plate
   before_validation :normalize_vehicle_fields
-  before_validation :sync_service_owner_from_agency
+  before_validation :sync_service_owner_from_owner
 
   # ------------------------------------------------------------
   # Validations
   # ------------------------------------------------------------
-  validates :agency_id, presence: true
+  validates :owner, presence: true
   validates :make, :model, :vehicle_type, :license_plate, presence: true
   validates :chassis_number, :serial_number, :year_of_manufacture, presence: true
 
   validates :license_plate, uniqueness: true
   validates :registration_number, uniqueness: true, allow_blank: true
   
-  # Service owner validation - now derived from agency
-  validate :service_owner_matches_agency
+  # Service owner validation - now derived from owner
+  validate :service_owner_matches_owner
   
   validates :license_plate, format: {
     with: /\A([A-Z]{3}|CD|RR|D|R)-\d{1,4}\z/,
@@ -61,27 +71,88 @@ class Vehicle < ApplicationRecord
   }
 
   # ------------------------------------------------------------
-  # Custom Validation
+  # Custom Validation - FIXED to handle Client objects
   # ------------------------------------------------------------
-  def service_owner_matches_agency
-    if service_owner.present? && agency.present? && service_owner != agency.code
-      errors.add(:service_owner, "must match agency code (#{agency.code})")
+  def service_owner_matches_owner
+    # Skip validation for clients
+    return true if owner.is_a?(Client)
+    
+    # Original validation logic for agencies
+    if service_owner.present? && owner.present? && owner.is_a?(Agency)
+      expected_code = owner.code
+      if service_owner != expected_code
+        errors.add(:service_owner, "must match owner code (#{expected_code})")
+      end
     end
   end
 
   def latest_inspection
     inspections.order(created_at: :desc).first
   end
-  # ------------------------------------------------------------
-  # Service Owner Lock (derived from agency)
-  # ------------------------------------------------------------
 
-  # Always expose service_owner as the agency code (backward compatible reads)
-  def service_owner
-    agency&.code || self[:service_owner]
+  # ------------------------------------------------------------
+  # Owner Helper Methods
+  # ------------------------------------------------------------
+  
+  # Get the owner name regardless of type
+  def owner_name
+    if owner.is_a?(Agency)
+      owner.name
+    elsif owner.is_a?(Client)
+      owner.name
+    else
+      "Unknown"
+    end
+  end
+  
+  # Get display info about the owner type
+  def owner_type_display
+    if owner.is_a?(Agency)
+      "Agency: #{owner.code}"
+    elsif owner.is_a?(Client)
+      "Client: #{owner.client_type.humanize}"
+    else
+      "Unknown"
+    end
+  end
+  
+  # Get the owner code (for backward compatibility) - FIXED
+  def owner_code
+    if owner.is_a?(Agency)
+      owner.code
+    elsif owner.is_a?(Client)
+      owner.client_type.to_s
+    else
+      nil
+    end
+  end
+  
+  # Check if owner is an agency
+  def owned_by_agency?
+    owner.is_a?(Agency)
+  end
+  
+  # Check if owner is a client
+  def owned_by_client?
+    owner.is_a?(Client)
   end
 
-  # NEVER lookup agency based on service_owner input
+  # ------------------------------------------------------------
+  # Service Owner Lock (derived from owner) - FIXED
+  # ------------------------------------------------------------
+
+  # Always expose service_owner as the owner code (backward compatible reads) - FIXED
+  def service_owner
+    if owner.is_a?(Agency)
+      owner.code
+    elsif owner.is_a?(Client)
+      "CLIENT-#{owner.client_type}"
+    else
+      self[:service_owner]
+    end
+  end
+
+  # NEVER lookup owner based on service_owner input
   # Just store the raw value (legacy) but do not trust it for logic
   def service_owner=(value)
     self[:service_owner] = value
@@ -89,7 +160,11 @@ class Vehicle < ApplicationRecord
   
   # Get service owner display name
   def service_owner_display
-    agency&.display_name || service_owner
+    if owner.present?
+      owner_name
+    else
+      service_owner
+    end
   end
 
   def license_plate_with_details
@@ -146,24 +221,43 @@ class Vehicle < ApplicationRecord
     self.transmission = transmission.to_s.strip if transmission.present?
   end
 
-  # This is the "lock" - sync service_owner from agency
-  def sync_service_owner_from_agency
-    return unless agency
-    self[:service_owner] = agency.code.to_s.strip
+  # This is the "lock" - sync service_owner from owner - FIXED
+  def sync_service_owner_from_owner
+    return unless owner.present?
+    
+    if owner.is_a?(Agency)
+      self[:service_owner] = owner.code
+    elsif owner.is_a?(Client)
+      self[:service_owner] = "CLIENT-#{owner.client_type}"
+    end
   end
 
   # ------------------------------------------------------------
   # Scopes for filtering
   # ------------------------------------------------------------
-  scope :by_service_owner, ->(owner) { 
-    if owner.present?
-      joins(:agency).where(agencies: { code: owner })
+  scope :by_service_owner, ->(owner_code) { 
+    if owner_code.present?
+      joins(:owner).where("CASE 
+        WHEN vehicles.owner_type = 'Agency' THEN agencies.code = ?
+        WHEN vehicles.owner_type = 'Client' THEN clients.owner_code = ?
+      END", owner_code, owner_code)
     end
   }
   
-  scope :by_agency, ->(agency_id) { where(agency_id: agency_id) if agency_id.present? }
+  scope :by_agency, ->(agency_id) { 
+    where(owner_type: 'Agency', owner_id: agency_id) if agency_id.present? 
+  }
+  
+  scope :by_client, ->(client_id) { 
+    where(owner_type: 'Client', owner_id: client_id) if client_id.present? 
+  }
+  
+  scope :by_owner, ->(owner) {
+    where(owner: owner) if owner.present?
+  }
   
   scope :by_type, ->(type) { where(vehicle_type: type) if type.present? }
+  
   scope :with_active_maintenance, -> { 
     joins(:maintenances).where(maintenances: { status: 'Pending' }).distinct 
   }
@@ -188,9 +282,14 @@ class Vehicle < ApplicationRecord
     end
   }
 
-  # Agency-specific scopes
+  # Owner-type specific scopes
+  scope :agency_vehicles, -> { where(owner_type: 'Agency') }
+  scope :client_vehicles, -> { where(owner_type: 'Client') }
+  
+  # Agency-specific scopes (maintain backward compatibility)
   scope :for_agency, ->(agency_code) {
-    joins(:agency).where(agencies: { code: agency_code }) if agency_code.present?
+    joins("INNER JOIN agencies ON vehicles.owner_id = agencies.id AND vehicles.owner_type = 'Agency'")
+      .where(agencies: { code: agency_code }) if agency_code.present?
   }
   
   scope :ptsc_vehicles, -> { for_agency('PTSC') }
@@ -251,7 +350,7 @@ class Vehicle < ApplicationRecord
   }
 
   # ------------------------------------------------------------
-  # ✅ UPDATED: Image helpers with agency-specific placeholders
+  # ✅ UPDATED: Image helpers with owner-specific placeholders
   # ------------------------------------------------------------
   def asset_image_path
     # Map makes to your placeholder images
@@ -269,20 +368,26 @@ class Vehicle < ApplicationRecord
     when 'Toyota'
       model == 'Hilux' ? 'placeholders/Toyota.jpeg' : 'placeholders/toyota.jpg'
     else
-      agency_specific_placeholder_path
+      owner_specific_placeholder_path
     end
   end
   
-  def agency_specific_placeholder_path
-    return 'placeholders/default.png' unless agency
+  def owner_specific_placeholder_path
+    return 'placeholders/default.png' unless owner.present?
     
-    case agency.code
-    when 'PTSC'
-      'placeholders/ptsc_bus.jpg'
-    when 'TTPS'
-      'placeholders/ttps_police_vehicle.jpg'
-    when 'TTDF'
-      'placeholders/ttdf_military_vehicle.jpg'
+    if owner.is_a?(Agency)
+      case owner.code
+      when 'PTSC'
+        'placeholders/ptsc_bus.jpg'
+      when 'TTPS'
+        'placeholders/ttps_police_vehicle.jpg'
+      when 'TTDF'
+        'placeholders/ttdf_military_vehicle.jpg'
+      else
+        'placeholders/default.png'
+      end
+    elsif owner.is_a?(Client)
+      'placeholders/client_vehicle.jpg'
     else
       'placeholders/default.png'
     end
@@ -295,7 +400,7 @@ class Vehicle < ApplicationRecord
   # ✅ NEW: Main display method that handles all cases
   def display_image
     # Return nil for VMCOTT - they can't put in vehicles
-    return nil if agency&.code == 'VMCOTT'
+    return nil if owner.is_a?(Agency) && owner.code == 'VMCOTT'
     
     # If there's an uploaded primary photo, use it
     return primary_photo if primary_photo.attached?
@@ -306,18 +411,18 @@ class Vehicle < ApplicationRecord
     # Legacy picture field (string URL)
     return picture if picture.present? && picture.is_a?(String)
     
-    # Otherwise, return agency-specific placeholder
-    agency_specific_placeholder_path
+    # Otherwise, return owner-specific placeholder
+    owner_specific_placeholder_path
   end
   
   # ✅ NEW: Check if vehicle should display any image
   def should_display_image?
-    agency&.code != 'VMCOTT'
+    !(owner.is_a?(Agency) && owner.code == 'VMCOTT')
   end
   
   # ✅ NEW: Get placeholder info for UI
   def placeholder_info
-    return { display: false, message: 'VMCOTT vehicles not displayed' } if agency&.code == 'VMCOTT'
+    return { display: false, message: 'VMCOTT vehicles not displayed' } if owner.is_a?(Agency) && owner.code == 'VMCOTT'
     
     if primary_photo.attached? || gallery_photos.attached? || picture.present?
       { display: true, type: 'uploaded' }
@@ -325,8 +430,8 @@ class Vehicle < ApplicationRecord
       { 
         display: true, 
         type: 'placeholder',
-        path: agency_specific_placeholder_path,
-        agency_code: agency&.code
+        path: owner_specific_placeholder_path,
+        owner_type: owner_type_display
       }
     end
   end
@@ -454,7 +559,8 @@ class Vehicle < ApplicationRecord
       color: '#6c757d',
       details: {
         service_owner: service_owner_display,
-        agency: agency&.name,
+        owner: owner_name,
+        owner_type: owner_type_display,
         registration_number: registration_or_plate,
         current_driver: current_driver_name,
         license_plate: license_plate,
@@ -526,7 +632,11 @@ class Vehicle < ApplicationRecord
   end
 
   def display_with_agency
-    "#{make} #{model} (#{license_plate}) - #{agency&.name}"
+    if owner.is_a?(Agency)
+      "#{make} #{model} (#{license_plate}) - #{owner.name}"
+    else
+      display_with_owner
+    end
   end
 
   # Simple display name without plate
@@ -548,7 +658,8 @@ class Vehicle < ApplicationRecord
 
     {
       name: "#{make} #{model} (#{registration_or_plate || 'N/A'})",
-      agency: agency&.name,
+      owner: owner_name,
+      owner_type: owner_type_display,
       distance_km: distance_sum,
       hours_plied: hours_sum,
       trip_count: trip_count,
@@ -565,7 +676,7 @@ class Vehicle < ApplicationRecord
     issues << "No maintenances scheduled" if maintenances.empty?
     issues << "No driver assigned" if driver.blank?
     issues << "Overdue maintenance" if has_overdue_maintenance?
-    issues << "No agency assigned" if agency.blank?
+    issues << "No owner assigned" if owner.blank?
 
     if issues.empty?
       { status: 'good', message: 'All good' }
@@ -645,8 +756,8 @@ class Vehicle < ApplicationRecord
       score -= 5
     end
     
-    # Deduct for missing agency
-    score -= 5 if agency.blank?
+    # Deduct for missing owner
+    score -= 5 if owner.blank?
     
     [score, 0].max
   end
@@ -691,7 +802,8 @@ class Vehicle < ApplicationRecord
       health_status: health_status,
       fuel_status: fuel_status,
       utilization: calculate_utilization,
-      agency: agency&.name
+      owner: owner_name,
+      owner_type: owner_type_display
     }
   end
 
@@ -870,8 +982,8 @@ class Vehicle < ApplicationRecord
       self[:depot]
     elsif has_attribute?('home_depot') && self[:home_depot].present?
       self[:home_depot]
-    elsif agency.present?
-      agency.name
+    elsif owner.present?
+      owner_name
     else
       "#{make} #{model} (#{license_plate})"
     end
@@ -1058,7 +1170,7 @@ class Vehicle < ApplicationRecord
     score -= 2 if has_active_maintenance?
     score -= 1 if fuel_level.present? && fuel_level < 30
     score -= 1 if driver.blank?
-    score -= 1 if agency.blank?
+    score -= 1 if owner.blank?
     
     [score, 0].max
   end
@@ -1082,7 +1194,8 @@ class Vehicle < ApplicationRecord
       needs_attention: needs_immediate_attention?,
       efficiency_rating: efficiency_rating,
       readiness_score: readiness_score,
-      agency: agency&.name,
+      owner: owner_name,
+      owner_type: owner_type_display,
       alert_summary: alert_summary
     }
   end
@@ -1091,8 +1204,7 @@ class Vehicle < ApplicationRecord
   def create_alert(params)
     alerts.create!(params.merge(
       vehicle_id: id,
-      location: current_location,
-      agency_id: agency_id
+      location: current_location
     ))
   end
   
@@ -1103,7 +1215,6 @@ class Vehicle < ApplicationRecord
       description: description,
       vehicle_id: id,
       location: current_location,
-      agency_id: agency_id,
       **opts
     )
   end
@@ -1198,7 +1309,7 @@ class Vehicle < ApplicationRecord
       needs_attention: needs_immediate_attention?,
       alert_count: active_alerts.count,
       critical_alert_count: critical_alerts.count,
-      agency: agency&.name
+      owner: owner_name
     }
   end
   
@@ -1265,8 +1376,8 @@ class Vehicle < ApplicationRecord
       needs_attention: needs_immediate_attention?,
       short_display: short_display,
       highest_alert: highest_alert_severity,
-      agency: agency&.name,
-      agency_code: agency&.code
+      owner: owner_name,
+      owner_code: owner_code
     }
   end
   
@@ -1360,55 +1471,85 @@ class Vehicle < ApplicationRecord
   end
   
   # ------------------------------------------------------------
-  # AGENCY-SPECIFIC METHODS
+  # OWNER-TYPE SPECIFIC METHODS (maintain agency backward compatibility)
   # ------------------------------------------------------------
   
+  def agency
+    if owner.is_a?(Agency)
+      owner
+    else
+      nil
+    end
+  end
+  
+  def agency=(agency_obj)
+    self.owner = agency_obj
+  end
+  
+  def agency_id
+    if owner.is_a?(Agency)
+      owner.id
+    else
+      nil
+    end
+  end
+  
+  def agency_id=(id)
+    self.owner = Agency.find_by(id: id) if id.present?
+  end
+  
   def is_ptsc_vehicle?
-    agency&.code == 'PTSC'
+    owner.is_a?(Agency) && owner.code == 'PTSC'
   end
   
   def is_ttps_vehicle?
-    agency&.code == 'TTPS'
+    owner.is_a?(Agency) && owner.code == 'TTPS'
   end
   
   def is_ttdf_vehicle?
-    agency&.code == 'TTDF'
+    owner.is_a?(Agency) && owner.code == 'TTDF'
   end
   
   def is_fire_vehicle?
-    agency&.code == 'FIRE'
+    owner.is_a?(Agency) && owner.code == 'FIRE'
   end
   
   def is_health_vehicle?
-    agency&.code == 'HEALTH'
+    owner.is_a?(Agency) && owner.code == 'HEALTH'
   end
   
   def is_education_vehicle?
-    agency&.code == 'EDUCATION'
+    owner.is_a?(Agency) && owner.code == 'EDUCATION'
   end
   
   def is_vmcott_vehicle?
-    agency&.code == 'VMCOTT'
+    owner.is_a?(Agency) && owner.code == 'VMCOTT'
   end
   
   # Check if vehicle belongs to a specific agency
   def belongs_to_agency?(agency_code)
-    agency&.code == agency_code
+    owner.is_a?(Agency) && owner.code == agency_code
   end
   
-  # Get agency-specific badge class
-  def agency_badge_class
-    return 'bg-secondary' unless agency
+  # Get owner-specific badge class
+  def owner_badge_class
+    return 'bg-secondary' unless owner.present?
     
-    case agency.code
-    when 'PTSC' then 'bg-ptsc'
-    when 'TTPS' then 'bg-police'
-    when 'TTDF' then 'bg-military'
-    when 'FIRE' then 'bg-fire'
-    when 'HEALTH' then 'bg-success'
-    when 'EDUCATION' then 'bg-info'
-    when 'VMCOTT' then 'bg-warning'
-    else 'bg-secondary'
+    if owner.is_a?(Agency)
+      case owner.code
+      when 'PTSC' then 'bg-ptsc'
+      when 'TTPS' then 'bg-police'
+      when 'TTDF' then 'bg-military'
+      when 'FIRE' then 'bg-fire'
+      when 'HEALTH' then 'bg-success'
+      when 'EDUCATION' then 'bg-info'
+      when 'VMCOTT' then 'bg-warning'
+      else 'bg-secondary'
+      end
+    elsif owner.is_a?(Client)
+      'bg-primary'
+    else
+      'bg-secondary'
     end
   end
   
