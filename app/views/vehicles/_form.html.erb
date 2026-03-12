@@ -44,33 +44,35 @@
         </div>
       <% end %>
 
-      <!-- MAKE & MODEL -->
-      <div class="mb-3 position-relative"
-           data-controller="vehicle-catalog"
-           data-vehicle-catalog-url-value="/vehicles/catalog_search">
-
+      <!-- MAKE & MODEL with direct JavaScript search (no Stimulus) -->
+      <div class="mb-3 position-relative" id="vehicle-catalog-container">
         <%= form.label :make_model_ui, "Make & Model", class: "form-label fw-semibold" %>
 
-        <%= form.text_field :make_model_ui,
-              value: [vehicle.make, vehicle.model].compact.join(" "),
-              class: "form-control",
-              placeholder: "Start typing e.g. Toyota Hilux, Nissan Navara, Higer KLQ",
-              autocomplete: "off",
-              data: {
-                "vehicle-catalog-target": "query",
-                action: "input->vehicle-catalog#search keydown->vehicle-catalog#keydown blur->vehicle-catalog#blur"
-              } %>
-
-        <div data-vehicle-catalog-target="results"
-             class="list-group position-absolute w-100 shadow"
-             style="display:none; z-index:2000; max-height:260px; overflow:auto;">
+        <div class="input-group">
+          <%= form.text_field :make_model_ui,
+                value: [vehicle.make, vehicle.model].compact.join(" "),
+                class: "form-control",
+                placeholder: "Start typing e.g. Toyota Hilux",
+                autocomplete: "off",
+                id: "catalog-search-input" %>
+          <span class="input-group-text bg-light" id="catalog-status">
+            <span class="spinner-border spinner-border-sm d-none" id="catalog-spinner" role="status"></span>
+          </span>
         </div>
 
-        <%= form.hidden_field :make,  value: vehicle.make,  data: { "vehicle-catalog-target": "make" } %>
-        <%= form.hidden_field :model, value: vehicle.model, data: { "vehicle-catalog-target": "model" } %>
+        <!-- Search Results Dropdown -->
+        <div id="catalog-results"
+             class="list-group position-absolute w-100 shadow"
+             style="display:none; z-index:2000; max-height:260px; overflow:auto; background: white; border: 1px solid #ced4da;">
+        </div>
+
+        <!-- Hidden fields for make/model/type -->
+        <%= form.hidden_field :make,  value: vehicle.make,  id: "selected-make" %>
+        <%= form.hidden_field :model, value: vehicle.model, id: "selected-model" %>
+        <%= form.hidden_field :vehicle_type, value: vehicle.vehicle_type, id: "selected-type" %>
 
         <small class="text-muted d-block mt-1">
-          Type 2+ letters. Use ↑/↓ then Enter, or click a suggestion.
+          <i class="bi bi-info-circle me-1"></i>Type 2+ letters to search catalog. Click a suggestion to auto-fill.
         </small>
       </div>
 
@@ -79,7 +81,7 @@
         <%= form.select :vehicle_type,
               (@vehicle_types || []).map { |t| [t, t] },
               { include_blank: "Select vehicle type" },
-              class: "form-select" %>
+              class: "form-select", id: "vehicle-type-select" %>
       </div>
 
       <div class="mb-3">
@@ -196,41 +198,191 @@
 
 <% end %>
 
+<!-- Direct JavaScript implementation (no Stimulus dependency) -->
 <script>
-document.addEventListener("turbo:load", () => {
-  // Form validation
-  document.querySelectorAll("form.needs-validation").forEach((form) => {
-    form.addEventListener("submit", (event) => {
-      if (!form.checkValidity()) {
-        event.preventDefault();
-        event.stopPropagation();
+  (function() {
+    'use strict';
+    
+    // Form validation
+    document.addEventListener("turbo:load", function() {
+      // Year validation
+      const yearField = document.querySelector('input[name="vehicle[year_of_manufacture]"]');
+      if (yearField) {
+        yearField.addEventListener('change', function() {
+          const year = parseInt(this.value);
+          const currentYear = new Date().getFullYear();
+          if (year < 1980) {
+            this.setCustomValidity('Year must be 1980 or later');
+          } else if (year > currentYear) {
+            this.setCustomValidity(`Year cannot be later than ${currentYear}`);
+          } else {
+            this.setCustomValidity('');
+          }
+        });
       }
-      form.classList.add("was-validated");
-    });
-  });
 
-  // Additional custom validation for year
-  const yearField = document.querySelector('input[name="vehicle[year_of_manufacture]"]');
-  if (yearField) {
-    yearField.addEventListener('change', function() {
-      const year = parseInt(this.value);
-      const currentYear = new Date().getFullYear();
-      if (year < 1980) {
-        this.setCustomValidity('Year must be 1980 or later');
-      } else if (year > currentYear) {
-        this.setCustomValidity(`Year cannot be later than ${currentYear}`);
-      } else {
-        this.setCustomValidity('');
+      // License plate format
+      const plateField = document.querySelector('input[name="vehicle[license_plate]"]');
+      if (plateField) {
+        plateField.addEventListener('input', function() {
+          this.value = this.value.toUpperCase();
+        });
       }
     });
-  }
 
-  // License plate format validation
-  const plateField = document.querySelector('input[name="vehicle[license_plate]"]');
-  if (plateField) {
-    plateField.addEventListener('input', function() {
-      this.value = this.value.toUpperCase();
-    });
-  }
-});
+    // ============================================
+    // VEHICLE CATALOG SEARCH (Direct JavaScript)
+    // ============================================
+    const searchInput = document.getElementById('catalog-search-input');
+    const resultsDiv = document.getElementById('catalog-results');
+    const makeField = document.getElementById('selected-make');
+    const modelField = document.getElementById('selected-model');
+    const typeField = document.getElementById('selected-type');
+    const typeSelect = document.getElementById('vehicle-type-select');
+    const spinner = document.getElementById('catalog-spinner');
+    
+    if (searchInput && resultsDiv) {
+      let searchTimeout;
+      
+      // Function to fetch and display results
+      function searchCatalog() {
+        const query = searchInput.value.trim();
+        
+        if (query.length < 2) {
+          resultsDiv.style.display = 'none';
+          return;
+        }
+        
+        // Show spinner
+        if (spinner) spinner.classList.remove('d-none');
+        
+        // Clear previous timeout
+        clearTimeout(searchTimeout);
+        
+        // Set new timeout
+        searchTimeout = setTimeout(() => {
+          fetch(`/vehicles/catalog_search?q=${encodeURIComponent(query)}`, {
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-Token': document.querySelector('[name="csrf-token"]')?.content
+            },
+            credentials: 'same-origin'
+          })
+          .then(response => response.json())
+          .then(data => {
+            // Hide spinner
+            if (spinner) spinner.classList.add('d-none');
+            
+            if (data && data.length > 0) {
+              resultsDiv.innerHTML = '';
+              data.forEach(item => {
+                const resultItem = document.createElement('button');
+                resultItem.type = 'button';
+                resultItem.className = 'list-group-item list-group-item-action';
+                resultItem.setAttribute('data-make', item.make);
+                resultItem.setAttribute('data-model', item.model);
+                resultItem.setAttribute('data-type', item.vehicle_type || '');
+                resultItem.innerHTML = `
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>${item.label}</strong>
+                      ${item.vehicle_type ? `<br><small class="text-muted">${item.vehicle_type}</small>` : ''}
+                    </div>
+                    <span class="badge bg-primary">Select</span>
+                  </div>
+                `;
+                
+                resultItem.addEventListener('click', function() {
+                  selectCatalogItem(this);
+                });
+                
+                resultsDiv.appendChild(resultItem);
+              });
+              resultsDiv.style.display = 'block';
+            } else {
+              resultsDiv.innerHTML = '<div class="list-group-item text-center text-muted">No matches found</div>';
+              resultsDiv.style.display = 'block';
+            }
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+            if (spinner) spinner.classList.add('d-none');
+            resultsDiv.innerHTML = '<div class="list-group-item text-center text-danger">Error searching catalog</div>';
+            resultsDiv.style.display = 'block';
+          });
+        }, 300);
+      }
+      
+      // Function to select an item
+      function selectCatalogItem(button) {
+        const make = button.getAttribute('data-make');
+        const model = button.getAttribute('data-model');
+        const type = button.getAttribute('data-type');
+        
+        // Update hidden fields
+        if (makeField) makeField.value = make;
+        if (modelField) modelField.value = model;
+        if (typeField) typeField.value = type;
+        
+        // Update the select dropdown if type exists
+        if (typeSelect && type) {
+          const option = Array.from(typeSelect.options).find(opt => opt.value === type);
+          if (option) {
+            typeSelect.value = type;
+          }
+        }
+        
+        // Update search input
+        searchInput.value = `${make} ${model}`.trim();
+        
+        // Hide results
+        resultsDiv.style.display = 'none';
+      }
+      
+      // Add input event listener
+      searchInput.addEventListener('input', searchCatalog);
+      
+      // Close results when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !resultsDiv.contains(e.target)) {
+          resultsDiv.style.display = 'none';
+        }
+      });
+      
+      console.log('✅ Vehicle catalog search initialized (direct JS)');
+    }
+  })();
 </script>
+
+<style>
+  /* Additional styles for catalog dropdown */
+  #catalog-results .list-group-item {
+    cursor: pointer;
+    border-left: none;
+    border-right: none;
+    padding: 8px 12px;
+    transition: background-color 0.2s;
+  }
+  
+  #catalog-results .list-group-item:first-child {
+    border-top: none;
+  }
+  
+  #catalog-results .list-group-item:last-child {
+    border-bottom: none;
+  }
+  
+  #catalog-results .list-group-item:hover {
+    background-color: #f8f9fa;
+  }
+  
+  #catalog-results .list-group-item.active {
+    background-color: #0d6efd;
+    color: white;
+  }
+  
+  /* Ensure dropdown appears above other elements */
+  #vehicle-catalog-container {
+    z-index: 100;
+  }
+</style>

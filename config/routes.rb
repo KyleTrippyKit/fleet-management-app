@@ -559,7 +559,8 @@ Rails.application.routes.draw do
   # Vehicle Catalog Entries
   # ========================
   resources :vehicle_catalog_entries, only: [:index, :create]
-
+  get "vehicles/catalog_search", to: "vehicle_catalog_entries#index", as: :vehicle_catalog_search
+  
   # ========================
   # Alerts
   # ========================

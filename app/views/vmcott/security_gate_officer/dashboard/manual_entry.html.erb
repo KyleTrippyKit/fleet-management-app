@@ -105,7 +105,7 @@
               </div>
             </div>
             
-            <!-- License Plate Entry with Live Search (ONLY for selecting existing vehicles) -->
+            <!-- EXISTING VEHICLE SEARCH - Searches database -->
             <div id="existing-vehicle-section" class="mb-4 position-relative">
               <div class="d-flex align-items-center mb-2">
                 <i class="bi bi-upc-scan text-primary me-2"></i>
@@ -131,7 +131,7 @@
               <div id="search-results" class="list-group mt-2 shadow-lg" style="display: none; position: absolute; z-index: 1000; width: 100%; max-height: 350px; overflow-y: auto;" role="listbox"></div>
             </div>
             
-            <!-- New Vehicle Form (hidden by default) -->
+            <!-- New Vehicle Form (hidden by default) with Catalog Search -->
             <div id="newVehicleForm" class="mb-4" style="display: none;">
               <div class="card border-2 border-success">
                 <div class="card-header bg-success bg-opacity-10 border-bottom border-success py-3">
@@ -141,22 +141,53 @@
                   </div>
                 </div>
                 <div class="card-body bg-light">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <%= label_tag :new_vehicle_make, "Make", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <div class="input-group">
-                        <span class="input-group-text bg-white"><i class="bi bi-car-front text-muted"></i></span>
-                        <%= text_field_tag "new_vehicle[make]", nil, class: "form-control", id: "new_vehicle_make", placeholder: "e.g., Toyota" %>
-                      </div>
-                      <div class="invalid-feedback" id="new-make-error">Please enter vehicle make</div>
+                  
+                  <!-- MAKE & MODEL - Single field with catalog search (like vehicle form) -->
+                  <div class="mb-4 position-relative" id="catalog-search-container">
+                    <div class="d-flex align-items-center mb-2">
+                      <i class="bi bi-search text-success me-2"></i>
+                      <label for="catalog-search-input" class="form-label fw-bold mb-0">Make & Model</label>
+                      <span class="badge bg-success bg-opacity-10 text-success ms-2">Catalog search</span>
                     </div>
                     
-                    <div class="col-md-6">
-                      <%= label_tag :new_vehicle_model, "Model", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= text_field_tag "new_vehicle[model]", nil, class: "form-control", id: "new_vehicle_model", placeholder: "e.g., Hilux" %>
-                      <div class="invalid-feedback" id="new-model-error">Please enter vehicle model</div>
+                    <div class="input-group">
+                      <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                      <input type="text" 
+                             id="catalog-search-input"
+                             class="form-control border-start-0 ps-0" 
+                             placeholder="Start typing e.g. Toyota Hilux" 
+                             autocomplete="off"
+                             data-catalog-target="input">
+                      <span class="input-group-text bg-light" id="catalog-status">
+                        <span class="spinner-border spinner-border-sm d-none" id="catalog-spinner" role="status"></span>
+                      </span>
+                    </div>
+                    
+                    <div id="catalogHelp" class="form-text text-muted mt-2">
+                      <i class="bi bi-info-circle me-1"></i> Type 2+ letters to search catalog. Click a result to auto-fill make and model.
+                    </div>
+                    
+                    <!-- Search Results Dropdown -->
+                    <div id="catalog-results"
+                         class="list-group mt-2 shadow-lg position-absolute w-100"
+                         style="display: none; z-index: 2000; max-height: 350px; overflow-y: auto; background: white; border: 1px solid #ced4da;">
+                    </div>
+                  </div>
+                  
+                  <!-- Hidden fields for make/model (auto-filled by catalog) -->
+                  <input type="hidden" id="selected-make" name="new_vehicle[make]" value="">
+                  <input type="hidden" id="selected-model" name="new_vehicle[model]" value="">
+                  <input type="hidden" id="selected-type" name="new_vehicle[vehicle_type]" value="">
+                  
+                  <div class="row g-3">
+                    <!-- Make field (hidden but kept for validation) -->
+                    <div class="col-md-6 d-none">
+                      <%= text_field_tag "new_vehicle[make]", nil, id: "new_vehicle_make" %>
+                    </div>
+                    
+                    <!-- Model field (hidden but kept for validation) -->
+                    <div class="col-md-6 d-none">
+                      <%= text_field_tag "new_vehicle[model]", nil, id: "new_vehicle_model" %>
                     </div>
                     
                     <div class="col-md-4">
@@ -452,12 +483,12 @@
   </div>
 </div>
 
-<!-- JavaScript (FIXED - with Turbo/refresh protection) -->
+<!-- JavaScript - with catalog search for new vehicles -->
 <script>
   (function() {
     'use strict';
     
-    // ⚠️ CRITICAL FIX: Prevent double initialization on Turbo refreshes
+    // Prevent double initialization
     if (window.manualEntryInitialized) {
       console.log('🔧 Manual Entry: Already initialized, skipping...');
       return;
@@ -466,13 +497,11 @@
     
     console.log('🔧 Manual Entry: Script loaded');
     
-    // Clean up function to remove event listeners when page unloads
     function cleanup() {
       console.log('🔧 Manual Entry: Cleaning up...');
       window.manualEntryInitialized = false;
     }
     
-    // Register cleanup on page unload
     window.addEventListener('beforeunload', cleanup);
     window.addEventListener('turbo:before-visit', cleanup);
     
@@ -498,6 +527,23 @@
         validationSummary: document.getElementById('validation-summary'),
         validationMessage: document.getElementById('validation-message'),
         
+        // Catalog search elements
+        catalogSearchInput: document.getElementById('catalog-search-input'),
+        catalogResults: document.getElementById('catalog-results'),
+        catalogSpinner: document.getElementById('catalog-spinner'),
+        
+        // New vehicle fields
+        newMake: document.getElementById('new_vehicle_make'),
+        newModel: document.getElementById('new_vehicle_model'),
+        newType: document.getElementById('new_vehicle_vehicle_type'),
+        selectedMake: document.getElementById('selected-make'),
+        selectedModel: document.getElementById('selected-model'),
+        selectedType: document.getElementById('selected-type'),
+        newChassis: document.getElementById('new_vehicle_chassis_number'),
+        newSerial: document.getElementById('new_vehicle_serial_number'),
+        newYear: document.getElementById('new_vehicle_year_of_manufacture'),
+        newPlate: document.getElementById('new_vehicle_license_plate'),
+        
         // Client type elements
         agencyRadio: document.getElementById('client_type_agency'),
         publicRadio: document.getElementById('client_type_public'),
@@ -514,15 +560,6 @@
         clientTypeSelect: document.getElementById('client_type_select'),
         clientPaymentTerms: document.getElementById('client_payment_terms'),
         
-        // New vehicle fields
-        newMake: document.getElementById('new_vehicle_make'),
-        newModel: document.getElementById('new_vehicle_model'),
-        newChassis: document.getElementById('new_vehicle_chassis_number'),
-        newSerial: document.getElementById('new_vehicle_serial_number'),
-        newYear: document.getElementById('new_vehicle_year_of_manufacture'),
-        newType: document.getElementById('new_vehicle_vehicle_type'),
-        newPlate: document.getElementById('new_vehicle_license_plate'),
-        
         // Driver fields
         driverName: document.getElementById('driver_name')
       };
@@ -537,6 +574,7 @@
       
       // State
       let searchTimeout;
+      let catalogTimeout;
       let selectedVehicleId = null;
       let isNewVehicleMode = false;
       
@@ -569,15 +607,8 @@
         clearFieldErrors();
       }
       
-      // Remove existing listeners before adding new ones
-      if (elements.existingModeCard) {
-        elements.existingModeCard.removeEventListener('click', () => setMode(false));
-        elements.existingModeCard.addEventListener('click', () => setMode(false));
-      }
-      if (elements.newModeCard) {
-        elements.newModeCard.removeEventListener('click', () => setMode(true));
-        elements.newModeCard.addEventListener('click', () => setMode(true));
-      }
+      elements.existingModeCard.addEventListener('click', () => setMode(false));
+      elements.newModeCard.addEventListener('click', () => setMode(true));
       
       // Initialize mode
       setMode(false);
@@ -599,61 +630,38 @@
         }
       }
       
-      if (elements.agencyCard) {
-        elements.agencyCard.removeEventListener('click', () => {
-          elements.agencyRadio.checked = true;
-          updateClientTypeUI();
-          clearFieldErrors();
-        });
-        elements.agencyCard.addEventListener('click', () => {
-          elements.agencyRadio.checked = true;
-          updateClientTypeUI();
-          clearFieldErrors();
-        });
-      }
-      
-      if (elements.publicCard) {
-        elements.publicCard.removeEventListener('click', () => {
-          elements.publicRadio.checked = true;
-          updateClientTypeUI();
-          clearFieldErrors();
-        });
-        elements.publicCard.addEventListener('click', () => {
-          elements.publicRadio.checked = true;
-          updateClientTypeUI();
-          clearFieldErrors();
-        });
-      }
-      
-      if (elements.agencyRadio && elements.publicRadio) {
-        elements.agencyRadio.removeEventListener('change', updateClientTypeUI);
-        elements.publicRadio.removeEventListener('change', updateClientTypeUI);
-        elements.agencyRadio.addEventListener('change', updateClientTypeUI);
-        elements.publicRadio.addEventListener('change', updateClientTypeUI);
+      elements.agencyCard.addEventListener('click', () => {
+        elements.agencyRadio.checked = true;
         updateClientTypeUI();
-      }
+        clearFieldErrors();
+      });
+      
+      elements.publicCard.addEventListener('click', () => {
+        elements.publicRadio.checked = true;
+        updateClientTypeUI();
+        clearFieldErrors();
+      });
+      
+      elements.agencyRadio.addEventListener('change', updateClientTypeUI);
+      elements.publicRadio.addEventListener('change', updateClientTypeUI);
+      updateClientTypeUI();
       
       // ============================================
       // PHONE NUMBER FORMATTING
       // ============================================
       function formatPhoneNumber(value) {
         if (!value) return '';
-        
-        // Remove any character that's not a digit, +, or -
         let cleaned = value.replace(/[^0-9+\-]/g, '');
         
-        // Format Trinidad numbers (start with 868)
         if (cleaned.startsWith('868')) {
           const areaCode = cleaned.substring(0, 3);
           let rest = cleaned.substring(3).replace(/-/g, '');
-          
           if (rest.length >= 3) {
             rest = rest.substring(0, 3) + '-' + rest.substring(3, 7);
           }
           return areaCode + '-' + rest;
         }
         
-        // Format 7-digit local numbers
         if (cleaned.length === 7 && !cleaned.includes('-')) {
           return cleaned.substring(0, 3) + '-' + cleaned.substring(3);
         }
@@ -662,9 +670,6 @@
       }
       
       if (elements.clientPhone) {
-        elements.clientPhone.removeEventListener('input', null);
-        elements.clientPhone.removeEventListener('blur', null);
-        
         elements.clientPhone.addEventListener('input', function(e) {
           const cursorPos = this.selectionStart;
           const oldLength = this.value.length;
@@ -680,80 +685,107 @@
       }
       
       // ============================================
-      // VALIDATION FUNCTIONS
+      // CATALOG SEARCH (for new vehicles)
       // ============================================
-      function isValidEmail(email) {
-        if (!email) return true;
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-      }
-      
-      function isValidPhone(phone) {
-        if (!phone) return false;
-        return phone.replace(/[^0-9]/g, '').length >= 7;
-      }
-      
-      function isValidName(name) {
-        return name && name.trim().length >= 2;
-      }
-      
-      function isValidLicensePlate(plate) {
-        if (!plate) return false;
-        return /^[A-Za-z]{2,3}-?\d{3,4}$/.test(plate.replace(/\s/g, ''));
-      }
-      
-      function clearFieldErrors() {
-        document.querySelectorAll('.is-invalid').forEach(el => {
-          el.classList.remove('is-invalid');
+      if (elements.catalogSearchInput) {
+        elements.catalogSearchInput.addEventListener('input', function(e) {
+          const query = this.value.trim();
+          clearTimeout(catalogTimeout);
+          
+          if (query.length < 2) {
+            if (elements.catalogResults) elements.catalogResults.style.display = 'none';
+            return;
+          }
+          
+          if (elements.catalogSpinner) elements.catalogSpinner.classList.remove('d-none');
+          
+          catalogTimeout = setTimeout(() => {
+            fetch(`/vehicles/catalog_search?q=${encodeURIComponent(query)}`, {
+              headers: {
+                'Accept': 'application/json',
+                'X-CSRF-Token': document.querySelector('[name="csrf-token"]')?.content
+              },
+              credentials: 'same-origin'
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (elements.catalogSpinner) elements.catalogSpinner.classList.add('d-none');
+              
+              if (data && data.length > 0 && elements.catalogResults) {
+                elements.catalogResults.innerHTML = '';
+                data.forEach(item => {
+                  const resultItem = document.createElement('button');
+                  resultItem.type = 'button';
+                  resultItem.className = 'list-group-item list-group-item-action';
+                  resultItem.setAttribute('data-make', item.make);
+                  resultItem.setAttribute('data-model', item.model);
+                  resultItem.setAttribute('data-type', item.vehicle_type || '');
+                  resultItem.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <strong>${item.label}</strong>
+                        ${item.vehicle_type ? `<br><small class="text-muted">${item.vehicle_type}</small>` : ''}
+                      </div>
+                      <span class="badge bg-success">Select</span>
+                    </div>
+                  `;
+                  
+                  resultItem.addEventListener('click', function() {
+                    // Update form fields
+                    const make = this.getAttribute('data-make');
+                    const model = this.getAttribute('data-model');
+                    const type = this.getAttribute('data-type');
+                    
+                    if (elements.selectedMake) elements.selectedMake.value = make;
+                    if (elements.selectedModel) elements.selectedModel.value = model;
+                    if (elements.selectedType) elements.selectedType.value = type;
+                    
+                    // Also update hidden validation fields
+                    if (elements.newMake) elements.newMake.value = make;
+                    if (elements.newModel) elements.newModel.value = model;
+                    
+                    // Update type dropdown if type exists
+                    if (type && elements.newType) {
+                      const option = Array.from(elements.newType.options).find(opt => opt.value === type);
+                      if (option) {
+                        elements.newType.value = type;
+                      }
+                    }
+                    
+                    // Update search input
+                    if (elements.catalogSearchInput) {
+                      elements.catalogSearchInput.value = `${make} ${model}`.trim();
+                    }
+                    
+                    // Hide results
+                    if (elements.catalogResults) {
+                      elements.catalogResults.style.display = 'none';
+                    }
+                  });
+                  
+                  elements.catalogResults.appendChild(resultItem);
+                });
+                elements.catalogResults.style.display = 'block';
+              } else if (elements.catalogResults) {
+                elements.catalogResults.innerHTML = '<div class="list-group-item text-center text-muted">No matches found</div>';
+                elements.catalogResults.style.display = 'block';
+              }
+            })
+            .catch(error => {
+              console.error('Catalog search error:', error);
+              if (elements.catalogSpinner) elements.catalogSpinner.classList.add('d-none');
+              if (elements.catalogResults) {
+                elements.catalogResults.innerHTML = '<div class="list-group-item text-center text-danger">Error searching catalog</div>';
+                elements.catalogResults.style.display = 'block';
+              }
+            });
+          }, 300);
         });
-        elements.validationSummary.classList.add('d-none');
-      }
-      
-      function markFieldInvalid(field) {
-        if (field) field.classList.add('is-invalid');
       }
       
       // ============================================
-      // UTILITY FUNCTIONS
+      // EXISTING VEHICLE SEARCH
       // ============================================
-      function escapeHtml(unsafe) {
-        if (!unsafe) return '';
-        return String(unsafe)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#039;");
-      }
-      
-      function clearSelection() {
-        selectedVehicleId = null;
-        const existingInput = document.getElementById('selected-vehicle-id');
-        if (existingInput) existingInput.value = '';
-        elements.selectionMethod.value = '';
-        elements.searchInput.value = '';
-        clearFieldErrors();
-      }
-      
-      function showSuccess(message) {
-        const existingAlert = document.querySelector('.alert-success');
-        if (existingAlert) existingAlert.remove();
-        
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
-        alertDiv.innerHTML = `
-          <div class="d-flex align-items-center">
-            <i class="bi bi-check-circle-fill me-2"></i>
-            <span>${escapeHtml(message)}</span>
-            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
-          </div>
-        `;
-        elements.searchInput.parentElement.appendChild(alertDiv);
-      }
-      
-      // ============================================
-      // SEARCH FUNCTIONALITY
-      // ============================================
-      elements.searchInput.removeEventListener('input', null);
       elements.searchInput.addEventListener('input', function(e) {
         if (isNewVehicleMode) return;
         
@@ -838,17 +870,93 @@
       // ============================================
       // CLICK OUTSIDE
       // ============================================
-      document.removeEventListener('click', null);
       document.addEventListener('click', (e) => {
+        // Close existing vehicle results
         if (!elements.searchInput.contains(e.target) && !elements.resultsDiv.contains(e.target)) {
           elements.resultsDiv.style.display = 'none';
+        }
+        
+        // Close catalog results
+        if (elements.catalogSearchInput && !elements.catalogSearchInput.contains(e.target) && 
+            elements.catalogResults && !elements.catalogResults.contains(e.target)) {
+          elements.catalogResults.style.display = 'none';
         }
       });
       
       // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+      function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+      
+      function clearSelection() {
+        selectedVehicleId = null;
+        const existingInput = document.getElementById('selected-vehicle-id');
+        if (existingInput) existingInput.value = '';
+        elements.selectionMethod.value = '';
+        elements.searchInput.value = '';
+        clearFieldErrors();
+      }
+      
+      function showSuccess(message) {
+        const existingAlert = document.querySelector('.alert-success');
+        if (existingAlert) existingAlert.remove();
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+        alertDiv.innerHTML = `
+          <div class="d-flex align-items-center">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <span>${escapeHtml(message)}</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+          </div>
+        `;
+        elements.searchInput.parentElement.appendChild(alertDiv);
+      }
+      
+      // ============================================
+      // VALIDATION FUNCTIONS
+      // ============================================
+      function isValidEmail(email) {
+        if (!email) return true;
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      }
+      
+      function isValidPhone(phone) {
+        if (!phone) return false;
+        return phone.replace(/[^0-9]/g, '').length >= 7;
+      }
+      
+      function isValidName(name) {
+        return name && name.trim().length >= 2;
+      }
+      
+      function isValidLicensePlate(plate) {
+        if (!plate) return false;
+        return /^[A-Za-z]{2,3}-?\d{3,4}$/.test(plate.replace(/\s/g, ''));
+      }
+      
+      function clearFieldErrors() {
+        document.querySelectorAll('.is-invalid').forEach(el => {
+          el.classList.remove('is-invalid');
+        });
+        elements.validationSummary.classList.add('d-none');
+      }
+      
+      function markFieldInvalid(field) {
+        if (field) field.classList.add('is-invalid');
+      }
+      
+      // ============================================
       // FORM VALIDATION
       // ============================================
-      elements.vehicleForm.removeEventListener('submit', null);
       elements.vehicleForm.addEventListener('submit', function(e) {
         clearFieldErrors();
         
@@ -959,13 +1067,11 @@
           e.preventDefault();
           e.stopPropagation();
           
-          // Show validation summary
           if (elements.validationMessage) {
             elements.validationMessage.innerHTML = errorMessages.map(msg => `<li>${msg}</li>`).join('');
           }
           elements.validationSummary.classList.remove('d-none');
           
-          // Scroll to first error
           if (firstErrorField) {
             firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
             firstErrorField.focus();
@@ -989,16 +1095,13 @@
       });
     }
     
-    // Initialize with proper event handling
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', init, { once: true });
     } else {
       init();
     }
     
-    // Handle Turbo loads properly
     document.addEventListener('turbo:load', function() {
-      // Reset flag so page can reinitialize on Turbo navigation
       window.manualEntryInitialized = false;
       init();
     }, { once: false });
@@ -1026,23 +1129,34 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
   
-  #search-results {
+  #search-results, #catalog-results {
     border-radius: 8px;
     border: none;
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 2000;
   }
   
-  #search-results .list-group-item {
+  #search-results .list-group-item,
+  #catalog-results .list-group-item {
     border-left: none;
     border-right: none;
+    padding: 8px 12px;
+    cursor: pointer;
   }
   
-  #search-results .list-group-item:first-child {
+  #search-results .list-group-item:first-child,
+  #catalog-results .list-group-item:first-child {
     border-top: none;
   }
   
-  #search-results .list-group-item:last-child {
+  #search-results .list-group-item:last-child,
+  #catalog-results .list-group-item:last-child {
     border-bottom: none;
+  }
+  
+  #search-results .list-group-item:hover,
+  #catalog-results .list-group-item:hover {
+    background-color: #f8f9fa;
   }
   
   .breadcrumb-item + .breadcrumb-item::before {
@@ -1077,5 +1191,10 @@
   .btn-primary:disabled {
     background: linear-gradient(135deg, #a0a0a0, #808080);
     border-color: #808080;
+  }
+  
+  /* Catalog search container */
+  #catalog-search-container {
+    z-index: 100;
   }
 </style>

@@ -272,10 +272,10 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     
     begin
       ActiveRecord::Base.transaction do
-        # Determine client for condition report
+        # Determine client for reference (not saved to reception_log)
         client = determine_client_from_params(params)
         
-        # Create condition report
+        # Create condition report - WITHOUT client parameter
         @condition_report = VehicleConditionReport.new(
           vehicle: @vehicle,
           security_gate_officer: current_user,
@@ -287,8 +287,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           signed_at: Time.current,
           status: 'completed',
           ip_address: request.remote_ip,
-          user_agent: request.user_agent,
-          client: client
+          user_agent: request.user_agent
+          # client: client removed - not in ReceptionLog model
         )
         
         # Handle condition data
@@ -321,10 +321,10 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         # Attach photos if any
         attach_photos(@condition_report, params)
         
-        # Create reception log
+        # Create reception log - WITHOUT client parameter
         ReceptionLog.create!(
           vehicle: @vehicle,
-          security_gate_officer: current_user,
+          user_id: current_user.id,
           driver_name: params[:driver_name],
           received_at: Time.current,
           check_in_time: Time.current,
@@ -332,8 +332,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           notes: params[:notes],
           status: 'checked_in',
           condition_report: @condition_report,
-          condition_status: @condition_report.exterior_damage? ? 'damage_noted' : 'clean',
-          client: client
+          condition_status: @condition_report.exterior_damage? ? 'damage_noted' : 'clean'
+          # client: client removed - this column doesn't exist
         )
         
         # Create vehicle status

@@ -1,12 +1,128 @@
 <%# app/views/vmcott/security_gate_officer/dashboard/index.html.erb %>
-<div style="background: #00ff00; padding: 30px; margin: 20px; border: 5px solid #0000ff;">
-  <h1 style="color: #000;">✅ DASHBOARD IS WORKING!</h1>
-  <p>Time: <%= Time.current %></p>
-  <p>User: <%= current_user&.email %></p>
-  <p>Stats: <%= @stats.inspect %></p>
-  
-  <div style="margin-top: 20px;">
-    <%= link_to "Manual Entry", vmcott_security_gate_officer_manual_entry_path, 
-        style: "background: #00f; color: #fff; padding: 10px; text-decoration: none; border-radius: 5px;" %>
+<%# Simple dashboard for Security Gate Officer - Just check-ins %>
+
+<div class="container-fluid py-4">
+  <!-- Header with Refresh -->
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">
+        <i class="bi bi-shield-check me-2"></i>
+        Security Gate Officer
+      </h1>
+      <p class="text-muted">Vehicle check-in & condition reporting</p>
+    </div>
+    <div class="col-auto d-flex gap-2">
+      <button class="btn btn-outline-secondary" onclick="location.reload()" title="Refresh">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+      <div class="btn-group">
+        <%= link_to vmcott_security_gate_officer_scan_path, class: "btn btn-primary" do %>
+          <i class="bi bi-qr-code-scan me-2"></i> Scan QR
+        <% end %>
+        <%= link_to vmcott_security_gate_officer_manual_entry_path, class: "btn btn-outline-primary" do %>
+          <i class="bi bi-pencil-square me-2"></i> Manual Entry
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Stats Row - Simplified -->
+  <div class="row mb-4 g-3">
+    <div class="col-md-4">
+      <div class="card bg-primary text-white h-100">
+        <div class="card-body">
+          <h6 class="text-white-50">Today's Check-ins</h6>
+          <h2 class="mb-0"><%= @stats&.[](:today_checkins) || 0 %></h2>
+          <%= link_to "View Log", today_vmcott_security_gate_officer_reception_logs_path, class: "text-white-50 small mt-2 d-block text-decoration-none" %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-info text-white h-100">
+        <div class="card-body">
+          <h6 class="text-white-50">Vehicles on Site</h6>
+          <h2 class="mb-0"><%= @stats&.[](:vehicles_on_site) || 0 %></h2>
+          <% if (@stats&.[](:vehicles_on_site) || 0) > 0 %>
+            <small class="text-white-50">Currently in workshop</small>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-warning text-dark h-100">
+        <div class="card-body">
+          <h6 class="text-dark-50">Pending Reports</h6>
+          <h2 class="mb-0"><%= @stats&.[](:pending_reports) || 0 %></h2>
+          <% if (@stats&.[](:pending_reports) || 0) > 0 %>
+            <small class="text-dark-50">Awaiting completion</small>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Check-ins - Simple List -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i> Recent Check-ins</h5>
+      <span class="badge bg-secondary"><%= @recent_checkins&.count || 0 %> in 24h</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+        <% if @recent_checkins.present? && @recent_checkins.any? %>
+          <% @recent_checkins.first(5).each do |log| %>
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-bold">
+                    <%= log.vehicle&.license_plate || 'Unknown Vehicle' %>
+                    <% if log.condition_report&.exterior_damage? %>
+                      <span class="badge bg-warning ms-2">⚠️ Damage Noted</span>
+                    <% else %>
+                      <span class="badge bg-success ms-2">✅ Clean</span>
+                    <% end %>
+                  </div>
+                  <small class="text-muted">
+                    <i class="bi bi-person me-1"></i><%= log.driver_name || 'No driver' %> • 
+                    <i class="bi bi-clock me-1"></i><%= time_ago_in_words(log.received_at) %> ago
+                  </small>
+                </div>
+                <div>
+                  <%= link_to vmcott_security_gate_officer_reception_log_path(log), class: "btn btn-sm btn-outline-primary" do %>
+                    <i class="bi bi-eye me-1"></i> View
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="list-group-item text-center text-muted py-5">
+            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+            <p class="mb-0">No check-ins in the last 24 hours</p>
+            <small>Click "Manual Entry" to check in a vehicle</small>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <% if @recent_checkins.present? && @recent_checkins.any? %>
+      <div class="card-footer bg-light text-center">
+        <%= link_to vmcott_security_gate_officer_reception_logs_path, class: "btn btn-sm btn-outline-secondary" do %>
+          <i class="bi bi-list-ul me-1"></i> View All Logs
+        <% end %>
+        <%= link_to today_vmcott_security_gate_officer_reception_logs_path, class: "btn btn-sm btn-outline-secondary ms-2" do %>
+          <i class="bi bi-calendar-day me-1"></i> Today's Log
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <!-- Quick tip for new users -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="alert alert-light border small py-2 mb-0">
+        <i class="bi bi-lightbulb me-2 text-warning"></i>
+        <strong>Tip:</strong> Use <kbd>Scan QR</kbd> for vehicles with QR codes, or <kbd>Manual Entry</kbd> for walk-ins.
+      </div>
+    </div>
   </div>
 </div>

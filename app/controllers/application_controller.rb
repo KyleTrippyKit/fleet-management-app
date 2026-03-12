@@ -369,22 +369,44 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # DASHBOARD CACHING - NEW
+  # DASHBOARD CACHING - FIXED (Find this method around line 380)
   # =====================================================
   def cache_dashboard_data
     return yield unless current_user.present?
     
-    cache_key = "dashboard/#{current_user.role}/#{current_user.id}/#{Date.current.strftime('%Y%m%d')}"
-    cache_key << "/#{params[:action]}" if params[:action].present?
+    # Skip caching for reception_logs controller and show actions
+    if params[:controller].include?('reception_logs') || 
+       params[:action] == 'show' ||
+       params[:action] == 'today' ||
+       params[:action] == 'condition_report'
+      Rails.logger.info "Skipping cache for #{params[:controller]}##{params[:action]}"
+      return yield
+    end
     
-    Rails.cache.fetch(cache_key, expires_in: 1.hour) do
-      yield
+    begin
+      cache_key = "dashboard/#{current_user.role}/#{current_user.id}/#{Date.current.strftime('%Y%m%d')}"
+      cache_key << "/#{params[:action]}" if params[:action].present?
+      
+      # Only cache for index/dashboard actions
+      if params[:action].in?(['index', 'dashboard'])
+        Rails.logger.info "Caching dashboard data with key: #{cache_key}"
+        Rails.cache.fetch(cache_key, expires_in: 1.hour) do
+          yield
+        end
+      else
+        yield
+      end
+    rescue => e
+      Rails.logger.error "Cache error: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      yield # Fall back to normal rendering
     end
   end
   
   def dashboard_controller?
     controller_path.start_with?('vmcott/') && 
-    (params[:action] == 'index' || params[:action] == 'dashboard')
+    params[:action].in?(['index', 'dashboard']) &&
+    !params[:controller].include?('reception_logs') # Skip reception_logs controller
   end
 
   # =====================================================

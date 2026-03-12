@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <%# File: app/views/layouts/application.html.erb - WITH DOCTYPE DETECTION %>
+    <%# File: app/views/layouts/application.html.erb %>
     <title>Trinidad Fleet Management</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -18,10 +18,9 @@
       <meta http-equiv="Expires" content="0">
     <% end %>
 
-    <!-- COMPLETELY DISABLE TURBO -->
+    <!-- Turbo Control -->
     <meta name="turbo-visit-control" content="reload">
     <meta name="turbo-cache-control" content="no-cache">
-    <meta name="turbo-prefetch" content="false">
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -107,22 +106,6 @@
       @keyframes spinner {
         to { transform: rotate(360deg); }
       }
-      
-      /* Debug panel styles */
-      #debug-panel {
-        position: fixed;
-        bottom: 10px;
-        right: 10px;
-        background: rgba(0,0,0,0.9);
-        color: #0f0;
-        padding: 15px;
-        border-radius: 5px;
-        font-family: monospace;
-        font-size: 12px;
-        z-index: 99999;
-        border: 2px solid #0f0;
-        max-width: 400px;
-      }
     </style>
     
     <!-- Allow views to add their own head content -->
@@ -145,88 +128,9 @@
   <body class="<%= 'vmcott-page' if is_vmcott %>
                <%= 'ptsc-theme-active' if is_ptsc %>
                <%= 'gantt-page' if content_for?(:gantt_page) %>"
-        data-turbo="false"
-        data-turbolinks="false">
-
-    <!-- DOCTYPE FORCE AND DETECTION - RUNS FIRST -->
-    <script>
-      (function() {
-        console.log('🔍 DOCTYPE CHECK - START');
-        
-        // Get the first few characters of the HTML to check for doctype
-        const htmlStart = document.documentElement.outerHTML.substring(0, 200);
-        console.log('🔍 HTML starts with:', htmlStart);
-        
-        // Check if doctype exists
-        const hasDoctype = document.doctype !== null;
-        console.log('🔍 Doctype exists:', hasDoctype);
-        
-        if (document.doctype) {
-          console.log('🔍 Doctype name:', document.doctype.name);
-          console.log('🔍 Doctype publicId:', document.doctype.publicId);
-          console.log('🔍 Doctype systemId:', document.doctype.systemId);
-        }
-        
-        // Check if we're in quirks mode
-        const isQuirksMode = document.compatMode === 'BackCompat';
-        console.log('🔍 Browser compat mode:', document.compatMode);
-        console.log('🔍 Is Quirks Mode:', isQuirksMode);
-        
-        if (isQuirksMode) {
-          console.warn('⚠️ Page is in QUIRKS MODE - forcing standards');
-          
-          // Force standards mode by recreating the doctype
-          // This is a hack but can work
-          const newDoctype = document.implementation.createDocumentType('html', '', '');
-          document.replaceChild(newDoctype, document.firstChild);
-          
-          console.log('✅ Doctype replaced, reloading...');
-          // Reload to apply changes
-          setTimeout(function() {
-            window.location.reload();
-          }, 100);
-        }
-        
-        // Also check for any whitespace before doctype
-        const firstChild = document.firstChild;
-        console.log('🔍 First child node type:', firstChild?.nodeType);
-        console.log('🔍 First child node name:', firstChild?.nodeName);
-        
-        if (firstChild && firstChild.nodeType === 3) { // Text node
-          console.warn('⚠️ Found text before doctype:', firstChild.textContent);
-          // Remove it
-          firstChild.remove();
-          console.log('✅ Removed text before doctype');
-        }
-      })();
-    </script>
+        data-turbo="false">
 
     <div id="modal-container"></div>
-
-    <!-- DEBUG PANEL - Will show if page is loading -->
-    <div id="debug-panel">
-      <strong>🔍 DEBUG PANEL</strong><br>
-      <div id="debug-time"></div>
-      <div id="debug-status">Initializing...</div>
-      <div id="debug-url"></div>
-      <div id="debug-user"></div>
-      <div id="debug-compat"></div>
-      <button onclick="this.parentElement.remove()" style="margin-top:10px; padding:5px;">Hide</button>
-    </div>
-
-    <script>
-      // Update debug panel immediately
-      (function() {
-        const panel = document.getElementById('debug-panel');
-        if (panel) {
-          document.getElementById('debug-time').textContent = 'Time: ' + new Date().toISOString();
-          document.getElementById('debug-url').textContent = 'URL: ' + window.location.href;
-          document.getElementById('debug-user').textContent = 'User: <%= user_signed_in? ? current_user.email : 'Not logged in' %>';
-          document.getElementById('debug-status').textContent = '✅ Page loaded at: ' + new Date().toLocaleTimeString();
-          document.getElementById('debug-compat').textContent = 'Compat Mode: ' + document.compatMode;
-        }
-      })();
-    </script>
 
     <!-- Navigation for logged-in users (skip for special pages) -->
     <% unless params[:controller] == 'screensaver' || 
@@ -255,7 +159,6 @@
     <!-- Flash auto-hide script -->
     <script>
       (function() {
-        // Guard to prevent double initialization
         if (window.flashHandlerInitialized) return;
         window.flashHandlerInitialized = true;
         
@@ -265,7 +168,6 @@
           const alerts = container.querySelectorAll(".alert, .alert-dismissible, [role='alert']");
           if (!alerts.length) return;
           
-          console.log("✅ Flash fallback: found", alerts.length, "alerts");
           alerts.forEach(function (alertEl) {
             alertEl.classList.add("alert-auto-hide");
             setTimeout(function () {
@@ -274,63 +176,14 @@
           });
         }
         
-        // Run on load
         document.addEventListener("DOMContentLoaded", hideFlashOnly);
-        
-        // Also run immediately
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
           setTimeout(hideFlashOnly, 100);
         }
       })();
     </script>
 
-    <!-- Layout Debug Info -->
-    <%= render 'shared/layout_debug' if Rails.env.development? %>
-    
-    <!-- Page Load Monitor -->
-    <script>
-      (function() {
-        // Update debug panel with page load status
-        const panel = document.getElementById('debug-panel');
-        const status = document.getElementById('debug-status');
-        const compat = document.getElementById('debug-compat');
-        
-        // Monitor page visibility
-        document.addEventListener('visibilitychange', function() {
-          if (status) {
-            status.textContent = '📱 Page visibility: ' + document.visibilityState;
-          }
-        });
-        
-        // Check if page is blank
-        setTimeout(function() {
-          if (document.body.children.length === 0 || 
-              document.body.innerText.trim() === '') {
-            if (status) {
-              status.textContent = '❌ BLANK PAGE DETECTED!';
-              status.style.color = '#f00';
-            }
-            console.error('❌ BLANK PAGE DETECTED at:', new Date().toISOString());
-          } else {
-            if (status) {
-              status.textContent = '✅ Page has content - ' + document.body.children.length + ' elements';
-              status.style.color = '#0f0';
-            }
-          }
-          
-          // Update compat mode
-          if (compat) {
-            compat.textContent = 'Compat Mode: ' + document.compatMode + (document.compatMode === 'BackCompat' ? ' ⚠️ QUIRKS MODE' : ' ✅ STANDARDS MODE');
-          }
-        }, 500);
-        
-        // Log page load
-        console.log('📄 Page loaded at:', new Date().toISOString());
-        console.log('📄 Body children:', document.body.children.length);
-        console.log('📄 First few elements:', 
-          Array.from(document.body.children).slice(0, 3).map(el => el.tagName));
-        console.log('📄 Compat mode:', document.compatMode);
-      })();
-    </script>
+    <!-- Layout Debug Info - Only shows in development -->
+    <%# <%= render 'shared/layout_debug' if Rails.env.development? %> %>
   </body>
 </html>
