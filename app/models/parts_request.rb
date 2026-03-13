@@ -1,9 +1,17 @@
+# app/models/parts_request.rb
 class PartsRequest < ApplicationRecord
   belongs_to :inspection
   belongs_to :inspection_job, optional: true  # Link to the specific job
   belongs_to :part, optional: true  # Make part optional for custom parts
   belongs_to :vendor_invoice, optional: true
   belongs_to :purchase_order, optional: true
+  
+  # Timestamp fields - these should exist in your database
+  # If they don't exist, you'll need to add them via migration
+  attribute :sent_to_procurement_at, :datetime
+  attribute :notified_parts_coordinator_at, :datetime
+  attribute :notified_billing_at, :datetime
+  attribute :parts_received_at, :datetime
   
   # Association to VendorRfq through part's vendor_rfq_items
   has_many :vendor_rfq_items, through: :part
@@ -35,6 +43,27 @@ class PartsRequest < ApplicationRecord
   scope :custom_parts, -> { where(part_id: nil) }
   scope :inventory_parts, -> { where.not(part_id: nil) }
   scope :for_job, ->(job_id) { where(inspection_job_id: job_id) }
+  
+  # Status helper methods
+  def pending?
+    status == 'pending'
+  end
+  
+  def parts_coordinator_notified?
+    status == 'parts_coordinator_notified'
+  end
+  
+  def billing_notified?
+    status == 'billing_notified'
+  end
+  
+  def parts_ordered?
+    status == 'parts_ordered'
+  end
+  
+  def parts_received?
+    status == 'parts_received'
+  end
 
   def part_name
     part&.name || custom_part_name || "Unknown Part"
@@ -136,5 +165,57 @@ class PartsRequest < ApplicationRecord
   def shortfall_quantity
     return quantity if custom? || part.nil?
     [quantity - part.current_stock, 0].max
+  end
+  
+  # Helper method to get status display for UI
+  def status_display
+    case status
+    when 'pending'
+      'Pending Review'
+    when 'parts_coordinator_notified'
+      'With Coordinator'
+    when 'billing_notified'
+      'With Billing'
+    when 'rfq_sent'
+      'RFQ Sent'
+    when 'quotations_received'
+      'Quotes Received'
+    when 'finance_review'
+      'Finance Review'
+    when 'purchase_order_created'
+      'PO Created'
+    when 'parts_ordered'
+      'Ordered'
+    when 'parts_received'
+      'Received'
+    when 'approved'
+      'Approved'
+    when 'rejected'
+      'Rejected'
+    else
+      status.to_s.humanize
+    end
+  end
+  
+  # Helper method to get status badge class
+  def status_badge_class
+    case status
+    when 'pending'
+      'warning'
+    when 'parts_coordinator_notified', 'billing_notified'
+      'info'
+    when 'rfq_sent', 'quotations_received'
+      'primary'
+    when 'finance_review'
+      'dark'
+    when 'purchase_order_created', 'parts_ordered'
+      'secondary'
+    when 'parts_received', 'approved'
+      'success'
+    when 'rejected'
+      'danger'
+    else
+      'light'
+    end
   end
 end

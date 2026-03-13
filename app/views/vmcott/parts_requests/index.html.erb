@@ -1,0 +1,265 @@
+<%# app/views/vmcott/parts_requests/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-box-seam me-2"></i>
+      Parts Requests - Procurement Dashboard
+    </h1>
+    <div>
+      <%= link_to "← Back to Dashboard", vmcott_inventory_manager_dashboard_path, class: "btn btn-outline-secondary" %>
+    </div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h6 class="card-title">Total Requests</h6>
+          <h2 class="mb-0"><%= @total_count %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-warning text-dark">
+        <div class="card-body">
+          <h6 class="card-title">Pending</h6>
+          <h2 class="mb-0"><%= @pending_count %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h6 class="card-title">In Progress</h6>
+          <h2 class="mb-0"><%= @in_progress_count %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h6 class="card-title">Completed</h6>
+          <h2 class="mb-0"><%= @completed_count %></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_tag vmcott_parts_requests_path, method: :get, class: "row g-3" do %>
+        <!-- Status Filter -->
+        <div class="col-md-3">
+          <%= label_tag :status, "Status", class: "form-label fw-bold" %>
+          <%= select_tag :status,
+                options_for_select([
+                  ['All Statuses', ''],
+                  ['Pending', 'pending'],
+                  ['With Coordinator', 'parts_coordinator_notified'],
+                  ['With Billing', 'billing_notified'],
+                  ['Ordered', 'parts_ordered'],
+                  ['Received', 'parts_received']
+                ], params[:status]),
+                class: "form-select" %>
+        </div>
+        
+        <!-- Search Filter -->
+        <div class="col-md-3">
+          <%= label_tag :search, "Search", class: "form-label fw-bold" %>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <%= text_field_tag :search, params[:search], 
+                  class: "form-control", 
+                  placeholder: "Search by part name..." %>
+          </div>
+        </div>
+        
+        <!-- Type Filter -->
+        <div class="col-md-3">
+          <%= label_tag :type, "Part Type", class: "form-label fw-bold" %>
+          <%= select_tag :type,
+                options_for_select([
+                  ['All Types', ''],
+                  ['Inventory Parts', 'inventory'],
+                  ['Custom Parts', 'custom']
+                ], params[:type]),
+                class: "form-select" %>
+        </div>
+        
+        <!-- Filter Actions -->
+        <div class="col-md-3 d-flex align-items-end">
+          <%= submit_tag "Apply Filters", class: "btn btn-primary w-100", name: nil %>
+        </div>
+      <% end %>
+      
+      <!-- Clear filters link -->
+      <% if params[:status].present? || params[:search].present? || params[:type].present? %>
+        <div class="mt-2 text-end">
+          <%= link_to "Clear all filters", vmcott_parts_requests_path, class: "text-decoration-none" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Parts Requests Table -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-white py-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Parts Requests List</h5>
+        <span class="text-muted">Showing <%= @parts_requests.count %> of <%= @total_count %> requests</span>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Part Details</th>
+              <th>Vehicle</th>
+              <th>Agency</th>
+              <th>Quantity</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if @parts_requests.any? %>
+              <% @parts_requests.each do |pr| %>
+                <tr>
+                  <td>
+                    <strong>#<%= pr.id %></strong>
+                    <% if pr.custom? %>
+                      <span class="badge bg-warning text-dark ms-1" title="Custom Part">C</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div>
+                        <strong><%= pr.part&.name || pr.custom_part_name || 'Unknown' %></strong>
+                        <% if pr.part&.part_number.present? %>
+                          <br><small class="text-muted">PN: <%= pr.part.part_number %></small>
+                        <% end %>
+                        <% if pr.in_stock? %>
+                          <br><span class="badge bg-success">In Stock</span>
+                        <% end %>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <% if pr.inspection&.vehicle %>
+                      <strong><%= pr.inspection.vehicle.license_plate %></strong>
+                      <br><small class="text-muted"><%= pr.inspection.vehicle.make %> <%= pr.inspection.vehicle.model %> (<%= pr.inspection.vehicle.year %>)</small>
+                    <% else %>
+                      <span class="text-muted fst-italic">No vehicle</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if pr.inspection&.vehicle&.agency %>
+                      <span class="badge <%= agency_badge_color(pr.inspection.vehicle.agency.code) %>">
+                        <i class="bi bi-building me-1"></i>
+                        <%= pr.inspection.vehicle.agency.code %>
+                      </span>
+                    <% else %>
+                      <span class="text-muted">N/A</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <span class="badge bg-primary rounded-pill fs-6"><%= pr.quantity %></span>
+                  </td>
+                  <td>
+                    <%= parts_request_status_badge(pr.status) %>
+                    
+                    <% if pr.has_rfqs? %>
+                      <br><small class="text-muted">
+                        <i class="bi bi-file-text me-1"></i>
+                        RFQ: <%= pr.rfq_number || 'Pending' %>
+                      </small>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div><%= time_ago_in_words(pr.created_at) %> ago</div>
+                    <small class="text-muted"><%= pr.created_at.strftime('%b %d, %Y') %></small>
+                  </td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to vmcott_parts_request_path(pr), 
+                          class: "btn btn-outline-primary", 
+                          title: "View Details",
+                          data: { bs_toggle: "tooltip" } do %>
+                        <i class="bi bi-eye"></i>
+                      <% end %>
+                      
+                      <% if pr.status == 'pending' && pr.in_stock? %>
+                        <%= button_to update_stock_vmcott_parts_request_path(pr),
+                            method: :patch,
+                            class: "btn btn-outline-success",
+                            title: "Mark In Stock",
+                            data: { 
+                              bs_toggle: "tooltip",
+                              confirm: "Mark this part as in-stock? This will update inventory."
+                            } do %>
+                          <i class="bi bi-check-circle"></i>
+                        <% end %>
+                      <% end %>
+                      
+                      <% if pr.status == 'parts_coordinator_notified' && pr.inventory? %>
+                        <%= link_to create_rfq_vmcott_parts_request_path(pr), 
+                            method: :post,
+                            class: "btn btn-outline-info",
+                            title: "Create RFQ",
+                            data: { 
+                              bs_toggle: "tooltip",
+                              confirm: "Create RFQ for this part?"
+                            } do %>
+                          <i class="bi bi-file-earmark-plus"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="8" class="text-center py-5">
+                  <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+                  <h5 class="text-muted">No parts requests found</h5>
+                  <p class="text-muted mb-3">There are no parts requests matching your criteria.</p>
+                  <%= link_to "Clear Filters", vmcott_parts_requests_path, class: "btn btn-outline-primary" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <% if @parts_requests.respond_to?(:total_pages) && @parts_requests.total_pages > 1 %>
+      <div class="card-footer bg-white">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="text-muted small">
+            Showing <%= @parts_requests.offset_value + 1 %> to 
+            <%= @parts_requests.offset_value + @parts_requests.count %> of 
+            <%= @total_count %> requests
+          </div>
+          <div>
+            <%= paginate @parts_requests %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- Initialize Tooltips -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  });
+</script>

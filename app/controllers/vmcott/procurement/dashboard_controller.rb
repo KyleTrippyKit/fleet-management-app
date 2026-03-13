@@ -52,7 +52,7 @@ class Vmcott::Procurement::DashboardController < ApplicationController
       # Associate parts request with RFQ
       if params[:parts_request_id].present?
         parts_request = PartsRequest.find(params[:parts_request_id])
-        parts_request.update(status: 'rfq_created')
+        parts_request.update(status: 'rfq_sent')  # Changed from rfq_created to match enum
         # Create RFQ item
         @rfq.vendor_rfq_items.create(
           part_id: parts_request.part_id,
@@ -136,55 +136,49 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   private
 
   def load_parts_to_quote_count
-    # Count parts requests with status 'pending' that belong to current user's agency
-    # through the inspection -> vehicle association
-    PartsRequest.joins(inspection: { vehicle: :agency })
-                .where(vehicles: { agency_id: current_user.agency_id })
-                .where(status: 'pending')
+    # REMOVED AGENCY FILTER - Show ALL parts requests that need quotes
+    PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
                 .count
   end
 
   def load_active_rfqs_count
-    VendorRfq.where(processing_agency_id: current_user.agency_id)
-             .where(status: 'sent')
+    # REMOVED AGENCY FILTER - Show ALL active RFQs
+    VendorRfq.where(status: ['draft', 'sent'])
              .count
   end
 
   def load_quotes_received_count
-    VendorRfq.where(processing_agency_id: current_user.agency_id)
-             .where(status: 'quotations_received')
+    # REMOVED AGENCY FILTER - Show ALL RFQs with quotes received
+    VendorRfq.where(status: 'quotations_received')
              .count
   end
 
   def load_pending_forward_count
-    VendorRfq.where(processing_agency_id: current_user.agency_id)
-             .where(status: 'quotations_received')
+    # REMOVED AGENCY FILTER - Show ALL RFQs ready for finance
+    VendorRfq.where(status: 'quotations_received')
              .where.not(id: VendorQuotation.where(status: 'accepted').select(:vendor_rfq_id))
              .count
   end
 
   def load_pending_parts_requests
-    # Load parts requests with status 'pending' that belong to current user's agency
-    # through the inspection -> vehicle association
-    PartsRequest.joins(inspection: { vehicle: :agency })
-                .where(vehicles: { agency_id: current_user.agency_id })
-                .where(status: 'pending')
-                .includes(:part, inspection: :vehicle)
+    # REMOVED AGENCY FILTER - Show ALL parts requests that need quotes
+    PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
+                .includes(:part, inspection: [:vehicle])
                 .order(created_at: :desc)
                 .limit(20) || []
   end
 
   def load_active_rfqs
-    VendorRfq.where(processing_agency_id: current_user.agency_id)
-             .where(status: ['draft', 'sent'])
+    # REMOVED AGENCY FILTER - Show ALL active RFQs
+    VendorRfq.where(status: ['draft', 'sent'])
              .includes(:vendor_rfq_items, :vendor_quotations)
              .order(created_at: :desc)
              .limit(10) || []
   end
 
   def load_quotations_received
-    VendorRfq.where(processing_agency_id: current_user.agency_id)
-             .where(status: 'quotations_received')
+    # REMOVED AGENCY FILTER - Show ALL RFQs with quotes
+    VendorRfq.where(status: 'quotations_received')
              .includes(:vendor_rfq_items, :vendor_quotations)
              .order(updated_at: :desc)
              .limit(10) || []

@@ -34,6 +34,26 @@
             <!-- Hidden field for vehicle ID -->
             <input type="hidden" name="vehicle_id" value="<%= @vehicle.id %>">
             
+            <!-- ============================================ -->
+            <!-- HIDDEN CLIENT FIELDS - Pass data from session -->
+            <!-- ============================================ -->
+            <input type="hidden" name="client_type" value="<%= @client_type %>">
+            
+            <% if @agency_id.present? %>
+              <input type="hidden" name="agency_id" value="<%= @agency_id %>">
+            <% end %>
+            
+            <% if @client_params.present? %>
+              <% @client_params.each do |key, value| %>
+                <input type="hidden" name="client[<%= key %>]" value="<%= value %>">
+              <% end %>
+            <% end %>
+            
+            <!-- Also pass the create_new_vehicle flag if it was a new vehicle -->
+            <% if session[:new_vehicle_params].present? %>
+              <input type="hidden" name="create_new_vehicle" value="true">
+            <% end %>
+            
             <!-- Vehicle Summary Card -->
             <div class="card mb-4 border-primary bg-light">
               <div class="card-body py-3">
@@ -49,6 +69,15 @@
                           <%= @vehicle.year_of_manufacture %> • 
                           <span class="badge bg-info"><%= @vehicle.owner_name %></span>
                         </p>
+                        <% if @client_type == 'public' && @client_params.present? %>
+                          <small class="text-muted d-block mt-1">
+                            Client: <%= @client_params[:name] %> • <%= @client_params[:phone] %>
+                          </small>
+                        <% elsif @agency_id.present? %>
+                          <small class="text-muted d-block mt-1">
+                            Agency: <%= Agency.find_by(id: @agency_id)&.name %>
+                          </small>
+                        <% end %>
                       </div>
                     </div>
                   </div>

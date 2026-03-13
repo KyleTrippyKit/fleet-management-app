@@ -11,12 +11,12 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   before_action :disable_caching
 
   def index
-    # Stats for KPI cards
+    # Stats for KPI cards - FIXED: Use correct status values from PartsRequest enum
     @stats = {
       pending_parts: PartsRequest.where(status: 'pending').count,
-      pending_procurement: PartsRequest.where(status: 'procurement_notified').count,
+      pending_procurement: PartsRequest.where(status: 'parts_coordinator_notified').count,
       pending_finance: PartsRequest.where(status: 'finance_review').count,
-      ordered_count: PurchaseOrder.where(status: 'ordered').count,
+      ordered_count: PartsRequest.where(status: 'parts_ordered').count,
       parts_received: PartsRequest.where(status: 'parts_received').count,
       low_stock_count: Part.where('current_stock <= reorder_point').count,
       in_stock_count: Part.where('current_stock > reorder_point').count,
@@ -31,9 +31,9 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
                                   .order(created_at: :desc)
                                   .limit(20)
 
-    # With Procurement (Tab 2)
+    # With Procurement (Tab 2) - FIXED: Use parts_coordinator_notified
     @pending_procurement = PartsRequest.includes(inspection: :vehicle)
-                                        .where(status: 'procurement_notified')
+                                        .where(status: 'parts_coordinator_notified')
                                         .order(updated_at: :desc)
                                         .limit(20)
 
@@ -43,9 +43,9 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
                                     .order(updated_at: :desc)
                                     .limit(20)
 
-    # Ordered (Tab 4)
+    # Ordered (Tab 4) - FIXED: Use parts_ordered
     @ordered_requests = PartsRequest.includes(:purchase_order)
-                                     .where(status: 'ordered')
+                                     .where(status: 'parts_ordered')
                                      .order(updated_at: :desc)
                                      .limit(20)
 
@@ -87,13 +87,18 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   # Core workflow actions
   def mark_in_stock
     parts_request = PartsRequest.find(params[:id])
-    parts_request.update(status: 'in_stock')
+    # FIXED: Use correct status from enum
+    parts_request.update(status: 'parts_received', in_stock: true)
     redirect_to vmcott_inventory_manager_dashboard_path, notice: "Part marked as in stock"
   end
 
   def send_to_procurement
     parts_request = PartsRequest.find(params[:id])
-    parts_request.update(status: 'procurement_notified', sent_to_procurement_at: Time.current)
+    # FIXED: Use correct status from enum
+    parts_request.update(
+      status: 'parts_coordinator_notified', 
+      sent_to_procurement_at: Time.current
+    )
     redirect_to vmcott_inventory_manager_dashboard_path, notice: "Part sent to procurement team"
   end
 

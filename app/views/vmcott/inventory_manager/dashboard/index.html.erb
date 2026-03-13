@@ -234,20 +234,22 @@
                       <td>
                         <div class="btn-group btn-group-sm">
                           <% if pr.in_stock? %>
-                            <%= link_to "✓ Mark In Stock", 
+                            <%= button_to "✓ Mark In Stock", 
                                 vmcott_inventory_manager_mark_in_stock_path(pr.id),
                                 method: :post,
                                 class: "btn btn-success",
+                                form: { style: 'display: inline;', data: { turbo: false } },
                                 data: { confirm: "Mark this part as in-stock and approved?" } %>
                           <% else %>
-                            <%= link_to "📤 Send to Procurement", 
+                            <%= button_to "📤 Send to Procurement", 
                                 vmcott_inventory_manager_send_to_procurement_path(pr.id),
                                 method: :post,
                                 class: "btn btn-warning",
+                                form: { style: 'display: inline;', data: { turbo: false } },
                                 data: { confirm: "Send this part to procurement team for RFQ creation?" } %>
                           <% end %>
                           <%= link_to "🔍 View", 
-                              parts_request_path(pr),
+                              vmcott_parts_request_path(pr),
                               class: "btn btn-outline-secondary" %>
                         </div>
                       </td>
@@ -295,7 +297,7 @@
                       <td>
                         <span class="badge bg-warning"><%= pr.status.humanize %></span>
                       </td>
-                      <td><%= time_ago_in_words(pr.sent_to_procurement_at) %> ago</td>
+                      <td><%= pr.sent_to_procurement_at ? time_ago_in_words(pr.sent_to_procurement_at) + ' ago' : 'N/A' %></td>
                       <td>
                         <%= link_to "Track RFQ", 
                             vmcott_vendor_rfqs_path(part_id: pr.part_id),
@@ -409,13 +411,14 @@
                       </td>
                       <td>
                         <% if pr.purchase_order %>
-                          <%= link_to "Receive Parts", 
+                          <%= button_to "Receive Parts", 
                               receive_parts_vmcott_inventory_manager_path(
                                 purchase_order_id: pr.purchase_order_id,
                                 parts_request_id: pr.id
                               ),
                               method: :post,
                               class: "btn btn-sm btn-success",
+                              form: { data: { turbo: false } },
                               data: { confirm: "Mark parts as received?" } %>
                         <% end %>
                       </td>
@@ -431,7 +434,7 @@
       </div>
     </div>
 
-    <!-- TAB 5: Received -->
+    <!-- TAB 5: Received - ENHANCED WITH FEEDBACK -->
     <div class="tab-pane fade" id="received" role="tabpanel">
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
@@ -453,14 +456,16 @@
                 </thead>
                 <tbody>
                   <% @parts_received.each do |pr| %>
-                    <tr>
+                    <tr id="inspection-row-<%= pr.inspection_id %>">
                       <td>
                         <strong><%= pr.inspection&.vehicle&.license_plate %></strong><br>
                         <small><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
                       </td>
                       <td>
-                        <% pr.inspection.parts_requests.where(status: 'parts_received').each do |part_req| %>
-                          <div><small>✓ <%= part_req.part&.name %> x<%= part_req.quantity %></small></div>
+                        <% if pr.inspection %>
+                          <% pr.inspection.parts_requests.where(status: 'parts_received').each do |part_req| %>
+                            <div><small>✓ <%= part_req.part&.name %> x<%= part_req.quantity %></small></div>
+                          <% end %>
                         <% end %>
                       </td>
                       <td>#<%= pr.inspection_id %></td>
@@ -468,11 +473,22 @@
                         <span class="badge bg-success">All Parts Received</span>
                       </td>
                       <td>
-                        <%= link_to "Pass to Workshop", 
-                            vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
-                            method: :post,
-                            class: "btn btn-sm btn-success",
-                            data: { confirm: "All parts received. Pass this job to workshop?" } %>
+                        <div class="workshop-action" data-inspection-id="<%= pr.inspection_id %>">
+                          <%= button_to "🔧 Pass to Mechanic Workshop", 
+                              vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
+                              method: :post,
+                              class: "btn btn-sm btn-success pass-to-workshop-btn",
+                              form: { 
+                                data: { 
+                                  turbo: false,
+                                  inspection_id: pr.inspection_id
+                                } 
+                              },
+                              data: { 
+                                confirm: "All parts received. Pass this job to mechanic workshop?",
+                                disable_with: "Processing..."
+                              } %>
+                        </div>
                       </td>
                     </tr>
                   <% end %>
@@ -485,15 +501,27 @@
               <h6 class="mt-3">Inspections Ready for Workshop:</h6>
               <div class="list-group mt-2">
                 <% @ready_for_workshop.each do |inspection| %>
-                  <div class="list-group-item d-flex justify-content-between align-items-center">
+                  <div class="list-group-item d-flex justify-content-between align-items-center" id="workshop-item-<%= inspection.id %>">
                     <div>
                       <strong><%= inspection.vehicle.license_plate %></strong> - 
                       <%= inspection.vehicle.make %> <%= inspection.vehicle.model %>
                     </div>
-                    <%= link_to "Pass to Workshop", 
-                        vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
-                        method: :post,
-                        class: "btn btn-sm btn-success" %>
+                    <div class="workshop-action" data-inspection-id="<%= inspection.id %>">
+                      <%= button_to "🔧 Pass to Mechanic Workshop", 
+                          vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
+                          method: :post,
+                          class: "btn btn-sm btn-success pass-to-workshop-btn",
+                          form: { 
+                            data: { 
+                              turbo: false,
+                              inspection_id: inspection.id
+                            } 
+                          },
+                          data: { 
+                            confirm: "Pass this job to mechanic workshop?",
+                            disable_with: "Processing..."
+                          } %>
+                    </div>
                   </div>
                 <% end %>
               </div>
@@ -529,10 +557,11 @@
                           </small>
                         </div>
                         <div>
-                          <%= link_to "Mark Ordered", 
+                          <%= button_to "Mark Ordered", 
                               vmcott_inventory_manager_mark_po_ordered_path(po.id),
                               method: :post,
                               class: "btn btn-sm btn-success",
+                              form: { data: { turbo: false } },
                               data: { confirm: "Mark PO as ordered?" } %>
                         </div>
                       </div>
@@ -567,10 +596,11 @@
                           </small>
                         </div>
                         <div>
-                          <%= link_to "Receive", 
+                          <%= button_to "Receive", 
                               vmcott_inventory_manager_mark_po_received_path(po.id),
                               method: :post,
                               class: "btn btn-sm btn-success",
+                              form: { data: { turbo: false } },
                               data: { confirm: "Mark PO as received?" } %>
                         </div>
                       </div>
@@ -625,9 +655,7 @@
                         <% end %>
                       </td>
                       <td>
-                        <% if @parts_request && @parts_request.part_id == part.id %>
-                          <%= link_to "Create PO", vmcott_inventory_manager_create_rfq_path(parts_request_id: @parts_request.id), class: "btn btn-sm btn-warning" %>
-                        <% end %>
+                        <%= link_to "Create PO", vmcott_inventory_manager_create_rfq_path(parts_request_id: part.id), class: "btn btn-sm btn-warning" %>
                       </td>
                     </tr>
                   <% end %>
@@ -676,6 +704,44 @@
     </div>
   </div>
 </div>
+
+<!-- JavaScript for workshop feedback -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Handle workshop button clicks with visual feedback
+    document.querySelectorAll('.pass-to-workshop-btn').forEach(button => {
+      button.addEventListener('click', function(e) {
+        const form = this.closest('form');
+        if (form) {
+          const inspectionId = form.dataset.inspectionId || this.dataset.inspectionId;
+          
+          // Disable the button to prevent double submission
+          this.disabled = true;
+          this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+          
+          // Store in session that this was clicked (will be handled by controller)
+          // But we'll let the form submit naturally
+        }
+      });
+    });
+  });
+
+  // Check for flash messages after page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // If there's a success message in the URL or flash, we could highlight items
+    const urlParams = new URLSearchParams(window.location.search);
+    const passedId = urlParams.get('passed');
+    if (passedId) {
+      const row = document.getElementById(`inspection-row-${passedId}`);
+      if (row) {
+        row.style.backgroundColor = '#d4edda';
+        setTimeout(() => {
+          row.style.backgroundColor = '';
+        }, 3000);
+      }
+    }
+  });
+</script>
 
 <!-- Auto-refresh every 5 minutes -->
 <script>

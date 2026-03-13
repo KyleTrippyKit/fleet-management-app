@@ -121,20 +121,40 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             owner = Agency.find(params[:agency_id])
             Rails.logger.info "Owner is agency: #{owner.code}" if Rails.env.development?
           else # public client
+            # Validate required client fields
+            if params[:client][:name].blank?
+              flash[:alert] = "Client name is required for public vehicles"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            
+            if params[:client][:phone].blank?
+              flash[:alert] = "Phone number is required for public vehicles"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            
+            # Clean the phone number
+            phone = params[:client][:phone].to_s.strip.gsub(/[^0-9]/, '')
+            
             # Create or find client by phone number
-            owner = Client.find_or_initialize_by(phone: params[:client][:phone])
+            owner = Client.find_or_initialize_by(phone: phone)
             
             if owner.new_record?
               owner.assign_attributes(
-                name: params[:client][:name],
-                email: params[:client][:email],
-                address: params[:client][:address],
-                client_type: params[:client][:client_type] || 2, # Default to Individual
-                payment_terms: params[:client][:payment_terms] || 0, # Default to Cash
-                credit_limit: params[:client][:credit_limit],
+                name: params[:client][:name].to_s.strip,
+                email: params[:client][:email].to_s.strip.presence,
+                address: params[:client][:address].to_s.strip.presence,
+                client_type: params[:client][:client_type].presence || 'individual',
+                payment_terms: params[:client][:payment_terms].presence || 'cash',
+                credit_limit: params[:client][:credit_limit].presence,
                 is_active: true
               )
-              owner.save!
+              
+              unless owner.save
+                error_msg = "Could not create client: #{owner.errors.full_messages.join(', ')}"
+                Rails.logger.error error_msg
+                flash[:alert] = error_msg
+                redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+              end
               Rails.logger.info "Created new client: #{owner.name}" if Rails.env.development?
             else
               Rails.logger.info "Found existing client: #{owner.name}" if Rails.env.development?
@@ -288,7 +308,6 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           status: 'completed',
           ip_address: request.remote_ip,
           user_agent: request.user_agent
-          # client: client removed - not in ReceptionLog model
         )
         
         # Handle condition data
@@ -333,7 +352,6 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           status: 'checked_in',
           condition_report: @condition_report,
           condition_status: @condition_report.exterior_damage? ? 'damage_noted' : 'clean'
-          # client: client removed - this column doesn't exist
         )
         
         # Create vehicle status
@@ -365,7 +383,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   
   def reception_logs
     log_section("RECEPTION LOGS") if respond_to?(:log_section)
-    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :client)
+    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report)
                         .order(received_at: :desc)
                         .page(params[:page])
                         .per(20)
@@ -379,7 +397,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   end
   
   def show_reception_log
-    @log = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :inspector, :client)
+    @log = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :inspector)
                        .find(params[:id])
     
     # Disable caching
@@ -391,7 +409,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   end
   
   def today_logs
-    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer, :client)
+    @logs = ReceptionLog.includes(:vehicle, :security_gate_officer)
                         .where(received_at: Date.current.all_day)
                         .order(received_at: :desc)
     
@@ -512,16 +530,17 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       client = Agency.find(params[:agency_id])
     elsif params[:client_type] == 'public' && params[:client].present?
       client_params = params[:client]
-      client = Client.find_or_initialize_by(phone: client_params[:phone])
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      client = Client.find_or_initialize_by(phone: phone)
       
       if client.new_record?
         client.assign_attributes(
-          name: client_params[:name],
-          email: client_params[:email],
-          address: client_params[:address],
-          client_type: client_params[:client_type] || 2,
-          payment_terms: client_params[:payment_terms] || 0,
-          credit_limit: client_params[:credit_limit],
+          name: client_params[:name].to_s.strip,
+          email: client_params[:email].to_s.strip.presence,
+          address: client_params[:address].to_s.strip.presence,
+          client_type: client_params[:client_type].presence || 'individual',
+          payment_terms: client_params[:payment_terms].presence || 'cash',
+          credit_limit: client_params[:credit_limit].presence,
           is_active: true
         )
         client.save!
@@ -531,16 +550,17 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       client = Agency.find(session[:agency_id])
     elsif session[:client_type] == 'public' && session[:client_params].present?
       client_params = session[:client_params]
-      client = Client.find_or_initialize_by(phone: client_params[:phone])
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      client = Client.find_or_initialize_by(phone: phone)
       
       if client.new_record?
         client.assign_attributes(
-          name: client_params[:name],
-          email: client_params[:email],
-          address: client_params[:address],
-          client_type: client_params[:client_type] || 2,
-          payment_terms: client_params[:payment_terms] || 0,
-          credit_limit: client_params[:credit_limit],
+          name: client_params[:name].to_s.strip,
+          email: client_params[:email].to_s.strip.presence,
+          address: client_params[:address].to_s.strip.presence,
+          client_type: client_params[:client_type].presence || 'individual',
+          payment_terms: client_params[:payment_terms].presence || 'cash',
+          credit_limit: client_params[:credit_limit].presence,
           is_active: true
         )
         client.save!
@@ -559,16 +579,17 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       owner = Agency.find(all_params[:agency_id])
     elsif all_params[:client_type] == 'public' && all_params[:client].present?
       client_params = all_params[:client]
-      owner = Client.find_or_initialize_by(phone: client_params[:phone])
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
         owner.assign_attributes(
-          name: client_params[:name],
-          email: client_params[:email],
-          address: client_params[:address],
-          client_type: client_params[:client_type] || 2,
-          payment_terms: client_params[:payment_terms] || 0,
-          credit_limit: client_params[:credit_limit],
+          name: client_params[:name].to_s.strip,
+          email: client_params[:email].to_s.strip.presence,
+          address: client_params[:address].to_s.strip.presence,
+          client_type: client_params[:client_type].presence || 'individual',
+          payment_terms: client_params[:payment_terms].presence || 'cash',
+          credit_limit: client_params[:credit_limit].presence,
           is_active: true
         )
         owner.save!
@@ -597,16 +618,17 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       owner = Agency.find(session[:agency_id])
     elsif session[:client_type] == 'public' && session[:client_params].present?
       client_params = session[:client_params]
-      owner = Client.find_or_initialize_by(phone: client_params[:phone])
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
         owner.assign_attributes(
-          name: client_params[:name],
-          email: client_params[:email],
-          address: client_params[:address],
-          client_type: client_params[:client_type] || 2,
-          payment_terms: client_params[:payment_terms] || 0,
-          credit_limit: client_params[:credit_limit],
+          name: client_params[:name].to_s.strip,
+          email: client_params[:email].to_s.strip.presence,
+          address: client_params[:address].to_s.strip.presence,
+          client_type: client_params[:client_type].presence || 'individual',
+          payment_terms: client_params[:payment_terms].presence || 'cash',
+          credit_limit: client_params[:credit_limit].presence,
           is_active: true
         )
         owner.save!

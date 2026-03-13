@@ -127,26 +127,34 @@ module ApplicationHelper
   end
 
   # ============================================================
-  # PARTS REQUEST STATUS HELPERS - UPDATED WITH BADGE METHOD
+  # PARTS REQUEST STATUS HELPERS - UPDATED WITH COMPREHENSIVE METHODS
   # ============================================================
   def parts_request_status_color(status)
     case status.to_s
     when 'pending'
-      'secondary'
-    when 'billing_notified'
       'warning'
-    when 'rfq_sent'
+    when 'parts_coordinator_notified'
       'info'
+    when 'billing_notified'
+      'info'
+    when 'rfq_sent'
+      'primary'
     when 'quotations_received'
       'primary'
-    when 'ordered'
-      'info'
+    when 'finance_review'
+      'dark'
+    when 'purchase_order_created'
+      'secondary'
+    when 'parts_ordered'
+      'secondary'
     when 'parts_received'
       'success'
-    when 'in_stock'
+    when 'approved'
       'success'
+    when 'rejected'
+      'danger'
     else
-      'secondary'
+      'light'
     end
   end
 
@@ -154,21 +162,55 @@ module ApplicationHelper
   def parts_request_status_badge(status)
     color = parts_request_status_color(status)
     display_text = case status.to_s
+                  when 'parts_coordinator_notified'
+                    'With Coordinator'
                   when 'billing_notified'
-                    'Billing Notified'
+                    'With Billing'
                   when 'rfq_sent'
                     'RFQ Sent'
                   when 'quotations_received'
                     'Quotes Received'
+                  when 'finance_review'
+                    'Finance Review'
+                  when 'purchase_order_created'
+                    'PO Created'
+                  when 'parts_ordered'
+                    'Ordered'
                   when 'parts_received'
-                    'Parts Received'
-                  when 'in_stock'
-                    'In Stock'
+                    'Received'
                   else
                     status.to_s.titleize
                   end
     
     content_tag(:span, display_text, class: "badge bg-#{color}")
+  end
+
+  # NEW METHOD - Returns appropriate icon for each status
+  def status_icon(status)
+    case status.to_s
+    when 'pending'
+      'hourglass-split'
+    when 'parts_coordinator_notified', 'billing_notified'
+      'person-workspace'
+    when 'rfq_sent'
+      'file-text'
+    when 'quotations_received'
+      'file-earmark-check'
+    when 'finance_review'
+      'calculator'
+    when 'purchase_order_created'
+      'file-earmark-richtext'
+    when 'parts_ordered'
+      'truck'
+    when 'parts_received'
+      'check-circle'
+    when 'approved'
+      'check-circle-fill'
+    when 'rejected'
+      'x-circle'
+    else
+      'circle'
+    end
   end
 
   # ============================================================
