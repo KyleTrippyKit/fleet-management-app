@@ -192,9 +192,9 @@
                     
                     <div class="col-md-4">
                       <%= label_tag :new_vehicle_year_of_manufacture, "Year", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= number_field_tag "new_vehicle[year_of_manufacture]", nil, class: "form-control", id: "new_vehicle_year_of_manufacture", placeholder: "2023", min: 1900, max: Time.current.year + 1 %>
-                      <div class="invalid-feedback" id="new-year-error">Please enter year of manufacture</div>
+                      <!-- REMOVED THE ASTERISK -->
+                      <%= number_field_tag "new_vehicle[year_of_manufacture]", nil, class: "form-control", id: "new_vehicle_year_of_manufacture", placeholder: "2023 (optional)", min: 1900, max: Time.current.year + 1 %>
+                      <!-- REMOVED THE VALIDATION DIV -->
                     </div>
                     
                     <div class="col-md-4">
@@ -215,16 +215,16 @@
                     
                     <div class="col-md-6">
                       <%= label_tag :new_vehicle_chassis_number, "Chassis / VIN", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= text_field_tag "new_vehicle[chassis_number]", nil, class: "form-control", id: "new_vehicle_chassis_number", placeholder: "e.g., 1HGCM82633A123456" %>
-                      <div class="invalid-feedback" id="new-chassis-error">Please enter chassis number</div>
+                      <!-- REMOVED THE ASTERISK -->
+                      <%= text_field_tag "new_vehicle[chassis_number]", nil, class: "form-control", id: "new_vehicle_chassis_number", placeholder: "e.g., 1HGCM82633A123456 (optional)" %>
+                      <!-- REMOVED THE VALIDATION DIV -->
                     </div>
                     
                     <div class="col-md-6">
                       <%= label_tag :new_vehicle_serial_number, "Serial Number", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= text_field_tag "new_vehicle[serial_number]", nil, class: "form-control", id: "new_vehicle_serial_number", placeholder: "e.g., SN12345678" %>
-                      <div class="invalid-feedback" id="new-serial-error">Please enter serial number</div>
+                      <!-- REMOVED THE ASTERISK -->
+                      <%= text_field_tag "new_vehicle[serial_number]", nil, class: "form-control", id: "new_vehicle_serial_number", placeholder: "e.g., SN12345678 (optional)" %>
+                      <!-- REMOVED THE VALIDATION DIV -->
                     </div>
                     
                     <div class="col-md-6">
@@ -955,7 +955,7 @@
       }
       
       // ============================================
-      // FORM VALIDATION
+      // FORM VALIDATION - UPDATED TO REMOVE CHASSIS, SERIAL, AND YEAR
       // ============================================
       elements.vehicleForm.addEventListener('submit', function(e) {
         clearFieldErrors();
@@ -1022,13 +1022,10 @@
         const selectedVehicleId = document.getElementById('selected-vehicle-id').value;
         
         if (isNewVehicleMode) {
-          // New vehicle validation
+          // New vehicle validation - REMOVED CHASSIS, SERIAL, AND YEAR FROM REQUIRED FIELDS
           const requiredFields = [
             { field: elements.newMake, message: 'Please enter vehicle make' },
             { field: elements.newModel, message: 'Please enter vehicle model' },
-            { field: elements.newChassis, message: 'Please enter chassis number' },
-            { field: elements.newSerial, message: 'Please enter serial number' },
-            { field: elements.newYear, message: 'Please enter year of manufacture' },
             { field: elements.newType, message: 'Please select vehicle type' },
             { field: elements.newPlate, message: 'Please enter license plate' }
           ];
@@ -1048,6 +1045,8 @@
             markFieldInvalid(elements.newPlate);
             if (!firstErrorField) firstErrorField = elements.newPlate;
           }
+          
+          // CHASSIS, SERIAL, AND YEAR ARE NOW OPTIONAL - NO VALIDATION
         } else if (!selectedVehicleId) {
           hasErrors = true;
           errorMessages.push('Please select an existing vehicle or switch to new vehicle mode');

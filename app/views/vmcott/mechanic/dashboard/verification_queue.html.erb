@@ -1,0 +1,185 @@
+<%# app/views/vmcott/mechanic/dashboard/verification_queue.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2"><i class="bi bi-clipboard-check me-2"></i>Verification Queue</h1>
+          <p class="text-muted">Jobs waiting for your verification before QC</p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4 g-3">
+    <div class="col-md-4">
+      <div class="card bg-primary text-white h-100">
+        <div class="card-body">
+          <h6><i class="bi bi-hourglass-split me-2"></i>Pending Verification</h6>
+          <h2><%= @pending_verification&.count || 0 %></h2>
+          <small>Jobs needing your review</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-success text-white h-100">
+        <div class="card-body">
+          <h6><i class="bi bi-check-circle me-2"></i>Verified Today</h6>
+          <h2><%= @verified_today || 0 %></h2>
+          <small>Jobs you've verified</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-info text-white h-100">
+        <div class="card-body">
+          <h6><i class="bi bi-clock-history me-2"></i>Awaiting Your Action</h6>
+          <h2><%= @needs_action || 0 %></h2>
+          <small>Require attention</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending Verification Jobs -->
+  <div class="card mb-4">
+    <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-hourglass-split me-2"></i>Jobs Pending Your Verification</h5>
+      <span class="badge bg-dark"><%= @pending_verification&.count || 0 %> pending</span>
+    </div>
+    <div class="card-body">
+      <% if @pending_verification&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>Job #</th>
+                <th>Vehicle</th>
+                <th>Description</th>
+                <th>Completed By</th>
+                <th>Completed At</th>
+                <th>Parts</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @pending_verification.each do |job| %>
+                <% mechanic = User.find_by(id: job.assigned_mechanic_id) %>
+                <tr>
+                  <td><strong>#<%= job.id %></strong></td>
+                  <td>
+                    <%= job.inspection&.vehicle&.license_plate %><br>
+                    <small class="text-muted"><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td><%= job.description.truncate(50) %></td>
+                  <td><%= mechanic&.name || 'Unknown' %></td>
+                  <td>
+                    <span class="badge bg-success">
+                      <%= time_ago_in_words(job.completed_at) if job.completed_at %> ago
+                    </span>
+                  </td>
+                  <td>
+                    <% if job.inspection_job_parts&.any? %>
+                      <span class="badge bg-info"><%= job.inspection_job_parts.count %> parts</span>
+                    <% else %>
+                      <span class="badge bg-secondary">No parts</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <%= link_to "Verify →", 
+                        vmcott_mechanic_verification_path(job),
+                        class: "btn btn-sm btn-warning" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+          <h5 class="mt-3">All Caught Up!</h5>
+          <p class="text-muted">No jobs pending verification at this time.</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Recently Verified Jobs -->
+  <% if @recently_verified&.any? %>
+    <div class="card">
+      <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Recently Verified (Last 24 Hours)</h5>
+        <span class="badge bg-light text-success"><%= @recently_verified.count %> jobs</span>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>Job #</th>
+                <th>Vehicle</th>
+                <th>Result</th>
+                <th>Verified At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @recently_verified.each do |job| %>
+                <tr>
+                  <td>#<%= job.id %></td>
+                  <td><%= job.inspection&.vehicle&.license_plate %></td>
+                  <td>
+                    <% if job.verification_status == 'verified' %>
+                      <span class="badge bg-success">Verified</span>
+                    <% elsif job.verification_status == 'rejected' %>
+                      <span class="badge bg-danger">Rejected</span>
+                    <% elsif job.verification_status == 'different' %>
+                      <span class="badge bg-warning">Different</span>
+                    <% else %>
+                      <span class="badge bg-secondary">Pending</span>
+                    <% end %>
+                  </td>
+                  <td><%= time_ago_in_words(job.verified_at) if job.verified_at %> ago</td>
+                  <td>
+                    <%= link_to "View", vmcott_mechanic_job_path(job), class: "btn btn-sm btn-outline-primary" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<style>
+.card-header.bg-warning {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+}
+
+.card-header.bg-success {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+}
+
+.card.bg-primary {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%) !important;
+}
+
+.card.bg-success {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+}
+
+.card.bg-info {
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%) !important;
+}
+
+.table-hover tbody tr:hover {
+  background-color: #fef3c7;
+  cursor: pointer;
+}
+</style>

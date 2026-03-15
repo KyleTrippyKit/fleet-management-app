@@ -52,7 +52,7 @@ class Vmcott::Procurement::DashboardController < ApplicationController
       # Associate parts request with RFQ
       if params[:parts_request_id].present?
         parts_request = PartsRequest.find(params[:parts_request_id])
-        parts_request.update(status: 'rfq_sent')  # Changed from rfq_created to match enum
+        parts_request.update(status: 'rfq_sent')
         # Create RFQ item
         @rfq.vendor_rfq_items.create(
           part_id: parts_request.part_id,
@@ -104,6 +104,14 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   def forward_to_finance
     @rfq = VendorRfq.find(params[:rfq_id])
     if @rfq.update(status: 'finance_review', finance_review_ready: true)
+      # Update associated parts requests
+      @rfq.vendor_rfq_items.each do |item|
+        if item.part_id
+          PartsRequest.where(part_id: item.part_id, status: 'parts_coordinator_notified')
+                     .update_all(status: 'finance_review')
+        end
+      end
+      
       redirect_to vmcott_procurement_dashboard_path, notice: 'Quotations forwarded to finance'
     else
       redirect_to vmcott_procurement_dashboard_path, alert: 'Failed to forward quotations'
@@ -136,32 +144,27 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   private
 
   def load_parts_to_quote_count
-    # REMOVED AGENCY FILTER - Show ALL parts requests that need quotes
     PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
                 .count
   end
 
   def load_active_rfqs_count
-    # REMOVED AGENCY FILTER - Show ALL active RFQs
     VendorRfq.where(status: ['draft', 'sent'])
              .count
   end
 
   def load_quotes_received_count
-    # REMOVED AGENCY FILTER - Show ALL RFQs with quotes received
     VendorRfq.where(status: 'quotations_received')
              .count
   end
 
   def load_pending_forward_count
-    # REMOVED AGENCY FILTER - Show ALL RFQs ready for finance
     VendorRfq.where(status: 'quotations_received')
              .where.not(id: VendorQuotation.where(status: 'accepted').select(:vendor_rfq_id))
              .count
   end
 
   def load_pending_parts_requests
-    # REMOVED AGENCY FILTER - Show ALL parts requests that need quotes
     PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
                 .includes(:part, inspection: [:vehicle])
                 .order(created_at: :desc)
@@ -169,7 +172,6 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   end
 
   def load_active_rfqs
-    # REMOVED AGENCY FILTER - Show ALL active RFQs
     VendorRfq.where(status: ['draft', 'sent'])
              .includes(:vendor_rfq_items, :vendor_quotations)
              .order(created_at: :desc)
@@ -177,7 +179,6 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   end
 
   def load_quotations_received
-    # REMOVED AGENCY FILTER - Show ALL RFQs with quotes
     VendorRfq.where(status: 'quotations_received')
              .includes(:vendor_rfq_items, :vendor_quotations)
              .order(updated_at: :desc)
@@ -202,7 +203,6 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     end
   end
   
-  # Add this method to disable caching for all actions
   def disable_caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"

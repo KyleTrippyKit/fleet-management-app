@@ -25,6 +25,13 @@
           <h6><i class="bi bi-play-circle me-2"></i>Ready to Start</h6>
           <h2><%= @ready_jobs&.count || 0 %></h2>
           <small>Available right now</small>
+          <!-- NEW: Badge for new job notifications -->
+          <% new_jobs_count = @new_jobs_available.to_i %>
+          <% if new_jobs_count > 0 %>
+            <span class="position-absolute top-0 start-100 translate-middle p-2 bg-danger border border-light rounded-circle">
+              <span class="visually-hidden">New jobs available</span>
+            </span>
+          <% end %>
         </div>
       </div>
     </div>
@@ -53,6 +60,15 @@
     </div>
   </div>
 
+  <!-- NEW: Flash notification for new jobs -->
+  <% if flash[:job_ready] %>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+      <i class="bi bi-megaphone me-2"></i>
+      <strong><%= flash[:job_ready] %></strong>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <% end %>
+
   <!-- WORKFLOW STATUS - Simple like Inspector page -->
   <div class="card mb-4">
     <div class="card-header bg-dark text-white">
@@ -71,6 +87,7 @@
           qc_pending = @pending_qc.to_i
           qc_complete = @qc_complete.to_i
           ready_pickup = @ready_for_pickup.to_i
+          new_jobs_available = @new_jobs_available.to_i
           
           # Determine current active step
           current_step = if inspections_complete == 0
@@ -165,6 +182,9 @@
         <div class="alert alert-success mt-3 mb-0">
           <i class="bi bi-play-circle-fill me-2"></i>
           <strong>Ready to work!</strong> There <%= jobs_available == 1 ? 'is' : 'are' %> <strong><%= jobs_available %></strong> job<%= 's' if jobs_available > 1 %> waiting for you.
+          <% if new_jobs_available > 0 %>
+            <span class="badge bg-danger ms-2">🔥 NEW</span>
+          <% end %>
         </div>
       <% elsif current_step == 'repairs' && jobs_active > 0 %>
         <div class="alert alert-primary mt-3 mb-0">
@@ -328,15 +348,34 @@
   <div class="card mb-4">
     <div class="card-header bg-success text-white">
       <h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>✅ Ready to Start (<%= @ready_jobs&.count || 0 %>)</h5>
+      <!-- NEW: Badge for new jobs in this section -->
+      <% new_jobs_count = @new_jobs_available.to_i %>
+      <% if new_jobs_count > 0 %>
+        <span class="badge bg-warning text-dark ms-2">🔥 <%= new_jobs_count %> NEW</span>
+      <% end %>
     </div>
     <div class="card-body">
       <% if @ready_jobs&.any? %>
-        <p class="text-success mb-3"><i class="bi bi-info-circle me-1"></i> These jobs are ready for you to take right now!</p>
+        <p class="text-success mb-3">
+          <i class="bi bi-info-circle me-1"></i> These jobs are ready for you to take right now!
+          <!-- NEW: Visual indicator for new jobs -->
+          <% if new_jobs_count > 0 %>
+            <span class="badge bg-warning text-dark ms-2">🆕 New jobs just arrived!</span>
+          <% end %>
+        </p>
         <div class="row">
-          <% @ready_jobs.each do |job| %>
+          <% @ready_jobs.each_with_index do |job, index| %>
+            <% is_new_job = index < new_jobs_count %>
             <div class="col-md-6 col-lg-4 mb-3">
-              <div class="card border-success h-100">
+              <div class="card border-success h-100 <%= 'border-warning border-3' if is_new_job %>">
                 <div class="card-body">
+                  <!-- NEW: "NEW" badge for fresh jobs -->
+                  <% if is_new_job %>
+                    <div class="position-absolute top-0 end-0 m-2">
+                      <span class="badge bg-warning text-dark">NEW</span>
+                    </div>
+                  <% end %>
+                  
                   <div class="d-flex justify-content-between mb-2">
                     <h6 class="fw-bold">Job #<%= job.id %></h6>
                     <span class="badge bg-<%= job.priority == 'high' ? 'danger' : 'success' %>">
@@ -473,7 +512,7 @@
   <% end %>
 </div>
 
-<!-- Add CSS for workflow styling -->
+<!-- Add CSS for workflow styling and animations -->
 <style>
 .workflow-step {
   transition: all 0.2s ease;
@@ -493,5 +532,25 @@
 .bg-light.border.border-warning {
   background-color: #fff9e6 !important;
   border-width: 1px !important;
+}
+
+/* NEW: Animation for new job indicators */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.position-absolute.top-0.start-100.translate-middle.p-2.bg-danger {
+  animation: pulse 2s infinite;
+}
+
+.border-warning.border-3 {
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.border-warning.border-3:hover {
+  box-shadow: 0 0 0 5px rgba(255, 193, 7, 0.5);
 }
 </style>

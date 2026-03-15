@@ -3,6 +3,7 @@
 # UPDATED: Added vehicle_condition_reports association for Security Gate Officer
 # UPDATED: Replaced belongs_to :agency with polymorphic :owner (backward compatible)
 # FIXED: Owner code methods now properly handle Client objects
+# UPDATED: Added skip_optional_validation flag for manual entry form
 
 class Vehicle < ApplicationRecord
   # ------------------------------------------------------------
@@ -37,6 +38,9 @@ class Vehicle < ApplicationRecord
   attr_accessor :remove_primary_photo
   # Virtual attributes for form UI helpers (not DB columns)
   attr_accessor :make_model_ui, :license_registration_ui
+  
+  # ===== NEW: Flag to skip optional validations for manual entry form =====
+  attr_accessor :skip_optional_validation
 
   # ------------------------------------------------------------
   # Trinidad & Tobago license plate rules
@@ -57,7 +61,11 @@ class Vehicle < ApplicationRecord
   # ------------------------------------------------------------
   validates :owner, presence: true
   validates :make, :model, :vehicle_type, :license_plate, presence: true
-  validates :chassis_number, :serial_number, :year_of_manufacture, presence: true
+  
+  # ===== UPDATED: Make chassis_number, serial_number, and year optional when flag is set =====
+  validates :chassis_number, presence: true, unless: :skip_optional_validation
+  validates :serial_number, presence: true, unless: :skip_optional_validation
+  validates :year_of_manufacture, presence: true, unless: :skip_optional_validation
 
   validates :license_plate, uniqueness: true
   validates :registration_number, uniqueness: true, allow_blank: true

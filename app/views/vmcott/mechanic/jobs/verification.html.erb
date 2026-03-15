@@ -1,0 +1,270 @@
+<%# app/views/vmcott/mechanic/jobs/verification.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Header with Back Button -->
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2"><i class="bi bi-clipboard-check me-2"></i>Verify Job</h1>
+          <% if @job %>
+            <p class="text-muted">Job #<%= @job.id %> - <%= @job.description %></p>
+          <% end %>
+        </div>
+        <%= link_to "← Back to Verification Queue", vmcott_mechanic_verification_queue_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error/Success Messages -->
+  <% if flash[:alert] %>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <%= flash[:alert] %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% end %>
+
+  <% if @job %>
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <!-- Vehicle Info Card -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-truck me-2"></i>Vehicle Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>License Plate:</strong> <%= @vehicle&.license_plate || 'N/A' %></p>
+                <p><strong>Make/Model:</strong> <%= @vehicle&.make %> <%= @vehicle&.model %></p>
+              </div>
+              <div class="col-md-6">
+                <p><strong>Year:</strong> <%= @vehicle&.year_of_manufacture %></p>
+                <p><strong>Color:</strong> <%= @vehicle&.color || 'N/A' %></p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Inspector's Notes Card -->
+        <div class="card mb-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Inspector's Findings</h5>
+          </div>
+          <div class="card-body">
+            <p><strong>Inspector Notes:</strong></p>
+            <div class="bg-light p-3 rounded mb-3">
+              <%= @job.inspection&.notes || 'No notes provided' %>
+            </div>
+            
+            <p><strong>Suspected Parts Needed:</strong></p>
+            <ul class="list-group">
+              <% if @job.inspection_job_parts&.any? %>
+                <% @job.inspection_job_parts.each do |part| %>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <%= part.part&.name || part.custom_part_name %>
+                    <span class="badge bg-primary rounded-pill">x<%= part.quantity %></span>
+                  </li>
+                <% end %>
+              <% else %>
+                <li class="list-group-item text-muted">No parts specified by inspector</li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+        
+        <!-- Verification Form -->
+        <div class="card mb-4">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i>Your Verification</h5>
+          </div>
+          <div class="card-body">
+            <%= form_with model: @job, url: vmcott_mechanic_submit_verification_path(@job), method: :post, local: true, id: "verification-form" do |f| %>
+              
+              <div class="form-group mb-4">
+                <%= f.label :verification_status, "Verification Result", class: "form-label fw-bold" %>
+                <%= f.select :verification_status, 
+                      [
+                        ['✅ Verified - Issue Confirmed', 'verified'],
+                        ['❌ Not Found - No Issue', 'rejected'],
+                        ['⚠️ Different Issue Found', 'different']
+                      ],
+                      { prompt: 'Select verification result' },
+                      class: 'form-select form-select-lg',
+                      required: true,
+                      id: 'verification-status' %>
+              </div>
+              
+              <div class="form-group mb-4">
+                <%= f.label :mechanic_notes, "Mechanic's Findings", class: "form-label fw-bold" %>
+                <%= f.text_area :mechanic_notes, rows: 4, class: 'form-control',
+                      placeholder: 'Describe what you actually found during inspection...',
+                      required: true %>
+                <div class="form-text">Be specific about what you observed.</div>
+              </div>
+              
+              <!-- Different Issue Fields (hidden by default) -->
+              <div id="different-issue-fields" style="display: none;" class="border-start border-4 border-warning ps-3 mb-4">
+                <h5 class="text-warning mb-3">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  What's the correct issue?
+                </h5>
+                
+                <%= f.fields_for :corrected_job do |cj| %>
+                  <div class="form-group mb-3">
+                    <%= cj.label :description, "Correct Job Description", class: "form-label fw-bold" %>
+                    <%= cj.text_field :description, class: 'form-control', 
+                          placeholder: 'e.g., Replace brake pads - front' %>
+                    <div class="form-text">Describe the actual repair needed.</div>
+                  </div>
+                <% end %>
+                
+                <div class="form-group mb-3">
+                  <label class="form-label fw-bold">Parts Actually Needed</label>
+                  <div id="mechanic-parts-container">
+                    <!-- Dynamic parts will be added here -->
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-mechanic-part">
+                    <i class="bi bi-plus-circle me-1"></i> Add Part
+                  </button>
+                </div>
+              </div>
+              
+              <div class="d-grid gap-2">
+                <%= f.submit "Submit Verification", class: "btn btn-primary btn-lg", id: "submit-btn" %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-warning">
+      <h4 class="alert-heading">Job Not Found</h4>
+      <p>The job you're trying to verify could not be found.</p>
+      <hr>
+      <%= link_to "Return to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-primary" %>
+    </div>
+  <% end %>
+</div>
+
+<!-- Template for dynamic part rows -->
+<template id="mechanic-part-template">
+  <div class="mechanic-part-row card mb-2">
+    <div class="card-body py-2">
+      <div class="row g-2">
+        <div class="col-md-6">
+          <select name="parts[][part_id]" class="form-select form-select-sm part-select">
+            <option value="">Select Part</option>
+            <% Part.where(is_active: true).order(:name).each do |part| %>
+              <option value="<%= part.id %>" data-stock="<%= part.current_stock %>">
+                <%= part.name %> (Stock: <%= part.current_stock %>)
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <input type="number" name="parts[][quantity]" class="form-control form-control-sm" value="1" min="1">
+        </div>
+        <div class="col-md-3">
+          <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="removeMechanicPart(this)">
+            <i class="bi bi-trash"></i> Remove
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const statusSelect = document.getElementById('verification-status');
+  const differentFields = document.getElementById('different-issue-fields');
+  const addPartBtn = document.getElementById('add-mechanic-part');
+  const partsContainer = document.getElementById('mechanic-parts-container');
+  const form = document.getElementById('verification-form');
+  
+  // Toggle different issue fields
+  if (statusSelect) {
+    statusSelect.addEventListener('change', function() {
+      const isDifferent = this.value === 'different';
+      if (differentFields) {
+        differentFields.style.display = isDifferent ? 'block' : 'none';
+      }
+    });
+  }
+  
+  // Add part row
+  if (addPartBtn) {
+    addPartBtn.addEventListener('click', addMechanicPartRow);
+  }
+  
+  // Form validation
+  if (form) {
+    form.addEventListener('submit', validateForm);
+  }
+});
+
+function addMechanicPartRow() {
+  const template = document.getElementById('mechanic-part-template');
+  const clone = template.content.cloneNode(true);
+  document.getElementById('mechanic-parts-container').appendChild(clone);
+}
+
+function removeMechanicPart(btn) {
+  btn.closest('.mechanic-part-row').remove();
+}
+
+function validateForm(e) {
+  const status = document.getElementById('verification-status')?.value;
+  
+  if (!status) {
+    e.preventDefault();
+    alert('Please select a verification result.');
+    return false;
+  }
+  
+  const mechanicNotes = document.querySelector('[name="inspection_job[mechanic_notes]"]')?.value;
+  if (!mechanicNotes || mechanicNotes.trim() === '') {
+    e.preventDefault();
+    alert('Please enter your findings in the Mechanic\'s Notes field.');
+    return false;
+  }
+  
+  if (status === 'different') {
+    const correctedDesc = document.querySelector('[name="inspection_job[corrected_job][description]"]');
+    if (!correctedDesc || !correctedDesc.value.trim()) {
+      e.preventDefault();
+      alert('Please describe the correct issue when selecting "Different Issue Found".');
+      return false;
+    }
+  }
+}
+</script>
+
+<style>
+#different-issue-fields {
+  background-color: #fff9e6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.mechanic-part-row {
+  transition: all 0.2s;
+}
+
+.mechanic-part-row:hover {
+  background-color: #f8f9fa;
+}
+
+.card-header.bg-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.card-header.bg-info {
+  background: linear-gradient(135deg, #3b8fc2 0%, #2c6b9c 100%) !important;
+}
+
+.card-header.bg-success {
+  background: linear-gradient(135deg, #48bb78 0%, #2f855a 100%) !important;
+}
+</style>

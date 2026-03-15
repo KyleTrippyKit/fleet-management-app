@@ -161,9 +161,14 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             end
           end
           
+          # ===== FIX: Make chassis_number and serial_number optional for this form =====
           # Create the vehicle using new_vehicle_params
           vehicle = Vehicle.new(new_vehicle_params)
           vehicle.owner = owner
+          
+          # Set a flag to skip validation for chassis and serial numbers
+          # This requires adding attr_accessor :skip_optional_validation to your Vehicle model
+          vehicle.skip_optional_validation = true
           
           unless vehicle.save
             error_msg = "Could not create vehicle: #{vehicle.errors.full_messages.join(', ')}"
@@ -171,6 +176,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             flash[:alert] = error_msg
             redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
           end
+          # ===== END FIX =====
           
           Rails.logger.info "Created new vehicle: #{vehicle.license_plate}" if Rails.env.development?
         else
@@ -600,6 +606,9 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     vehicle = Vehicle.new(vehicle_params)
     vehicle.owner = owner
     
+    # ===== FIX: Make chassis_number and serial_number optional here too =====
+    vehicle.skip_optional_validation = true
+    
     unless vehicle.save
       raise "Could not create vehicle: #{vehicle.errors.full_messages.join(', ')}"
     end
@@ -638,6 +647,9 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     # Create vehicle
     vehicle = Vehicle.new(session[:new_vehicle_params])
     vehicle.owner = owner
+    
+    # ===== FIX: Make chassis_number and serial_number optional here too =====
+    vehicle.skip_optional_validation = true
     
     unless vehicle.save
       raise "Could not create vehicle from session: #{vehicle.errors.full_messages.join(', ')}"

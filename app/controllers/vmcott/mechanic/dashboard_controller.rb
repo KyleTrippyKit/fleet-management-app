@@ -39,13 +39,22 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                .limit(20)
 
     # ========================================
-    # WAITING JOBS - All jobs that aren't ready yet
+    # FIXED: WAITING JOBS - Using subquery instead of join
     # ========================================
+    ready_job_ids = @ready_jobs.pluck(:id)
+    
+    # Get IDs of jobs that have parts requests (if the association exists)
+    begin
+      jobs_with_parts = InspectionJob.joins(:parts_requests).pluck(:id)
+    rescue
+      # If association doesn't exist, just use empty array
+      jobs_with_parts = []
+    end
+    
     @waiting_jobs = InspectionJob.includes(inspection: :vehicle)
                                  .where(assigned_mechanic_id: nil, completed_at: nil)
-                                 .where.not(
-                                   id: @ready_jobs.select(:id)
-                                 )
+                                 .where.not(id: ready_job_ids)
+                                 .distinct
                                  .order(created_at: :desc)
                                  .limit(20)
 
@@ -83,6 +92,27 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                        .order(completed_at: :desc)
                                        .limit(10)
 
+    # ========================================
+    # WORKFLOW STATUS VARIABLES
+    # ========================================
+    @inspections_complete = Inspection.where(status: ['approved_for_repair', 'ready_for_qc', 'qc_completed']).count
+    @parts_complete = PartsRequest.where(status: ['approved', 'parts_received']).count
+    @parts_pending = PartsRequest.where(status: ['pending', 'parts_coordinator_notified']).count
+    @assigned_jobs_count = MechanicAssignment.where(mechanic_id: current_user.id, status: ['assigned', 'in_progress']).count
+    @available_jobs_count = @ready_jobs.count
+    
+    @repairs_complete = InspectionJob.where.not(completed_at: nil)
+                                     .where('inspection_jobs.completed_at >= ?', Time.current.beginning_of_day)
+                                     .count
+    
+    @qc_complete = InspectionJob.where(verification_status: 'verified')
+                                .where('inspection_jobs.verified_at > ?', 24.hours.ago)
+                                .count
+    
+    @ready_for_pickup = Inspection.where(status: 'ready_for_pickup').count
+    
+    @new_jobs_available = @ready_jobs.where('inspection_jobs.created_at > ?', 1.hour.ago).count
+
     # For backward compatibility
     @assigned_jobs = @my_jobs
     @taken_jobs = @other_mechanics_jobs
@@ -106,20 +136,59 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @taken_jobs = []
     @ready_to_take_jobs = []
     @not_ready_jobs = []
+    @inspections_complete = 0
+    @parts_complete = 0
+    @parts_pending = 0
+    @assigned_jobs_count = 0
+    @available_jobs_count = 0
+    @repairs_complete = 0
+    @qc_complete = 0
+    @ready_for_pickup = 0
+    @new_jobs_available = 0
   end
 
+  # ========================================
+  # VERIFICATION QUEUE - Jobs needing verification
+  # ========================================
   def verification_queue
-    # Disable caching for this action
+    # Set headers to prevent caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
-    @jobs_needing_verification = InspectionJob.includes(inspection: :vehicle)
-                                              .where(assigned_mechanic_id: nil, 
-                                                     completed_at: nil,
-                                                     verification_status: 'pending')
-                                              .order(created_at: :asc)
-    render 'vmcott/mechanic/dashboard/verification_queue'
+    # Jobs pending verification
+    @pending_verification = InspectionJob.includes(inspection: :vehicle)
+                                         .where(verification_status: 'pending')
+                                         .where(assigned_mechanic_id: nil)
+                                         .order(created_at: :desc)
+                                         .limit(50)
+    
+    # Recently verified jobs (last 24 hours)
+    @recently_verified = InspectionJob.includes(inspection: :vehicle)
+                                      .where(verification_status: ['verified', 'rejected', 'different'])
+                                      .where('inspection_jobs.verified_at > ?', 24.hours.ago)
+                                      .order(verified_at: :desc)
+                                      .limit(30)
+    
+    # Stats
+    @verified_today = InspectionJob.where(verification_status: ['verified', 'rejected', 'different'])
+                                   .where('inspection_jobs.verified_at > ?', Time.current.beginning_of_day)
+                                   .count
+    
+    @needs_action = InspectionJob.where(verification_status: 'pending').count
+    
+    # Add link to verification queue in the view
+    @show_verification_link = @pending_verification.any?
+  rescue => e
+    Rails.logger.error "Error in verification_queue: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    flash[:alert] = "An error occurred while loading the verification queue: #{e.message}"
+    
+    @pending_verification = []
+    @recently_verified = []
+    @verified_today = 0
+    @needs_action = 0
+    @show_verification_link = false
   end
 
   def verify_job
@@ -398,7 +467,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
-    assignment = MechanicAssignment.find_or_initialize_by(
+    assignment = MechanicAssignment.find_or_initializeBy(
       inspection_job_id: @job.id,
       mechanic_id: current_user.id
     )
@@ -698,11 +767,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   end
 
   def notify_parts_coordinator(inspection)
-    coordinator_ids = User.where(role: 'parts_coordinator').pluck(:id)
+    coordinator_ids = User.where(role: 'inventory_manager').pluck(:id)
     Notification.create!(
       title: "Parts Required",
       message: "Inspection ##{inspection.id} for #{inspection.vehicle.license_plate} has parts that need ordering.",
-      link: "/vmcott/parts_coordinator/dashboard",
+      link: "/vmcott/inventory_manager/dashboard",
       user_id: coordinator_ids,
       notifiable_type: 'Inspection',
       notifiable_id: inspection.id
