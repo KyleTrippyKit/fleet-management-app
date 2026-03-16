@@ -34,11 +34,19 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   def new_rfq
     @parts_request = PartsRequest.find(params[:parts_request_id])
     @rfq = VendorRfq.new
+    @suppliers = Supplier.where(is_active: true).order(:name).limit(50)
+    
+    # Set default values for the RFQ
+    @rfq.rfq_number = generate_rfq_number
+    @rfq.due_date = 7.days.from_now
     
     # Disable caching for this action
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+  rescue ActiveRecord::RecordNotFound
+    flash[:alert] = "Parts request not found"
+    redirect_to vmcott_procurement_dashboard_path
   end
 
   def create_rfq
@@ -52,7 +60,8 @@ class Vmcott::Procurement::DashboardController < ApplicationController
       # Associate parts request with RFQ
       if params[:parts_request_id].present?
         parts_request = PartsRequest.find(params[:parts_request_id])
-        parts_request.update(status: 'rfq_sent')
+        parts_request.update(status: 'rfq_sent', rfq_sent_at: Time.current)
+        
         # Create RFQ item
         @rfq.vendor_rfq_items.create(
           part_id: parts_request.part_id,
@@ -60,17 +69,33 @@ class Vmcott::Procurement::DashboardController < ApplicationController
           quantity: parts_request.quantity,
           description: parts_request.part&.description
         )
+        
+        # Handle supplier selections if present
+        if params[:vendor_rfq][:supplier_ids].present?
+          # Store selected suppliers in a join table or session
+          # This depends on your data model
+          # For now, we'll just note it in the RFQ notes
+          supplier_count = params[:vendor_rfq][:supplier_ids].count
+          @rfq.update(notes: "#{@rfq.notes}\nSelected #{supplier_count} suppliers for RFQ.")
+        end
       end
       
-      redirect_to vmcott_procurement_dashboard_path, notice: 'RFQ created successfully'
+      redirect_to vmcott_procurement_dashboard_path, notice: 'RFQ created successfully. You can now send it to suppliers.'
     else
+      @parts_request = PartsRequest.find(params[:parts_request_id]) if params[:parts_request_id].present?
+      @suppliers = Supplier.where(is_active: true).order(:name).limit(50)
       render :new_rfq
     end
+  rescue => e
+    Rails.logger.error "Error creating RFQ: #{e.message}"
+    flash[:alert] = "Error creating RFQ: #{e.message}"
+    redirect_to vmcott_procurement_dashboard_path
   end
 
   def send_rfq
     @rfq = VendorRfq.find(params[:id])
     if @rfq.update(status: 'sent', sent_date: Time.current)
+      # You could add logic here to actually email suppliers
       redirect_to vmcott_procurement_dashboard_path, notice: 'RFQ sent to suppliers'
     else
       redirect_to vmcott_procurement_dashboard_path, alert: 'Failed to send RFQ'
@@ -81,11 +106,15 @@ class Vmcott::Procurement::DashboardController < ApplicationController
   def upload_quotation
     @rfq = VendorRfq.find(params[:rfq_id])
     @quotation = @rfq.vendor_quotations.new
+    @suppliers = Supplier.where(is_active: true).order(:name)
     
     # Disable caching for this action
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+  rescue ActiveRecord::RecordNotFound
+    flash[:alert] = "RFQ not found"
+    redirect_to vmcott_procurement_dashboard_path
   end
 
   def create_quotation
@@ -95,10 +124,24 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     
     if @quotation.save
       @rfq.update(status: 'quotations_received')
+      
+      # Update associated parts requests
+      @rfq.vendor_rfq_items.each do |item|
+        if item.part_id
+          PartsRequest.where(part_id: item.part_id, status: 'rfq_sent')
+                     .update_all(status: 'quotations_received')
+        end
+      end
+      
       redirect_to vmcott_procurement_dashboard_path, notice: 'Quotation uploaded successfully'
     else
+      @suppliers = Supplier.where(is_active: true).order(:name)
       render :upload_quotation
     end
+  rescue => e
+    Rails.logger.error "Error creating quotation: #{e.message}"
+    flash[:alert] = "Error uploading quotation: #{e.message}"
+    redirect_to vmcott_procurement_dashboard_path
   end
 
   def forward_to_finance
@@ -107,15 +150,19 @@ class Vmcott::Procurement::DashboardController < ApplicationController
       # Update associated parts requests
       @rfq.vendor_rfq_items.each do |item|
         if item.part_id
-          PartsRequest.where(part_id: item.part_id, status: 'parts_coordinator_notified')
+          PartsRequest.where(part_id: item.part_id, status: 'quotations_received')
                      .update_all(status: 'finance_review')
         end
       end
       
-      redirect_to vmcott_procurement_dashboard_path, notice: 'Quotations forwarded to finance'
+      redirect_to vmcott_procurement_dashboard_path, notice: 'Quotations forwarded to finance for review'
     else
       redirect_to vmcott_procurement_dashboard_path, alert: 'Failed to forward quotations'
     end
+  rescue => e
+    Rails.logger.error "Error forwarding to finance: #{e.message}"
+    flash[:alert] = "Error forwarding quotations: #{e.message}"
+    redirect_to vmcott_procurement_dashboard_path
   end
 
   # Legacy routes
@@ -139,6 +186,8 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     render partial: 'po_details', locals: { po: @purchase_order }
+  rescue ActiveRecord::RecordNotFound
+    render plain: "Purchase order not found", status: :not_found
   end
 
   private

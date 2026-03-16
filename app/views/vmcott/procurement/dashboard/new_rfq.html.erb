@@ -1,0 +1,162 @@
+<%# app/views/vmcott/procurement/dashboard/new_rfq.html.erb %>
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">
+            <i class="bi bi-file-text me-2"></i>
+            Create New RFQ
+          </h1>
+          <p class="text-muted">Request for Quotation for parts</p>
+        </div>
+        <div class="btn-group">
+          <%= link_to "← Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flash Messages -->
+  <% if flash[:alert] %>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      <%= flash[:alert] %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% end %>
+
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>RFQ Details</h5>
+        </div>
+        <div class="card-body">
+          <%= form_with model: @rfq, url: vmcott_procurement_create_rfq_path, method: :post, local: true do |f| %>
+            <%= hidden_field_tag :parts_request_id, @parts_request.id %>
+
+            <!-- Parts Request Info -->
+            <div class="alert alert-info mb-4">
+              <h6 class="alert-heading fw-bold">Request Details</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <p class="mb-1">
+                    <strong>Part:</strong> 
+                    <%= @parts_request.part&.name || @parts_request.custom_part_name || 'Unknown Part' %>
+                  </p>
+                  <p class="mb-1">
+                    <strong>Quantity:</strong> 
+                    <%= @parts_request.quantity || 1 %>
+                  </p>
+                  <% if @parts_request.part&.part_number.present? %>
+                    <p class="mb-1">
+                      <strong>Part #:</strong> 
+                      <%= @parts_request.part.part_number %>
+                    </p>
+                  <% end %>
+                </div>
+                <div class="col-md-6">
+                  <p class="mb-1">
+                    <strong>Vehicle:</strong> 
+                    <%= @parts_request.inspection&.vehicle&.license_plate || 'N/A' %>
+                  </p>
+                  <p class="mb-1">
+                    <strong>Make/Model:</strong> 
+                    <%= @parts_request.inspection&.vehicle&.make %> <%= @parts_request.inspection&.vehicle&.model %>
+                  </p>
+                  <p class="mb-1">
+                    <strong>Requested By:</strong> 
+                    <%= @parts_request.inspection&.inspector&.name || 'Mechanic' %>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- RFQ Number (auto-generated) -->
+            <div class="mb-3">
+              <%= f.label :rfq_number, "RFQ Number", class: "form-label fw-bold" %>
+              <%= f.text_field :rfq_number, 
+                    class: "form-control", 
+                    value: "RFQ-#{Time.current.strftime('%Y%m')}-#{SecureRandom.hex(4).upcase}", 
+                    readonly: true %>
+              <div class="form-text">Auto-generated RFQ number</div>
+            </div>
+
+            <!-- Due Date -->
+            <div class="mb-3">
+              <%= f.label :due_date, "Response Due Date", class: "form-label fw-bold" %>
+              <%= f.date_field :due_date, 
+                    class: "form-control", 
+                    value: 7.days.from_now, 
+                    min: Date.today %>
+              <div class="form-text">Suppliers should respond by this date (default: 7 days)</div>
+            </div>
+
+            <!-- Notes -->
+            <div class="mb-3">
+              <%= f.label :notes, "Special Instructions / Notes", class: "form-label fw-bold" %>
+              <%= f.text_area :notes, 
+                    rows: 4, 
+                    class: "form-control", 
+                    placeholder: "Any special requirements, delivery instructions, quality specifications, etc." %>
+            </div>
+
+            <!-- Supplier Selection (if you want to add this feature) -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Select Suppliers (Optional)</label>
+              <p class="text-muted small">Choose specific suppliers to send this RFQ to</p>
+              <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                <% if @suppliers.present? %>
+                  <% @suppliers.each do |supplier| %>
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" 
+                             name="vendor_rfq[supplier_ids][]" 
+                             value="<%= supplier.id %>" 
+                             id="supplier_<%= supplier.id %>">
+                      <label class="form-check-label" for="supplier_<%= supplier.id %>">
+                        <strong><%= supplier.name %></strong>
+                        <% if supplier.contact_person.present? %>
+                          <br><small class="text-muted">Contact: <%= supplier.contact_person %></small>
+                        <% end %>
+                      </label>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <p class="text-muted mb-0">
+                    No suppliers available. 
+                    <%= link_to "Add suppliers", suppliers_path %> first.
+                  </p>
+                <% end %>
+              </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="d-flex justify-content-between">
+              <%= link_to "Cancel", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
+              <%= f.submit "Create RFQ", 
+                    class: "btn btn-primary", 
+                    data: { disable_with: "Creating..." } %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Help Card -->
+      <div class="card mt-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="bi bi-question-circle me-2"></i>RFQ Process</h6>
+        </div>
+        <div class="card-body">
+          <ol class="mb-0">
+            <li>Review the parts request details above</li>
+            <li>Set a due date for supplier responses</li>
+            <li>Add any special instructions or notes</li>
+            <li>Click "Create RFQ" to generate the Request for Quotation</li>
+            <li>After creation, you'll be able to send it to suppliers from the dashboard</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

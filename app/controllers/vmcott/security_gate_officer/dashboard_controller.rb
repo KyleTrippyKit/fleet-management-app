@@ -106,6 +106,15 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         vehicle = nil
         owner = nil
         
+        # Get client type from form (new field)
+        client_type = params[:selected_client_type]
+        
+        # Validate client type was selected
+        if client_type.blank?
+          flash[:alert] = "Please select a client type"
+          redirect_to vmcott_security_gate_officer_manual_entry_path and return
+        end
+        
         # CASE 1: Existing vehicle selected
         if params[:vehicle_id].present?
           vehicle = Vehicle.find(params[:vehicle_id])
@@ -117,57 +126,93 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           Rails.logger.info "Creating new vehicle" if Rails.env.development?
           
           # Determine owner based on client type
-          if params[:client_type] == 'agency'
-            owner = Agency.find(params[:agency_id])
-            Rails.logger.info "Owner is agency: #{owner.code}" if Rails.env.development?
-          else # public client
-            # Validate required client fields
-            if params[:client][:name].blank?
-              flash[:alert] = "Client name is required for public vehicles"
+          if client_type == 'agency'
+            # AGENCY
+            if params[:agency_id].blank?
+              flash[:alert] = "Please select an agency"
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
+            owner = Agency.find(params[:agency_id])
+            Rails.logger.info "Owner is agency: #{owner.code}" if Rails.env.development?
             
-            if params[:client][:phone].blank?
-              flash[:alert] = "Phone number is required for public vehicles"
+          elsif client_type == 'walkin'
+            # WALK-IN CUSTOMER
+            if params[:walkin][:name].blank?
+              flash[:alert] = "Customer name is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            if params[:walkin][:phone].blank?
+              flash[:alert] = "Phone number is required"
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
             
             # Clean the phone number
-            phone = params[:client][:phone].to_s.strip.gsub(/[^0-9]/, '')
+            phone = params[:walkin][:phone].to_s.strip.gsub(/[^0-9]/, '')
             
-            # Create or find client by phone number
-            owner = Client.find_or_initialize_by(phone: phone)
+            # Create walk-in client
+            owner = Client.create!(
+              name: params[:walkin][:name].to_s.strip,
+              phone: phone,
+              email: params[:walkin][:email].to_s.strip.presence,
+              address: params[:walkin][:address].to_s.strip.presence,
+              id_number: params[:walkin][:id_number].to_s.strip.presence,
+              client_type: 'individual',
+              payment_terms: 'cash_on_pickup',
+              is_active: true
+            )
+            Rails.logger.info "Created walk-in client: #{owner.name}" if Rails.env.development?
             
-            if owner.new_record?
-              owner.assign_attributes(
-                name: params[:client][:name].to_s.strip,
-                email: params[:client][:email].to_s.strip.presence,
-                address: params[:client][:address].to_s.strip.presence,
-                client_type: params[:client][:client_type].presence || 'individual',
-                payment_terms: params[:client][:payment_terms].presence || 'cash',
-                credit_limit: params[:client][:credit_limit].presence,
-                is_active: true
-              )
-              
-              unless owner.save
-                error_msg = "Could not create client: #{owner.errors.full_messages.join(', ')}"
-                Rails.logger.error error_msg
-                flash[:alert] = error_msg
-                redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
-              end
-              Rails.logger.info "Created new client: #{owner.name}" if Rails.env.development?
-            else
-              Rails.logger.info "Found existing client: #{owner.name}" if Rails.env.development?
+          elsif client_type == 'new_company'
+            # NEW COMPANY
+            # Validate required fields
+            if params[:company][:name].blank?
+              flash[:alert] = "Company name is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
+            if params[:company][:contact_person].blank?
+              flash[:alert] = "Contact person is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            if params[:company][:phone].blank?
+              flash[:alert] = "Phone number is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            if params[:company][:email].blank?
+              flash[:alert] = "Email address is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            if params[:company][:address].blank?
+              flash[:alert] = "Business address is required"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            if params[:company][:payment_terms].blank?
+              flash[:alert] = "Please select payment terms"
+              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
+            end
+            
+            # Clean the phone number
+            phone = params[:company][:phone].to_s.strip.gsub(/[^0-9]/, '')
+            
+            # Create new company client
+            owner = Client.create!(
+              name: params[:company][:name].to_s.strip,
+              contact_person: params[:company][:contact_person].to_s.strip,
+              phone: phone,
+              email: params[:company][:email].to_s.strip,
+              address: params[:company][:address].to_s.strip,
+              registration_number: params[:company][:registration].to_s.strip.presence,
+              client_type: 'corporate',
+              payment_terms: params[:company][:payment_terms],
+              is_active: true
+            )
+            Rails.logger.info "Created new company: #{owner.name}" if Rails.env.development?
           end
           
-          # ===== FIX: Make chassis_number and serial_number optional for this form =====
           # Create the vehicle using new_vehicle_params
           vehicle = Vehicle.new(new_vehicle_params)
           vehicle.owner = owner
           
-          # Set a flag to skip validation for chassis and serial numbers
-          # This requires adding attr_accessor :skip_optional_validation to your Vehicle model
+          # Set a flag to skip validation for optional fields
           vehicle.skip_optional_validation = true
           
           unless vehicle.save
@@ -176,7 +221,6 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             flash[:alert] = error_msg
             redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
           end
-          # ===== END FIX =====
           
           Rails.logger.info "Created new vehicle: #{vehicle.license_plate}" if Rails.env.development?
         else
@@ -194,9 +238,31 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         session[:driver_name] = params[:driver_name]
         session[:driver_id] = params[:driver_id] if params[:driver_id].present?
         session[:notes] = params[:notes] if params[:notes].present?
-        session[:client_type] = params[:client_type] if params[:client_type].present?
-        session[:agency_id] = params[:agency_id] if params[:agency_id].present?
-        session[:client_params] = params[:client] if params[:client].present?
+        session[:client_type] = client_type
+        
+        # Store client-specific data based on type
+        if client_type == 'agency'
+          session[:agency_id] = params[:agency_id]
+        elsif client_type == 'walkin'
+          session[:client_params] = {
+            name: params[:walkin][:name],
+            phone: params[:walkin][:phone],
+            email: params[:walkin][:email],
+            address: params[:walkin][:address],
+            id_number: params[:walkin][:id_number],
+            payment_terms: 'cash_on_pickup'
+          }
+        elsif client_type == 'new_company'
+          session[:client_params] = {
+            name: params[:company][:name],
+            contact_person: params[:company][:contact_person],
+            phone: params[:company][:phone],
+            email: params[:company][:email],
+            address: params[:company][:address],
+            registration: params[:company][:registration],
+            payment_terms: params[:company][:payment_terms]
+          }
+        end
         
         # Store new vehicle params in session if this was a new vehicle
         if params[:new_vehicle].present?
@@ -301,7 +367,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         # Determine client for reference (not saved to reception_log)
         client = determine_client_from_params(params)
         
-        # Create condition report - WITHOUT client parameter
+        # Create condition report
         @condition_report = VehicleConditionReport.new(
           vehicle: @vehicle,
           security_gate_officer: current_user,
@@ -346,7 +412,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         # Attach photos if any
         attach_photos(@condition_report, params)
         
-        # Create reception log - WITHOUT client parameter
+        # Create reception log
         ReceptionLog.create!(
           vehicle: @vehicle,
           user_id: current_user.id,
@@ -534,8 +600,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     # First check params
     if params[:client_type] == 'agency' && params[:agency_id].present?
       client = Agency.find(params[:agency_id])
-    elsif params[:client_type] == 'public' && params[:client].present?
-      client_params = params[:client]
+    elsif params[:client_type] == 'walkin' && params[:walkin].present?
+      client_params = params[:walkin]
       phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
       client = Client.find_or_initialize_by(phone: phone)
       
@@ -544,9 +610,27 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          client_type: client_params[:client_type].presence || 'individual',
-          payment_terms: client_params[:payment_terms].presence || 'cash',
-          credit_limit: client_params[:credit_limit].presence,
+          id_number: client_params[:id_number].to_s.strip.presence,
+          client_type: 'individual',
+          payment_terms: 'cash_on_pickup',
+          is_active: true
+        )
+        client.save!
+      end
+    elsif params[:client_type] == 'new_company' && params[:company].present?
+      client_params = params[:company]
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      client = Client.find_or_initialize_by(phone: phone)
+      
+      if client.new_record?
+        client.assign_attributes(
+          name: client_params[:name].to_s.strip,
+          contact_person: client_params[:contact_person].to_s.strip,
+          email: client_params[:email].to_s.strip,
+          address: client_params[:address].to_s.strip,
+          registration_number: client_params[:registration].to_s.strip.presence,
+          client_type: 'corporate',
+          payment_terms: client_params[:payment_terms],
           is_active: true
         )
         client.save!
@@ -554,7 +638,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     # Then check session
     elsif session[:client_type] == 'agency' && session[:agency_id].present?
       client = Agency.find(session[:agency_id])
-    elsif session[:client_type] == 'public' && session[:client_params].present?
+    elsif session[:client_type] == 'walkin' && session[:client_params].present?
       client_params = session[:client_params]
       phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
       client = Client.find_or_initialize_by(phone: phone)
@@ -564,9 +648,27 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          client_type: client_params[:client_type].presence || 'individual',
-          payment_terms: client_params[:payment_terms].presence || 'cash',
-          credit_limit: client_params[:credit_limit].presence,
+          id_number: client_params[:id_number].to_s.strip.presence,
+          client_type: 'individual',
+          payment_terms: 'cash_on_pickup',
+          is_active: true
+        )
+        client.save!
+      end
+    elsif session[:client_type] == 'new_company' && session[:client_params].present?
+      client_params = session[:client_params]
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      client = Client.find_or_initialize_by(phone: phone)
+      
+      if client.new_record?
+        client.assign_attributes(
+          name: client_params[:name].to_s.strip,
+          contact_person: client_params[:contact_person].to_s.strip,
+          email: client_params[:email].to_s.strip,
+          address: client_params[:address].to_s.strip,
+          registration_number: client_params[:registration].to_s.strip.presence,
+          client_type: 'corporate',
+          payment_terms: client_params[:payment_terms],
           is_active: true
         )
         client.save!
@@ -579,12 +681,13 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   # Helper method to create a vehicle from params (for direct creation in condition check)
   def create_vehicle_from_params(vehicle_params, all_params)
     owner = nil
+    client_type = all_params[:client_type]
     
-    # Determine owner
-    if all_params[:client_type] == 'agency' && all_params[:agency_id].present?
+    # Determine owner based on client type
+    if client_type == 'agency' && all_params[:agency_id].present?
       owner = Agency.find(all_params[:agency_id])
-    elsif all_params[:client_type] == 'public' && all_params[:client].present?
-      client_params = all_params[:client]
+    elsif client_type == 'walkin' && all_params[:walkin].present?
+      client_params = all_params[:walkin]
       phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
       owner = Client.find_or_initialize_by(phone: phone)
       
@@ -593,9 +696,27 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          client_type: client_params[:client_type].presence || 'individual',
-          payment_terms: client_params[:payment_terms].presence || 'cash',
-          credit_limit: client_params[:credit_limit].presence,
+          id_number: client_params[:id_number].to_s.strip.presence,
+          client_type: 'individual',
+          payment_terms: 'cash_on_pickup',
+          is_active: true
+        )
+        owner.save!
+      end
+    elsif client_type == 'new_company' && all_params[:company].present?
+      client_params = all_params[:company]
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      owner = Client.find_or_initialize_by(phone: phone)
+      
+      if owner.new_record?
+        owner.assign_attributes(
+          name: client_params[:name].to_s.strip,
+          contact_person: client_params[:contact_person].to_s.strip,
+          email: client_params[:email].to_s.strip,
+          address: client_params[:address].to_s.strip,
+          registration_number: client_params[:registration].to_s.strip.presence,
+          client_type: 'corporate',
+          payment_terms: client_params[:payment_terms],
           is_active: true
         )
         owner.save!
@@ -606,7 +727,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     vehicle = Vehicle.new(vehicle_params)
     vehicle.owner = owner
     
-    # ===== FIX: Make chassis_number and serial_number optional here too =====
+    # Make optional fields not required
     vehicle.skip_optional_validation = true
     
     unless vehicle.save
@@ -621,11 +742,12 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     return nil unless session[:new_vehicle_params].present?
     
     owner = nil
+    client_type = session[:client_type]
     
     # Determine owner from session
-    if session[:client_type] == 'agency' && session[:agency_id].present?
+    if client_type == 'agency' && session[:agency_id].present?
       owner = Agency.find(session[:agency_id])
-    elsif session[:client_type] == 'public' && session[:client_params].present?
+    elsif client_type == 'walkin' && session[:client_params].present?
       client_params = session[:client_params]
       phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
       owner = Client.find_or_initialize_by(phone: phone)
@@ -635,9 +757,27 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          client_type: client_params[:client_type].presence || 'individual',
-          payment_terms: client_params[:payment_terms].presence || 'cash',
-          credit_limit: client_params[:credit_limit].presence,
+          id_number: client_params[:id_number].to_s.strip.presence,
+          client_type: 'individual',
+          payment_terms: 'cash_on_pickup',
+          is_active: true
+        )
+        owner.save!
+      end
+    elsif client_type == 'new_company' && session[:client_params].present?
+      client_params = session[:client_params]
+      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      owner = Client.find_or_initializeBy(phone: phone)
+      
+      if owner.new_record?
+        owner.assign_attributes(
+          name: client_params[:name].to_s.strip,
+          contact_person: client_params[:contact_person].to_s.strip,
+          email: client_params[:email].to_s.strip,
+          address: client_params[:address].to_s.strip,
+          registration_number: client_params[:registration].to_s.strip.presence,
+          client_type: 'corporate',
+          payment_terms: client_params[:payment_terms],
           is_active: true
         )
         owner.save!
@@ -648,7 +788,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     vehicle = Vehicle.new(session[:new_vehicle_params])
     vehicle.owner = owner
     
-    # ===== FIX: Make chassis_number and serial_number optional here too =====
+    # Make optional fields not required
     vehicle.skip_optional_validation = true
     
     unless vehicle.save
