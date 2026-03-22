@@ -10,6 +10,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :rejected_by, class_name: 'User', optional: true
   belongs_to :payment_authorized_by, class_name: 'User', optional: true
   belongs_to :payment_processed_by, class_name: 'User', optional: true
+  belongs_to :rfq, class_name: 'VendorRfq', optional: true
 
   belongs_to :quotation, optional: true
   belongs_to :supplier, optional: true
@@ -42,13 +43,17 @@ class PurchaseOrder < ApplicationRecord
   # Enums - MUST MATCH SCHEMA (all strings in DB)
   # -------------------------
   # STATUS ENUM - Order lifecycle only (string in DB)
+  # Added sent, stock_updated, ready_for_payment for procurement workflow
   enum :status, {
     draft: 'draft',
     pending_approval: 'pending_approval',
     approved: 'approved',
     rejected: 'rejected',
+    sent: 'sent',                          # PO sent to vendor
     ordered: 'ordered',
-    received: 'received',
+    received: 'received',                  # Items received at VMCOTT
+    stock_updated: 'stock_updated',        # Inventory updated
+    ready_for_payment: 'ready_for_payment', # Ready for finance
     cancelled: 'cancelled',
     paid: 'paid'
   }, default: 'draft'
@@ -126,6 +131,10 @@ class PurchaseOrder < ApplicationRecord
   # Status scopes
   scope :pending_approval, -> { where(status: 'pending_approval') }
   scope :needs_payment, -> { where(status: 'approved', payment_status: 'unpaid') }
+  scope :sent_to_vendor, -> { where(status: 'sent') }
+  scope :received_items, -> { where(status: 'received') }
+  scope :stock_updated, -> { where(status: 'stock_updated') }
+  scope :ready_for_payment, -> { where(status: 'ready_for_payment') }
   scope :ordered, -> { where(status: 'ordered') }
   scope :received, -> { where(status: 'received') }
 
@@ -397,7 +406,47 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # -------------------------
-  # Agency State Machine Methods
+  # Procurement Workflow Methods
+  # -------------------------
+
+  def send_to_vendor!
+    update!(
+      status: 'sent',
+      sent_at: Time.current
+    )
+  end
+
+  def mark_received!
+    update!(
+      status: 'received',
+      received_at: Time.current
+    )
+  end
+
+  def mark_stock_updated!
+    update!(
+      status: 'stock_updated',
+      stock_updated_at: Time.current
+    )
+  end
+
+  def mark_ready_for_payment!
+    update!(
+      status: 'ready_for_payment',
+      ready_for_payment_at: Time.current
+    )
+  end
+
+  def mark_paid!
+    update!(
+      status: 'paid',
+      payment_status: 'completed',
+      paid_at: Time.current
+    )
+  end
+
+  # -------------------------
+  # Agency State Machine Methods (Legacy)
   # -------------------------
 
   def submit_for_approval!
@@ -412,7 +461,6 @@ class PurchaseOrder < ApplicationRecord
         approved_at: Time.current,
         due_date: calculate_due_date
       )
-      # Payable will be created when needed
     end
   end
 
@@ -445,19 +493,12 @@ class PurchaseOrder < ApplicationRecord
     )
   end
 
-  def mark_received!
-    update!(
-      status: 'received',
-      received_at: Time.current
-    )
-  end
-
   # -------------------------
   # Payment Methods
   # -------------------------
 
   def can_initiate_payment?
-    status == 'approved' && 
+    status == 'ready_for_payment' && 
     (unpaid? || pending? || processing?) && 
     fully_accepted?
   end
@@ -632,7 +673,7 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def can_be_paid?
-    approved? && unpaid? && fully_accepted?
+    ready_for_payment? && unpaid? && fully_accepted?
   end
 
   def can_be_approved?
@@ -832,9 +873,12 @@ class PurchaseOrder < ApplicationRecord
     when 'draft' then 'secondary'
     when 'pending_approval' then 'warning'
     when 'approved' then 'success'
+    when 'sent' then 'info'
+    when 'ordered' then 'primary'
+    when 'received' then 'info'
+    when 'stock_updated' then 'primary'
+    when 'ready_for_payment' then 'warning'
     when 'rejected' then 'danger'
-    when 'ordered' then 'info'
-    when 'received' then 'primary'
     when 'cancelled' then 'dark'
     when 'paid' then 'success'
     else 'secondary'
@@ -880,8 +924,11 @@ class PurchaseOrder < ApplicationRecord
     when 'draft' then 'file'
     when 'pending_approval' then 'clock'
     when 'approved' then 'check-circle'
+    when 'sent' then 'envelope'
     when 'ordered' then 'paper-plane'
-    when 'received' then 'eye'
+    when 'received' then 'box-open'
+    when 'stock_updated' then 'boxes'
+    when 'ready_for_payment' then 'file-invoice-dollar'
     when 'paid' then 'receipt'
     when 'cancelled' then 'ban'
     when 'rejected' then 'times-circle'
@@ -903,11 +950,14 @@ class PurchaseOrder < ApplicationRecord
   # Description methods
   def status_description
     case status
-    when 'draft' then 'This is a draft - not yet submitted for approval'
-    when 'pending_approval' then 'Awaiting supervisor approval before sending to VMCOTT'
-    when 'approved' then 'Approved and ready to send to VMCOTT'
-    when 'ordered' then 'Sent to VMCOTT - awaiting their review'
-    when 'received' then 'Work completed - awaiting your review and payment'
+    when 'draft' then 'This is a draft - ready to send to vendor'
+    when 'pending_approval' then 'Awaiting supervisor approval'
+    when 'approved' then 'Approved and ready to send to vendor'
+    when 'sent' then 'Purchase order has been sent to the vendor via email'
+    when 'ordered' then 'Order placed with vendor - awaiting delivery'
+    when 'received' then 'Items have been received at VMCOTT'
+    when 'stock_updated' then 'Parts have been added to inventory'
+    when 'ready_for_payment' then 'Ready for finance to process payment'
     when 'paid' then 'Payment completed - order is closed'
     when 'cancelled' then 'This order was cancelled'
     when 'rejected' then 'This order was rejected'
@@ -1119,73 +1169,53 @@ class PurchaseOrder < ApplicationRecord
       color: 'primary'
     }
     
+    if sent_at
+      events << {
+        date: sent_at,
+        title: "Sent to Vendor",
+        description: "PO was emailed to #{vendor}",
+        icon: 'envelope',
+        color: 'info'
+      }
+    end
+    
     if ordered_at
       events << {
         date: ordered_at,
-        title: "Sent to VMCOTT",
-        description: "Order was sent to VMCOTT for processing",
-        icon: 'paper-plane',
-        color: 'info'
-      }
-    end
-    
-    if acceptance_acknowledged_at
-      events << {
-        date: acceptance_acknowledged_at,
-        title: "Accepted by VMCOTT",
-        description: "VMCOTT accepted the order and started work",
-        icon: 'check-circle',
-        color: 'success'
-      }
-    end
-    
-    if rejected_at
-      events << {
-        date: rejected_at,
-        title: "Rejected by VMCOTT",
-        description: rejection_reason || "Order was rejected",
-        icon: 'times-circle',
-        color: 'danger'
-      }
-    end
-    
-    if vmcott_status == 'work_in_progress' && acceptance_acknowledged_at
-      events << {
-        date: acceptance_acknowledged_at + 1.hour,
-        title: "Work Started",
-        description: "VMCOTT began working on the vehicle",
-        icon: 'tools',
-        color: 'warning'
-      }
-    end
-    
-    if internal_work_completed?
-      events << {
-        date: updated_at,
-        title: "Work Completed",
-        description: "All work on the vehicle has been finished",
-        icon: 'check-double',
-        color: 'info'
-      }
-    end
-    
-    if ready_for_delivery?
-      events << {
-        date: updated_at,
-        title: "Ready for Delivery",
-        description: "Vehicle is ready to be picked up",
-        icon: 'truck',
+        title: "Order Placed",
+        description: "Order was placed with vendor",
+        icon: 'shopping-cart',
         color: 'primary'
       }
     end
     
-    if delivered?
+    if received_at
       events << {
-        date: updated_at,
-        title: "Delivered",
-        description: "Vehicle has been delivered to the agency",
-        icon: 'check-circle',
+        date: received_at,
+        title: "Items Received",
+        description: "Items were received at VMCOTT",
+        icon: 'box-open',
         color: 'success'
+      }
+    end
+    
+    if stock_updated_at
+      events << {
+        date: stock_updated_at,
+        title: "Stock Updated",
+        description: "Parts added to inventory",
+        icon: 'boxes',
+        color: 'primary'
+      }
+    end
+    
+    if ready_for_payment_at
+      events << {
+        date: ready_for_payment_at,
+        title: "Ready for Payment",
+        description: "Order ready for finance to process payment",
+        icon: 'file-invoice-dollar',
+        color: 'warning'
       }
     end
     

@@ -1,0 +1,157 @@
+<%# app/views/vmcott/inventory/parts/low_stock.html.erb - Updated with Purchase Order Status %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>Low Stock Parts</h1>
+      <p class="text-muted">Items at or below reorder point (<%= @low_stock_parts.total_count %> items)</p>
+    </div>
+    <div>
+      <%= link_to '📦 Inventory Manager Dashboard', vmcott_inventory_manager_dashboard_path, class: 'btn btn-primary' %>
+      <%= link_to '📋 Reorder Suggestions', vmcott_inventory_reorder_suggestions_path, class: 'btn btn-info' %>
+      <%= link_to '📋 Purchase Requests', vmcott_inventory_purchase_requests_path, class: 'btn btn-primary' %>
+      <%= link_to '📊 Export CSV', request.path + '.csv', class: 'btn btn-success' %>
+    </div>
+  </div>
+  
+  <% if flash[:notice] %>
+    <div class="alert alert-success alert-dismissible fade show mb-3">
+      <%= flash[:notice] %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% end %>
+  
+  <% if @low_stock_parts.any? %>
+    <div class="card">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">Parts Below Reorder Point</h5>
+        <div class="small text-muted">
+          Showing <%= @low_stock_parts.count %> of <%= @low_stock_parts.total_count %> items
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+                <tr>
+                <th>Part Name</th>
+                <th>Part Number</th>
+                <th>Category</th>
+                <th>Current Stock</th>
+                <th>Minimum</th>
+                <th>Reorder Point</th>
+                <th>Supplier</th>
+                <th>Status</th>
+                <th>Request Status</th>
+                <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+              <% @low_stock_parts.each do |part| %>
+                <%
+                  # Check if there's already a pending purchase request for this part
+                  pending_request = PurchaseRequest.where(
+                    part_id: part.id,
+                    status: ['pending', 'approved']
+                  ).order(created_at: :desc).first
+                  
+                  # Check if there's an ordered or received request
+                  ordered_request = PurchaseRequest.where(
+                    part_id: part.id,
+                    status: ['ordered', 'received']
+                  ).order(created_at: :desc).first
+                %>
+                <tr>
+                  <td><%= link_to part.name, vmcott_part_path(part) %></td>
+                  <td><%= part.part_number || 'N/A' %></td>
+                  <td><%= part.category || 'N/A' %></td>
+                  <td>
+                    <span class="badge bg-<%= stock_badge_color(part.current_stock, part.minimum_stock) %>">
+                      <%= part.current_stock %>
+                    </span>
+                  </td>
+                  <td><%= part.minimum_stock %></td>
+                  <td><%= part.reorder_point %></td>
+                  <td><%= part.supplier&.name || 'N/A' %></td>
+                  <td>
+                    <% if part.current_stock <= part.minimum_stock %>
+                      <span class="badge bg-danger">Critical</span>
+                    <% else %>
+                      <span class="badge bg-warning">Low</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if ordered_request.present? %>
+                      <span class="badge bg-success">
+                        <i class="bi bi-check-circle"></i> Ordered
+                      </span>
+                      <br>
+                      <small class="text-muted">PO #: <%= ordered_request.purchase_order&.po_number || 'Processing' %></small>
+                    <% elsif pending_request.present? %>
+                      <span class="badge bg-info">
+                        <i class="bi bi-clock-history"></i> Request Pending
+                      </span>
+                      <br>
+                      <small class="text-muted">Submitted: <%= time_ago_in_words(pending_request.created_at) %> ago</small>
+                    <% else %>
+                      <span class="badge bg-secondary">
+                        <i class="bi bi-exclamation-circle"></i> No Request
+                      </span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to 'Adjust', vmcott_inventory_adjust_stock_path(part), class: 'btn btn-outline-primary' %>
+                      
+                      <% if ordered_request.present? %>
+                        <%= link_to '📦 View Order', 
+                            vmcott_purchase_order_path(ordered_request.purchase_order),
+                            class: 'btn btn-success btn-sm' %>
+                      <% elsif pending_request.present? %>
+                        <%= link_to '📋 View Request', 
+                            vmcott_purchase_request_path(pending_request),
+                            class: 'btn btn-info btn-sm' %>
+                      <% else %>
+                        <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
+                          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+                          <input type="hidden" name="quantity" value="<%= part.suggested_reorder_quantity %>">
+                          <input type="hidden" name="urgency" value="<%= part.current_stock <= part.minimum_stock ? 'high' : 'normal' %>">
+                          <input type="hidden" name="notes" value="Low stock alert: Current: <%= part.current_stock %>, Min: <%= part.minimum_stock %>">
+                          
+                          <button type="submit" class="btn btn-warning btn-sm">
+                            <i class="bi bi-cart-plus"></i> Request
+                          </button>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-center mt-3">
+          <%= paginate @low_stock_parts %>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <h4 class="text-success mb-3">Great news!</h4>
+        <p class="text-muted mb-4">No parts are currently below their reorder point.</p>
+        <%= link_to 'Back to Inventory Manager Dashboard', vmcott_inventory_manager_dashboard_path, class: 'btn btn-primary' %>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<%# Helper method for stock badge colors %>
+<% def stock_badge_color(current, minimum) %>
+  <% if current <= 0 %>
+    danger
+  <% elsif current <= minimum %>
+    warning
+  <% else %>
+    success
+  <% end %>
+<% end %>

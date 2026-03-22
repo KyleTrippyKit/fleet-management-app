@@ -27,7 +27,7 @@
             <div class="col-md-6">
               <h6>RFQ Information</h6>
               <table class="table table-sm">
-                <tr>
+                 <tr>
                   <th style="width: 30%;">Created:</th>
                   <td><%= @vendor_rfq.created_at.strftime("%b %d, %Y") %></td>
                 </tr>
@@ -59,13 +59,13 @@
                   <% @vendor_rfq.vendor_rfq_items.each do |item| %>
                     <tr>
                       <td>
-                        <%= item.part_name %>
-                        <% if item.custom? %>
+                        <%= item.part&.name || item.custom_part_name || 'Unknown Part' %>
+                        <% if item.custom_part_name.present? && item.part_id.nil? %>
                           <span class="badge bg-warning ms-1">Custom</span>
                         <% end %>
                       </td>
                       <td><%= item.quantity %></td>
-                      <td><%= item.unit_of_measure %></td>
+                      <td><%= item.unit_of_measure || 'each' %></td>
                     </tr>
                   <% end %>
                 </tbody>
@@ -103,11 +103,11 @@
                         </div>
                       <% end %>
                       
-                      <!-- Upload button for billing users -->
-                      <% if current_user.billing? && quote.status != 'received' && @vendor_rfq.sent? %>
+                      <!-- Upload button for procurement users -->
+                      <% if current_user.procurement? && quote.status != 'received' && @vendor_rfq.sent? %>
                         <div class="mt-2">
                           <%= link_to "Upload Quotation", 
-                                vmcott_billing_upload_quotation_path(rfq_id: @vendor_rfq.id),
+                                vmcott_procurement_upload_quotation_path(rfq_id: @vendor_rfq.id),
                                 class: "btn btn-sm btn-outline-primary" %>
                         </div>
                       <% end %>
@@ -123,7 +123,7 @@
             <div class="alert alert-success mt-3">
               <i class="bi bi-check-circle-fill me-2"></i>
               <strong>All quotations received!</strong> 
-              <%= link_to "Forward to Finance", vmcott_billing_forward_to_finance_path(rfq_id: @vendor_rfq.id), 
+              <%= link_to "Forward to Finance", vmcott_procurement_forward_to_finance_path(rfq_id: @vendor_rfq.id), 
                     method: :post,
                     class: "btn btn-sm btn-success ms-3",
                     data: { confirm: "Forward these quotations to Finance team for review?" } %>
@@ -161,19 +161,20 @@
           
           <!-- Action Buttons -->
           <div class="d-flex justify-content-end gap-2 mt-4">
-            <%= link_to "Back to Dashboard", vmcott_billing_dashboard_path, class: "btn btn-outline-secondary" %>
+            <%= link_to "Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
             
             <% if @vendor_rfq.draft? %>
               <%= button_to "Send to Suppliers", 
-                    vmcott_billing_send_rfq_path(@vendor_rfq),
+                    send_to_suppliers_vmcott_vendor_rfq_path(@vendor_rfq),
                     method: :post,
                     class: "btn btn-success",
+                    form: { "data-turbo" => "false" },
                     data: { confirm: "Send this RFQ to #{@vendor_rfq.vendor_quotations.count} suppliers?" } %>
             <% end %>
             
             <% if @vendor_rfq.sent? && @vendor_rfq.vendor_quotations.where(status: 'received').count < @vendor_rfq.vendor_quotations.count %>
               <%= link_to "Upload Quotation", 
-                    vmcott_billing_upload_quotation_path(rfq_id: @vendor_rfq.id),
+                    vmcott_procurement_upload_quotation_path(rfq_id: @vendor_rfq.id),
                     class: "btn btn-primary" %>
             <% end %>
           </div>

@@ -1,0 +1,157 @@
+<%# app/views/purchase_order_mailer/po_created.html.erb %>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purchase Order #<%= @po_number %></title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%);
+      color: white;
+      padding: 30px 20px;
+      text-align: center;
+    }
+    .header h2 {
+      margin: 10px 0 0;
+      font-size: 24px;
+    }
+    .content {
+      padding: 30px;
+      background: #fff;
+    }
+    .po-details {
+      background: #f8f9fa;
+      border-left: 4px solid #1e3a6b;
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: #1e3a6b;
+    }
+    .total {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: right;
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 2px solid #e0e0e0;
+    }
+    .footer {
+      background: #f8f9fa;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #1e3a6b;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Purchase Order</h2>
+      <p><%= @po_number %></p>
+    </div>
+
+    <div class="content">
+      <p>Dear <strong><%= @vendor %></strong>,</p>
+      
+      <p>We are pleased to issue Purchase Order <strong><%= @po_number %></strong> for the following items:</p>
+
+      <div class="po-details">
+        <strong>📋 Order Details</strong><br>
+        <strong>PO Number:</strong> <%= @po_number %><br>
+        <strong>Date:</strong> <%= @purchase_order.created_at.strftime("%B %d, %Y") %><br>
+        <% if @vehicle.present? %>
+          <strong>Vehicle:</strong> <%= @vehicle.make %> <%= @vehicle.model %> (<%= @vehicle.year_of_manufacture %>)<br>
+        <% end %>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Unit Price</th>
+            <th>Total</th>
+          </thead>
+        <tbody>
+          <% @items.each do |item| %>
+            <tr>
+              <td><%= item.description %></td>
+              <td><%= item.quantity %></td>
+              <td>$<%= number_with_precision(item.unit_price, precision: 2) %></td>
+              <td>$<%= number_with_precision(item.total_price, precision: 2) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <div class="total">
+        <strong>Total Amount: $<%= number_with_precision(@total, precision: 2) %></strong>
+      </div>
+
+      <p style="margin-top: 20px;">
+        Please acknowledge receipt of this purchase order and confirm the expected delivery date.
+      </p>
+
+      <div style="text-align: center;">
+        <a href="<%= purchase_order_url(@purchase_order) %>" class="button">View Online</a>
+      </div>
+
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+        <p>Thank you for your prompt attention to this order.</p>
+        <p>
+          <strong>Procurement Team</strong><br>
+          VMCOTT<br>
+          <span style="font-size: 12px; color: #666;">
+            📧 procurement@vmcott.com<br>
+            📞 (868) 123-4567
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p><strong>VMCOTT - Vehicle Management Company of Trinidad and Tobago</strong></p>
+      <p>This is an automated message from the VMCOTT Procurement System.</p>
+    </div>
+  </div>
+</body>
+</html>

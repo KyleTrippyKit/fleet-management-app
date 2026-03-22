@@ -38,7 +38,6 @@
     </div>
   <% end %>
 
-  <!-- Success Flash (if any) -->
   <% if flash[:notice] %>
     <div class="row">
       <div class="col-md-8 mx-auto">
@@ -84,18 +83,13 @@
             <input type="hidden" name="vehicle_id" id="selected-vehicle-id" value="">
             <input type="hidden" name="selected_client_type" id="selected-client-type" value="">
             
-            <!-- ============================================ -->
-            <!-- STEP 1: CLIENT TYPE SELECTION (MANDATORY)    -->
-            <!-- ============================================ -->
+            <!-- STEP 1: CLIENT TYPE SELECTION -->
             <div class="card mb-4 border-3 border-primary" id="client-type-step">
               <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i> Step 1: Select Client Type <span class="text-warning">*Required</span></h5>
               </div>
               <div class="card-body">
-                <p class="text-muted mb-3">You must select a client type before continuing. All other fields will be disabled until you make a selection.</p>
-                
                 <div class="row g-3">
-                  <!-- Agency Option -->
                   <div class="col-md-4">
                     <div class="card client-type-card h-100 border-2" id="agency-card" data-client-type="agency" style="cursor: pointer;">
                       <div class="card-body text-center p-3">
@@ -105,14 +99,10 @@
                         <i class="bi bi-building fs-1 text-primary mb-3"></i>
                         <h6 class="fw-bold">Agency</h6>
                         <small class="text-muted">PTSC, TTPS, TTDF, VMCOTT</small>
-                        <div class="mt-2">
-                          <span class="badge bg-info">Net 30/60</span>
-                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  <!-- Walk-in Customer Option -->
                   <div class="col-md-4">
                     <div class="card client-type-card h-100 border-2" id="walkin-card" data-client-type="walkin" style="cursor: pointer;">
                       <div class="card-body text-center p-3">
@@ -122,14 +112,10 @@
                         <i class="bi bi-person fs-1 text-info mb-3"></i>
                         <h6 class="fw-bold">Walk-in Customer</h6>
                         <small class="text-muted">One-time visitor</small>
-                        <div class="mt-2">
-                          <span class="badge bg-success">Cash on Pickup</span>
-                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  <!-- New Company Option -->
                   <div class="col-md-4">
                     <div class="card client-type-card h-100 border-2" id="new-company-card" data-client-type="new_company" style="cursor: pointer;">
                       <div class="card-body text-center p-3">
@@ -139,23 +125,15 @@
                         <i class="bi bi-building-add fs-1 text-success mb-3"></i>
                         <h6 class="fw-bold">New Company</h6>
                         <small class="text-muted">Register now</small>
-                        <div class="mt-2">
-                          <span class="badge bg-warning">Choose Terms</span>
-                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                <div id="client-type-error" class="invalid-feedback d-none">Please select a client type</div>
+                <div id="client-type-error" class="invalid-feedback d-none mt-2">Please select a client type</div>
               </div>
             </div>
 
-            <!-- ============================================ -->
-            <!-- STEP 2: CLIENT-SPECIFIC FORMS               -->
-            <!-- ============================================ -->
-            
-            <!-- AGENCY SELECTION (shown for agency vehicles) -->
+            <!-- AGENCY SELECTION -->
             <div id="agency-selection" class="mb-4 p-3 bg-light rounded-3 border-start border-4 border-primary" style="display: none;">
               <div class="d-flex align-items-center mb-2">
                 <i class="bi bi-building text-primary me-2"></i>
@@ -168,10 +146,9 @@
                   <option value="<%= agency.id %>"><%= agency.name %> (<%= agency.code %>)</option>
                 <% end %>
               </select>
-              <div class="invalid-feedback" id="agency-error">Please select an agency</div>
             </div>
 
-            <!-- WALK-IN CUSTOMER FORM (hidden by default) -->
+            <!-- WALK-IN CUSTOMER FORM - SIMPLIFIED (only name and phone) -->
             <div id="walkin-form" class="mb-4" style="display: none;">
               <div class="card border-info">
                 <div class="card-header bg-info text-white">
@@ -187,38 +164,23 @@
                     
                     <div class="col-md-6">
                       <%= label_tag :walkin_phone, "Phone Number", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
                       <%= text_field_tag "walkin[phone]", nil, class: "form-control", id: "walkin_phone", placeholder: "868-555-1234", disabled: true %>
                     </div>
                     
                     <div class="col-md-6">
-                      <%= label_tag :walkin_email, "Email Address", class: "form-label fw-bold" %>
+                      <%= label_tag :walkin_email, "Email Address", class: "form-label" %>
                       <%= email_field_tag "walkin[email]", nil, class: "form-control", id: "walkin_email", placeholder: "client@example.com", disabled: true %>
                     </div>
-                    
-                    <div class="col-md-6">
-                      <%= label_tag :walkin_id, "ID Number", class: "form-label fw-bold" %>
-                      <%= text_field_tag "walkin[id_number]", nil, class: "form-control", id: "walkin_id", placeholder: "Passport/ID", disabled: true %>
-                    </div>
-                    
-                    <div class="col-12">
-                      <%= label_tag :walkin_address, "Address", class: "form-label fw-bold" %>
-                      <%= text_field_tag "walkin[address]", nil, class: "form-control", id: "walkin_address", placeholder: "123 Main St, Port of Spain", disabled: true %>
-                    </div>
                   </div>
-                  
-                  <!-- Hidden payment terms (cash on pickup) -->
-                  <input type="hidden" name="walkin[payment_terms]" value="cash_on_pickup">
-                  
-                  <div class="alert alert-success mt-3 mb-0 d-flex align-items-center">
-                    <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                  <input type="hidden" name="walkin[payment_terms]" value="cash">
+                  <div class="alert alert-success mt-3 mb-0">
                     <small>Payment: <strong>Cash on Pickup</strong></small>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- NEW COMPANY FORM (hidden by default) -->
+            <!-- NEW COMPANY FORM -->
             <div id="new-company-form" class="mb-4" style="display: none;">
               <div class="card border-success">
                 <div class="card-header bg-success text-white">
@@ -233,19 +195,13 @@
                     </div>
                     
                     <div class="col-md-6">
-                      <%= label_tag :company_registration, "Registration #", class: "form-label fw-bold" %>
-                      <%= text_field_tag "company[registration]", nil, class: "form-control", id: "company_registration", placeholder: "C12345", disabled: true %>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <%= label_tag :company_contact, "Contact Person", class: "form-label fw-bold" %>
+                      <%= label_tag :company_contact_person, "Contact Person", class: "form-label fw-bold" %>
                       <span class="text-danger">*</span>
-                      <%= text_field_tag "company[contact_person]", nil, class: "form-control", id: "company_contact", placeholder: "John Doe", disabled: true %>
+                      <%= text_field_tag "company[contact_person]", nil, class: "form-control", id: "company_contact_person", placeholder: "John Doe", disabled: true %>
                     </div>
                     
                     <div class="col-md-6">
                       <%= label_tag :company_phone, "Phone Number", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
                       <%= text_field_tag "company[phone]", nil, class: "form-control", id: "company_phone", placeholder: "868-555-1234", disabled: true %>
                     </div>
                     
@@ -261,40 +217,31 @@
                       <%= text_field_tag "company[address]", nil, class: "form-control", id: "company_address", placeholder: "123 Industrial Ave, Port of Spain", disabled: true %>
                     </div>
                     
-                    <!-- PAYMENT TERMS SELECTION -->
                     <div class="col-12 mt-3">
                       <label class="form-label fw-bold">Select Payment Terms <span class="text-danger">*</span></label>
                       <div class="row g-2">
                         <div class="col-md-3">
                           <div class="form-check">
-                            <input class="form-check-input" type="radio" name="company[payment_terms]" id="term_cash" value="cash_on_pickup" disabled>
-                            <label class="form-check-label" for="term_cash">
-                              Cash on Pickup
-                            </label>
+                            <input class="form-check-input" type="radio" name="company[payment_terms]" id="term_cash" value="cash" disabled>
+                            <label class="form-check-label" for="term_cash">Cash on Pickup</label>
                           </div>
                         </div>
                         <div class="col-md-3">
                           <div class="form-check">
                             <input class="form-check-input" type="radio" name="company[payment_terms]" id="term_net30" value="net_30" disabled>
-                            <label class="form-check-label" for="term_net30">
-                              Net 30 Days
-                            </label>
+                            <label class="form-check-label" for="term_net30">Net 30 Days</label>
                           </div>
                         </div>
                         <div class="col-md-3">
                           <div class="form-check">
                             <input class="form-check-input" type="radio" name="company[payment_terms]" id="term_net60" value="net_60" disabled>
-                            <label class="form-check-label" for="term_net60">
-                              Net 60 Days
-                            </label>
+                            <label class="form-check-label" for="term_net60">Net 60 Days</label>
                           </div>
                         </div>
                         <div class="col-md-3">
                           <div class="form-check">
                             <input class="form-check-input" type="radio" name="company[payment_terms]" id="term_deposit" value="deposit_balance" disabled>
-                            <label class="form-check-label" for="term_deposit">
-                              Deposit + Balance
-                            </label>
+                            <label class="form-check-label" for="term_deposit">Deposit + Balance</label>
                           </div>
                         </div>
                       </div>
@@ -304,28 +251,22 @@
               </div>
             </div>
 
-            <!-- ============================================ -->
-            <!-- STEP 3: VEHICLE SEARCH / ADD NEW             -->
-            <!-- ============================================ -->
-            <hr class="my-4">
-            
             <!-- Mode Toggle Cards -->
+            <hr class="my-4">
             <div class="row g-3 mb-4">
               <div class="col-md-6">
-                <div class="card h-100 border-2" id="existing-mode-card" style="cursor: pointer; transition: all 0.2s;">
+                <div class="card h-100 border-2" id="existing-mode-card" style="cursor: pointer;">
                   <div class="card-body text-center p-4">
                     <i class="bi bi-search display-4 text-primary mb-3"></i>
                     <h5 class="fw-bold">Search Existing</h5>
-                    <p class="small text-muted mb-0">Find vehicle by license plate</p>
                   </div>
                 </div>
               </div>
               <div class="col-md-6">
-                <div class="card h-100 border-2" id="new-mode-card" style="cursor: pointer; transition: all 0.2s;">
+                <div class="card h-100 border-2" id="new-mode-card" style="cursor: pointer;">
                   <div class="card-body text-center p-4">
                     <i class="bi bi-plus-circle display-4 text-success mb-3"></i>
                     <h5 class="fw-bold">Add New Vehicle</h5>
-                    <p class="small text-muted mb-0">Register a new vehicle</p>
                   </div>
                 </div>
               </div>
@@ -333,38 +274,25 @@
             
             <!-- EXISTING VEHICLE SEARCH -->
             <div id="existing-vehicle-section" class="mb-4 position-relative">
-              <div class="d-flex align-items-center mb-2">
-                <i class="bi bi-upc-scan text-primary me-2"></i>
-                <label for="license-plate-search" class="form-label fw-bold mb-0">Search Existing Vehicle</label>
-              </div>
-              
-              <div class="input-group input-group-lg">
-                <span class="input-group-text bg-white border-end-0"><i class="bi bi-upc-scan text-muted"></i></span>
-                <input type="text" 
-                       id="license-plate-search"
-                       class="form-control border-start-0 ps-0" 
-                       placeholder="Enter license plate (e.g., ABC-1234)" 
-                       autocomplete="off"
-                       disabled>
-              </div>
-              
-              <!-- Search Results Dropdown -->
-              <div id="search-results" class="list-group mt-2 shadow-lg" style="display: none; position: absolute; z-index: 1000; width: 100%; max-height: 350px; overflow-y: auto;" role="listbox"></div>
+              <label for="license-plate-search" class="form-label fw-bold">Search Existing Vehicle</label>
+              <input type="text" id="license-plate-search" class="form-control" placeholder="Enter license plate (e.g., ABC-1234)" autocomplete="off" disabled>
+              <div id="search-results" class="list-group mt-2 shadow-lg" style="display: none; position: absolute; z-index: 1000; width: 100%; max-height: 350px; overflow-y: auto;"></div>
             </div>
             
-            <!-- New Vehicle Form -->
+            <!-- New Vehicle Form - With manual entry support -->
             <div id="newVehicleForm" class="mb-4" style="display: none;">
               <div class="card border-2 border-success">
-                <div class="card-header bg-success bg-opacity-10 border-bottom border-success py-3">
+                <div class="card-header bg-success bg-opacity-10">
                   <h6 class="fw-bold mb-0 text-success"><i class="bi bi-plus-circle me-2"></i>New Vehicle Registration</h6>
                 </div>
                 <div class="card-body bg-light">
                   
-                  <!-- MAKE & MODEL with catalog search -->
+                  <!-- MAKE & MODEL - Can use catalog OR manual entry -->
                   <div class="mb-4 position-relative" id="catalog-search-container">
                     <div class="d-flex align-items-center mb-2">
                       <i class="bi bi-search text-success me-2"></i>
                       <label for="catalog-search-input" class="form-label fw-bold mb-0">Make & Model</label>
+                      <span class="badge bg-success bg-opacity-10 text-success ms-2">Catalog search</span>
                     </div>
                     
                     <div class="input-group">
@@ -372,9 +300,16 @@
                       <input type="text" 
                              id="catalog-search-input"
                              class="form-control border-start-0 ps-0" 
-                             placeholder="Start typing e.g. Toyota Hilux" 
+                             placeholder="Start typing e.g. Toyota Hilux OR enter custom make/model" 
                              autocomplete="off"
                              disabled>
+                      <span class="input-group-text bg-light" id="catalog-status">
+                        <span class="spinner-border spinner-border-sm d-none" id="catalog-spinner" role="status"></span>
+                      </span>
+                    </div>
+                    
+                    <div id="catalogHelp" class="form-text text-muted mt-2">
+                      <i class="bi bi-info-circle me-1"></i> Type to search catalog, or enter custom make/model manually
                     </div>
                     
                     <!-- Search Results Dropdown -->
@@ -384,62 +319,37 @@
                     </div>
                   </div>
                   
-                  <!-- Hidden fields for make/model -->
+                  <!-- Hidden fields for make/model (these will be populated by catalog OR manual entry) -->
                   <input type="hidden" id="selected-make" name="new_vehicle[make]" value="">
                   <input type="hidden" id="selected-model" name="new_vehicle[model]" value="">
                   <input type="hidden" id="selected-type" name="new_vehicle[vehicle_type]" value="">
                   
                   <div class="row g-3">
-                    <!-- Make field (hidden) -->
-                    <div class="col-md-6 d-none">
-                      <%= text_field_tag "new_vehicle[make]", nil, id: "new_vehicle_make" %>
+                    <!-- Manual entry fields - visible for custom input -->
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Make <span class="text-danger">*</span></label>
+                      <input type="text" id="manual-make" class="form-control" placeholder="e.g., Toyota" disabled>
                     </div>
-                    
-                    <!-- Model field (hidden) -->
-                    <div class="col-md-6 d-none">
-                      <%= text_field_tag "new_vehicle[model]", nil, id: "new_vehicle_model" %>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold">Model <span class="text-danger">*</span></label>
+                      <input type="text" id="manual-model" class="form-control" placeholder="e.g., Hilux" disabled>
                     </div>
                     
                     <div class="col-md-4">
-                      <%= label_tag :new_vehicle_year_of_manufacture, "Year", class: "form-label fw-bold" %>
-                      <%= number_field_tag "new_vehicle[year_of_manufacture]", nil, class: "form-control", id: "new_vehicle_year_of_manufacture", placeholder: "2023 (optional)", min: 1900, max: Time.current.year + 1, disabled: true %>
+                      <label class="form-label fw-bold">Year</label>
+                      <%= number_field_tag "new_vehicle[year_of_manufacture]", nil, class: "form-control", id: "new_vehicle_year", placeholder: "2023", disabled: true %>
                     </div>
-                    
                     <div class="col-md-4">
-                      <%= label_tag :new_vehicle_color, "Color", class: "form-label" %>
-                      <%= text_field_tag "new_vehicle[color]", nil, class: "form-control", id: "new_vehicle_color", placeholder: "e.g., White", disabled: true %>
+                      <label class="form-label">Color</label>
+                      <%= text_field_tag "new_vehicle[color]", nil, class: "form-control", id: "new_vehicle_color", disabled: true %>
                     </div>
-                    
                     <div class="col-md-4">
-                      <%= label_tag :new_vehicle_vehicle_type, "Vehicle Type", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= select_tag "new_vehicle[vehicle_type]", 
-                          options_for_select(["Car", "SUV", "Pickup", "Van", "Bus", "Truck", "Motorcycle", "Other"]), 
-                          prompt: "Select type...", 
-                          class: "form-select", 
-                          id: "new_vehicle_vehicle_type",
-                          disabled: true %>
+                      <label class="form-label fw-bold">Vehicle Type <span class="text-danger">*</span></label>
+                      <%= select_tag "new_vehicle[vehicle_type]", options_for_select(["Car", "SUV", "Pickup", "Van", "Bus", "Truck", "Motorcycle", "Other"]), prompt: "Select type...", class: "form-select", id: "new_vehicle_type", disabled: true %>
                     </div>
-                    
-                    <div class="col-md-6">
-                      <%= label_tag :new_vehicle_chassis_number, "Chassis / VIN", class: "form-label fw-bold" %>
-                      <%= text_field_tag "new_vehicle[chassis_number]", nil, class: "form-control", id: "new_vehicle_chassis_number", placeholder: "e.g., 1HGCM82633A123456 (optional)", disabled: true %>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <%= label_tag :new_vehicle_serial_number, "Serial Number", class: "form-label fw-bold" %>
-                      <%= text_field_tag "new_vehicle[serial_number]", nil, class: "form-control", id: "new_vehicle_serial_number", placeholder: "e.g., SN12345678 (optional)", disabled: true %>
-                    </div>
-                    
-                    <div class="col-md-6">
-                      <%= label_tag :new_vehicle_engine_number, "Engine Number", class: "form-label" %>
-                      <%= text_field_tag "new_vehicle[engine_number]", nil, class: "form-control", id: "new_vehicle_engine_number", placeholder: "e.g., EN123456", disabled: true %>
-                    </div>
-                    
                     <div class="col-12">
-                      <%= label_tag :new_vehicle_license_plate, "License Plate", class: "form-label fw-bold" %>
-                      <span class="text-danger">*</span>
-                      <%= text_field_tag "new_vehicle[license_plate]", nil, class: "form-control", id: "new_vehicle_license_plate", placeholder: "e.g., ABC-1234", disabled: true %>
+                      <label class="form-label fw-bold">License Plate <span class="text-danger">*</span></label>
+                      <%= text_field_tag "new_vehicle[license_plate]", nil, class: "form-control", id: "new_vehicle_plate", placeholder: "ABC-1234", disabled: true %>
                     </div>
                   </div>
                 </div>
@@ -448,49 +358,30 @@
             
             <hr class="my-4">
             
-            <!-- ============================================ -->
-            <!-- STEP 4: DRIVER INFORMATION                   -->
-            <!-- ============================================ -->
+            <!-- Driver Information -->
             <div class="mb-4">
-              <h6 class="fw-bold mb-3">
-                <i class="bi bi-person-badge me-2 text-primary"></i>
-                Driver Information
-              </h6>
+              <h6 class="fw-bold mb-3"><i class="bi bi-person-badge me-2 text-primary"></i>Driver Information</h6>
               <div class="row g-3">
                 <div class="col-md-8">
-                  <%= label_tag :driver_name, "Driver Full Name", class: "form-label fw-bold" %>
-                  <span class="text-danger">*</span>
+                  <label class="form-label fw-bold">Driver Full Name <span class="text-danger">*</span></label>
                   <%= text_field_tag :driver_name, nil, class: "form-control", id: "driver_name", placeholder: "Enter driver's full name", disabled: true %>
                 </div>
                 <div class="col-md-4">
-                  <%= label_tag :driver_id, "ID Number", class: "form-label fw-bold" %>
-                  <span class="text-muted">(Optional)</span>
-                  <%= text_field_tag :driver_id, nil, class: "form-control", id: "driver_id", placeholder: "e.g., Passport/ID", disabled: true %>
+                  <label class="form-label fw-bold">ID Number</label>
+                  <%= text_field_tag :driver_id, nil, class: "form-control", id: "driver_id", placeholder: "Optional", disabled: true %>
                 </div>
               </div>
             </div>
             
             <div class="mb-4">
-              <%= label_tag :notes, "Additional Notes", class: "form-label fw-bold" %>
-              <span class="text-muted">(Optional)</span>
-              <%= text_area_tag :notes, nil, class: "form-control", rows: 3, placeholder: "Any special instructions, vehicle condition notes, or additional information...", id: "notes", disabled: true %>
+              <label class="form-label fw-bold">Additional Notes</label>
+              <%= text_area_tag :notes, nil, class: "form-control", rows: 2, placeholder: "Any special instructions...", id: "notes", disabled: true %>
             </div>
             
-            <!-- Validation Summary -->
-            <div id="validation-summary" class="alert alert-danger d-none" role="alert">
-              <div class="d-flex">
-                <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
-                <div>
-                  <h6 class="alert-heading fw-bold mb-2">Please correct the following errors:</h6>
-                  <ul id="validation-message" class="mb-0 ps-3"></ul>
-                </div>
-              </div>
-            </div>
+            <div id="validation-summary" class="alert alert-danger d-none"></div>
             
-            <!-- Submit Button -->
             <div class="d-grid gap-2 mt-4">
               <button type="submit" class="btn btn-primary btn-lg rounded-pill py-3 fw-bold" id="submit-btn" disabled>
-                <span class="spinner-border spinner-border-sm me-2 d-none" id="btn-spinner" role="status" aria-hidden="true"></span>
                 <i class="bi bi-arrow-right-circle me-2"></i>
                 Proceed to Condition Check
               </button>
@@ -502,432 +393,389 @@
   </div>
 </div>
 
-<!-- Loading Overlay -->
-<div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9998; backdrop-filter: blur(5px);">
-  <div class="position-absolute top-50 start-50 translate-middle text-center">
-    <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;" role="status">
-      <span class="visually-hidden">Loading...</span>
-    </div>
-    <h5 class="text-primary">Processing...</h5>
-    <p class="text-muted">Please wait while we save the information</p>
-  </div>
-</div>
-
-<!-- JavaScript - Client Type First Logic -->
-// JavaScript - Client Type First Logic
 <script>
-  (function() {
-    'use strict';
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Initializing manual entry form...');
     
-    if (window.manualEntryInitialized) {
-      return;
+    // Get elements
+    const clientTypeCards = document.querySelectorAll('.client-type-card');
+    const agencySection = document.getElementById('agency-selection');
+    const walkinForm = document.getElementById('walkin-form');
+    const newCompanyForm = document.getElementById('new-company-form');
+    const selectedClientType = document.getElementById('selected-client-type');
+    const clientTypeError = document.getElementById('client-type-error');
+    const submitBtn = document.getElementById('submit-btn');
+    const createNewVehicle = document.getElementById('create-new-vehicle');
+    const existingModeCard = document.getElementById('existing-mode-card');
+    const newModeCard = document.getElementById('new-mode-card');
+    const existingSection = document.getElementById('existing-vehicle-section');
+    const newVehicleSection = document.getElementById('newVehicleForm');
+    const searchInput = document.getElementById('license-plate-search');
+    const searchResults = document.getElementById('search-results');
+    const driverName = document.getElementById('driver_name');
+    const notes = document.getElementById('notes');
+    
+    // Manual entry fields
+    const manualMake = document.getElementById('manual-make');
+    const manualModel = document.getElementById('manual-model');
+    const catalogSearchInput = document.getElementById('catalog-search-input');
+    const catalogResults = document.getElementById('catalog-results');
+    const catalogSpinner = document.getElementById('catalog-spinner');
+    const selectedMake = document.getElementById('selected-make');
+    const selectedModel = document.getElementById('selected-model');
+    const selectedType = document.getElementById('selected-type');
+    const newMakeHidden = document.getElementById('new_vehicle_make');
+    const newModelHidden = document.getElementById('new_vehicle_model');
+    
+    // Helper to enable submit button
+    function enableSubmitButton() {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        console.log('✅ Submit button enabled');
+      }
     }
-    window.manualEntryInitialized = true;
     
-    function init() {
-      console.log('🔧 Manual Entry: Initializing...');
+    // Helper to update hidden fields from manual input
+    function updateHiddenFromManual() {
+      if (manualMake && manualMake.value.trim()) {
+        selectedMake.value = manualMake.value.trim();
+        if (newMakeHidden) newMakeHidden.value = manualMake.value.trim();
+      }
+      if (manualModel && manualModel.value.trim()) {
+        selectedModel.value = manualModel.value.trim();
+        if (newModelHidden) newModelHidden.value = manualModel.value.trim();
+      }
+    }
+    
+    // Helper to update manual fields from catalog selection
+    function updateManualFromCatalog(make, model) {
+      if (manualMake) manualMake.value = make;
+      if (manualModel) manualModel.value = model;
+      if (selectedMake) selectedMake.value = make;
+      if (selectedModel) selectedModel.value = model;
+      if (newMakeHidden) newMakeHidden.value = make;
+      if (newModelHidden) newModelHidden.value = model;
+    }
+    
+    // Listen for manual input changes
+    if (manualMake) {
+      manualMake.addEventListener('input', updateHiddenFromManual);
+    }
+    if (manualModel) {
+      manualModel.addEventListener('input', updateHiddenFromManual);
+    }
+    
+    // Helper to enable/disable fields based on client type
+    function setClientType(type) {
+      console.log('Setting client type:', type);
       
-      const elements = {
-        // Client type cards
-        clientTypeCards: document.querySelectorAll('.client-type-card'),
-        agencyCard: document.getElementById('agency-card'),
-        walkinCard: document.getElementById('walkin-card'),
-        newCompanyCard: document.getElementById('new-company-card'),
-        
-        // Client type sections
-        agencySection: document.getElementById('agency-selection'),
-        walkinForm: document.getElementById('walkin-form'),
-        newCompanyForm: document.getElementById('new-company-form'),
-        
-        // Form fields
-        vehicleForm: document.getElementById('vehicle-form'),
-        submitBtn: document.getElementById('submit-btn'),
-        clientTypeError: document.getElementById('client-type-error'),
-        selectedClientType: document.getElementById('selected-client-type'),
-        
-        // Mode cards
-        existingModeCard: document.getElementById('existing-mode-card'),
-        newModeCard: document.getElementById('new-mode-card'),
-        existingSection: document.getElementById('existing-vehicle-section'),
-        newVehicleSection: document.getElementById('newVehicleForm'),
-        
-        // Search inputs
-        searchInput: document.getElementById('license-plate-search'),
-        catalogInput: document.getElementById('catalog-search-input'),
-        
-        // Agency select
-        agencySelect: document.getElementById('agency_id'),
-        
-        // Walk-in fields
-        walkinName: document.getElementById('walkin_name'),
-        walkinPhone: document.getElementById('walkin_phone'),
-        
-        // Company fields
-        companyName: document.getElementById('company_name'),
-        companyContact: document.getElementById('company_contact'),
-        companyPhone: document.getElementById('company_phone'),
-        companyEmail: document.getElementById('company_email'),
-        companyAddress: document.getElementById('company_address'),
-        companyTerms: document.querySelectorAll('input[name="company[payment_terms]"]'),
-        
-        // Driver fields
-        driverName: document.getElementById('driver_name'),
-        
-        // New vehicle fields
-        newVehicleFields: document.querySelectorAll('#newVehicleForm input, #newVehicleForm select'),
-        existingVehicleFields: document.querySelectorAll('#existing-vehicle-section input')
-      };
+      // Update UI
+      clientTypeCards.forEach(card => {
+        const cardType = card.dataset.clientType;
+        if (cardType === type) {
+          card.classList.add('border-primary', 'bg-light', 'selected-card');
+          const icon = card.querySelector('.selected-icon');
+          if (icon) icon.style.display = 'inline-block';
+        } else {
+          card.classList.remove('border-primary', 'bg-light', 'selected-card');
+          const icon = card.querySelector('.selected-icon');
+          if (icon) icon.style.display = 'none';
+        }
+      });
       
-      // Log elements to verify they exist
-      console.log('Agency Card:', elements.agencyCard);
-      console.log('Walk-in Card:', elements.walkinCard);
-      console.log('New Company Card:', elements.newCompanyCard);
-      console.log('New Company Form:', elements.newCompanyForm);
+      // Hide all client sections
+      agencySection.style.display = 'none';
+      walkinForm.style.display = 'none';
+      newCompanyForm.style.display = 'none';
       
-      // ============================================
-      // STEP 1: DISABLE EVERYTHING INITIALLY
-      // ============================================
-      function disableAllFields() {
-        const allInputs = document.querySelectorAll('#vehicle-form input:not([type="hidden"]), #vehicle-form select, #vehicle-form textarea, #vehicle-form button');
-        allInputs.forEach(el => {
-          if (!el.closest('.client-type-card') && el.id !== 'submit-btn') {
-            el.disabled = true;
-          }
-        });
+      // Disable all fields first
+      document.querySelectorAll('#agency-selection select, #walkin-form input, #walkin-form textarea, #new-company-form input, #new-company-form select, #new-company-form .form-check-input')
+        .forEach(el => el.disabled = true);
+      
+      // Show and enable appropriate section
+      if (type === 'agency') {
+        agencySection.style.display = 'block';
+        document.querySelectorAll('#agency-selection select').forEach(el => el.disabled = false);
+        if (existingModeCard) existingModeCard.style.pointerEvents = 'auto';
+        if (newModeCard) newModeCard.style.pointerEvents = 'auto';
+      } else if (type === 'walkin') {
+        walkinForm.style.display = 'block';
+        document.querySelectorAll('#walkin-form input').forEach(el => el.disabled = false);
+        if (existingModeCard) existingModeCard.style.pointerEvents = 'none';
+        if (newModeCard) newModeCard.style.pointerEvents = 'auto';
+        setMode(true);
+      } else if (type === 'new_company') {
+        newCompanyForm.style.display = 'block';
+        document.querySelectorAll('#new-company-form input, #new-company-form select, #new-company-form .form-check-input')
+          .forEach(el => el.disabled = false);
+        if (existingModeCard) existingModeCard.style.pointerEvents = 'none';
+        if (newModeCard) newModeCard.style.pointerEvents = 'auto';
+        setMode(true);
       }
       
-      disableAllFields();
+      // Enable driver fields
+      if (driverName) driverName.disabled = false;
+      if (notes) notes.disabled = false;
       
-      // ============================================
-      // STEP 2: CLIENT TYPE SELECTION
-      // ============================================
-      function selectClientType(type) {
-        console.log('Selected client type:', type);
-        
-        // Hide all selected icons first
-        document.querySelectorAll('.selected-icon').forEach(icon => {
-          icon.style.display = 'none';
-        });
-        
-        // Remove highlights from all cards
-        elements.clientTypeCards.forEach(c => {
-          c.classList.remove('border-primary', 'bg-light', 'selected-card');
-        });
-        
-        // Get selected card - FIX: Handle the mapping between data-client-type and element ID
-        let cardId;
-        if (type === 'new_company') {
-          cardId = 'new-company-card'; // Use hyphen for new company
+      // Store selected type
+      if (selectedClientType) selectedClientType.value = type;
+      if (clientTypeError) clientTypeError.classList.add('d-none');
+      
+      // Enable submit button
+      enableSubmitButton();
+    }
+    
+    // Mode toggle
+    function setMode(isNew) {
+      console.log('Setting mode:', isNew ? 'new' : 'existing');
+      if (createNewVehicle) createNewVehicle.value = isNew ? 'true' : 'false';
+      
+      if (isNew) {
+        existingSection.style.display = 'none';
+        newVehicleSection.style.display = 'block';
+        if (existingModeCard) existingModeCard.classList.remove('border-primary', 'bg-light');
+        if (newModeCard) newModeCard.classList.add('border-primary', 'bg-light');
+        if (searchInput) searchInput.disabled = true;
+        // Enable new vehicle fields
+        document.querySelectorAll('#newVehicleForm input, #newVehicleForm select').forEach(el => el.disabled = false);
+      } else {
+        existingSection.style.display = 'block';
+        newVehicleSection.style.display = 'none';
+        if (newModeCard) newModeCard.classList.remove('border-primary', 'bg-light');
+        if (existingModeCard) existingModeCard.classList.add('border-primary', 'bg-light');
+        if (searchInput) searchInput.disabled = false;
+        // Disable new vehicle fields
+        document.querySelectorAll('#newVehicleForm input, #newVehicleForm select').forEach(el => el.disabled = true);
+      }
+      enableSubmitButton();
+    }
+    
+    // Client type click handlers
+    clientTypeCards.forEach(card => {
+      card.addEventListener('click', function() {
+        const type = this.dataset.clientType;
+        setClientType(type);
+      });
+    });
+    
+    // Mode card click handlers
+    if (existingModeCard) {
+      existingModeCard.addEventListener('click', function() {
+        const clientType = selectedClientType ? selectedClientType.value : null;
+        if (clientType === 'agency') {
+          setMode(false);
+        } else if (clientType) {
+          alert('Existing vehicle search is only available for Agency clients');
         } else {
-          cardId = `${type}-card`; // agency-card, walkin-card
+          alert('Please select a client type first');
+        }
+      });
+    }
+    
+    if (newModeCard) {
+      newModeCard.addEventListener('click', function() {
+        if (selectedClientType && selectedClientType.value) {
+          setMode(true);
+        } else {
+          alert('Please select a client type first');
+        }
+      });
+    }
+    
+    // CATALOG SEARCH (for new vehicles) - with manual entry fallback
+    let catalogTimeout;
+    if (catalogSearchInput) {
+      catalogSearchInput.addEventListener('input', function(e) {
+        const query = this.value.trim();
+        clearTimeout(catalogTimeout);
+        
+        // If query is not empty, allow manual entry by updating hidden fields
+        if (query.length > 0 && manualMake && manualModel) {
+          // Parse query - try to split into make and model
+          const parts = query.split(' ');
+          if (parts.length >= 2) {
+            manualMake.value = parts[0];
+            manualModel.value = parts.slice(1).join(' ');
+          } else {
+            manualMake.value = query;
+            manualModel.value = '';
+          }
+          updateHiddenFromManual();
         }
         
-        const selectedCard = document.getElementById(cardId);
-        console.log('Selected card:', selectedCard);
-        
-        if (!selectedCard) {
-          console.error('Card not found for type:', type, 'with ID:', cardId);
+        if (query.length < 2) {
+          if (catalogResults) catalogResults.style.display = 'none';
           return;
         }
         
-        // Add highlights to selected card
-        selectedCard.classList.add('border-primary', 'bg-light', 'selected-card');
+        if (catalogSpinner) catalogSpinner.classList.remove('d-none');
         
-        // Show check icon in selected card
-        const selectedIcon = selectedCard.querySelector('.selected-icon');
-        if (selectedIcon) {
-          selectedIcon.style.display = 'inline-block';
-        }
-        
-        // Hide all client sections
-        elements.agencySection.style.display = 'none';
-        elements.walkinForm.style.display = 'none';
-        elements.newCompanyForm.style.display = 'none';
-        
-        // Disable all client fields first
-        document.querySelectorAll('#agency-selection select, #walkin-form input, #new-company-form input, #new-company-form .form-check-input')
-          .forEach(el => el.disabled = true);
-        
-        // Show and enable selected section
-        if (type === 'agency') {
-          console.log('Showing agency section');
-          elements.agencySection.style.display = 'block';
-          elements.agencySelect.disabled = false;
-        } else if (type === 'walkin') {
-          console.log('Showing walkin form');
-          elements.walkinForm.style.display = 'block';
-          document.querySelectorAll('#walkin-form input').forEach(el => el.disabled = false);
-        } else if (type === 'new_company') {
-          console.log('Showing new company form');
-          if (elements.newCompanyForm) {
-            elements.newCompanyForm.style.display = 'block';
-            document.querySelectorAll('#new-company-form input, #new-company-form .form-check-input').forEach(el => {
-              el.disabled = false;
-              console.log('Enabling field:', el.id || el.name);
-            });
-          } else {
-            console.error('New company form not found!');
-          }
-        }
-        
-        // Enable mode cards
-        if (elements.existingModeCard) elements.existingModeCard.style.pointerEvents = 'auto';
-        if (elements.newModeCard) elements.newModeCard.style.pointerEvents = 'auto';
-        
-        // Enable driver fields
-        if (elements.driverName) elements.driverName.disabled = false;
-        const driverId = document.getElementById('driver_id');
-        if (driverId) driverId.disabled = false;
-        const notes = document.getElementById('notes');
-        if (notes) notes.disabled = false;
-        
-        // Enable mode selection (default to existing)
-        setMode(false);
-        
-        // Store selected type
-        if (elements.selectedClientType) {
-          elements.selectedClientType.value = type;
-        }
-        if (elements.clientTypeError) {
-          elements.clientTypeError.classList.add('d-none');
-        }
-      }
-      
-      // Add click handlers with debugging
-      elements.clientTypeCards.forEach(card => {
-        card.addEventListener('click', function(e) {
-          const type = this.dataset.clientType;
-          console.log('Card clicked:', type, this);
-          selectClientType(type);
-        });
-      });
-      
-      // ============================================
-      // MODE TOGGLE (Existing vs New Vehicle)
-      // ============================================
-      function setMode(isNew) {
-        console.log('Setting mode:', isNew ? 'new' : 'existing');
-        document.getElementById('create-new-vehicle').value = isNew ? 'true' : 'false';
-        
-        if (isNew) {
-          if (elements.existingSection) elements.existingSection.style.display = 'none';
-          if (elements.newVehicleSection) elements.newVehicleSection.style.display = 'block';
-          if (elements.existingModeCard) elements.existingModeCard.classList.remove('border-primary', 'bg-light');
-          if (elements.newModeCard) elements.newModeCard.classList.add('border-primary', 'bg-light');
-          
-          // Enable new vehicle fields
-          elements.newVehicleFields.forEach(el => el.disabled = false);
-          if (elements.searchInput) elements.searchInput.disabled = true;
-        } else {
-          if (elements.existingSection) elements.existingSection.style.display = 'block';
-          if (elements.newVehicleSection) elements.newVehicleSection.style.display = 'none';
-          if (elements.newModeCard) elements.newModeCard.classList.remove('border-primary', 'bg-light');
-          if (elements.existingModeCard) elements.existingModeCard.classList.add('border-primary', 'bg-light');
-          
-          // Enable search
-          if (elements.searchInput) elements.searchInput.disabled = false;
-          elements.newVehicleFields.forEach(el => el.disabled = true);
-        }
-      }
-      
-      if (elements.existingModeCard) {
-        elements.existingModeCard.addEventListener('click', () => {
-          if (elements.selectedClientType && elements.selectedClientType.value) {
-            setMode(false);
-          } else {
-            alert('Please select a client type first');
-          }
-        });
-      }
-      
-      if (elements.newModeCard) {
-        elements.newModeCard.addEventListener('click', () => {
-          if (elements.selectedClientType && elements.selectedClientType.value) {
-            setMode(true);
-          } else {
-            alert('Please select a client type first');
-          }
-        });
-      }
-      
-      // ============================================
-      // FORM VALIDATION
-      // ============================================
-      if (elements.vehicleForm) {
-        elements.vehicleForm.addEventListener('submit', function(e) {
-          if (!elements.selectedClientType || !elements.selectedClientType.value) {
-            e.preventDefault();
-            if (elements.clientTypeError) {
-              elements.clientTypeError.classList.remove('d-none');
-              elements.clientTypeError.textContent = 'Please select a client type';
-            }
-            return false;
-          }
-          
-          // Validate based on client type
-          if (elements.selectedClientType.value === 'agency' && elements.agencySelect && !elements.agencySelect.value) {
-            e.preventDefault();
-            alert('Please select an agency');
-            return false;
-          }
-          
-          if (elements.selectedClientType.value === 'walkin') {
-            if (elements.walkinName && !elements.walkinName.value.trim()) {
-              e.preventDefault();
-              alert('Please enter walk-in customer name');
-              return false;
-            }
-            if (elements.walkinPhone && !elements.walkinPhone.value.trim()) {
-              e.preventDefault();
-              alert('Please enter walk-in customer phone');
-              return false;
-            }
-          }
-          
-          if (elements.selectedClientType.value === 'new_company') {
-            if (elements.companyName && !elements.companyName.value.trim()) {
-              e.preventDefault();
-              alert('Please enter company name');
-              return false;
-            }
-            if (elements.companyContact && !elements.companyContact.value.trim()) {
-              e.preventDefault();
-              alert('Please enter contact person');
-              return false;
-            }
-            if (elements.companyPhone && !elements.companyPhone.value.trim()) {
-              e.preventDefault();
-              alert('Please enter company phone');
-              return false;
-            }
-            if (elements.companyEmail && !elements.companyEmail.value.trim()) {
-              e.preventDefault();
-              alert('Please enter company email');
-              return false;
-            }
-            if (elements.companyAddress && !elements.companyAddress.value.trim()) {
-              e.preventDefault();
-              alert('Please enter company address');
-              return false;
-            }
+        catalogTimeout = setTimeout(() => {
+          fetch(`/vehicles/catalog_search?q=${encodeURIComponent(query)}`, {
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRF-Token': document.querySelector('[name="csrf-token"]')?.content
+            },
+            credentials: 'same-origin'
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (catalogSpinner) catalogSpinner.classList.add('d-none');
             
-            // Check if payment terms selected
-            const termsSelected = Array.from(document.querySelectorAll('input[name="company[payment_terms]"]')).some(cb => cb.checked);
-            if (!termsSelected) {
-              e.preventDefault();
-              alert('Please select payment terms');
-              return false;
+            if (data && data.length > 0 && catalogResults) {
+              catalogResults.innerHTML = '';
+              data.forEach(item => {
+                const resultItem = document.createElement('button');
+                resultItem.type = 'button';
+                resultItem.className = 'list-group-item list-group-item-action';
+                resultItem.setAttribute('data-make', item.make);
+                resultItem.setAttribute('data-model', item.model);
+                resultItem.setAttribute('data-type', item.vehicle_type || '');
+                resultItem.innerHTML = `
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>${item.label}</strong>
+                      ${item.vehicle_type ? `<br><small class="text-muted">${item.vehicle_type}</small>` : ''}
+                    </div>
+                    <span class="badge bg-success">Select</span>
+                  </div>
+                `;
+                
+                resultItem.addEventListener('click', function() {
+                  const make = this.getAttribute('data-make');
+                  const model = this.getAttribute('data-model');
+                  const type = this.getAttribute('data-type');
+                  
+                  // Update all fields
+                  updateManualFromCatalog(make, model);
+                  if (catalogSearchInput) catalogSearchInput.value = `${make} ${model}`;
+                  if (selectedType) selectedType.value = type;
+                  if (type && document.getElementById('new_vehicle_type')) {
+                    const option = Array.from(document.getElementById('new_vehicle_type').options).find(opt => opt.value === type);
+                    if (option) document.getElementById('new_vehicle_type').value = type;
+                  }
+                  
+                  if (catalogResults) catalogResults.style.display = 'none';
+                });
+                
+                catalogResults.appendChild(resultItem);
+              });
+              catalogResults.style.display = 'block';
+            } else if (catalogResults) {
+              catalogResults.innerHTML = '<div class="list-group-item text-center text-muted">No matches found - you can type custom make/model</div>';
+              catalogResults.style.display = 'block';
             }
-          }
-          
-          // Validate vehicle selection
-          const selectedVehicleId = document.getElementById('selected-vehicle-id')?.value;
-          const isNewVehicle = document.getElementById('create-new-vehicle')?.value === 'true';
-          
-          if (!selectedVehicleId && !isNewVehicle) {
-            e.preventDefault();
-            alert('Please select a vehicle or add a new one');
-            return false;
-          }
-          
-          // Validate driver name
-          if (elements.driverName && !elements.driverName.value.trim()) {
-            e.preventDefault();
-            alert('Please enter driver name');
-            return false;
-          }
-          
-          // Enable submit button
-          if (elements.submitBtn) elements.submitBtn.disabled = false;
-          return true;
-        });
-      }
+          })
+          .catch(error => {
+            console.error('Catalog search error:', error);
+            if (catalogSpinner) catalogSpinner.classList.add('d-none');
+            if (catalogResults) {
+              catalogResults.innerHTML = '<div class="list-group-item text-center text-danger">Error searching catalog - you can type custom make/model</div>';
+              catalogResults.style.display = 'block';
+            }
+          });
+        }, 300);
+      });
     }
     
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
+    // Vehicle search for existing vehicles
+    let searchTimeout;
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 3) {
+          searchResults.style.display = 'none';
+          return;
+        }
+        
+        searchResults.innerHTML = '<div class="list-group-item text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Searching...</div>';
+        searchResults.style.display = 'block';
+        
+        searchTimeout = setTimeout(() => {
+          fetch(`/vehicles/search?q=${encodeURIComponent(query)}`, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.length > 0) {
+              searchResults.innerHTML = '';
+              data.forEach(vehicle => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'list-group-item list-group-item-action';
+                item.innerHTML = `
+                  <strong>${vehicle.license_plate}</strong><br>
+                  <small>${vehicle.make} ${vehicle.model}</small>
+                `;
+                item.addEventListener('click', () => {
+                  document.getElementById('selected-vehicle-id').value = vehicle.id;
+                  searchInput.value = `${vehicle.license_plate} - ${vehicle.make} ${vehicle.model}`;
+                  searchResults.style.display = 'none';
+                });
+                searchResults.appendChild(item);
+              });
+              searchResults.style.display = 'block';
+            } else {
+              searchResults.innerHTML = '<div class="list-group-item text-muted">No vehicles found</div>';
+              searchResults.style.display = 'block';
+            }
+          })
+          .catch(error => {
+            console.error('Search error:', error);
+            searchResults.innerHTML = '<div class="list-group-item text-danger">Error searching</div>';
+            searchResults.style.display = 'block';
+          });
+        }, 300);
+      });
     }
-  })();
+    
+    // Click outside to close results
+    document.addEventListener('click', function(e) {
+      if (searchInput && !searchInput.contains(e.target) && searchResults && !searchResults.contains(e.target)) {
+        searchResults.style.display = 'none';
+      }
+      if (catalogSearchInput && !catalogSearchInput.contains(e.target) && catalogResults && !catalogResults.contains(e.target)) {
+        catalogResults.style.display = 'none';
+      }
+    });
+    
+    // Enable submit button after load
+    setTimeout(() => {
+      enableSubmitButton();
+      console.log('Submit button enabled on load');
+    }, 500);
+    
+    console.log('Manual entry form initialized');
+  });
 </script>
 
 <style>
   .bg-gradient-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
-  
-  .border-2 {
-    border-width: 2px !important;
-  }
-  
   .client-type-card {
     transition: all 0.2s ease;
     cursor: pointer;
-    position: relative;
-    overflow: hidden;
   }
-  
   .client-type-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   }
-  
   .client-type-card.selected-card {
     border-width: 2px !important;
     transform: scale(1.02);
     box-shadow: 0 8px 16px rgba(0,123,255,0.2);
   }
-  
-  .client-type-card.selected-card .selected-icon {
-    display: inline-block !important;
-  }
-  
-  .selected-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-  }
-  
   .selected-icon {
     font-size: 1.5rem;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
   }
-  
   #search-results, #catalog-results {
     border-radius: 8px;
     border: none;
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    z-index: 2000;
-  }
-  
-  #search-results .list-group-item,
-  #catalog-results .list-group-item {
-    border-left: none;
-    border-right: none;
-    padding: 8px 12px;
-    cursor: pointer;
-  }
-  
-  #search-results .list-group-item:hover,
-  #catalog-results .list-group-item:hover {
-    background-color: #f8f9fa;
-  }
-  
-  /* Disabled state styling */
-  input:disabled, select:disabled, textarea:disabled, button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  
-  /* Animation for selection */
-  @keyframes selectPulse {
-    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-  }
-  
-  .client-type-card.selected-card {
-    animation: selectPulse 0.5s ease-out;
+    z-index: 1000;
   }
 </style>

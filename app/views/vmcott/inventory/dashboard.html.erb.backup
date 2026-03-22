@@ -1,0 +1,356 @@
+<%# app/views/vmcott/inventory/dashboard.html.erb - COMPLETE STANDALONE VERSION %>
+<%
+  response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+  response.headers["Pragma"] = "no-cache"
+  response.headers["Expires"] = "0"
+%>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Inventory Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #f8f9fa;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .dashboard-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      color: #28a745;
+      margin-bottom: 20px;
+      font-size: 28px;
+    }
+    
+    h2 {
+      color: #0d47a1;
+      margin: 20px 0 10px 0;
+      font-size: 22px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 32px;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    
+    .stat-label {
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .info-box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    .info-row {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .info-row:last-child {
+      border-bottom: none;
+    }
+    
+    .info-label {
+      font-weight: bold;
+      display: inline-block;
+      width: 150px;
+    }
+    
+    .parts-list {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    .parts-list table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .parts-list th {
+      background: #0d47a1;
+      color: white;
+      padding: 12px;
+      text-align: left;
+    }
+    
+    .parts-list td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .parts-list tr:hover {
+      background: #f5f5f5;
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    
+    .badge-critical {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .badge-low {
+      background: #ffc107;
+      color: black;
+    }
+    
+    .badge-ok {
+      background: #28a745;
+      color: white;
+    }
+    
+    .footer-bar {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e9ecef;
+      border-radius: 10px;
+      text-align: center;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .reload-count {
+      background: #0d47a1;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+    }
+    
+    .timestamp {
+      color: #666;
+    }
+    
+    .marker {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: #28a745;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <h1>📊 Inventory Dashboard</h1>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Parts</div>
+        <div class="stat-number" style="color: #0d47a1;"><%= @total_parts %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Low Stock</div>
+        <div class="stat-number" style="color: #ffc107;"><%= @low_stock_parts %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Out of Stock</div>
+        <div class="stat-number" style="color: #dc3545;"><%= @out_of_stock_parts %></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Inventory Value</div>
+        <div class="stat-number" style="color: #28a745;">TTD <%= number_to_currency(@total_inventory_value, unit: '') %></div>
+      </div>
+    </div>
+    
+    <div class="info-box">
+      <div class="info-row">
+        <span class="info-label">Total Parts:</span>
+        <span><%= @total_parts %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Low Stock Parts:</span>
+        <span><%= @low_stock_parts %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Out of Stock:</span>
+        <span><%= @out_of_stock_parts %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Inventory Value:</span>
+        <span>TTD <%= number_to_currency(@total_inventory_value, unit: '') %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Items Count:</span>
+        <span><%= @items.try(:count) %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Categories:</span>
+        <span><%= @category_counts.count %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Vendors:</span>
+        <span><%= @vendors.count %></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Critical Parts:</span>
+        <span><%= @critical_parts.count %></span>
+      </div>
+    </div>
+    
+    <h2>📋 Parts List</h2>
+    <div class="parts-list">
+      <table>
+        <thead>
+          <tr>
+            <th>Part Name</th>
+            <th>Part Number</th>
+            <th>Current Stock</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @items.each do |item| %>
+            <tr>
+              <td><strong><%= item.name %></strong></td>
+              <td><%= item.part_number || 'N/A' %></td>
+              <td><%= item.current_stock %></td>
+              <td>
+                <% if item.current_stock <= 0 %>
+                  <span class="badge badge-critical">Out of Stock</span>
+                <% elsif item.current_stock <= item.minimum_stock %>
+                  <span class="badge badge-critical">Critical</span>
+                <% elsif item.current_stock <= item.reorder_point %>
+                  <span class="badge badge-low">Low</span>
+                <% else %>
+                  <span class="badge badge-ok">OK</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    
+    <% if @critical_parts.any? %>
+      <h2>⚠️ Critical Parts (Below Minimum Stock)</h2>
+      <div class="parts-list" style="border: 2px solid #dc3545;">
+        <table>
+          <thead style="background: #dc3545;">
+            <tr>
+              <th style="color: white;">Part Name</th>
+              <th style="color: white;">Current Stock</th>
+              <th style="color: white;">Minimum Stock</th>
+              <th style="color: white;">Supplier</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @critical_parts.each do |part| %>
+              <tr>
+                <td><strong><%= part.name %></strong></td>
+                <td style="color: #dc3545; font-weight: bold;"><%= part.current_stock %></td>
+                <td><%= part.minimum_stock %></td>
+                <td><%= part.supplier&.name || 'N/A' %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+    
+    <div class="footer-bar">
+      <div class="reload-count">
+        🔄 Reload count: <%= session[:reload_count] = (session[:reload_count].to_i + 1) %>
+      </div>
+      <div class="timestamp">
+        ⏱️ Page loaded at: <%= Time.current.strftime("%H:%M:%S.%L") %>
+      </div>
+      <div>
+        <a href="<%= vmcott_inventory_dashboard_path %>" style="color: #0d47a1; text-decoration: none;">⟳ Refresh</a>
+      </div>
+    </div>
+  </div>
+  
+  <div class="marker" id="page-marker">
+    ✅ PAGE ACTIVE
+  </div>
+  
+  <script>
+    console.log("✅ Dashboard loaded at <%= Time.current.to_i %>");
+    console.log("📊 Parts count: <%= @total_parts %>");
+    console.log("🔧 Low stock parts: <%= @low_stock_parts %>");
+    console.log("⚠️ Critical parts: <%= @critical_parts.count %>");
+    
+    // Update the marker with timestamp
+    var marker = document.getElementById('page-marker');
+    if (marker) {
+      marker.innerHTML = '✅ PAGE ACTIVE - ' + new Date().toLocaleTimeString();
+    }
+    
+    // Add a second marker at bottom left
+    var leftMarker = document.createElement('div');
+    leftMarker.style.cssText = 'position: fixed; bottom: 10px; left: 10px; background: #0d47a1; color: white; padding: 5px 10px; border-radius: 5px; font-size: 11px; z-index: 9999;';
+    leftMarker.innerHTML = '🟢 Dashboard loaded at <%= Time.current.strftime("%H:%M:%S") %>';
+    document.body.appendChild(leftMarker);
+    
+    // Prevent any scripts from clearing the page
+    var originalRemoveChild = Element.prototype.removeChild;
+    Element.prototype.removeChild = function(child) {
+      if (this === document.body && document.body.children.length <= 2) {
+        console.warn("⚠️ Blocked removal of critical content!");
+        return child;
+      }
+      return originalRemoveChild.call(this, child);
+    };
+    
+    console.log("✅ Dashboard fully loaded and protected");
+  </script>
+</body>
+</html><%# Disable Turbo for this page to debug %>
+<meta name="turbo-visit-control" content="reload">
+<% content_for :head do %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>

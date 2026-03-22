@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <%# File: app/views/layouts/application.html.erb %>
@@ -7,6 +8,12 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="page-type" content="<%= content_for?(:gantt_page) ? 'gantt' : 'normal' %>">
+
+    <%# Comment out favicon line until you add a favicon.ico file %>
+    <%# <%= favicon_link_tag 'favicon.ico' %>
+    
+    <!-- Alternative: Use an inline SVG favicon to avoid 404 -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🚗%3C/text%3E%3C/svg%3E">
 
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
@@ -132,13 +139,24 @@
 
     <div id="modal-container"></div>
 
-    <!-- Navigation for logged-in users (skip for special pages) -->
-    <% unless params[:controller] == 'screensaver' || 
-              (params[:controller] == 'home' && params[:action] == 'index' && !user_signed_in?) ||
-              params[:controller] == 'devise/sessions' ||
-              params[:controller] == 'devise/passwords' ||
-              params[:controller] == 'devise/registrations' %>
-      
+    <%# ============================================================ %>
+    <%# SKIP NAVIGATION FOR INVENTORY DASHBOARD - FIXES BLANK PAGE %>
+    <%# ============================================================ %>
+    <%
+      # Determine if we should skip navigation
+      skip_navigation = (
+        params[:controller] == 'screensaver' || 
+        (params[:controller] == 'home' && params[:action] == 'index' && !user_signed_in?) ||
+        params[:controller] == 'devise/sessions' ||
+        params[:controller] == 'devise/passwords' ||
+        params[:controller] == 'devise/registrations' ||
+        # Skip navigation for inventory dashboard to fix blank page issue
+        (params[:controller] == 'vmcott/inventory' && params[:action] == 'dashboard')
+      )
+    %>
+
+    <!-- Navigation for logged-in users (skip for special pages and inventory dashboard) -->
+    <% unless skip_navigation %>
       <% if user_signed_in? %>
         <div class="container mt-3">
           <%= render "shared/navigation" %>

@@ -7,11 +7,11 @@ class NotificationsController < ApplicationController
     @notifications = Notification.where(user: current_user)
                                  .order(created_at: :desc)
                                  .page(params[:page]).per(20)
-    @unread_count = Notification.where(user: current_user, read_at: nil).count
+    @unread_count = Notification.where(user: current_user, read: false).count  # Changed from read_at: nil to read: false
   end
 
   def show
-    @notification.mark_as_read! unless @notification.read?
+    @notification.mark_as_read! unless @notification.read?  # This uses read? method which checks the read boolean
     redirect_to @notification.link.presence || notifications_path
   end
 
@@ -26,7 +26,7 @@ class NotificationsController < ApplicationController
   end
 
   def mark_all_as_read
-    Notification.where(user: current_user, read_at: nil).update_all(read_at: Time.current)
+    Notification.where(user: current_user, read: false).update_all(read: true)  # Changed from read_at: nil to read: false, and read_at: Time.current to read: true
     redirect_back fallback_location: notifications_path, notice: "All notifications marked as read."
   end
 

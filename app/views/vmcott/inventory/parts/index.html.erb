@@ -1,0 +1,82 @@
+<%# app/views/vmcott/inventory/parts/index.html.erb %>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>Parts Inventory</h1>
+      <p class="text-muted">Manage your parts inventory</p>
+    </div>
+    <div>
+      <%= link_to 'Low Stock', vmcott_inventory_low_stock_parts_path, class: 'btn btn-warning' %>
+      <%= link_to 'Reorder Suggestions', vmcott_inventory_reorder_suggestions_path, class: 'btn btn-info' %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="row">
+        <div class="col-md-6">
+          <h5 class="mb-0">Parts List</h5>
+        </div>
+        <div class="col-md-6">
+          <%= form_tag vmcott_inventory_parts_path, method: :get, class: 'd-flex' do %>
+            <%= text_field_tag :search, params[:search], placeholder: 'Search parts...', class: 'form-control me-2' %>
+            <%= submit_tag 'Search', class: 'btn btn-outline-primary' %>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Part Name</th>
+              <th>Part Number</th>
+              <th>Category</th>
+              <th>Current Stock</th>
+              <th>Minimum Stock</th>
+              <th>Reorder Point</th>
+              <th>Supplier</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </thead>
+          <tbody>
+            <% @parts.each do |part| %>
+              <tr>
+                <td><%= link_to part.name, vmcott_part_path(part) %>\n                <td><%= part.part_number || 'N/A' %></td>
+                <td><%= part.category || 'N/A' %></td>
+                <td>
+                  <span class="badge bg-<%= part.current_stock <= part.minimum_stock ? 'danger' : part.current_stock <= part.reorder_point ? 'warning' : 'success' %>">
+                    <%= part.current_stock %>
+                  </span>
+                </td>
+                <td><%= part.minimum_stock %></td>
+                <td><%= part.reorder_point %></td>
+                <td><%= part.supplier&.name || 'N/A' %></td>
+                <td>
+                  <% if part.current_stock <= part.minimum_stock %>
+                    <span class="badge bg-danger">Critical</span>
+                  <% elsif part.current_stock <= part.reorder_point %>
+                    <span class="badge bg-warning">Low</span>
+                  <% else %>
+                    <span class="badge bg-success">OK</span>
+                  <% end %>
+                </td>
+                <td>
+                  <div class="btn-group btn-group-sm">
+                    <%= link_to 'Edit', edit_vmcott_part_path(part), class: 'btn btn-outline-primary' %>
+                    <%= link_to 'Adjust', vmcott_inventory_adjust_stock_path(part), class: 'btn btn-outline-secondary' %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="d-flex justify-content-center mt-3">
+        <%= paginate @parts %>
+      </div>
+    </div>
+  </div>
+</div>

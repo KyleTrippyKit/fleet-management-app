@@ -1,18 +1,24 @@
-// app/javascript/controllers/inactivity_controller.js
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static values = { timeout: { type: Number, default: 30000 } } // 30 seconds default
+  static values = { timeout: { type: Number, default: 30000 } }
   
   connect() {
-    console.log("⏰ Inactivity controller connected with timeout:", this.timeoutValue);
+    // Skip inactivity timer on dashboard pages
+    const currentPath = window.location.pathname;
+    if (currentPath.includes('/inventory_dashboard') || 
+        currentPath.includes('/dashboard')) {
+      console.log("⏰ Inactivity controller disabled for dashboard page");
+      return;
+    }
     
-    // Don't set up timer if we're on the screensaver page
-    if (window.location.pathname.includes('/screensaver')) {
+    // Skip on screensaver page
+    if (currentPath.includes('/screensaver')) {
       console.log("⏰ On screensaver page, not starting inactivity timer");
       return;
     }
     
+    console.log("⏰ Inactivity controller connected with timeout:", this.timeoutValue);
     this.setupTimer();
     this.setupListeners();
   }
@@ -37,9 +43,10 @@ export default class extends Controller {
   }
   
   redirectToScreensaver() {
-    // Don't redirect if already on screensaver or home page
     const currentPath = window.location.pathname;
-    if (!currentPath.includes('/screensaver') && currentPath !== '/') {
+    if (!currentPath.includes('/screensaver') && 
+        currentPath !== '/' &&
+        !currentPath.includes('/inventory_dashboard')) {
       console.log("⏰ Inactivity timeout reached, redirecting to screensaver");
       window.location.href = '/screensaver';
     }

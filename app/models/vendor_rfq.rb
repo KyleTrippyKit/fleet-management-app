@@ -6,6 +6,7 @@ class VendorRfq < ApplicationRecord
   # Associations
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :processing_agency, class_name: "Agency", optional: true
+  belongs_to :vehicle, optional: true
 
   has_many :vendor_rfq_items, dependent: :destroy
   has_many :vendor_quotations, dependent: :destroy
@@ -23,6 +24,8 @@ class VendorRfq < ApplicationRecord
   # Scopes
   scope :recent, -> { order(created_at: :desc) }
   scope :open,   -> { where(status: %w[draft sent]) }
+  scope :with_po, -> { where.not(po_sent_at: nil) }
+  scope :without_po, -> { where(po_sent_at: nil) }
 
   # Status helpers
   def sent?    = status == "sent"
@@ -32,6 +35,33 @@ class VendorRfq < ApplicationRecord
 
   def locked?
     awarded? || closed?
+  end
+
+  # PO Tracking helpers
+  def can_create_po?
+    status == 'quotations_received' && po_sent_at.blank?
+  end
+
+  def po_created?
+    po_sent_at.present?
+  end
+
+  def po_received?
+    po_received_at.present?
+  end
+
+  def po_status_display
+    return 'No PO created' if po_sent_at.blank?
+    return "PO Sent on #{po_sent_at.strftime('%b %d, %Y')}" if po_sent_at.present? && po_received_at.blank?
+    return "PO Received on #{po_received_at.strftime('%b %d, %Y')}" if po_received_at.present?
+    'PO Created'
+  end
+
+  def po_status_badge_color
+    return 'secondary' if po_sent_at.blank?
+    return 'info' if po_sent_at.present? && po_received_at.blank?
+    return 'success' if po_received_at.present?
+    'warning'
   end
 
   # Get all items with their part info (handles both catalog and custom)
@@ -147,6 +177,7 @@ class VendorRfq < ApplicationRecord
       po = PurchaseOrder.create!(
         vendor: quotation.supplier.name,
         supplier_id: quotation.supplier_id,
+        vehicle_id: vehicle_id,
         created_by: user,
         status: 'draft',
         payment_status: 'unpaid',
@@ -182,11 +213,13 @@ class VendorRfq < ApplicationRecord
         )
       end
 
-      # Lock the RFQ as awarded
+      # Lock the RFQ as awarded and mark PO sent
       update!(
         status: 'awarded',
         awarded_vendor_quotation_id: quotation.id,
-        awarded_at: Time.current
+        awarded_at: Time.current,
+        po_sent_at: Time.current,
+        po_status: 'sent'
       )
 
       po

@@ -1,18 +1,20 @@
 <%# app/views/vmcott/procurement/dashboard/new_rfq.html.erb %>
-<div class="container-fluid py-4">
+<div class="container-fluid py-4" style="background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%); min-height: 100vh;">
   <!-- Header -->
   <div class="row mb-4">
     <div class="col">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h1 class="h2">
+          <h1 class="h3 mb-0 fw-bold text-white">
             <i class="bi bi-file-text me-2"></i>
             Create New RFQ
           </h1>
-          <p class="text-muted">Request for Quotation for parts</p>
+          <p class="text-white-50 mt-2 mb-0">Generate a professional Request for Quotation for suppliers</p>
         </div>
-        <div class="btn-group">
-          <%= link_to "← Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
+        <div>
+          <%= link_to vmcott_procurement_dashboard_path, class: "btn btn-outline-light" do %>
+            <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+          <% end %>
         </div>
       </div>
     </div>
@@ -20,143 +22,361 @@
 
   <!-- Flash Messages -->
   <% if flash[:alert] %>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
       <%= flash[:alert] %>
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
   <% end %>
 
-  <div class="row">
-    <div class="col-lg-8 mx-auto">
-      <div class="card">
-        <div class="card-header bg-primary text-white">
-          <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>RFQ Details</h5>
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <!-- Main Form Card -->
+      <div class="card shadow-lg border-0" style="background: rgba(255,255,255,0.95);">
+        <div class="card-header bg-transparent border-0 pt-4 pb-0">
+          <h5 class="card-title fw-bold mb-0" style="color: #3b82f6;">
+            <i class="bi bi-file-earmark-text me-2" style="color: #3b82f6;"></i>
+            RFQ Details
+          </h5>
+          <hr class="mt-3 mb-0" style="background: linear-gradient(90deg, #3b82f6, transparent);">
         </div>
+        
         <div class="card-body">
-          <%= form_with model: @rfq, url: vmcott_procurement_create_rfq_path, method: :post, local: true do |f| %>
+          <%= form_with model: @rfq, url: vmcott_procurement_create_rfq_path, method: :post, local: true, class: "needs-validation" do |f| %>
             <%= hidden_field_tag :parts_request_id, @parts_request.id %>
 
-            <!-- Parts Request Info -->
-            <div class="alert alert-info mb-4">
-              <h6 class="alert-heading fw-bold">Request Details</h6>
-              <div class="row">
-                <div class="col-md-6">
-                  <p class="mb-1">
-                    <strong>Part:</strong> 
-                    <%= @parts_request.part&.name || @parts_request.custom_part_name || 'Unknown Part' %>
-                  </p>
-                  <p class="mb-1">
-                    <strong>Quantity:</strong> 
-                    <%= @parts_request.quantity || 1 %>
-                  </p>
-                  <% if @parts_request.part&.part_number.present? %>
-                    <p class="mb-1">
-                      <strong>Part #:</strong> 
-                      <%= @parts_request.part.part_number %>
-                    </p>
-                  <% end %>
+            <!-- Internal Request Info - Dark Blue Theme -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%); border: none;">
+              <div class="card-header" style="background: linear-gradient(90deg, #3b82f6, transparent);">
+                <h6 class="mb-0 fw-semibold" style="color: #0a2b4e;">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Internal Request Information
+                  <span class="badge" style="background: #1f2937; color: #9ca3af; margin-left: 8px;">Reference Only</span>
+                </h6>
+              </div>
+              <div class="card-body">
+                <div class="row g-4">
+                  <!-- Part Details Box -->
+                  <div class="col-md-6">
+                    <div class="rounded-3 p-3 shadow-sm h-100" style="background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%);">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-box-seam text-white"></i>
+                        <span class="fw-semibold small text-uppercase ms-2 text-white">Part Details</span>
+                      </div>
+                      <div class="mt-2">
+                        <strong class="fs-5 text-white"><%= @parts_request.part&.name || @parts_request.custom_part_name || 'Unknown Part' %></strong>
+                        <% if @parts_request.part&.part_number.present? %>
+                          <div class="mt-1">
+                            <span class="text-white-50 small">Part #:</span> 
+                            <code class="bg-white bg-opacity-20 p-1 rounded text-white"><%= @parts_request.part.part_number %></code>
+                          </div>
+                        <% end %>
+                        <% if @parts_request.custom_part_name.present? && @parts_request.part.nil? %>
+                          <div class="mt-1">
+                            <span class="text-white-50 small">Custom Part:</span> 
+                            <span class="badge" style="background: rgba(255,255,255,0.2); color: white;"><%= @parts_request.custom_part_name %></span>
+                          </div>
+                        <% end %>
+                        <div class="mt-2">
+                          <span class="badge" style="background: rgba(255,255,255,0.2); color: white;">
+                            <i class="bi bi-cart me-1"></i> Qty: <%= @parts_request.quantity || 1 %>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Request Source Box - Shows what will be shared -->
+                  <div class="col-md-6">
+                    <div class="rounded-3 p-3 shadow-sm h-100" style="background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%);">
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-person-badge text-white"></i>
+                        <span class="fw-semibold small text-uppercase ms-2 text-white">Request Source</span>
+                      </div>
+                      <div class="mt-2">
+                        <div class="text-white">
+                          <i class="bi bi-truck text-white-50 me-1"></i> 
+                          <strong>Vehicle:</strong> 
+                          <span class="fw-semibold">
+                            <%= @parts_request.inspection&.vehicle&.make %> 
+                            <%= @parts_request.inspection&.vehicle&.model %>
+                            (<%= @parts_request.inspection&.vehicle&.year_of_manufacture %>)
+                          </span>
+                        </div>
+                        <div class="mt-2 text-white-50 small">
+                          <i class="bi bi-shield-lock me-1"></i>
+                          <strong>Will be shared with suppliers:</strong> Make, Model, Year
+                        </div>
+                        <div class="text-white-50 small">
+                          <i class="bi bi-eye-slash me-1"></i>
+                          <strong>Will NOT be shared:</strong> License Plate
+                        </div>
+                        <div class="mt-2 text-white">
+                          <i class="bi bi-person text-white-50 me-1"></i> 
+                          <strong>Requested By:</strong> 
+                          <% if @parts_request.inspection_job&.assigned_mechanic.present? %>
+                            <%= @parts_request.inspection_job.assigned_mechanic.name %>
+                            <span class="badge bg-info ms-1">Mechanic</span>
+                          <% elsif @parts_request.inspection&.inspector.present? && @parts_request.custom_part_name.present? %>
+                            <%= @parts_request.inspection.inspector.name %>
+                            <span class="badge" style="background: #ffc107; color: #856404;">Inventory</span>
+                          <% elsif @parts_request.inspection&.inspector.present? %>
+                            <%= @parts_request.inspection.inspector.name %>
+                            <span class="badge bg-secondary ms-1">Inspector</span>
+                          <% else %>
+                            <span class="text-white-50">System Generated</span>
+                          <% end %>
+                        </div>
+                        <div class="text-white-50 small mt-1">
+                          <i class="bi bi-calendar me-1"></i> 
+                          <%= @parts_request.created_at.strftime("%b %d, %Y") if @parts_request.created_at.present? %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  <p class="mb-1">
-                    <strong>Vehicle:</strong> 
-                    <%= @parts_request.inspection&.vehicle&.license_plate || 'N/A' %>
-                  </p>
-                  <p class="mb-1">
-                    <strong>Make/Model:</strong> 
-                    <%= @parts_request.inspection&.vehicle&.make %> <%= @parts_request.inspection&.vehicle&.model %>
-                  </p>
-                  <p class="mb-1">
-                    <strong>Requested By:</strong> 
-                    <%= @parts_request.inspection&.inspector&.name || 'Mechanic' %>
-                  </p>
+                
+                <div class="alert mt-3 mb-0 py-2 small border-0" style="background: rgba(0,0,0,0.3); color: white;">
+                  <i class="bi bi-lock-fill me-1"></i>
+                  Requested by information is for internal reference only and will NOT be included in the RFQ.
                 </div>
               </div>
             </div>
 
-            <!-- RFQ Number (auto-generated) -->
-            <div class="mb-3">
-              <%= f.label :rfq_number, "RFQ Number", class: "form-label fw-bold" %>
-              <%= f.text_field :rfq_number, 
-                    class: "form-control", 
-                    value: "RFQ-#{Time.current.strftime('%Y%m')}-#{SecureRandom.hex(4).upcase}", 
-                    readonly: true %>
-              <div class="form-text">Auto-generated RFQ number</div>
+            <!-- RFQ Form Fields -->
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="form-floating mb-3">
+                  <%= f.text_field :rfq_number, 
+                        class: "form-control bg-light", 
+                        value: "RFQ-#{Time.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}", 
+                        readonly: true,
+                        id: "rfq_number" %>
+                  <%= f.label :rfq_number, "RFQ Number", for: "rfq_number" %>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-floating mb-3">
+                  <%= f.date_field :due_date, 
+                        class: "form-control", 
+                        value: 7.days.from_now, 
+                        min: Date.today,
+                        id: "due_date" %>
+                  <%= f.label :due_date, "Response Due Date", for: "due_date" %>
+                </div>
+              </div>
             </div>
 
-            <!-- Due Date -->
-            <div class="mb-3">
-              <%= f.label :due_date, "Response Due Date", class: "form-label fw-bold" %>
-              <%= f.date_field :due_date, 
-                    class: "form-control", 
-                    value: 7.days.from_now, 
-                    min: Date.today %>
-              <div class="form-text">Suppliers should respond by this date (default: 7 days)</div>
-            </div>
-
-            <!-- Notes -->
-            <div class="mb-3">
-              <%= f.label :notes, "Special Instructions / Notes", class: "form-label fw-bold" %>
+            <div class="mb-4">
+              <%= f.label :notes, "Special Instructions for Suppliers", class: "form-label fw-semibold" %>
+              <div class="small text-muted mb-2">These notes will be visible to suppliers in the RFQ</div>
               <%= f.text_area :notes, 
                     rows: 4, 
                     class: "form-control", 
-                    placeholder: "Any special requirements, delivery instructions, quality specifications, etc." %>
+                    placeholder: "e.g., Delivery requirements, quality specifications, payment terms, urgent delivery needed..." %>
             </div>
 
-            <!-- Supplier Selection (if you want to add this feature) -->
+            <!-- Supplier Selection -->
             <div class="mb-4">
-              <label class="form-label fw-bold">Select Suppliers (Optional)</label>
-              <p class="text-muted small">Choose specific suppliers to send this RFQ to</p>
-              <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
-                <% if @suppliers.present? %>
-                  <% @suppliers.each do |supplier| %>
-                    <div class="form-check mb-2">
-                      <input class="form-check-input" type="checkbox" 
-                             name="vendor_rfq[supplier_ids][]" 
-                             value="<%= supplier.id %>" 
-                             id="supplier_<%= supplier.id %>">
-                      <label class="form-check-label" for="supplier_<%= supplier.id %>">
-                        <strong><%= supplier.name %></strong>
-                        <% if supplier.contact_person.present? %>
-                          <br><small class="text-muted">Contact: <%= supplier.contact_person %></small>
-                        <% end %>
-                      </label>
+              <label class="form-label fw-semibold text-danger">
+                <i class="bi bi-star-fill me-1"></i>
+                Select Suppliers *
+              </label>
+              <div class="small text-muted mb-2">Choose at least one supplier to receive this RFQ</div>
+              
+              <div class="card border-0 bg-light">
+                <div class="card-body p-3">
+                  <% if @suppliers.present? %>
+                    <div class="mb-3 pb-2 border-bottom">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="select_all_suppliers">
+                        <label class="form-check-label fw-semibold" for="select_all_suppliers">
+                          <i class="bi bi-check2-square me-1"></i> Select All Suppliers
+                        </label>
+                      </div>
+                    </div>
+                    <div class="row g-2" style="max-height: 250px; overflow-y: auto;">
+                      <% @suppliers.each do |supplier| %>
+                        <div class="col-md-6">
+                          <div class="form-check py-1">
+                            <input class="form-check-input supplier-checkbox" 
+                                   type="checkbox" 
+                                   name="vendor_rfq[supplier_ids][]" 
+                                   value="<%= supplier.id %>" 
+                                   id="supplier_<%= supplier.id %>">
+                            <label class="form-check-label" for="supplier_<%= supplier.id %>">
+                              <strong><%= supplier.name %></strong>
+                              <% if supplier.contact_person.present? %>
+                                <br><small class="text-muted">Contact: <%= supplier.contact_person %></small>
+                              <% end %>
+                            </label>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="alert alert-warning mb-0">
+                      <i class="bi bi-exclamation-triangle me-2"></i>
+                      No suppliers available. 
+                      <%= link_to "Add suppliers", suppliers_path, class: "alert-link" %> before creating an RFQ.
                     </div>
                   <% end %>
-                <% else %>
-                  <p class="text-muted mb-0">
-                    No suppliers available. 
-                    <%= link_to "Add suppliers", suppliers_path %> first.
-                  </p>
-                <% end %>
+                  <div id="supplier-error" class="text-danger small mt-2" style="display: none;">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    Please select at least one supplier to create this RFQ.
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Submit Buttons -->
-            <div class="d-flex justify-content-between">
-              <%= link_to "Cancel", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+              <%= link_to "Cancel", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary px-4" %>
               <%= f.submit "Create RFQ", 
-                    class: "btn btn-primary", 
-                    data: { disable_with: "Creating..." } %>
+                    class: "btn px-4", 
+                    style: "background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%); color: white; border: none;",
+                    id: "create-rfq-btn",
+                    data: { disable_with: '<i class="bi bi-hourglass-split me-1"></i> Creating...' } %>
             </div>
           <% end %>
         </div>
       </div>
+    </div>
 
-      <!-- Help Card -->
-      <div class="card mt-4">
-        <div class="card-header bg-info text-white">
-          <h6 class="mb-0"><i class="bi bi-question-circle me-2"></i>RFQ Process</h6>
+    <!-- Sidebar - Help Section -->
+    <div class="col-lg-4">
+      <div class="card shadow-lg border-0 mb-3" style="background: rgba(255,255,255,0.95);">
+        <div class="card-header bg-transparent border-0 pt-3">
+          <h6 class="fw-semibold mb-0" style="color: #3b82f6;">
+            <i class="bi bi-question-circle me-1" style="color: #3b82f6;"></i>
+            RFQ Process
+          </h6>
         </div>
+        <div class="card-body pt-0">
+          <div class="timeline-steps">
+            <div class="step d-flex mb-3">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">1</div>
+              <div class="step-text">Review parts request details</div>
+            </div>
+            <div class="step d-flex mb-3">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">2</div>
+              <div class="step-text">Set supplier response due date</div>
+            </div>
+            <div class="step d-flex mb-3">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">3</div>
+              <div class="step-text">Add special instructions for suppliers</div>
+            </div>
+            <div class="step d-flex mb-3">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">4</div>
+              <div class="step-text fw-bold text-danger">Select at least one supplier</div>
+            </div>
+            <div class="step d-flex mb-3">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">5</div>
+              <div class="step-text">Create RFQ to generate document</div>
+            </div>
+            <div class="step d-flex">
+              <div class="step-number me-3 rounded-circle text-white d-flex align-items-center justify-content-center" style="background: #3b82f6; width: 28px; height: 28px;">6</div>
+              <div class="step-text">Send RFQ to selected suppliers</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-lg border-0" style="background: rgba(255,255,255,0.95);">
         <div class="card-body">
-          <ol class="mb-0">
-            <li>Review the parts request details above</li>
-            <li>Set a due date for supplier responses</li>
-            <li>Add any special instructions or notes</li>
-            <li>Click "Create RFQ" to generate the Request for Quotation</li>
-            <li>After creation, you'll be able to send it to suppliers from the dashboard</li>
-          </ol>
+          <h6 class="fw-semibold mb-2" style="color: #3b82f6;">
+            <i class="bi bi-eye me-1 text-success"></i>
+            What Suppliers Will See
+          </h6>
+          <ul class="small mb-3 ps-3">
+            <li>✓ Part name and quantity</li>
+            <li>✓ Response due date</li>
+            <li>✓ Special instructions/notes</li>
+            <li>✓ Vehicle Make, Model, Year</li>
+          </ul>
+          <hr class="my-2">
+          <h6 class="fw-semibold mt-2 mb-2" style="color: #3b82f6;">
+            <i class="bi bi-lock me-1 text-muted"></i>
+            Not Included
+          </h6>
+          <ul class="small mb-0 ps-3 text-muted">
+            <li>✗ Requested by information</li>
+            <li>✗ Vehicle License Plate</li>
+            <li>✗ Cost/pricing information</li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .timeline-steps .step-text {
+    line-height: 28px;
+  }
+  .form-floating > .form-control:read-only {
+    background-color: #f8f9fa;
+  }
+  .form-control:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+  }
+  .bg-white.bg-opacity-20 {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+</style>
+
+<!-- JavaScript for supplier validation and select all -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Select All functionality
+    const selectAllCheckbox = document.getElementById('select_all_suppliers');
+    const supplierCheckboxes = document.querySelectorAll('.supplier-checkbox');
+    
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', function() {
+        supplierCheckboxes.forEach(checkbox => {
+          checkbox.checked = selectAllCheckbox.checked;
+        });
+        validateSuppliers();
+      });
+    }
+    
+    // Validate at least one supplier is selected before form submission
+    const form = document.querySelector('form');
+    const errorDiv = document.getElementById('supplier-error');
+    
+    function validateSuppliers() {
+      const checkedSuppliers = document.querySelectorAll('.supplier-checkbox:checked');
+      const hasSupplier = checkedSuppliers.length > 0;
+      
+      if (!hasSupplier && errorDiv) {
+        errorDiv.style.display = 'block';
+      } else if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+      
+      return hasSupplier;
+    }
+    
+    // Check validation on checkbox change
+    supplierCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', validateSuppliers);
+    });
+    
+    // Validate on form submit
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        const hasSupplier = validateSuppliers();
+        if (!hasSupplier) {
+          e.preventDefault();
+          errorDiv.style.display = 'block';
+          errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+    
+    // Initial validation
+    validateSuppliers();
+  });
+</script>

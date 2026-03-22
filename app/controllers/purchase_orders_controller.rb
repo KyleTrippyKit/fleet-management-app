@@ -1,23 +1,17 @@
 # app/controllers/purchase_orders_controller.rb
-# COMPLETE REVISED VERSION with JSON endpoint in show action
-# UPDATED: Finance users can now create and approve POs
-# FIXED: Skip payable creation for procurement POs (no vehicle/agency)
-
 class PurchaseOrdersController < ApplicationController
   before_action :authenticate_user!
   before_action :set_purchase_order, except: [:index, :new, :create, :from_quotation, :awaiting_acceptance]
   before_action :check_edit_permission, only: [:edit, :update]
-  before_action :require_supervisor_or_finance, only: [:approve, :reject]  # CHANGED: Now includes finance
   before_action :require_finance, only: [:mark_paid, :payment, :process_payment, :authorize_payment, :complete_payment, :record_payment]
   before_action :redirect_pdf_to_print, only: [:show]
 
   # GET /purchase_orders
   def index
     @purchase_orders = fetch_purchase_orders
-    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
-    @users = User.all if current_user.admin? || current_user.supervisor? || current_user.finance?  # CHANGED: Added finance
+    @agencies = Agency.all if current_user.admin? || current_user.finance?
+    @users = User.all if current_user.admin? || current_user.supervisor? || current_user.finance?
 
-    # Fix any nil statuses in the collection (temporary fix)
     @purchase_orders.each do |po|
       if po.status.nil? || po.payment_status.nil?
         po.update_columns(status: 'draft', payment_status: 'unpaid') if po.persisted?
@@ -29,7 +23,6 @@ class PurchaseOrdersController < ApplicationController
   def from_quotation
     @quotation = Quotation.find(params[:quotation_id])
 
-    # CHANGED: Allow finance users to create POs from quotations
     unless current_user.finance? || current_user.admin? || current_user.supervisor?
       redirect_to @quotation, alert: 'Access denied. Finance, admin, or supervisor role required.'
       return
@@ -153,16 +146,14 @@ class PurchaseOrdersController < ApplicationController
     @pending_items = @purchase_order.purchase_order_items.where(is_accepted: nil)
     @accepted_total = @accepted_items.sum(:total_price)
 
-    # For the simple accept/reject workflow
     @show_simple_workflow = true
     render :acceptance_details
   end
 
-  # POST /purchase_orders/:id/accept_entire_po
+  # POST /purchase_orders/:id/accept_entire_po - VMCOTT accepting work order
   def accept_entire_po
     if @purchase_order.accept_entire_po!(current_user)
-      # Send email notification
-      PurchaseOrderMailer.po_accepted(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
+      PurchaseOrderMailer.po_approved(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
       redirect_to @purchase_order, notice: 'Purchase order accepted successfully. Work has been started.'
     else
       redirect_to @purchase_order, alert: 'Could not accept purchase order.'
@@ -206,7 +197,6 @@ class PurchaseOrdersController < ApplicationController
   end
 
   # GET /purchase_orders/:id
-  # GET /purchase_orders/:id.json
   def show
     if request.format.pdf?
       return redirect_to print_purchase_order_path(@purchase_order, format: :pdf)
@@ -248,6 +238,7 @@ class PurchaseOrdersController < ApplicationController
     @vendor_invoice_items = @vendor_invoice ? @vendor_invoice.vendor_invoice_items : []
   end
 
+  # ENHANCED: New action with RFQ support
   def new
     @purchase_order = PurchaseOrder.new
     @purchase_order.purchase_order_items.build
@@ -256,27 +247,123 @@ class PurchaseOrdersController < ApplicationController
       @vehicle = Vehicle.find_by(id: params[:vehicle_id])
       @purchase_order.vehicle = @vehicle if @vehicle
     end
+
+    # Handle RFQ data if coming from procurement
+    if params[:rfq_id].present?
+      @rfq = VendorRfq.find_by(id: params[:rfq_id])
+      
+      if @rfq.present?
+        # 🔥 PREVENT DUPLICATE PO
+        if @rfq.po_sent_at.present? || @rfq.po_status == 'sent'
+          flash[:alert] = "A purchase order has already been sent for RFQ ##{@rfq.rfq_number}. Cannot create another."
+          redirect_to vmcott_procurement_dashboard_path and return
+        end
+        
+        # Get quotations for this RFQ
+        @quotations = @rfq.vendor_quotations.where(status: 'received')
+        
+        # Get vehicle directly from RFQ
+        @selected_vehicle_id = @rfq.vehicle_id
+        
+        if @rfq.vehicle.present?
+          @purchase_order.vehicle = @rfq.vehicle
+        end
+        
+        # Build RFQ items data
+        @rfq_items_data = @rfq.vendor_rfq_items.map do |item|
+          {
+            part_id: item.part_id,
+            description: item.part&.name || item.custom_part_name || 'Unknown Part',
+            quantity: item.quantity
+          }
+        end
+        
+        # Build purchase order items from RFQ data
+        @purchase_order.purchase_order_items.clear
+        @rfq_items_data.each do |item_data|
+          @purchase_order.purchase_order_items.build(
+            part_id: item_data[:part_id],
+            description: item_data[:description],
+            quantity: item_data[:quantity],
+            unit_price: nil
+          )
+        end
+        
+        # Store RFQ ID in session for later association
+        session[:rfq_id_for_po] = @rfq.id
+        
+        if @quotations.present?
+          # Build quotations data
+          @quotations_data = {
+            @rfq.id => {
+              items: @rfq_items_data,
+              quotations: @quotations.map do |q|
+                {
+                  supplier_id: q.supplier_id,
+                  supplier_name: q.supplier_name,
+                  items: q.vendor_quotation_lines.map do |line|
+                    {
+                      description: line.description,
+                      quantity: line.quantity,
+                      unit_price: line.unit_price,
+                      total: line.total_price
+                    }
+                  end
+                }
+              end,
+              vehicle_id: @selected_vehicle_id
+            }
+          }
+          
+          # Find cheapest overall supplier
+          totals = {}
+          @quotations.each do |q|
+            totals[q.supplier_id] = q.vendor_quotation_lines.sum(:total_price)
+          end
+          
+          if totals.any?
+            cheapest_supplier_id = totals.min_by { |_, total| total }&.first
+            @cheapest_supplier = Supplier.find_by(id: cheapest_supplier_id)
+            @cheapest_total = totals[cheapest_supplier_id]
+          end
+        end
+        
+        # Auto-fill vendor from cheapest supplier if available
+        if @cheapest_supplier.present?
+          @purchase_order.vendor = @cheapest_supplier.name
+        end
+      end
+    end
+    
+    # Also get available RFQs with quotations for selection
+    @available_rfqs = VendorRfq.where(status: 'quotations_received')
+                                .includes(:vendor_rfq_items)
+                                .includes(:vehicle)
+                                .includes(vendor_quotations: :vendor_quotation_lines)
+                                .order(created_at: :desc)
   end
 
   def create
     @purchase_order = PurchaseOrder.new(purchase_order_params)
     @purchase_order.created_by = current_user
-    
-    if params[:commit] == 'Submit for Approval'
-      @purchase_order.status = 'pending_approval'
-    else
-      @purchase_order.status = 'draft'
+    @purchase_order.status = 'draft'
+
+    # 🔥 Associate with RFQ if coming from RFQ
+    if session[:rfq_id_for_po].present?
+      @purchase_order.rfq_id = session[:rfq_id_for_po]
     end
 
     if @purchase_order.save
-      # Send email notification for new PO
-      PurchaseOrderMailer.po_created(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
-      
-      if @purchase_order.status == 'pending_approval'
-        redirect_to @purchase_order, notice: 'Purchase Order submitted for approval successfully.'
-      else
-        redirect_to @purchase_order, notice: 'Purchase Order saved as draft successfully.'
+      # Update the RFQ with the PO info
+      if @purchase_order.rfq_id.present?
+        rfq = VendorRfq.find_by(id: @purchase_order.rfq_id)
+        if rfq && rfq.po_sent_at.blank?
+          rfq.update(po_status: 'draft')
+          Rails.logger.info "✅ Linked RFQ ##{rfq.rfq_number} to PO #{@purchase_order.po_number}"
+        end
       end
+      
+      redirect_to @purchase_order, notice: 'Purchase Order saved as draft successfully.'
     else
       flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
       render :new, status: :unprocessable_entity
@@ -288,89 +375,126 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def update
-    if params[:commit] == 'Submit for Approval'
-      @purchase_order.status = 'pending_approval'
-    end
-
     if @purchase_order.update(purchase_order_params)
-      if @purchase_order.status == 'pending_approval'
-        redirect_to @purchase_order, notice: 'Purchase Order submitted for approval successfully.'
-      else
-        redirect_to @purchase_order, notice: 'Purchase order updated successfully.'
-      end
+      redirect_to @purchase_order, notice: 'Purchase order updated successfully.'
     else
       flash.now[:alert] = @purchase_order.errors.full_messages.to_sentence
       render :edit, status: :unprocessable_entity
     end
   end
 
+  # PROCUREMENT: Send PO to vendor
   def submit
-    if @purchase_order.submit_for_approval!
-      redirect_to @purchase_order, notice: 'Submitted for approval successfully.'
-    else
-      redirect_to @purchase_order, alert: 'Could not submit for approval.'
-    end
-  end
-
-  # CHANGED: Now allows finance users to approve POs
-  # FIXED: Skip payable creation for procurement POs (vendor != 'VMCOTT')
-  def approve
-    if @purchase_order.approve!(current_user)
-      # Only create payable for agency POs (vendor = 'VMCOTT') that need it
-      if @purchase_order.vendor == 'VMCOTT' && @purchase_order.payable.blank?
-        begin
-          @purchase_order.create_payable!
-          notice_msg = 'Approved successfully and payable created.'
-        rescue => e
-          Rails.logger.error "Failed to create payable for PO #{@purchase_order.po_number}: #{e.message}"
-          notice_msg = 'Approved successfully (payable creation skipped - no vehicle/agency).'
+    if @purchase_order.update(status: 'sent', sent_at: Time.current)
+      PurchaseOrderMailer.po_created(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
+      
+      # 🔥 UPDATE THE RFQ: Mark that PO has been sent
+      if @purchase_order.rfq_id.present?
+        rfq = VendorRfq.find_by(id: @purchase_order.rfq_id)
+        if rfq && rfq.po_sent_at.blank?
+          rfq.update(po_sent_at: Time.current, po_status: 'sent')
+          Rails.logger.info "✅ Updated RFQ ##{rfq.rfq_number} - PO sent"
         end
-      else
-        notice_msg = 'Approved successfully.'
       end
-      redirect_to @purchase_order, notice: notice_msg
+      
+      # Clear session if present
+      session.delete(:rfq_id_for_po)
+      
+      redirect_to @purchase_order, notice: "Purchase Order sent to #{@purchase_order.vendor} successfully."
     else
-      redirect_to @purchase_order, alert: 'Could not approve purchase order.'
+      redirect_to @purchase_order, alert: 'Could not send purchase order.'
     end
   end
 
-  # CHANGED: Now allows finance users to reject POs
-  def reject
-    if @purchase_order.reject!(current_user, params[:reason])
-      # Send rejection email
-      PurchaseOrderMailer.po_rejected(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
-      redirect_to @purchase_order, notice: 'Rejected successfully.'
-    else
-      redirect_to @purchase_order, alert: 'Could not reject purchase order.'
-    end
-  end
-
-  def cancel
-    if @purchase_order.cancel!(params[:cancellation_reason])
-      @purchase_order.payable&.update(status: 'cancelled') if @purchase_order.respond_to?(:payable)
-      redirect_to @purchase_order, notice: 'Cancelled successfully.'
-    else
-      redirect_to @purchase_order, alert: 'Could not cancel purchase order.'
-    end
-  end
-
-  def mark_ordered
-    if @purchase_order.mark_ordered!
-      redirect_to @purchase_order, notice: 'Marked as ordered successfully.'
-    else
-      redirect_to @purchase_order, alert: 'Could not mark as ordered.'
-    end
-  end
-
+  # PROCUREMENT: Mark items as received
   def mark_received
-    if @purchase_order.mark_received!
-      redirect_to @purchase_order, notice: 'Marked as received successfully.'
+    if @purchase_order.update(status: 'received', received_at: Time.current)
+      # 🔥 UPDATE THE RFQ: Mark that items have been received
+      if @purchase_order.rfq_id.present?
+        rfq = VendorRfq.find_by(id: @purchase_order.rfq_id)
+        if rfq
+          rfq.update(
+            po_received_at: Time.current,
+            po_status: 'received'
+          )
+          Rails.logger.info "✅ Updated RFQ ##{rfq.rfq_number} - items received"
+        end
+      end
+      
+      notify_inventory_manager(@purchase_order)
+      
+      # Redirect to dashboard with notice so status updates immediately
+      redirect_to vmcott_procurement_dashboard_path, 
+                  notice: 'Items marked as received! Status updated to "Items Received ✓".'
     else
       redirect_to @purchase_order, alert: 'Could not mark as received.'
     end
   end
 
-  # VMCOTT Workflow Actions
+  # PROCUREMENT: Mark as ready for payment
+  def mark_ready_for_payment
+    if @purchase_order.update(status: 'ready_for_payment', ready_for_payment_at: Time.current)
+      notify_finance(@purchase_order)
+      redirect_to @purchase_order, notice: 'Order marked ready for payment. Finance has been notified.'
+    else
+      redirect_to @purchase_order, alert: 'Could not mark as ready for payment.'
+    end
+  end
+
+  # INVENTORY: Update stock levels
+  def update_stock
+    ActiveRecord::Base.transaction do
+      @purchase_order.purchase_order_items.each do |item|
+        if item.part_id.present?
+          part = Part.find(item.part_id)
+          part.update!(current_stock: part.current_stock + item.quantity)
+        end
+      end
+      
+      @purchase_order.update(
+        status: 'stock_updated',
+        stock_updated_at: Time.current
+      )
+      
+      notify_workshop(@purchase_order)
+      
+      redirect_to @purchase_order, notice: 'Stock updated successfully. Workshop has been notified.'
+    end
+  rescue => e
+    redirect_to @purchase_order, alert: "Failed to update stock: #{e.message}"
+  end
+
+  # FINANCE: Process payment
+  def mark_paid
+    begin
+      card_type = params[:card_type]
+      last_four_digits = params[:last_four_digits]
+
+      if @purchase_order.mark_as_paid!(
+        reference: params[:payment_reference],
+        method: params[:payment_method],
+        user: current_user,
+        notes: params[:payment_notes],
+        last_four_digits: last_four_digits,
+        card_type: card_type
+      )
+        payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+        payable&.record_payment(@purchase_order.amount, params[:payment_method], params[:payment_reference])
+        
+        PurchaseOrderMailer.po_paid(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
+        
+        redirect_to @purchase_order, notice: 'Payment processed successfully. Vendor notified.'
+      else
+        redirect_to @purchase_order, alert: 'Could not process payment.'
+      end
+    rescue ActiveRecord::RecordInvalid => e
+      redirect_to @purchase_order, alert: "Could not process payment: #{e.message}"
+    rescue StandardError => e
+      redirect_to @purchase_order, alert: "Error: #{e.message}"
+    end
+  end
+
+  # VMCOTT WORK ORDER ACTIONS
   def mark_work_in_progress
     if @purchase_order.mark_work_in_progress!(current_user)
       redirect_to @purchase_order, notice: 'Work started successfully.'
@@ -397,65 +521,37 @@ class PurchaseOrdersController < ApplicationController
 
   def mark_delivered
     if @purchase_order.mark_delivered!(current_user)
-      # Send delivery notification
       PurchaseOrderMailer.po_delivered(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
-      redirect_to @purchase_order, notice: 'Marked as delivered successfully.'
+      redirect_to @purchase_order, notice: 'Marked as delivered successfully. Agency notified.'
     else
       redirect_to @purchase_order, alert: 'Could not mark as delivered.'
     end
   end
 
-  def mark_paid
-    begin
-      card_type = params[:card_type]
-      last_four_digits = params[:last_four_digits]
+  # LEGACY ACTIONS
+  def approve
+    redirect_to @purchase_order, alert: 'This action is no longer used. POs go directly to vendors.'
+  end
 
-      if @purchase_order.mark_as_paid!(
-        reference: params[:payment_reference],
-        method: params[:payment_method],
-        user: current_user,
-        notes: params[:payment_notes],
-        last_four_digits: last_four_digits,
-        card_type: card_type
-      )
-        payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
-        payable&.record_payment(@purchase_order.amount, params[:payment_method], params[:payment_reference])
-        
-        # Send payment notification
-        PurchaseOrderMailer.po_paid(@purchase_order).deliver_later if defined?(PurchaseOrderMailer)
-        
-        redirect_to @purchase_order, notice: 'Marked as paid successfully.'
-      else
-        redirect_to @purchase_order, alert: 'Could not mark as paid.'
-      end
-    rescue ActiveRecord::RecordInvalid => e
-      redirect_to @purchase_order, alert: "Could not mark as paid: #{e.message}"
-    rescue StandardError => e
-      redirect_to @purchase_order, alert: "Error: #{e.message}"
+  def reject
+    redirect_to @purchase_order, alert: 'This action is no longer used. Please contact procurement.'
+  end
+
+  def cancel
+    if @purchase_order.cancel!(params[:cancellation_reason])
+      @purchase_order.payable&.update(status: 'cancelled') if @purchase_order.respond_to?(:payable)
+      redirect_to @purchase_order, notice: 'Cancelled successfully.'
+    else
+      redirect_to @purchase_order, alert: 'Could not cancel purchase order.'
     end
   end
 
-  def record_payment
-    payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
-    unless payable
-      redirect_to @purchase_order, alert: 'No payable record found for this purchase order.'
-      return
-    end
+  def mark_ordered
+    redirect_to @purchase_order, alert: 'Use "Send to Vendor" instead.'
+  end
 
-    payment_params = params.require(:payment).permit(:amount, :payment_method, :reference_number, :payment_date, :notes)
-
-    if payable.record_payment(
-      payment_params[:amount].to_d,
-      payment_params[:payment_method],
-      payment_params[:reference_number],
-      Date.parse(payment_params[:payment_date] || Date.current.to_s)
-    )
-      @purchase_order.update(payment_status: 'completed', paid_at: Time.current) if payable.amount_due <= 0
-      redirect_to @purchase_order, notice: 'Payment recorded successfully.'
-    else
-      flash.now[:alert] = 'Failed to record payment.'
-      render :show, status: :unprocessable_entity
-    end
+  def mark_received_legacy
+    redirect_to @purchase_order, alert: 'Use "Mark as Received" instead.'
   end
 
   def payment
@@ -511,6 +607,29 @@ class PurchaseOrdersController < ApplicationController
     end
   end
 
+  def record_payment
+    payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
+    unless payable
+      redirect_to @purchase_order, alert: 'No payable record found for this purchase order.'
+      return
+    end
+
+    payment_params = params.require(:payment).permit(:amount, :payment_method, :reference_number, :payment_date, :notes)
+
+    if payable.record_payment(
+      payment_params[:amount].to_d,
+      payment_params[:payment_method],
+      payment_params[:reference_number],
+      Date.parse(payment_params[:payment_date] || Date.current.to_s)
+    )
+      @purchase_order.update(payment_status: 'completed', paid_at: Time.current) if payable.amount_due <= 0
+      redirect_to @purchase_order, notice: 'Payment recorded successfully.'
+    else
+      flash.now[:alert] = 'Failed to record payment.'
+      render :show, status: :unprocessable_entity
+    end
+  end
+
   def payment_summary
     @payable = @purchase_order.respond_to?(:payable) ? @purchase_order.payable : nil
     @account_transactions = @payable&.account_transactions || []
@@ -519,68 +638,6 @@ class PurchaseOrdersController < ApplicationController
   def payment_audits
     @payment_audits = @purchase_order.payment_audits.order(created_at: :desc)
     render partial: 'payment_audits' if request.xhr?
-  end
-
-  def analytics
-    @time_range = params[:time_range] || '30_days'
-    @agency_id = params[:agency_id]
-
-    @start_date =
-      case @time_range
-      when '7_days' then 7.days.ago
-      when '30_days' then 30.days.ago
-      when '90_days' then 90.days.ago
-      when 'custom' then (Date.parse(params[:start_date]) if params[:start_date].present?)
-      end
-
-    @end_date = (Date.parse(params[:end_date]) if @time_range == 'custom' && params[:end_date].present?) || Time.current
-    @start_date ||= 30.days.ago
-
-    @stats = PurchaseOrder.trinidad_payment_stats(time_range: @start_date..@end_date, agency_id: @agency_id)
-    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
-  end
-
-  def reconciliation
-    @start_date = params[:start_date] || Date.current.beginning_of_month
-    @end_date = params[:end_date] || Date.current
-    @agency_id = params[:agency_id]
-    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
-  end
-
-  def compliance_reports
-    @purchase_orders = PurchaseOrder.trinidad_card_payments.order(created_at: :desc).page(params[:page]).per(20)
-    @purchase_orders = @purchase_orders.joins(:vehicle).where(vehicles: { agency_id: params[:agency_id] }) if params[:agency_id].present?
-    @agencies = Agency.all if current_user.admin? || current_user.finance?  # CHANGED: Added finance
-  end
-
-  def vendor_analysis
-    @vendor = params[:vendor]
-
-    if @vendor.present?
-      @purchase_orders = PurchaseOrder.trinidad_card_payments.where(vendor: @vendor).order(created_at: :desc).page(params[:page]).per(20)
-    end
-
-    @top_vendors = PurchaseOrder.trinidad_card_payments.group(:vendor).order('sum_amount desc').limit(10).sum(:amount)
-  end
-
-  def export_reconciliation
-    @purchase_orders = fetch_purchase_orders
-    
-    respond_to do |format|
-      format.csv { send_data @purchase_orders.to_csv, filename: "reconciliation-#{Date.today}.csv" }
-      format.xlsx { send_data @purchase_orders.to_xlsx, filename: "reconciliation-#{Date.today}.xlsx" }
-      format.html { redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon' }
-    end
-  end
-
-  def needs_payment
-    @purchase_orders = PurchaseOrder.needs_payment
-                                    .joins(:vehicle)
-                                    .where(vehicles: { agency_id: current_user.agency_id })
-                                    .recent
-                                    .page(params[:page])
-                                    .per(20)
-    render :index
   end
 
   def convert_to_invoice
@@ -670,51 +727,73 @@ class PurchaseOrdersController < ApplicationController
   end
 
   def pending_approval
-    @purchase_orders = PurchaseOrder.pending_approval
+    redirect_to purchase_orders_path, alert: 'No pending approval - POs go directly to vendors.'
+  end
+
+  def bulk_approve
+    redirect_to purchase_orders_path, alert: 'No bulk approval - POs go directly to vendors.'
+  end
+
+  def analytics
+    @time_range = params[:time_range] || '30_days'
+    @agency_id = params[:agency_id]
+
+    @start_date =
+      case @time_range
+      when '7_days' then 7.days.ago
+      when '30_days' then 30.days.ago
+      when '90_days' then 90.days.ago
+      when 'custom' then (Date.parse(params[:start_date]) if params[:start_date].present?)
+      end
+
+    @end_date = (Date.parse(params[:end_date]) if @time_range == 'custom' && params[:end_date].present?) || Time.current
+    @start_date ||= 30.days.ago
+
+    @stats = PurchaseOrder.trinidad_payment_stats(time_range: @start_date..@end_date, agency_id: @agency_id)
+    @agencies = Agency.all if current_user.admin? || current_user.finance?
+  end
+
+  def reconciliation
+    @start_date = params[:start_date] || Date.current.beginning_of_month
+    @end_date = params[:end_date] || Date.current
+    @agency_id = params[:agency_id]
+    @agencies = Agency.all if current_user.admin? || current_user.finance?
+  end
+
+  def compliance_reports
+    @purchase_orders = PurchaseOrder.trinidad_card_payments.order(created_at: :desc).page(params[:page]).per(20)
+    @purchase_orders = @purchase_orders.joins(:vehicle).where(vehicles: { agency_id: params[:agency_id] }) if params[:agency_id].present?
+    @agencies = Agency.all if current_user.admin? || current_user.finance?
+  end
+
+  def vendor_analysis
+    @vendor = params[:vendor]
+
+    if @vendor.present?
+      @purchase_orders = PurchaseOrder.trinidad_card_payments.where(vendor: @vendor).order(created_at: :desc).page(params[:page]).per(20)
+    end
+
+    @top_vendors = PurchaseOrder.trinidad_card_payments.group(:vendor).order('sum_amount desc').limit(10).sum(:amount)
+  end
+
+  def export_reconciliation
+    @purchase_orders = fetch_purchase_orders
+    
+    respond_to do |format|
+      format.csv { send_data @purchase_orders.to_csv, filename: "reconciliation-#{Date.today}.csv" }
+      format.xlsx { send_data @purchase_orders.to_xlsx, filename: "reconciliation-#{Date.today}.xlsx" }
+      format.html { redirect_to reconciliation_purchase_orders_path, alert: 'Export feature coming soon' }
+    end
+  end
+
+  def needs_payment
+    @purchase_orders = PurchaseOrder.needs_payment
                                     .joins(:vehicle)
                                     .where(vehicles: { agency_id: current_user.agency_id })
                                     .recent
                                     .page(params[:page])
                                     .per(20)
     render :index
-  end
-
-  def bulk_approve
-    purchase_order_ids = params[:purchase_order_ids]
-    if purchase_order_ids.blank?
-      redirect_to pending_approval_purchase_orders_path, alert: 'No purchase orders selected.'
-      return
-    end
-
-    approved_count = 0
-    failed_count = 0
-
-    purchase_order_ids.each do |id|
-      purchase_order = PurchaseOrder.find_by(id: id)
-      next unless purchase_order && purchase_order.pending_approval?
-
-      if purchase_order.approve!(current_user)
-        # Only create payable for agency POs
-        if purchase_order.vendor == 'VMCOTT' && purchase_order.payable.blank?
-          begin
-            purchase_order.create_payable!
-          rescue => e
-            Rails.logger.error "Failed to create payable for PO #{purchase_order.po_number}: #{e.message}"
-          end
-        end
-        approved_count += 1
-      else
-        failed_count += 1
-      end
-    end
-
-    if approved_count > 0
-      notice = "Successfully approved #{approved_count} purchase order(s)."
-      notice += " #{failed_count} failed." if failed_count > 0
-      redirect_to pending_approval_purchase_orders_path, notice: notice
-    else
-      redirect_to pending_approval_purchase_orders_path, alert: 'No purchase orders were approved.'
-    end
   end
 
   private
@@ -748,18 +827,13 @@ class PurchaseOrdersController < ApplicationController
     base_scope = base_scope.includes(:payable) if PurchaseOrder.reflect_on_association(:payable)
 
     if current_user.admin?
-      # Admins see everything
       base_scope = base_scope.all
     elsif current_user.agency&.code == 'VMCOTT'
-      # FIXED: VMCOTT only sees purchase orders sent TO them (vendor = 'VMCOTT')
-      # This prevents them from seeing drafts from PTSC, TTPS, etc.
       base_scope = base_scope.where(vendor: 'VMCOTT')
     else
-      # Regular agencies only see purchase orders they created (via their vehicles)
       base_scope = base_scope.joins(:vehicle).where(vehicles: { agency_id: current_user.agency_id })
     end
 
-    # Apply filters
     base_scope = base_scope.where(status: params[:status]) if params[:status].present?
     base_scope = base_scope.where(payment_status: params[:payment_status]) if params[:payment_status].present?
     base_scope = base_scope.where(created_by_id: params[:created_by]) if params[:created_by].present?
@@ -785,13 +859,6 @@ class PurchaseOrdersController < ApplicationController
     redirect_to @purchase_order, alert: 'This purchase order cannot be edited.' unless @purchase_order.editable?
   end
 
-  # CHANGED: Now allows finance users to approve/reject POs
-  def require_supervisor_or_finance
-    unless current_user.supervisor? || current_user.admin? || current_user.finance?
-      redirect_to root_path, alert: 'Unauthorized - Supervisor or Finance access required'
-    end
-  end
-
   def require_finance
     redirect_to root_path, alert: 'Unauthorized - Finance access required' unless current_user.finance? || current_user.admin?
   end
@@ -802,5 +869,30 @@ class PurchaseOrdersController < ApplicationController
 
   def generate_po_number
     "PO-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+
+  # Notification methods
+  def notify_inventory_manager(purchase_order)
+    inventory_managers = User.where(role: 'inventory_manager').pluck(:email)
+    return unless inventory_managers.any?
+    
+    PurchaseOrderMailer.stock_received(purchase_order, inventory_managers).deliver_later if defined?(PurchaseOrderMailer)
+    Rails.logger.info "📦 Inventory Manager notified about received parts for PO #{purchase_order.po_number}"
+  end
+
+  def notify_workshop(purchase_order)
+    workshop_users = User.where(role: 'workshop_supervisor').pluck(:email)
+    return unless workshop_users.any?
+    
+    PurchaseOrderMailer.parts_available(purchase_order, workshop_users).deliver_later if defined?(PurchaseOrderMailer)
+    Rails.logger.info "🔧 Workshop notified about available parts for PO #{purchase_order.po_number}"
+  end
+
+  def notify_finance(purchase_order)
+    finance_users = User.where(role: 'finance').pluck(:email)
+    return unless finance_users.any?
+    
+    PurchaseOrderMailer.ready_for_payment(purchase_order, finance_users).deliver_later if defined?(PurchaseOrderMailer)
+    Rails.logger.info "💰 Finance notified about payment readiness for PO #{purchase_order.po_number}"
   end
 end

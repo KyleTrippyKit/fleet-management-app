@@ -1,4 +1,3 @@
-# app/models/client.rb
 class Client < ApplicationRecord
   # Associations
   belongs_to :agency, optional: true
@@ -22,11 +21,12 @@ class Client < ApplicationRecord
     deposit_balance: 4
   }
   
-  # Validations
+  # SIMPLE VALIDATIONS - Only require name, everything else optional
   validates :name, presence: true
-  validates :email, uniqueness: true, allow_blank: true, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
-  validates :phone, presence: true, format: { with: /\A[0-9+\-\s]+\z/, message: "only allows numbers, spaces, +, and -" }
   validates :credit_limit, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  
+  # REMOVED: email uniqueness validation
+  # REMOVED: phone validation
   
   # Scopes
   scope :active, -> { where(is_active: true) }
@@ -158,7 +158,6 @@ class Client < ApplicationRecord
     active.order(:name).map { |c| [c.display_name, c.id] }
   end
   
-  # For debugging - shows what values are accepted
   def self.valid_client_type_values
     client_types.keys.map(&:to_s)
   end

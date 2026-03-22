@@ -15,6 +15,8 @@ Rails.application.routes.draw do
   get "stock_levels/index"
   get "stock_levels/update_batch"
 
+  get "test_simple", to: "test#simple"
+
   # ========================
   # Authentication - Devise
   # ========================
@@ -84,6 +86,9 @@ Rails.application.routes.draw do
   # VMCOTT Namespace - ALL VMCOTT ROUTES GO HERE
   # ========================
   namespace :vmcott do
+    get "hello", to: "inventory#hello"
+    get "static_test", to: "inventory#static_test"
+    get "inventory", to: "inventory#index"
     # ========================
     # VMCOTT ROLE-SPECIFIC DASHBOARDS - RENAMED
     # ========================
@@ -182,6 +187,7 @@ Rails.application.routes.draw do
 
     # 4. PROCUREMENT (was billing)
     namespace :procurement do
+      get "low_stock_requests", to: "dashboard#low_stock_requests"
       get "dashboard", to: "dashboard#index", as: :dashboard
       
       # RFQ Creation
@@ -386,6 +392,7 @@ Rails.application.routes.draw do
     # Inventory Dashboard
     # ------------------------
     get "inventory_dashboard",           to: "inventory#dashboard",           as: :inventory_dashboard
+    get "inventory_dashboard_no_nav",    to: "inventory#dashboard_no_nav" 
     get "inventory/low_stock",           to: "inventory#low_stock",           as: :inventory_low_stock
     get "inventory/consumables",         to: "inventory#consumables",         as: :inventory_consumables
     get "inventory/purchase_requests",   to: "inventory#purchase_requests",   as: :inventory_purchase_requests

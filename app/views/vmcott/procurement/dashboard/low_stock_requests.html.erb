@@ -1,0 +1,138 @@
+cat > app/views/vmcott/procurement/dashboard/low_stock_requests.html.erb << 'EOF'
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        Low Stock Purchase Requests
+      </h1>
+      <p class="text-muted">Requests from Inventory Manager for low stock parts</p>
+    </div>
+    <div class="col-auto">
+      <div class="btn-group">
+        <%= link_to "← Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-primary" %>
+        <%= link_to "📋 All RFQs", vmcott_vendor_rfqs_path, class: "btn btn-outline-primary" %>
+        <%= link_to "📦 POs", purchase_orders_path, class: "btn btn-primary" %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pending Requests Section -->
+  <div class="card mb-4">
+    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i> Pending Requests (<%= @low_stock_requests.count %>)</h5>
+    </div>
+    <div class="card-body">
+      <% if @low_stock_requests.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Part #</th>
+                <th>Current Stock</th>
+                <th>Requested Qty</th>
+                <th>Urgency</th>
+                <th>Requested By</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @low_stock_requests.each do |request| %>
+                <tr class="<%= request.urgency == 'high' || request.urgency == 'critical' ? 'table-danger' : '' %>">
+                  <td>
+                    <strong><%= request.part&.name || request.custom_part_name || 'Unknown Part' %></strong>
+                    <% if request.part&.part_number %>
+                      <br><small class="text-muted"><%= request.part.part_number %></small>
+                    <% end %>
+                  </td>
+                  <td><%= request.part&.part_number || 'N/A' %></td>
+                  <td class="<%= request.part&.current_stock.to_i <= 0 ? 'text-danger fw-bold' : 'text-warning' %>">
+                    <%= request.part&.current_stock || 0 %>
+                  </td>
+                  <td><strong><%= request.quantity %></strong></td>
+                  <td>
+                    <span class="badge bg-<%= request.urgency == 'critical' ? 'danger' : request.urgency == 'high' ? 'warning' : 'secondary' %>">
+                      <%= request.urgency&.titleize || 'Normal' %>
+                    </span>
+                  </td>
+                  <td><%= request.requested_by&.name || 'System' %></td>
+                  <td><%= request.created_at.strftime("%b %d, %Y") %></td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "Create RFQ", 
+                          vmcott_procurement_new_rfq_path(parts_request_id: request.id),
+                          class: "btn btn-primary btn-sm" %>
+                      <%= link_to "View", 
+                          vmcott_purchase_request_path(request),
+                          class: "btn btn-outline-secondary btn-sm" %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-4">No pending low stock requests at this time.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Low Stock Parts Without Requests - Only shows parts with NO pending requests -->
+  <div class="card">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i> Low Stock Parts (No Request Yet)</h5>
+    </div>
+    <div class="card-body">
+      <% if @low_stock_parts_without_requests.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th>Part #</th>
+                <th>Current Stock</th>
+                <th>Min Stock</th>
+                <th>Reorder Point</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @low_stock_parts_without_requests.each do |part| %>
+                <tr>
+                  <td><strong><%= part.name %></strong></td>
+                  <td><%= part.part_number || 'N/A' %></td>
+                  <td class="<%= part.current_stock <= 0 ? 'text-danger fw-bold' : 'text-warning' %>">
+                    <%= part.current_stock %>
+                  </td>
+                  <td><%= part.minimum_stock %></td>
+                  <td><%= part.reorder_point %></td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "Create Purchase Request", 
+                          vmcott_inventory_new_purchase_request_with_part_path(part),
+                          class: "btn btn-warning btn-sm" %>
+                      <%= link_to "View", 
+                          vmcott_part_path(part),
+                          class: "btn btn-outline-secondary btn-sm" %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="text-muted text-center py-4">No low stock parts without pending requests.</p>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+  console.log("Low stock requests page loaded");
+</script>
+EOF

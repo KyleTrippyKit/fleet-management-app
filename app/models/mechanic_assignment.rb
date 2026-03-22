@@ -1,11 +1,10 @@
-# app/models/mechanic_assignment.rb
 class MechanicAssignment < ApplicationRecord
   belongs_to :inspection_job
   belongs_to :mechanic, class_name: 'User'
   
   validates :status, presence: true
   
-  # Fix the enum definition - use the Rails 7+ syntax with enum :name, {...}
+  # Rails 7+ enum syntax
   enum :status, {
     assigned: 'assigned',
     in_progress: 'in_progress',
@@ -16,20 +15,11 @@ class MechanicAssignment < ApplicationRecord
     qc_failed: 'qc_failed'
   }
 
-  # If you're using an older Rails version, use this instead:
-  # enum status: {
-  #   assigned: 'assigned',
-  #   in_progress: 'in_progress',
-  #   waiting_parts: 'waiting_parts',
-  #   completed: 'completed',
-  #   qc_requested: 'qc_requested',
-  #   qc_passed: 'qc_passed',
-  #   qc_failed: 'qc_failed'
-  # }
-
+  # Scopes
   scope :active, -> { where(status: [:assigned, :in_progress, :waiting_parts]) }
   scope :needing_qc, -> { where(status: :qc_requested) }
 
+  # Instance methods
   def start!
     update(status: :in_progress, started_at: Time.current)
   end

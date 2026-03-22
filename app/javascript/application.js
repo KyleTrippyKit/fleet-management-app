@@ -10,10 +10,11 @@
 //
 
 import "@hotwired/turbo-rails"
-import "controllers"
+import "./controllers"
 import "polish"
 import "channels"
-import "shortcuts"
+// Comment out the line below - it's causing the Chart.js error
+// import "shortcuts"
 
 console.log("✅ app/javascript/application.js loaded (PRODUCTION MODE)")
 

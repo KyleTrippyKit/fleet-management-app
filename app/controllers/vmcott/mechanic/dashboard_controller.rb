@@ -467,7 +467,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
-    assignment = MechanicAssignment.find_or_initializeBy(
+    assignment = MechanicAssignment.find_or_initialize_by(
       inspection_job_id: @job.id,
       mechanic_id: current_user.id
     )
@@ -568,87 +568,181 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   end
 
   # ========================
-  # FIXED: request_part - No more notes attribute
+  # UPDATED: request_part - Simplified error messages
   # ========================
   def request_part
     if @job.assigned_mechanic_id != current_user.id
-      redirect_to vmcott_mechanic_dashboard_path, alert: "You cannot request parts for a job that isn't assigned to you."
+      redirect_to vmcott_mechanic_dashboard_path, alert: "Access Denied: You cannot request parts for a job that isn't assigned to you."
       return
     end
     
     assignment = MechanicAssignment.find_by(inspection_job_id: @job.id, mechanic_id: current_user.id)
     unless assignment&.in_progress?
-      redirect_to vmcott_mechanic_job_path(@job), alert: "Parts can only be requested when job is in progress."
+      redirect_to vmcott_mechanic_job_path(@job), alert: "Action Not Permitted: Parts can only be requested when job is in progress."
       return
     end
 
-    # Check if we have the required fields
     if params[:quantity].blank? || params[:quantity].to_i <= 0
-      redirect_to vmcott_mechanic_job_path(@job), alert: "Please enter a valid quantity."
+      redirect_to vmcott_mechanic_job_path(@job), alert: "Invalid Quantity: Please enter a valid quantity greater than zero."
       return
     end
 
-    # Handle based on part type
+    quantity = params[:quantity].to_i
+
     if params[:part_type] == 'inventory'
-      # Inventory part request
       if params[:part_id].blank?
-        redirect_to vmcott_mechanic_job_path(@job), alert: "Please select a part from the inventory."
+        redirect_to vmcott_mechanic_job_path(@job), alert: "Selection Required: Please select a part from the inventory."
         return
       end
       
       part = Part.find_by(id: params[:part_id])
       if part.nil?
-        redirect_to vmcott_mechanic_job_path(@job), alert: "Selected part not found."
+        redirect_to vmcott_mechanic_job_path(@job), alert: "Part Not Found: The selected part could not be located in the inventory."
         return
       end
       
-      parts_request = PartsRequest.new(
-        inspection_id: params[:inspection_id],
-        inspection_job_id: params[:inspection_job_id],
-        part_id: part.id,
-        quantity: params[:quantity],
-        status: part.current_stock >= params[:quantity].to_i ? 'approved' : 'pending',
-        in_stock: part.current_stock >= params[:quantity].to_i
+      # Check if a parts request already exists
+      existing_request = PartsRequest.find_by(
+        inspection_id: @job.inspection_id,
+        part_id: part.id
       )
+      
+      if existing_request
+        # Statuses that mean the request has already been sent to RFQ/procurement
+        rfq_sent_statuses = ['rfq_sent', 'procurement_notified', 'ordered', 'approved']
+        
+        if rfq_sent_statuses.include?(existing_request.status)
+          # Simplified error message
+          flash[:alert] = "⚠️ Can't Request More\n\n" \
+                          "Part: #{part.name}\n" \
+                          "Status: Already sent to Procurement\n\n" \
+                          "This part has already been ordered. Please contact procurement to add more:\n" \
+                          "📧 procurement@vmcott.com | 📞 ext 1234\n\n" \
+                          "Reference: RFQ ##{existing_request.id}"
+        else
+          # Add quantity to existing request
+          new_quantity = existing_request.quantity + quantity
+          existing_request.update(quantity: new_quantity)
+          
+          assignment.update(
+            mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Added #{quantity}x #{part.name} to existing request (Total: #{new_quantity})"
+          )
+          
+          flash[:notice] = "✅ Quantity Updated\n\n" \
+                          "Part: #{part.name}\n" \
+                          "Added: #{quantity} units\n" \
+                          "Total: #{new_quantity} units"
+        end
+      else
+        # Create new parts request
+        new_request = PartsRequest.new(
+          inspection_id: @job.inspection_id,
+          part_id: part.id,
+          quantity: quantity,
+          status: part.current_stock >= quantity ? 'approved' : 'pending',
+          in_stock: part.current_stock >= quantity,
+          inspection_job_id: @job.id
+        )
+        
+        if new_request.save
+          assignment.update(
+            mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part.name}"
+          )
+          
+          notify_parts_coordinator(@job.inspection) if new_request.status == 'pending'
+          
+          if new_request.status == 'approved'
+            flash[:notice] = "✅ Request Approved\n\n" \
+                            "Part: #{part.name}\n" \
+                            "Quantity: #{quantity} units\n\n" \
+                            "In stock - you may proceed with the repair."
+          else
+            flash[:notice] = "📦 Request Submitted\n\n" \
+                            "Part: #{part.name}\n" \
+                            "Quantity: #{quantity} units\n\n" \
+                            "Out of stock - procurement has been notified."
+          end
+        else
+          redirect_to vmcott_mechanic_job_path(@job), alert: "System Error: Failed to create parts request. Please contact support."
+          return
+        end
+      end
       
     elsif params[:part_type] == 'custom'
-      # Custom part request
       if params[:custom_part_name].blank?
-        redirect_to vmcott_mechanic_job_path(@job), alert: "Please enter a name for the custom part."
+        redirect_to vmcott_mechanic_job_path(@job), alert: "Required Field: Please enter a name for the custom part."
         return
       end
       
-      parts_request = PartsRequest.new(
-        inspection_id: params[:inspection_id],
-        inspection_job_id: params[:inspection_job_id],
-        custom_part_name: params[:custom_part_name],
-        quantity: params[:quantity],
-        status: 'pending',
-        in_stock: false
+      part_name = params[:custom_part_name]
+      
+      # Check if a custom parts request already exists
+      existing_request = PartsRequest.find_by(
+        inspection_id: @job.inspection_id,
+        custom_part_name: part_name
       )
+      
+      if existing_request
+        rfq_sent_statuses = ['rfq_sent', 'procurement_notified', 'ordered', 'approved']
+        
+        if rfq_sent_statuses.include?(existing_request.status)
+          # Simplified error message for custom parts
+          flash[:alert] = "⚠️ Can't Request More\n\n" \
+                          "Part: #{part_name} (Custom)\n" \
+                          "Status: Already sent to Procurement\n\n" \
+                          "This custom part has already been ordered. Please contact procurement to add more:\n" \
+                          "📧 procurement@vmcott.com | 📞 ext 1234\n\n" \
+                          "Reference: RFQ ##{existing_request.id}"
+        else
+          # Add quantity to existing request
+          new_quantity = existing_request.quantity + quantity
+          existing_request.update(quantity: new_quantity)
+          
+          assignment.update(
+            mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Added #{quantity}x #{part_name} (custom) to existing request (Total: #{new_quantity})"
+          )
+          
+          flash[:notice] = "✅ Quantity Updated\n\n" \
+                          "Part: #{part_name} (Custom)\n" \
+                          "Added: #{quantity} units\n" \
+                          "Total: #{new_quantity} units"
+        end
+      else
+        # Create new custom request
+        new_request = PartsRequest.new(
+          inspection_id: @job.inspection_id,
+          custom_part_name: part_name,
+          quantity: quantity,
+          status: 'pending',
+          in_stock: false,
+          inspection_job_id: @job.id
+        )
+        
+        if new_request.save
+          assignment.update(
+            mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part_name} (custom part)"
+          )
+          notify_parts_coordinator(@job.inspection)
+          
+          flash[:notice] = "📦 Request Submitted\n\n" \
+                          "Part: #{part_name} (Custom)\n" \
+                          "Quantity: #{quantity} units\n\n" \
+                          "Procurement has been notified."
+        else
+          redirect_to vmcott_mechanic_job_path(@job), alert: "System Error: Failed to create custom parts request. Please contact support."
+          return
+        end
+      end
     else
-      redirect_to vmcott_mechanic_job_path(@job), alert: "Please select a part type."
+      redirect_to vmcott_mechanic_job_path(@job), alert: "Selection Required: Please select a part type (Inventory or Custom)."
       return
     end
 
-    if parts_request.save
-      # Update assignment notes
-      part_name = part&.name || params[:custom_part_name]
-      assignment.update(
-        mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{params[:quantity]}x #{part_name}"
-      )
-      
-      # Notify parts coordinator
-      notify_parts_coordinator(@job.inspection) if parts_request.status == 'pending'
-      
-      redirect_to vmcott_mechanic_job_path(@job), notice: "Parts request submitted successfully."
-    else
-      redirect_to vmcott_mechanic_job_path(@job), alert: "Failed to create parts request: #{parts_request.errors.full_messages.join(', ')}"
-    end
+    redirect_to vmcott_mechanic_job_path(@job), notice: flash[:notice]
   rescue => e
     Rails.logger.error "Error in request_part: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
-    redirect_to vmcott_mechanic_job_path(@job), alert: "An error occurred: #{e.message}"
+    redirect_to vmcott_mechanic_job_path(@job), alert: "System Error: An unexpected error occurred. Please contact support."
   end
 
   def request_qc
@@ -808,7 +902,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     Rails.logger.error "Failed to create notification: #{e.message}"
   end
 
-  # Add this method to disable caching for all actions
   def disable_caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"

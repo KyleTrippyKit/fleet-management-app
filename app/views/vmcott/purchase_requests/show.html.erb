@@ -42,13 +42,13 @@
                     <% else %>
                       <span class="text-muted">Unknown Part</span>
                     <% end %>
-                  </td>
-                </tr>
-                <tr>
+                   </td>
+                 </tr>
+                 <tr>
                   <th>Quantity:</th>
                   <td><span class="badge bg-secondary fs-6"><%= @purchase_request.quantity %> units</span></td>
-                </tr>
-                <tr>
+                 </tr>
+                 <tr>
                   <th>Urgency:</th>
                   <td>
                     <span class="badge bg-<%= 
@@ -60,12 +60,12 @@
                       <%= @purchase_request.urgency.titleize %>
                     </span>
                   </td>
-                </tr>
-                <tr>
+                 </tr>
+                 <tr>
                   <th>Status:</th>
                   <td>
                     <% status_config = {
-                      'pending' => ['warning', 'Pending - Waiting for Billing'],
+                      'pending' => ['warning', 'Pending - Waiting for Procurement'],
                       'approved' => ['success', 'Approved'],
                       'rejected' => ['danger', 'Rejected'],
                       'ordered' => ['info', 'Ordered'],
@@ -74,7 +74,7 @@
                     <% config = status_config[@purchase_request.status] || ['secondary', @purchase_request.status.titleize] %>
                     <span class="badge bg-<%= config[0] %>"><%= config[1] %></span>
                   </td>
-                </tr>
+                 </tr>
               </table>
             </div>
             <div class="col-md-6">
@@ -191,7 +191,7 @@
     </div>
 
     <div class="col-md-4">
-      <!-- Workflow Status Card - FIXED -->
+      <!-- Workflow Status Card - UPDATED -->
       <div class="card mb-4">
         <div class="card-header bg-dark text-white">
           <h5 class="mb-0">Workflow Status</h5>
@@ -199,8 +199,8 @@
         <div class="card-body">
           <div class="workflow-timeline">
             <% 
-              # Determine if billing has been notified (status is no longer pending)
-              billing_notified = @purchase_request.status != 'pending'
+              # Determine if procurement has been notified (status is no longer pending)
+              procurement_notified = @purchase_request.status != 'pending'
               
               # Determine if RFQ has been sent (status indicates RFQ activity)
               rfq_sent = ['rfq_sent', 'quotations_received', 'purchase_order_created'].include?(@purchase_request.status)
@@ -220,21 +220,22 @@
                 icon: 'bi-check-circle-fill'
               },
               { 
-                name: 'Billing Team Notified', 
-                completed: billing_notified,
-                date: billing_notified ? @purchase_request.updated_at : nil,
-                icon: billing_notified ? 'bi-check-circle-fill' : 'bi-circle'
+                name: 'Procurement Team Notified', 
+                completed: procurement_notified,
+                date: procurement_notified ? @purchase_request.updated_at : nil,
+                icon: procurement_notified ? 'bi-check-circle-fill' : 'bi-circle',
+                description: 'Inventory manager notified procurement team of request'
               },
               { 
                 name: 'RFQ Sent to Vendors', 
                 completed: rfq_sent,
-                detail: rfq_sent ? 'Billing team sent RFQs' : 'Pending',
+                detail: rfq_sent ? 'Procurement team sent RFQs to vendors' : 'Pending procurement action',
                 icon: rfq_sent ? 'bi-check-circle-fill' : 'bi-circle'
               },
               { 
                 name: 'Quotations Received', 
                 completed: quotes_received,
-                detail: quotes_received ? 'Quotes received from vendors' : 'Waiting for quotes',
+                detail: quotes_received ? 'Quotes received from vendors' : 'Waiting for vendor quotes',
                 icon: quotes_received ? 'bi-check-circle-fill' : 'bi-circle'
               },
               { 
@@ -254,9 +255,12 @@
                   <div class="flex-grow-1">
                     <strong><%= step[:name] %></strong>
                     <% if step[:date].present? %>
-                      <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y") %></small>
+                      <br><small class="text-muted"><%= step[:date].strftime("%b %d, %Y at %I:%M %p") %></small>
                     <% elsif step[:detail].present? %>
                       <br><small class="text-muted"><%= step[:detail] %></small>
+                    <% end %>
+                    <% if step[:description].present? %>
+                      <br><small class="text-muted text-info"><%= step[:description] %></small>
                     <% end %>
                   </div>
                 </div>
@@ -323,7 +327,7 @@
             <% if @purchase_request.approved_at.present? %>
               <li class="mb-3">
                 <i class="bi bi-check-circle text-success me-2"></i>
-                <strong>Approved:</strong><br>
+                <strong>Approved by Procurement:</strong><br>
                 <small class="text-muted"><%= @purchase_request.approved_at.strftime("%B %d, %Y at %I:%M %p") %></small>
               </li>
             <% end %>

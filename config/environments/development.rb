@@ -50,13 +50,18 @@ Rails.application.configure do
   config.active_storage.routes_prefix = '/rails/active_storage'
   
   # ============================================
-  # EMAIL CONFIGURATION
+  # EMAIL CONFIGURATION - Using Mailtrap for Development
   # ============================================
   
+  # Use async adapter for development (processes jobs in a background thread)
+  # This prevents timeout issues and doesn't require additional services
+  config.active_job.queue_adapter = :async
+  
+  # Mailtrap configuration for development (no authentication issues)
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.perform_deliveries = true
   config.action_mailer.raise_delivery_errors = true
-  config.action_mailer.default_options = { from: 'inventory@vmcott.com' }
+  config.action_mailer.default_options = { from: 'procurement@vmcott.com' }
   config.action_mailer.smtp_settings = {
     address: 'sandbox.smtp.mailtrap.io',
     port: 587,
@@ -64,7 +69,9 @@ Rails.application.configure do
     user_name: '00b0b0ddf3f1f1',
     password: 'd2f9abfa15fde1',
     authentication: 'plain',
-    enable_starttls_auto: true
+    enable_starttls_auto: true,
+    open_timeout: 30,
+    read_timeout: 30
   }
   config.action_mailer.default_url_options = { 
     host: 'localhost', 
@@ -115,9 +122,16 @@ Rails.application.configure do
   # Raises error for missing translations.
   # config.i18n.raise_on_missing_translations = true
 
-  # Annotate rendered view with file names.
-  config.action_view.annotate_rendered_view_with_filenames = true
-
+  # ============================================
+  # VIEW CACHING FIX - Prevents "undefined method 'updated?' for nil" error
+  # ============================================
+  
+  # Disable view template caching to prevent nil errors in development
+  config.action_view.cache_template_loading = false
+  
+  # Set to false to avoid file watching issues
+  config.action_view.annotate_rendered_view_with_filenames = false
+  
   # Uncomment if you wish to allow Action Cable access from any origin.
   # config.action_cable.disable_request_forgery_protection = true
 
@@ -139,4 +153,27 @@ Rails.application.configure do
   
   # Log level
   config.log_level = :debug
+  
+  # ============================================
+  # CACHE PREVENTION FOR DEVELOPMENT - FIXES BLANK PAGE ON RELOAD
+  # ============================================
+  
+  # Disable all caching to prevent blank pages on reload
+  config.public_file_server.enabled = true
+  config.public_file_server.headers = {
+    'Cache-Control' => 'no-cache, no-store, must-revalidate',
+    'Pragma' => 'no-cache',
+    'Expires' => '0'
+  }
+  
+  # Disable asset caching
+  config.assets.debug = true
+  config.assets.compile = true
+  config.assets.digest = false
+  
+  # Disable view cache
+  config.action_view.cache_template_loading = false
+  
+  # Disable action controller caching
+  config.action_controller.perform_caching = false
 end

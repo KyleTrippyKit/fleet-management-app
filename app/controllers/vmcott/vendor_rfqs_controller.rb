@@ -79,15 +79,33 @@ module Vmcott
 
     # POST /vmcott/vendor_rfqs/:id/send_to_suppliers
     #
-    # For now: marks as sent + timestamps.
-    # Later: you can wire ActionMailer here to email each supplier.
+    # Sends RFQ emails to all selected suppliers and marks as sent
     def send_to_suppliers
-      @vendor_rfq.update!(
+      # Send email to each supplier with a delay between them
+      email_count = 0
+      @vendor_rfq.vendor_quotations.each_with_index do |quotation, index|
+        supplier = quotation.supplier
+        if supplier.email.present?
+          # Schedule each email with a 5-second delay between them
+          VendorRfqMailer.send_rfq_to_supplier(@vendor_rfq, quotation, supplier).deliver_later(wait: index * 5.seconds)
+          email_count += 1
+        end
+      end
+      
+      # Update RFQ status immediately
+      if @vendor_rfq.update(
         status: "sent",
         sent_date: (@vendor_rfq.sent_date.presence || Date.current)
       )
-
-      redirect_to vmcott_vendor_rfq_path(@vendor_rfq), notice: "RFQ marked as sent."
+        notice = if email_count > 0
+          "RFQ ##{@vendor_rfq.rfq_number} is being sent to #{email_count} supplier(s). Emails will be delivered with 3-second delays between them."
+        else
+          "RFQ ##{@vendor_rfq.rfq_number} marked as sent, but no suppliers had email addresses."
+        end
+        redirect_to vmcott_vendor_rfq_path(@vendor_rfq), notice: notice
+      else
+        redirect_to vmcott_vendor_rfq_path(@vendor_rfq), alert: 'Failed to send RFQ'
+      end
     end
 
     # POST /vmcott/vendor_rfqs/:id/close

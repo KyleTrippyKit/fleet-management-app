@@ -11,24 +11,97 @@
     </div>
   <% end %>
 
+  <!-- RFQ Information (if coming from RFQ) -->
+  <% if @rfq.present? %>
+    <div class="alert alert-info mb-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>Creating PO from RFQ #<%= @rfq.rfq_number %></strong>
+          <p class="mb-0 text-muted">Select a vendor quotation below to create purchase order</p>
+        </div>
+        <%= link_to "View RFQ Details", vmcott_vendor_rfq_path(@rfq), class: "btn btn-sm btn-outline-primary" %>
+      </div>
+    </div>
+  <% end %>
+
   <div class="row">
+    <!-- Vendor Selection - Choose from quotations -->
     <div class="col-md-6 mb-3">
-      <%= f.label :vendor, class: 'form-label' %>
-      <%= f.text_field :vendor, class: 'form-control', required: true, placeholder: 'Vendor Name' %>
+      <%= f.label :vendor, 'Select Vendor', class: 'form-label fw-bold' %>
+      <% if @quotations.present? %>
+        <%= f.select :vendor, 
+              options_for_select(@quotations.map { |q| [q.supplier_name, q.supplier_name] }, @purchase_order.vendor),
+              { include_blank: '-- Select Vendor --' },
+              { class: 'form-select vendor-select', required: true } %>
+        <div class="form-text">
+          <% if @cheapest_supplier %>
+            <span class="text-success">💰 Cheapest overall: <%= @cheapest_supplier.name %> (Total: <%= number_to_currency(@cheapest_total) %>)</span>
+          <% end %>
+        </div>
+      <% else %>
+        <%= f.text_field :vendor, class: 'form-control', required: true, placeholder: 'Vendor Name' %>
+        <div class="form-text">If not using an RFQ, enter vendor name manually</div>
+      <% end %>
     </div>
     
+    <!-- RFQ Selection (if coming from RFQ list) -->
+    <% if @available_rfqs.present? %>
+      <div class="col-md-6 mb-3">
+        <%= label_tag :rfq_id, 'Select RFQ', class: 'form-label fw-bold' %>
+        <%= collection_select :rfq, :id, @available_rfqs, :id, :rfq_number, 
+              { include_blank: '-- Select RFQ --' },
+              { class: 'form-select', id: 'rfqSelect' } %>
+        <div class="form-text">Choose an RFQ to auto-fill items and vendors</div>
+      </div>
+    <% end %>
+    
+    <!-- Vehicle Selection - Auto-selected from RFQ if available -->
     <div class="col-md-6 mb-3">
-      <%= f.label :vehicle_id, 'Vehicle (Optional)', class: 'form-label' %>
+      <%= f.label :vehicle_id, 'Vehicle', class: 'form-label fw-bold' %>
       <%= f.collection_select :vehicle_id, 
             current_user.agency&.vehicles&.order(:license_plate) || [],
             :id, :display_name,
-            { include_blank: 'Select Vehicle...' },
-            class: 'form-select' %>
-      <div class="form-text">Link this PO to a specific vehicle</div>
+            { include_blank: 'Select Vehicle...', selected: @selected_vehicle_id },
+            { class: 'form-select', id: 'vehicleSelect' } %>
+      <div class="form-text">
+        <% if @selected_vehicle_id.present? %>
+          <span class="text-info">✓ Vehicle auto-filled from RFQ</span>
+        <% else %>
+          Select the vehicle for this purchase order
+        <% end %>
+      </div>
+    </div>
+    
+    <!-- PO Number -->
+    <div class="col-md-6 mb-3">
+      <%= f.label :po_number, 'PO Number', class: 'form-label fw-bold' %>
+      <%= f.text_field :po_number, class: 'form-control', placeholder: 'Auto-generated if left blank' %>
+      <div class="form-text">Leave blank to auto-generate</div>
     </div>
   </div>
 
-  <!-- Line Items -->
+  <!-- Cheapest Vendor Recommendation -->
+  <% if @vendor_breakdown.present? %>
+    <div class="alert alert-success mb-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+          <strong>💡 Vendor Comparison by Item:</strong>
+          <ul class="mb-0 mt-1">
+            <% @vendor_breakdown.each do |item_id, vendors| %>
+              <li>
+                <strong><%= vendors[:part_name] %></strong>: 
+                <% cheapest = vendors[:vendors].min_by { |v| v[:total] } %>
+                Best: <%= cheapest[:name] %> @ <%= number_to_currency(cheapest[:unit_price]) %>/unit
+                (Total: <%= number_to_currency(cheapest[:total]) %>)
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Line Items - Auto-filled from RFQ -->
   <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0">Line Items</h5>
@@ -56,41 +129,146 @@
   </div>
 
   <div class="mb-4">
-    <%= f.label :notes, class: 'form-label' %>
+    <%= f.label :notes, class: 'form-label fw-bold' %>
     <%= f.text_area :notes, class: 'form-control', rows: 3, 
           placeholder: 'Additional notes or instructions...' %>
   </div>
 
   <div class="d-flex justify-content-between">
-    <%= link_to 'Cancel', purchase_orders_path, class: 'btn btn-secondary' %>
-    
-    <div class="btn-group">
-      <% if @purchase_order.draft? %>
-        <%= f.submit 'Save Draft', name: 'save_draft', class: 'btn btn-outline-primary' %>
-        <%= f.submit 'Submit for Approval', name: 'submit_approval', class: 'btn btn-primary' %>
-      <% else %>
-        <%= f.submit 'Update', class: 'btn btn-primary' %>
-      <% end %>
-    </div>
+    <%= link_to 'Cancel', vmcott_procurement_dashboard_path, class: 'btn btn-secondary' %>
+    <%= f.submit 'Submit for Approval', name: 'submit_approval', class: 'btn btn-primary' %>
   </div>
 <% end %>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Add line item
-  document.getElementById('addLineItem').addEventListener('click', function() {
-    const template = document.getElementById('lineItemTemplate').innerHTML;
-    const newId = new Date().getTime();
-    const newContent = template.replace(/NEW_RECORD/g, newId);
-    document.getElementById('lineItems').insertAdjacentHTML('beforeend', newContent);
+  // Store quotation data from the server
+  const quotationsData = <%= raw @quotations_data.to_json if @quotations_data.present? %> || {};
+  const rfqItems = <%= raw @rfq_items_data.to_json if @rfq_items_data.present? %> || [];
+  
+  // Debug: Log rfqItems to console
+  console.log('RFQ Items from controller:', rfqItems);
+  console.log('Quotations Data:', quotationsData);
+  
+  // When vendor is selected, update line item prices
+  const vendorSelect = document.querySelector('.vendor-select');
+  if (vendorSelect) {
+    vendorSelect.addEventListener('change', function() {
+      const vendorName = this.value;
+      updatePricesForVendor(vendorName);
+    });
+  }
+  
+  // RFQ selection handler
+  const rfqSelect = document.getElementById('rfqSelect');
+  if (rfqSelect) {
+    rfqSelect.addEventListener('change', function() {
+      const rfqId = this.value;
+      if (rfqId && quotationsData[rfqId]) {
+        loadRFQItems(quotationsData[rfqId]);
+        // Also update vehicle if available in RFQ data
+        if (quotationsData[rfqId].vehicle_id) {
+          const vehicleSelect = document.getElementById('vehicleSelect');
+          if (vehicleSelect) {
+            vehicleSelect.value = quotationsData[rfqId].vehicle_id;
+          }
+        }
+      }
+    });
+  }
+  
+  // Update prices when vendor changes
+  function updatePricesForVendor(vendorName) {
+    if (!vendorName || !quotationsData) return;
     
-    // Add event listeners
-    const newItem = document.querySelector(`[name*="[${newId}][quantity]"]`);
-    if (newItem) newItem.addEventListener('input', calculateTotal);
+    // Find the quotation for this supplier by name
+    let supplierQuotation = null;
+    for (let rfqId in quotationsData) {
+      const quotation = quotationsData[rfqId].quotations?.find(q => q.supplier_name == vendorName);
+      if (quotation) {
+        supplierQuotation = quotation;
+        break;
+      }
+    }
     
-    const newPrice = document.querySelector(`[name*="[${newId}][unit_price]"]`);
-    if (newPrice) newPrice.addEventListener('input', calculateTotal);
-  });
+    if (supplierQuotation && supplierQuotation.items) {
+      // Update each line item price
+      const lineItems = document.querySelectorAll('.line-item');
+      supplierQuotation.items.forEach((item, index) => {
+        if (lineItems[index]) {
+          const unitPriceInput = lineItems[index].querySelector('input[name*="[unit_price]"]');
+          if (unitPriceInput) {
+            unitPriceInput.value = item.unit_price;
+          }
+        }
+      });
+      calculateTotal();
+    }
+  }
+  
+  // Load RFQ items into the form
+  function loadRFQItems(rfqData) {
+    const lineItemsContainer = document.getElementById('lineItems');
+    lineItemsContainer.innerHTML = '';
+    
+    if (rfqData.items && rfqData.items.length > 0) {
+      rfqData.items.forEach((item, index) => {
+        const template = document.getElementById('lineItemTemplate').innerHTML;
+        const newId = new Date().getTime() + index;
+        let newContent = template.replace(/NEW_RECORD/g, newId);
+        
+        // Fill in item data with auto-filled description
+        newContent = newContent.replace(/value=""/g, '');
+        newContent = newContent.replace(/name="purchase_order\[purchase_order_items_attributes\]\[NEW_RECORD\]\[part_id\]"/, 
+          `name="purchase_order[purchase_order_items_attributes][${newId}][part_id]" value="${item.part_id || ''}"`);
+        newContent = newContent.replace(/name="purchase_order\[purchase_order_items_attributes\]\[NEW_RECORD\]\[description\]"/, 
+          `name="purchase_order[purchase_order_items_attributes][${newId}][description]" value="${item.description}" readonly style="background-color: #f8f9fa;"`);
+        newContent = newContent.replace(/name="purchase_order\[purchase_order_items_attributes\]\[NEW_RECORD\]\[quantity\]"/, 
+          `name="purchase_order[purchase_order_items_attributes][${newId}][quantity]" value="${item.quantity}"`);
+        newContent = newContent.replace(/name="purchase_order\[purchase_order_items_attributes\]\[NEW_RECORD\]\[unit_price\]"/, 
+          `name="purchase_order[purchase_order_items_attributes][${newId}][unit_price]" value="${item.unit_price || ''}"`);
+        
+        lineItemsContainer.insertAdjacentHTML('beforeend', newContent);
+        
+        // Add event listeners to new inputs
+        const newItem = document.querySelector(`[name*="[${newId}][quantity]"]`);
+        if (newItem) newItem.addEventListener('input', calculateTotal);
+        
+        const newPrice = document.querySelector(`[name*="[${newId}][unit_price]"]`);
+        if (newPrice) newPrice.addEventListener('input', calculateTotal);
+      });
+    } else {
+      // Add one empty item if no items
+      const template = document.getElementById('lineItemTemplate').innerHTML;
+      const newId = new Date().getTime();
+      lineItemsContainer.insertAdjacentHTML('beforeend', template.replace(/NEW_RECORD/g, newId));
+    }
+    
+    calculateTotal();
+  }
+  
+  // Add line item with editable description for manual entries
+  const addButton = document.getElementById('addLineItem');
+  if (addButton) {
+    addButton.addEventListener('click', function() {
+      const template = document.getElementById('lineItemTemplate').innerHTML;
+      const newId = new Date().getTime();
+      let newContent = template.replace(/NEW_RECORD/g, newId);
+      
+      // Remove readonly for manual items
+      newContent = newContent.replace(/readonly/g, '');
+      newContent = newContent.replace(/style="background-color: #f8f9fa;"/g, '');
+      
+      document.getElementById('lineItems').insertAdjacentHTML('beforeend', newContent);
+      
+      // Add event listeners
+      const newItem = document.querySelector(`[name*="[${newId}][quantity]"]`);
+      if (newItem) newItem.addEventListener('input', calculateTotal);
+      
+      const newPrice = document.querySelector(`[name*="[${newId}][unit_price]"]`);
+      if (newPrice) newPrice.addEventListener('input', calculateTotal);
+    });
+  }
   
   // Remove line item
   document.addEventListener('click', function(e) {
@@ -141,5 +319,25 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('input[name*="[quantity]"], input[name*="[unit_price]"]').forEach(input => {
     input.addEventListener('input', calculateTotal);
   });
+  
+  // If we have a pre-selected vendor, update prices
+  if (vendorSelect && vendorSelect.value) {
+    updatePricesForVendor(vendorSelect.value);
+  }
+  
+  // Auto-select cheapest vendor if available
+  <% if @cheapest_supplier.present? %>
+    const vendorOptions = document.querySelectorAll('.vendor-select option');
+    for (let i = 0; i < vendorOptions.length; i++) {
+      if (vendorOptions[i].text === '<%= @cheapest_supplier.name %>') {
+        vendorOptions[i].selected = true;
+        break;
+      }
+    }
+    // Trigger price update
+    if (vendorSelect) {
+      vendorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  <% end %>
 });
 </script>

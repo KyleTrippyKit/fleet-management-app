@@ -1,6 +1,5 @@
 <%# app/views/vmcott/procurement/dashboard/index.html.erb %>
 <%# Procurement Dashboard - RFQs and vendor communication %>
-<%# Renamed from billing to procurement %>
 
 <div class="container-fluid py-4">
   <!-- Header -->
@@ -10,20 +9,35 @@
         <i class="bi bi-envelope-paper me-2"></i>
         Procurement Dashboard
       </h1>
-      <p class="text-muted">Manage RFQs, vendor quotations, and supplier communications</p>
+      <p class="text-muted">Manage RFQs, vendor quotations, and purchase orders for low stock items</p>
     </div>
     <div class="col-auto">
       <div class="btn-group">
-        <%= link_to "📋 All RFQs", vmcott_vendor_rfqs_path, class: "btn btn-outline-primary" %>
+        <%# REMOVED: "📋 All RFQs" button %>
         <%= link_to "🏢 Suppliers", suppliers_path, class: "btn btn-outline-primary" %>
-        <%= link_to "📦 POs", purchase_orders_path, class: "btn btn-primary" %>
+        <%# REMOVED: "📦 POs" button %>
+        <%= link_to "⚠️ Low Stock Requests", vmcott_procurement_low_stock_requests_path, class: "btn btn-danger" %>
       </div>
     </div>
   </div>
 
   <!-- KPI Cards Row -->
   <div class="row mb-4 g-3">
-    <!-- Parts to Quote -->
+    <div class="col-md-3">
+      <div class="card bg-danger text-white h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="text-white-50 mb-1">Low Stock Requests</h6>
+              <h2 class="mb-0"><%= @low_stock_requests_count || 0 %></h2>
+            </div>
+            <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
+          </div>
+          <small class="text-white-50">From Inventory Manager</small>
+        </div>
+      </div>
+    </div>
+
     <div class="col-md-3">
       <div class="card bg-primary text-white h-100">
         <div class="card-body">
@@ -39,7 +53,6 @@
       </div>
     </div>
 
-    <!-- Active RFQs -->
     <div class="col-md-3">
       <div class="card bg-warning text-dark h-100">
         <div class="card-body">
@@ -55,7 +68,6 @@
       </div>
     </div>
 
-    <!-- Quotes Received -->
     <div class="col-md-3">
       <div class="card bg-success text-white h-100">
         <div class="card-body">
@@ -66,23 +78,7 @@
             </div>
             <i class="bi bi-inboxes fs-1 opacity-50"></i>
           </div>
-          <small class="text-white-50">Ready for finance review</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pending Forward -->
-    <div class="col-md-3">
-      <div class="card bg-info text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">To Forward</h6>
-              <h2 class="mb-0"><%= @stats&.[](:pending_forward) || 0 %></h2>
-            </div>
-            <i class="bi bi-forward fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50">Ready for finance</small>
+          <small class="text-white-50">Ready to create PO</small>
         </div>
       </div>
     </div>
@@ -143,7 +139,7 @@
           <% if @active_rfqs.present? && @active_rfqs.any? %>
             <div class="list-group">
               <% @active_rfqs.each do |rfq| %>
-                <div class="list-group-item">
+                <div class="list-group-item rfq-item" data-rfq-id="<%= rfq.id %>" style="transition: all 0.3s ease;">
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
                       <div class="fw-bold">
@@ -163,10 +159,12 @@
                     </div>
                     <div>
                       <% if rfq.status == 'draft' %>
-                        <%= link_to "Send RFQ", 
-                            vmcott_procurement_send_rfq_path(rfq.id),
+                        <%= button_to "Send RFQ", 
+                            send_to_suppliers_vmcott_vendor_rfq_path(rfq.id),
                             method: :post,
-                            class: "btn btn-sm btn-warning" %>
+                            class: "btn btn-sm btn-warning",
+                            form: { "data-turbo" => "false" },
+                            data: { confirm: "Send this RFQ to suppliers?" } %>
                       <% else %>
                         <%= link_to "Upload Quote", 
                             vmcott_procurement_upload_quotation_path(rfq_id: rfq.id),
@@ -185,16 +183,16 @@
     </div>
   </div>
 
-  <!-- Quotations Received Section -->
+  <!-- Quotations Received & Purchase Orders Section -->
   <div class="row mt-2">
     <div class="col-12">
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-inboxes me-2"></i> Quotations Received - Ready for Finance Review</h5>
-          <span class="badge bg-light text-success"><%= @quotations_received&.count || 0 %> quotations</span>
+          <h5 class="mb-0"><i class="bi bi-inboxes me-2"></i> Quotations & Purchase Orders</h5>
+          <span class="badge bg-light text-success"><%= @all_quotes&.count || 0 %> items</span>
         </div>
         <div class="card-body">
-          <% if @quotations_received.present? && @quotations_received.any? %>
+          <% if @all_quotes.present? && @all_quotes.any? %>
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
@@ -204,20 +202,64 @@
                     <th>Quotes Received</th>
                     <th>Price Range</th>
                     <th>Lowest Bid</th>
+                    <th>Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
-                  <% @quotations_received.each do |rfq| %>
+                  <% @all_quotes.each do |rfq| %>
                     <% 
                       quotes = rfq.vendor_quotations&.where(status: 'received') || []
-                      prices = quotes.map { |q| q.vendor_quotation_lines&.sum(:total_price) || 0 }.compact
+                      prices = []
+                      quotes.each do |q|
+                        total = q.vendor_quotation_lines.sum(:total_price)
+                        prices << total if total > 0
+                      end
                       min_price = prices.min
                       max_price = prices.max
+                      
+                      # Check if PO exists for this RFQ
+                      existing_po = PurchaseOrder.find_by(rfq_id: rfq.id)
+                      
+                      # Determine the status to display based on PO status
+                      if existing_po.present? && existing_po.status == 'received'
+                        # ✅ ITEMS RECEIVED
+                        status_badge = 'success'
+                        status_text = 'Items Received ✓'
+                        status_icon = 'bi-check-circle-fill'
+                        action_button = link_to "View PO", 
+                            purchase_order_path(existing_po),
+                            class: "btn btn-success btn-sm"
+                      elsif existing_po.present? && existing_po.status == 'sent'
+                        # 🔥 PO Sent - Pending Receipt - Link to PO page, not direct mark_received
+                        status_badge = 'warning'
+                        status_text = 'PO Sent - Pending Receipt'
+                        status_icon = 'bi-send'
+                        action_button = link_to "Mark Received", 
+                            purchase_order_path(existing_po),
+                            class: "btn btn-warning btn-sm"
+                      elsif existing_po.present?
+                        # PO Created (draft)
+                        status_badge = 'info'
+                        status_text = 'PO Created'
+                        status_icon = 'bi-receipt'
+                        action_button = link_to "Send to Vendor", 
+                            submit_purchase_order_path(existing_po),
+                            method: :post,
+                            class: "btn btn-primary btn-sm",
+                            data: { confirm: "Send this PO to vendor?" }
+                      else
+                        # No PO yet
+                        status_badge = 'secondary'
+                        status_text = 'Ready for PO'
+                        status_icon = 'bi-file-earmark-text'
+                        action_button = link_to "Create PO", 
+                            new_purchase_order_path(rfq_id: rfq.id),
+                            class: "btn btn-primary btn-sm"
+                      end
                     %>
-                    <tr>
-                      <td><strong><%= rfq.rfq_number.presence || 'RFQ' %></strong></td>
-                      <td>
+                    <tr class="<%= 'table-success' if existing_po&.status == 'received' %>">
+                      <td class="align-middle"><strong><%= rfq.rfq_number.presence || 'RFQ' %></strong>|
+                      <td class="align-middle">
                         <% if rfq.vendor_rfq_items.present? %>
                           <% rfq.vendor_rfq_items.each do |item| %>
                             <div><%= item.part&.name || item.custom_part_name || 'Unknown Part' %> x<%= item.quantity || 1 %></div>
@@ -225,43 +267,58 @@
                         <% else %>
                           <span class="text-muted">No items</span>
                         <% end %>
-                      </td>
-                      <td>
-                        <span class="badge bg-info"><%= quotes.count %> quotes</span>
-                      </td>
-                      <td>
+                       </td>
+                      <td class="align-middle text-center"><span class="badge bg-info"><%= quotes.count %> quotes</span></td>
+                      <td class="align-middle">
                         <% if min_price && max_price %>
                           <%= number_to_currency(min_price) %> - <%= number_to_currency(max_price) %>
                         <% else %>
                           <span class="text-muted">N/A</span>
                         <% end %>
-                      </td>
-                      <td>
+                       </td>
+                      <td class="align-middle">
                         <% if min_price %>
                           <strong class="text-success"><%= number_to_currency(min_price) %></strong>
                         <% else %>
                           <span class="text-muted">N/A</span>
                         <% end %>
-                      </td>
-                      <td>
+                       </td>
+                      <td class="align-middle">
+                        <span class="badge bg-<%= status_badge %>" style="font-size: 0.9rem;">
+                          <i class="bi <%= status_icon %> me-1"></i>
+                          <%= status_text %>
+                        </span>
+                        <% if existing_po&.received_at %>
+                          <div class="small text-muted mt-1">
+                            <i class="bi bi-calendar-check"></i>
+                            Received: <%= existing_po.received_at.strftime('%b %d, %Y %I:%M %p') %>
+                          </div>
+                        <% elsif existing_po&.sent_at %>
+                          <div class="small text-muted mt-1">
+                            Sent: <%= existing_po.sent_at.strftime('%b %d, %Y') %>
+                          </div>
+                        <% end %>
+                       </td>
+                      <td class="align-middle">
                         <div class="btn-group btn-group-sm">
-                          <%= link_to "Forward to Finance", 
-                              vmcott_procurement_forward_to_finance_path(rfq_id: rfq.id),
-                              method: :post,
-                              class: "btn btn-success",
-                              data: { confirm: "Forward these quotations to finance team for review?" } %>
-                          <%= link_to "View", 
+                          <%= action_button %>
+                          <%= link_to "View RFQ", 
                               vmcott_vendor_rfq_path(rfq),
-                              class: "btn btn-outline-secondary" %>
+                              class: "btn btn-outline-secondary btn-sm" %>
+                          <% if existing_po.present? && existing_po.status != 'sent' && existing_po.status != 'received' %>
+                            <%= link_to "View PO", 
+                                purchase_order_path(existing_po),
+                                class: "btn btn-outline-info btn-sm" %>
+                          <% end %>
                         </div>
-                      </td>
+                       </td>
                     </tr>
                   <% end %>
                 </tbody>
               </table>
             </div>
           <% else %>
-            <p class="text-muted text-center py-4">No quotations received at this time.</p>
+            <p class="text-muted text-center py-4">No quotations or purchase orders at this time.</p>
           <% end %>
         </div>
       </div>
@@ -275,6 +332,10 @@
         <div class="card-body">
           <div class="row text-center">
             <div class="col-md-3 col-6">
+              <h6 class="mb-0"><%= @low_stock_requests_count || 0 %></h6>
+              <small class="text-muted">Low Stock Requests</small>
+            </div>
+            <div class="col-md-3 col-6">
               <h6 class="mb-0"><%= @stats&.[](:parts_to_quote) || 0 %></h6>
               <small class="text-muted">To Quote</small>
             </div>
@@ -286,10 +347,6 @@
               <h6 class="mb-0"><%= @stats&.[](:quotes_received) || 0 %></h6>
               <small class="text-muted">Quotes Received</small>
             </div>
-            <div class="col-md-3 col-6">
-              <h6 class="mb-0"><%= @stats&.[](:pending_forward) || 0 %></h6>
-              <small class="text-muted">To Forward</small>
-            </div>
           </div>
         </div>
       </div>
@@ -297,9 +354,39 @@
   </div>
 </div>
 
-<!-- Auto-refresh every 5 minutes -->
 <script>
   setTimeout(function() {
     location.reload();
   }, 300000);
+  
+  const flashMessage = document.querySelector('.alert-success');
+  if (flashMessage) {
+    setTimeout(() => {
+      flashMessage.style.transition = 'opacity 0.5s ease';
+      flashMessage.style.opacity = '0';
+      setTimeout(() => {
+        if (flashMessage.parentNode) flashMessage.remove();
+      }, 500);
+    }, 3000);
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    <% if session[:highlight_rfq_id].present? %>
+      const highlightId = <%= session[:highlight_rfq_id] %>;
+      const rfqElement = document.querySelector(`.rfq-item[data-rfq-id="${highlightId}"]`);
+      
+      if (rfqElement) {
+        rfqElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        rfqElement.style.backgroundColor = '#fff3cd';
+        rfqElement.style.borderLeft = '4px solid #ffc107';
+        
+        setTimeout(() => {
+          rfqElement.style.backgroundColor = '';
+          rfqElement.style.borderLeft = '';
+        }, 3000);
+      }
+      
+      <% session[:highlight_rfq_id] = nil %>
+    <% end %>
+  });
 </script>

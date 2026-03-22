@@ -1,83 +1,136 @@
 # app/mailers/purchase_order_mailer.rb
 class PurchaseOrderMailer < ApplicationMailer
-  default from: 'noreply@vmcott.com'
+  default from: 'procurement@vmcott.com'
 
   def po_created(purchase_order)
     @purchase_order = purchase_order
-    @agency = purchase_order.agency
+    @vendor = purchase_order.vendor
+    @po_number = purchase_order.po_number
+    @items = purchase_order.purchase_order_items
+    @total = purchase_order.amount
     @vehicle = purchase_order.vehicle
     
-    # Find VMCOTT users to notify
-    vmcott = Agency.find_by(code: 'VMCOTT')
-    recipients = []
+    supplier = Supplier.find_by(name: purchase_order.vendor)
+    vendor_email = supplier&.email
     
-    if vmcott&.respond_to?(:users)
-      recipients.concat(vmcott.users.where(notify_on_po_created: true).pluck(:email))
+    if vendor_email.present?
+      mail(
+        to: vendor_email,
+        subject: "Purchase Order ##{@po_number} Created - VMCOTT"
+      )
     end
+  end
+
+  # Add this method for stock received notification
+  def stock_received(purchase_order, recipients)
+    @purchase_order = purchase_order
+    @po_number = purchase_order.po_number
+    @items = purchase_order.purchase_order_items
+    @vendor = purchase_order.vendor
+    @received_at = purchase_order.received_at || Time.current
     
     mail(
-      to: recipients.presence || 'vmcott@example.com',
-      subject: "New Purchase Order from #{@agency&.name || 'Agency'}: #{purchase_order.po_number}"
+      to: recipients,
+      subject: "Stock Received for PO ##{@po_number} - Inventory Update Required",
+      bcc: 'procurement@vmcott.com'
     )
   end
 
-  def po_accepted(purchase_order)
+  def parts_available(purchase_order, recipients)
     @purchase_order = purchase_order
-    @agency = purchase_order.agency
+    @po_number = purchase_order.po_number
+    @items = purchase_order.purchase_order_items
     @vehicle = purchase_order.vehicle
     
-    # Notify the person who created the PO
-    if purchase_order.created_by&.email
-      mail(
-        to: purchase_order.created_by.email,
-        subject: "PO #{purchase_order.po_number} Accepted - Work Started"
-      )
-    end
+    mail(
+      to: recipients,
+      subject: "Parts Available for PO ##{@po_number} - Ready for Workshop",
+      bcc: 'procurement@vmcott.com'
+    )
   end
 
-  def po_rejected(purchase_order)
+  def ready_for_payment(purchase_order, recipients)
     @purchase_order = purchase_order
-    @agency = purchase_order.agency
-    @vehicle = purchase_order.vehicle
-    @rejection_reason = purchase_order.rejection_reason
+    @po_number = purchase_order.po_number
+    @amount = purchase_order.amount
+    @vendor = purchase_order.vendor
     
-    if purchase_order.created_by&.email
-      mail(
-        to: purchase_order.created_by.email,
-        subject: "PO #{purchase_order.po_number} Rejected"
-      )
-    end
+    mail(
+      to: recipients,
+      subject: "PO ##{@po_number} Ready for Payment",
+      bcc: 'procurement@vmcott.com'
+    )
   end
 
-  def po_delivered(purchase_order)
+  def po_approved(purchase_order)
     @purchase_order = purchase_order
-    @agency = purchase_order.agency
+    @vendor = purchase_order.vendor
+    @po_number = purchase_order.po_number
+    @items = purchase_order.purchase_order_items
+    @total = purchase_order.amount
     @vehicle = purchase_order.vehicle
     
-    if purchase_order.created_by&.email
+    supplier = Supplier.find_by(name: purchase_order.vendor)
+    vendor_email = supplier&.email
+    
+    if vendor_email.present?
       mail(
-        to: purchase_order.created_by.email,
-        subject: "PO #{purchase_order.po_number} Delivered - Ready for Pickup"
+        to: vendor_email,
+        subject: "Purchase Order ##{@po_number} Approved - VMCOTT"
       )
     end
   end
 
   def po_paid(purchase_order)
     @purchase_order = purchase_order
-    @agency = purchase_order.agency
+    @vendor = purchase_order.vendor
+    @po_number = purchase_order.po_number
+    @amount = purchase_order.amount
+    @payment_method = purchase_order.payment_method
+    @payment_reference = purchase_order.payment_reference
+    
+    supplier = Supplier.find_by(name: purchase_order.vendor)
+    vendor_email = supplier&.email
+    
+    if vendor_email.present?
+      mail(
+        to: vendor_email,
+        subject: "Payment Confirmed for Purchase Order ##{@po_number} - VMCOTT"
+      )
+    end
+  end
+
+  def po_rejected(purchase_order)
+    @purchase_order = purchase_order
+    @vendor = purchase_order.vendor
+    @po_number = purchase_order.po_number
+    @reason = purchase_order.rejection_reason
+    
+    supplier = Supplier.find_by(name: purchase_order.vendor)
+    vendor_email = supplier&.email
+    
+    if vendor_email.present?
+      mail(
+        to: vendor_email,
+        subject: "Purchase Order ##{@po_number} Requires Revision - VMCOTT"
+      )
+    end
+  end
+
+  def po_delivered(purchase_order)
+    @purchase_order = purchase_order
+    @vendor = purchase_order.vendor
+    @po_number = purchase_order.po_number
     @vehicle = purchase_order.vehicle
     
-    # Notify VMCOTT that payment is complete
-    vmcott = Agency.find_by(code: 'VMCOTT')
-    recipients = []
+    supplier = Supplier.find_by(name: purchase_order.vendor)
+    vendor_email = supplier&.email
     
-    if vmcott&.respond_to?(:users)
-      recipients.concat(vmcott.users.where(notify_on_po_paid: true).pluck(:email))
+    if vendor_email.present?
+      mail(
+        to: vendor_email,
+        subject: "Delivery Confirmation for Purchase Order ##{@po_number} - VMCOTT"
+      )
     end
-    
-    mail(
-      to: recipients.presence || 'finance@vmcott.com',
-      subject: "PO #{purchase_order.po_number} Paid - Transaction Complete"
-    ) if recipients.any?
   end
 end

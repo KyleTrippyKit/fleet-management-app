@@ -1,0 +1,267 @@
+<%# app/views/vendor_rfq_mailer/send_rfq_to_supplier.html.erb %>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RFQ from VMCOTT</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%);
+      color: white;
+      padding: 30px 20px;
+      text-align: center;
+    }
+    .logo {
+      margin-bottom: 15px;
+    }
+    .logo img {
+      max-height: 70px;
+      width: auto;
+      margin-bottom: 10px;
+    }
+    .logo span {
+      font-size: 12px;
+      display: block;
+      opacity: 0.9;
+      margin-top: 5px;
+    }
+    .header h2 {
+      margin: 10px 0 0;
+      font-size: 24px;
+    }
+    .header p {
+      margin: 5px 0 0;
+      opacity: 0.9;
+    }
+    .content {
+      padding: 30px;
+      background: #fff;
+    }
+    .greeting {
+      margin-bottom: 20px;
+    }
+    .vehicle-info {
+      background: #e8f4fd;
+      border-left: 4px solid #1e3a6b;
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .rfq-details {
+      background: #f8f9fa;
+      border-left: 4px solid #1e3a6b;
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .rfq-details strong {
+      color: #1e3a6b;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: white;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    th {
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: #1e3a6b;
+    }
+    .special-instructions {
+      background: #fff8e7;
+      border-left: 4px solid #ffc107;
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    .button {
+      display: inline-block;
+      padding: 12px 30px;
+      background: #1e3a6b;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: 600;
+      margin: 20px 0;
+      transition: background 0.3s;
+    }
+    .button:hover {
+      background: #0a2b4e;
+    }
+    .footer {
+      background: #f8f9fa;
+      padding: 20px;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      border-top: 1px solid #e0e0e0;
+    }
+    .footer .contact {
+      margin-top: 10px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      background: #ffc107;
+      color: #856404;
+    }
+    .company-stamp {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 2px solid #e0e0e0;
+      text-align: center;
+      font-size: 11px;
+      color: #999;
+    }
+    .signature {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header with VMCOTT branding -->
+    <div class="header">
+      <div class="logo">
+        <img src="<%= root_url %>images/comp_logo.png" alt="VMCOTT Logo">
+        <span>Vehicle Management Company of Trinidad and Tobago</span>
+      </div>
+      <h2>Request for Quotation (RFQ)</h2>
+      <p>Reference: <%= @vendor_rfq.rfq_number %></p>
+    </div>
+
+    <div class="content">
+      <!-- Greeting -->
+      <div class="greeting">
+        <p>Dear <strong><%= @supplier.contact_person || @supplier.name %></strong>,</p>
+        <p>We invite you to submit a quotation for the following item(s):</p>
+      </div>
+
+      <!-- Vehicle Information (NEW) -->
+      <% if @vehicle_info.present? %>
+        <div class="vehicle-info">
+          <strong>🚗 Vehicle Information:</strong><br>
+          <strong>Make:</strong> <%= @vehicle_info[:make] %><br>
+          <strong>Model:</strong> <%= @vehicle_info[:model] %><br>
+          <strong>Year:</strong> <%= @vehicle_info[:year] %>
+          <div style="margin-top: 8px; font-size: 12px; color: #666;">
+            <i class="bi bi-info-circle"></i> This vehicle information is provided to ensure correct part compatibility.
+          </div>
+        </div>
+      <% end %>
+
+      <!-- RFQ Details Card -->
+      <div class="rfq-details">
+        <strong>📋 RFQ Details</strong><br>
+        <strong>Issue Date:</strong> <%= @vendor_rfq.created_at.strftime("%B %d, %Y") %><br>
+        <strong>Due Date:</strong> <%= @vendor_rfq.due_date&.strftime("%B %d, %Y") || 'N/A' %><br>
+        <strong>RFQ Number:</strong> <%= @vendor_rfq.rfq_number %>
+      </div>
+
+      <!-- Items Table -->
+       <table>
+        <thead>
+           <tr>
+            <th>Item</th>
+            <th>Part #</th>
+            <th>Quantity</th>
+            <th>Unit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @vendor_rfq.vendor_rfq_items.each do |item| %>
+            <tr style="<%= cycle('background-color: #fafafa;', 'background-color: white;') %>">
+              <td><strong><%= item.part&.name || item.custom_part_name %></strong></td>
+              <td><%= item.part&.part_number || 'N/A' %></td>
+              <td><%= item.quantity %></td>
+              <td><%= item.unit_of_measure || 'each' %></td>
+            </tr>
+            <% if item.description.present? %>
+              <tr>
+                <td colspan="4" style="font-size: 12px; color: #666; padding-top: 0;">
+                  📝 <%= item.description %>
+                </td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+
+      <!-- Special Instructions -->
+      <% if @vendor_rfq.notes.present? %>
+        <div class="special-instructions">
+          <strong>📌 Special Instructions:</strong><br>
+          <%= simple_format(@vendor_rfq.notes) %>
+        </div>
+      <% end %>
+
+      <!-- Call to Action -->
+      <div style="text-align: center;">
+        <a href="<%= vmcott_vendor_rfq_url(@vendor_rfq) %>" class="button">📤 Submit Quotation Online</a>
+      </div>
+
+      <!-- Alternative Submission -->
+      <p style="font-size: 13px; text-align: center; color: #666;">
+        Or reply to this email with your quotation attached.
+      </p>
+
+      <!-- Signature with stamp effect -->
+      <div class="signature">
+        <p style="margin-bottom: 5px;">Thank you for your prompt attention to this request.</p>
+        <p style="margin-top: 10px;">
+          <strong>Procurement Team</strong><br>
+          VMCOTT<br>
+          <span style="font-size: 12px; color: #666;">
+            📧 procurement@vmcott.com<br>
+            📞 (868) 123-4567<br>
+            📍 Chaguaramas, Trinidad and Tobago
+          </span>
+        </p>
+      </div>
+
+      <!-- Company Stamp (Official) -->
+      <div class="company-stamp">
+        <span style="font-family: monospace; font-size: 10px;">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span><br>
+        <strong>VMCOTT OFFICIAL RFQ</strong><br>
+        This is a computer-generated document. No signature is required.<br>
+        <span style="font-family: monospace; font-size: 10px;">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p><strong>VMCOTT - Vehicle Management Company of Trinidad and Tobago</strong></p>
+      <p>Chaguaramas, Trinidad and Tobago | Tel: (868) 123-4567 | Email: procurement@vmcott.com</p>
+      <div class="contact">
+        <small>This is an automated message from the VMCOTT Procurement System. Please do not reply directly to this email.</small>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,4 +1,3 @@
-# app/controllers/vmcott/security_gate_officer/dashboard_controller.rb
 class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   # Skip the dashboard caching for this controller - THIS IS THE FIX!
   skip_around_action :cache_dashboard_data, if: :dashboard_controller?
@@ -100,7 +99,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
   def receive_vehicle
     log_section("RECEIVE VEHICLE START") if respond_to?(:log_section)
     Rails.logger.info "Params: #{params.except(:authenticity_token).inspect}" if Rails.env.development?
-    
+  
     begin
       ActiveRecord::Base.transaction do
         vehicle = nil
@@ -136,45 +135,32 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             Rails.logger.info "Owner is agency: #{owner.code}" if Rails.env.development?
             
           elsif client_type == 'walkin'
-            # WALK-IN CUSTOMER
+            # WALK-IN CUSTOMER - SIMPLIFIED, phone optional
             if params[:walkin][:name].blank?
               flash[:alert] = "Customer name is required"
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
-            if params[:walkin][:phone].blank?
-              flash[:alert] = "Phone number is required"
-              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
-            end
             
-            # Clean the phone number
-            phone = params[:walkin][:phone].to_s.strip.gsub(/[^0-9]/, '')
-            
-            # Create walk-in client
+            # Create walk-in client - phone is optional, no validation
             owner = Client.create!(
               name: params[:walkin][:name].to_s.strip,
-              phone: phone,
+              phone: params[:walkin][:phone].to_s.strip.presence,
               email: params[:walkin][:email].to_s.strip.presence,
               address: params[:walkin][:address].to_s.strip.presence,
-              id_number: params[:walkin][:id_number].to_s.strip.presence,
               client_type: 'individual',
-              payment_terms: 'cash_on_pickup',
+              payment_terms: 'cash',
               is_active: true
             )
             Rails.logger.info "Created walk-in client: #{owner.name}" if Rails.env.development?
             
           elsif client_type == 'new_company'
-            # NEW COMPANY
-            # Validate required fields
+            # NEW COMPANY - SIMPLIFIED, phone optional
             if params[:company][:name].blank?
               flash[:alert] = "Company name is required"
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
             if params[:company][:contact_person].blank?
               flash[:alert] = "Contact person is required"
-              redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
-            end
-            if params[:company][:phone].blank?
-              flash[:alert] = "Phone number is required"
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
             if params[:company][:email].blank?
@@ -190,22 +176,17 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
               redirect_to vmcott_security_gate_officer_manual_entry_path(create_new_vehicle: true) and return
             end
             
-            # Clean the phone number
-            phone = params[:company][:phone].to_s.strip.gsub(/[^0-9]/, '')
-            
-            # Create new company client
+            # Create new company client - phone is optional
             owner = Client.create!(
-              name: params[:company][:name].to_s.strip,
-              contact_person: params[:company][:contact_person].to_s.strip,
-              phone: phone,
+              name: "#{params[:company][:name].to_s.strip} - #{params[:company][:contact_person].to_s.strip}",
+              phone: params[:company][:phone].to_s.strip.presence,
               email: params[:company][:email].to_s.strip,
               address: params[:company][:address].to_s.strip,
-              registration_number: params[:company][:registration].to_s.strip.presence,
               client_type: 'corporate',
               payment_terms: params[:company][:payment_terms],
               is_active: true
             )
-            Rails.logger.info "Created new company: #{owner.name}" if Rails.env.development?
+            Rails.logger.info "Created new company client: #{owner.name}" if Rails.env.development?
           end
           
           # Create the vehicle using new_vehicle_params
@@ -249,8 +230,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             phone: params[:walkin][:phone],
             email: params[:walkin][:email],
             address: params[:walkin][:address],
-            id_number: params[:walkin][:id_number],
-            payment_terms: 'cash_on_pickup'
+            payment_terms: 'cash'
           }
         elsif client_type == 'new_company'
           session[:client_params] = {
@@ -259,7 +239,6 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
             phone: params[:company][:phone],
             email: params[:company][:email],
             address: params[:company][:address],
-            registration: params[:company][:registration],
             payment_terms: params[:company][:payment_terms]
           }
         end
@@ -593,7 +572,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     session.delete(:new_vehicle_params)
   end
   
-  # Helper method to determine client from params or session
+  # Helper method to determine client from params or session - SIMPLIFIED, phone optional
   def determine_client_from_params(params)
     client = nil
     
@@ -602,33 +581,30 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       client = Agency.find(params[:agency_id])
     elsif params[:client_type] == 'walkin' && params[:walkin].present?
       client_params = params[:walkin]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
-      client = Client.find_or_initialize_by(phone: phone)
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
       
       if client.new_record?
         client.assign_attributes(
           name: client_params[:name].to_s.strip,
+          phone: client_params[:phone].to_s.strip.presence,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          id_number: client_params[:id_number].to_s.strip.presence,
           client_type: 'individual',
-          payment_terms: 'cash_on_pickup',
+          payment_terms: 'cash',
           is_active: true
         )
         client.save!
       end
     elsif params[:client_type] == 'new_company' && params[:company].present?
       client_params = params[:company]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
-      client = Client.find_or_initialize_by(phone: phone)
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
       
       if client.new_record?
         client.assign_attributes(
-          name: client_params[:name].to_s.strip,
-          contact_person: client_params[:contact_person].to_s.strip,
+          name: "#{client_params[:name].to_s.strip} - #{client_params[:contact_person].to_s.strip}",
+          phone: client_params[:phone].to_s.strip.presence,
           email: client_params[:email].to_s.strip,
           address: client_params[:address].to_s.strip,
-          registration_number: client_params[:registration].to_s.strip.presence,
           client_type: 'corporate',
           payment_terms: client_params[:payment_terms],
           is_active: true
@@ -640,33 +616,30 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       client = Agency.find(session[:agency_id])
     elsif session[:client_type] == 'walkin' && session[:client_params].present?
       client_params = session[:client_params]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
-      client = Client.find_or_initialize_by(phone: phone)
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
       
       if client.new_record?
         client.assign_attributes(
           name: client_params[:name].to_s.strip,
+          phone: client_params[:phone].to_s.strip.presence,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          id_number: client_params[:id_number].to_s.strip.presence,
           client_type: 'individual',
-          payment_terms: 'cash_on_pickup',
+          payment_terms: 'cash',
           is_active: true
         )
         client.save!
       end
     elsif session[:client_type] == 'new_company' && session[:client_params].present?
       client_params = session[:client_params]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
-      client = Client.find_or_initialize_by(phone: phone)
+      client = Client.find_or_initialize_by(phone: client_params[:phone])
       
       if client.new_record?
         client.assign_attributes(
-          name: client_params[:name].to_s.strip,
-          contact_person: client_params[:contact_person].to_s.strip,
+          name: "#{client_params[:name].to_s.strip} - #{client_params[:contact_person].to_s.strip}",
+          phone: client_params[:phone].to_s.strip.presence,
           email: client_params[:email].to_s.strip,
           address: client_params[:address].to_s.strip,
-          registration_number: client_params[:registration].to_s.strip.presence,
           client_type: 'corporate',
           payment_terms: client_params[:payment_terms],
           is_active: true
@@ -678,7 +651,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     client
   end
   
-  # Helper method to create a vehicle from params (for direct creation in condition check)
+  # Helper method to create a vehicle from params (for direct creation in condition check) - SIMPLIFIED
   def create_vehicle_from_params(vehicle_params, all_params)
     owner = nil
     client_type = all_params[:client_type]
@@ -688,7 +661,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       owner = Agency.find(all_params[:agency_id])
     elsif client_type == 'walkin' && all_params[:walkin].present?
       client_params = all_params[:walkin]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      raw_phone = client_params[:phone].to_s.strip
+      phone = raw_phone.gsub(/[^0-9]/, '')
       owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
@@ -696,25 +670,23 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          id_number: client_params[:id_number].to_s.strip.presence,
           client_type: 'individual',
-          payment_terms: 'cash_on_pickup',
+          payment_terms: 'cash',
           is_active: true
         )
         owner.save!
       end
     elsif client_type == 'new_company' && all_params[:company].present?
       client_params = all_params[:company]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      raw_phone = client_params[:phone].to_s.strip
+      phone = raw_phone.gsub(/[^0-9]/, '')
       owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
         owner.assign_attributes(
-          name: client_params[:name].to_s.strip,
-          contact_person: client_params[:contact_person].to_s.strip,
+          name: "#{client_params[:name].to_s.strip} - #{client_params[:contact_person].to_s.strip}",
           email: client_params[:email].to_s.strip,
           address: client_params[:address].to_s.strip,
-          registration_number: client_params[:registration].to_s.strip.presence,
           client_type: 'corporate',
           payment_terms: client_params[:payment_terms],
           is_active: true
@@ -737,7 +709,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     vehicle
   end
   
-  # Helper method to create vehicle from session (for condition check when vehicle wasn't pre-selected)
+  # Helper method to create vehicle from session (for condition check when vehicle wasn't pre-selected) - FIXED
   def create_vehicle_from_session
     return nil unless session[:new_vehicle_params].present?
     
@@ -749,7 +721,8 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       owner = Agency.find(session[:agency_id])
     elsif client_type == 'walkin' && session[:client_params].present?
       client_params = session[:client_params]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
+      raw_phone = client_params[:phone].to_s.strip
+      phone = raw_phone.gsub(/[^0-9]/, '')
       owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
@@ -757,25 +730,23 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           name: client_params[:name].to_s.strip,
           email: client_params[:email].to_s.strip.presence,
           address: client_params[:address].to_s.strip.presence,
-          id_number: client_params[:id_number].to_s.strip.presence,
           client_type: 'individual',
-          payment_terms: 'cash_on_pickup',
+          payment_terms: 'cash',
           is_active: true
         )
         owner.save!
       end
     elsif client_type == 'new_company' && session[:client_params].present?
       client_params = session[:client_params]
-      phone = client_params[:phone].to_s.strip.gsub(/[^0-9]/, '')
-      owner = Client.find_or_initializeBy(phone: phone)
+      raw_phone = client_params[:phone].to_s.strip
+      phone = raw_phone.gsub(/[^0-9]/, '')
+      owner = Client.find_or_initialize_by(phone: phone)
       
       if owner.new_record?
         owner.assign_attributes(
-          name: client_params[:name].to_s.strip,
-          contact_person: client_params[:contact_person].to_s.strip,
+          name: "#{client_params[:name].to_s.strip} - #{client_params[:contact_person].to_s.strip}",
           email: client_params[:email].to_s.strip,
           address: client_params[:address].to_s.strip,
-          registration_number: client_params[:registration].to_s.strip.presence,
           client_type: 'corporate',
           payment_terms: client_params[:payment_terms],
           is_active: true

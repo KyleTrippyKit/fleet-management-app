@@ -16,7 +16,7 @@
       <div class="btn-group">
         <%= link_to "📦 Parts Catalog", vmcott_parts_path, class: "btn btn-outline-primary" %>
         <%= link_to "⚠️ Low Stock", low_stock_vmcott_inventory_manager_parts_path, class: "btn btn-outline-warning" %>
-        <%= link_to "📊 Inventory", vmcott_inventory_dashboard_path, class: "btn btn-primary" %>
+        <%= link_to "📊 Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "btn btn-primary" %>
       </div>
     </div>
   </div>
@@ -204,34 +204,33 @@
                     <th>Status</th>
                     <th>Stock Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @pending_parts.each do |pr| %>
                     <tr>
                       <td>
                         <strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong><br>
                         <small><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
-                      </td>
-                      <td>
+                       </td>
+                        <td>
                         <strong><%= pr.part&.name || pr.custom_part_name %></strong><br>
                         <small><%= pr.part&.part_number %></small>
-                      </td>
-                      <td><%= pr.quantity %></td>
-                      <td>
+                        </td>
+                        <td><%= pr.quantity %></td>
+                        <td>
                         <span class="badge bg-<%= pr.status == 'pending' ? 'warning' : 'info' %>">
                           <%= pr.status.humanize %>
                         </span>
-                      </td>
-                      <td>
+                        </td>
+                        <td>
                         <% if pr.in_stock? %>
                           <span class="badge bg-success">In Stock</span>
                           <small class="d-block text-muted">Qty: <%= pr.part&.current_stock %></small>
                         <% else %>
                           <span class="badge bg-danger">Out of Stock</span>
                         <% end %>
-                      </td>
-                      <td>
+                        </td>
+                        <td>
                         <div class="btn-group btn-group-sm">
                           <% if pr.in_stock? %>
                             <%= button_to "✓ Mark In Stock", 
@@ -252,8 +251,8 @@
                               vmcott_parts_request_path(pr),
                               class: "btn btn-outline-secondary" %>
                         </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
                   <% end %>
                 </tbody>
               </table>
@@ -284,12 +283,11 @@
                     <th>Status</th>
                     <th>Sent to Procurement</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @pending_procurement.each do |pr| %>
                     <tr>
-                      <td>
+                       <td>
                         <strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong>
                       </td>
                       <td><%= pr.part&.name || pr.custom_part_name %></td>
@@ -333,8 +331,7 @@
                     <th>Quotes Received</th>
                     <th>Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @pending_finance.each do |pr| %>
                     <% rfq = VendorRfq.joins(:vendor_rfq_items).where(vendor_rfq_items: { part_id: pr.part_id }).first %>
@@ -390,8 +387,7 @@
                     <th>Ordered Date</th>
                     <th>Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @ordered_requests.each do |pr| %>
                     <tr>
@@ -434,7 +430,7 @@
       </div>
     </div>
 
-    <!-- TAB 5: Received - ENHANCED WITH FEEDBACK -->
+    <!-- TAB 5: Received -->
     <div class="tab-pane fade" id="received" role="tabpanel">
       <div class="card">
         <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
@@ -452,8 +448,7 @@
                     <th>Inspection</th>
                     <th>Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @parts_received.each do |pr| %>
                     <tr id="inspection-row-<%= pr.inspection_id %>">
@@ -617,7 +612,7 @@
     </div>
   </div>
 
-  <!-- Low Stock Alerts Section -->
+  <!-- Low Stock Alerts Section - ENHANCED with Request Status -->
   <% if @low_stock_parts.any? %>
     <div class="row mt-4">
       <div class="col-12">
@@ -635,11 +630,24 @@
                     <th>Current Stock</th>
                     <th>Reorder Point</th>
                     <th>Status</th>
+                    <th>Request Status</th>
                     <th>Actions</th>
-                  </tr>
-                </thead>
+                  </thead>
                 <tbody>
                   <% @low_stock_parts.each do |part| %>
+                    <%
+                      # Check if there's already a pending purchase request for this part
+                      pending_request = PurchaseRequest.where(
+                        part_id: part.id,
+                        status: ['pending', 'approved']
+                      ).order(created_at: :desc).first
+                      
+                      # Check if there's an ordered or received request
+                      ordered_request = PurchaseRequest.where(
+                        part_id: part.id,
+                        status: ['ordered', 'received']
+                      ).order(created_at: :desc).first
+                    %>
                     <tr>
                       <td><%= part.part_number %></td>
                       <td><strong><%= part.name %></strong></td>
@@ -655,7 +663,48 @@
                         <% end %>
                       </td>
                       <td>
-                        <%= link_to "Create PO", vmcott_inventory_manager_create_rfq_path(parts_request_id: part.id), class: "btn btn-sm btn-warning" %>
+                        <% if ordered_request.present? %>
+                          <span class="badge bg-success">
+                            <i class="bi bi-check-circle"></i> Already Ordered
+                          </span>
+                          <br>
+                          <small class="text-muted">PO #: <%= ordered_request.purchase_order&.po_number || 'Processing' %></small>
+                        <% elsif pending_request.present? %>
+                          <span class="badge bg-info">
+                            <i class="bi bi-clock-history"></i> Request Pending
+                          </span>
+                          <br>
+                          <small class="text-muted">Submitted: <%= time_ago_in_words(pending_request.created_at) %> ago</small>
+                        <% else %>
+                          <span class="badge bg-secondary">
+                            <i class="bi bi-exclamation-circle"></i> No Request
+                          </span>
+                        <% end %>
+                      </td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <%= link_to "🔍 View", vmcott_part_path(part), class: "btn btn-sm btn-info" %>
+                          
+                          <% if pending_request.present? %>
+                            <%= link_to "📋 View Request", 
+                                vmcott_purchase_request_path(pending_request),
+                                class: "btn btn-sm btn-outline-primary" %>
+                          <% elsif ordered_request.present? %>
+                            <%= link_to "📦 View Order", 
+                                vmcott_purchase_order_path(ordered_request.purchase_order),
+                                class: "btn btn-sm btn-outline-success" %>
+                          <% else %>
+                            <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
+                              <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+                              <input type="hidden" name="quantity" value="<%= part.suggested_reorder_quantity %>">
+                              <input type="hidden" name="urgency" value="<%= part.current_stock <= part.minimum_stock ? 'high' : 'normal' %>">
+                              <input type="hidden" name="notes" value="Low stock alert: Current: <%= part.current_stock %>, Min: <%= part.minimum_stock %>">
+                              <button type="submit" class="btn btn-sm btn-warning">
+                                <i class="bi bi-cart-plus"></i> Request PO
+                              </button>
+                            <% end %>
+                          <% end %>
+                        </div>
                       </td>
                     </tr>
                   <% end %>
@@ -705,7 +754,7 @@
   </div>
 </div>
 
-<!-- JavaScript for workshop feedback -->
+<!-- JavaScript -->
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     // Handle workshop button clicks with visual feedback
@@ -713,38 +762,14 @@
       button.addEventListener('click', function(e) {
         const form = this.closest('form');
         if (form) {
-          const inspectionId = form.dataset.inspectionId || this.dataset.inspectionId;
-          
-          // Disable the button to prevent double submission
           this.disabled = true;
           this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-          
-          // Store in session that this was clicked (will be handled by controller)
-          // But we'll let the form submit naturally
         }
       });
     });
   });
 
-  // Check for flash messages after page load
-  document.addEventListener('DOMContentLoaded', function() {
-    // If there's a success message in the URL or flash, we could highlight items
-    const urlParams = new URLSearchParams(window.location.search);
-    const passedId = urlParams.get('passed');
-    if (passedId) {
-      const row = document.getElementById(`inspection-row-${passedId}`);
-      if (row) {
-        row.style.backgroundColor = '#d4edda';
-        setTimeout(() => {
-          row.style.backgroundColor = '';
-        }, 3000);
-      }
-    }
-  });
-</script>
-
-<!-- Auto-refresh every 5 minutes -->
-<script>
+  // Auto-refresh every 5 minutes
   setTimeout(function() {
     location.reload();
   }, 300000);

@@ -1,9 +1,24 @@
-# app/controllers/vmcott/inventory_controller.rb
 module Vmcott
   class InventoryController < ApplicationController
     before_action :authenticate_user!
-    before_action :require_vmcott_user
     before_action :set_inventory_settings, only: [:dashboard, :settings, :update_settings]
+    
+    # ========================
+    # STATIC TEST METHOD
+    # ========================
+    def static_test
+      render html: "<!DOCTYPE html><html><head><title>Static Test</title></head><body><h1 style='color:green;'>Static Test Page</h1><p>This is a static test. Time: #{Time.current}</p><script>console.log('Static test loaded'); document.body.style.backgroundColor='lightgreen';</script></body></html>".html_safe
+    end
+    
+    # ========================
+    # INDEX - Stock Management Page
+    # ========================
+    def index
+      @total_parts = Part.count
+      @low_stock_parts = Part.below_reorder_point.count
+      @out_of_stock_parts = Part.out_of_stock.count
+      render 'vmcott/inventory/index', layout: false
+    end
     
     def dashboard
       @total_parts = Part.count
@@ -11,36 +26,29 @@ module Vmcott
       @out_of_stock_parts = Part.out_of_stock.count
       @total_inventory_value = Part.sum('current_stock * COALESCE(cost_price, 0)')
       
-      # Recent inventory transactions
       @recent_transactions = InventoryTransaction.recent.limit(10)
       
-      # Parts needing immediate attention - WITH VENDOR FILTERING
       @critical_parts = Part.where('current_stock <= minimum_stock')
         .includes(:supplier)
         .order(:current_stock)
         .limit(10)
       
-      # Monthly consumption
       @monthly_consumption = InventoryTransaction.consumption
         .where('created_at >= ?', 30.days.ago)
         .sum(:quantity)
       
-      # Categories for filtering
       @category_counts = Part.unscope(:order)
                             .group(:category)
                             .order(:category)
                             .count
       
-      # Vendors for filtering
       @vendors = Supplier.active.order(:name)
       
-      # Filterable items table (NEW)
       @items = Part.includes(:supplier)
         .order(:name)
         .page(params[:page])
         .per(20)
       
-      # Apply filters if present
       if params[:category].present?
         @items = @items.where(category: params[:category])
       end
@@ -54,7 +62,6 @@ module Vmcott
                              "%#{params[:search]}%", "%#{params[:search]}%")
       end
       
-      # Vendor statistics (keep existing)
       @vendor_stats = Supplier.active.limit(5).map do |supplier|
         {
           name: supplier.name,
@@ -64,7 +71,64 @@ module Vmcott
         }
       end
       
-      render 'vmcott/inventory/dashboard'
+      render 'vmcott/inventory/dashboard', layout: false
+    end
+    
+    def dashboard_no_nav
+      @total_parts = Part.count
+      @low_stock_parts = Part.below_reorder_point.count
+      @out_of_stock_parts = Part.out_of_stock.count
+      @total_inventory_value = Part.sum('current_stock * COALESCE(cost_price, 0)')
+      
+      @category_counts = Part.unscope(:order)
+                            .group(:category)
+                            .order(:category)
+                            .count
+      
+      @vendors = Supplier.active.order(:name)
+      
+      @items = Part.includes(:supplier)
+        .order(:name)
+        .page(params[:page])
+        .per(20)
+      
+      if params[:category].present?
+        @items = @items.where(category: params[:category])
+      end
+      
+      if params[:supplier_id].present?
+        @items = @items.where(supplier_id: params[:supplier_id])
+      end
+      
+      if params[:search].present?
+        @items = @items.where("name ILIKE ? OR part_number ILIKE ?", 
+                             "%#{params[:search]}%", "%#{params[:search]}%")
+      end
+      
+      @critical_parts = Part.where('current_stock <= minimum_stock')
+        .includes(:supplier)
+        .order(:current_stock)
+        .limit(10)
+      
+      @vendor_stats = Supplier.active.limit(5).map do |supplier|
+        {
+          name: supplier.name,
+          part_count: supplier.parts.count,
+          outstanding: supplier.total_outstanding,
+          recent_invoices: supplier.vendor_invoices.where('invoice_date >= ?', 30.days.ago).count
+        }
+      end
+      
+      render layout: false
+    end
+    
+    def hello
+      @total_parts = Part.count
+      render 'vmcott/inventory/hello', layout: false
+    end
+    
+    def test_ok
+      render plain: "OK - Controller is working at #{Time.current}"
     end
     
     def purchase_requests
@@ -73,22 +137,18 @@ module Vmcott
                                          .page(params[:page])
                                          .per(20)
       
-      # Filter by status
       if params[:status].present?
         @purchase_requests = @purchase_requests.where(status: params[:status])
       end
       
-      # Filter by urgency
       if params[:urgency].present?
         @purchase_requests = @purchase_requests.where(urgency: params[:urgency])
       end
       
-      # Filter by part
       if params[:part_id].present?
         @purchase_requests = @purchase_requests.where(part_id: params[:part_id])
       end
       
-      # Filter by date range
       if params[:start_date].present? && params[:end_date].present?
         start_date = Date.parse(params[:start_date])
         end_date = Date.parse(params[:end_date])
@@ -105,9 +165,8 @@ module Vmcott
         .page(params[:page])
         .per(50)
       
-      # Export functionality
       respond_to do |format|
-        format.html
+        format.html { render 'vmcott/inventory/parts/low_stock' }
         format.csv do
           headers['Content-Disposition'] = "attachment; filename=\"low-stock-#{Date.today}.csv\""
           headers['Content-Type'] ||= 'text/csv'
@@ -125,9 +184,7 @@ module Vmcott
       render 'vmcott/inventory/consumables'
     end
     
-    # NEW PURCHASE REQUEST FORM METHOD - BULK (for multiple parts)
     def new_purchase_request
-      # Load parts that need reordering (below reorder point) or all parts if specified
       if params[:all_parts] == 'true'
         @parts = Part.active
                     .includes(:supplier)
@@ -143,7 +200,6 @@ module Vmcott
                     .per(25)
       end
       
-      # If no parts need reordering and we're not showing all, show a message
       if @parts.empty? && params[:all_parts] != 'true'
         flash[:info] = "No parts need reordering. Showing all parts instead."
         redirect_to new_purchase_request_vmcott_inventory_path(all_parts: 'true')
@@ -153,7 +209,6 @@ module Vmcott
       render 'vmcott/inventory/new_purchase_request'
     end
     
-    # NEW PURCHASE REQUEST FORM METHOD - SINGLE PART
     def new_purchase_request_with_part
       @part = Part.find(params[:id])
       @purchase_request = PurchaseRequest.new(
@@ -161,43 +216,48 @@ module Vmcott
         quantity: @part.suggested_reorder_quantity,
         urgency: @part.current_stock <= @part.minimum_stock ? 'high' : 'normal',
         requested_by: current_user,
+        needed_by_date: 7.days.from_now.to_date,
         notes: "Manual purchase request for #{@part.name}"
       )
       
       render 'vmcott/inventory/new_purchase_request_single'
     end
     
-    # FIXED: create_purchase_request with proper notifications
     def create_purchase_request
       begin
         @part = Part.find(params[:id])
-        quantity = params[:quantity].to_i
-        urgency = params[:urgency] || 'normal'
-        notes = params[:notes] || "Manual purchase request"
         
-        # Create the purchase request
+        # Get values from params (handle both direct and nested params)
+        quantity = params[:quantity].to_i
+        urgency = params[:urgency] || params[:priority] || 'normal'
+        notes = params[:notes] || "Manual purchase request"
+        needed_by_date = params[:needed_by_date] || params[:needed_by] || 7.days.from_now.to_date
+        
+        # Convert to Date if it's a string
+        needed_by_date = needed_by_date.to_date if needed_by_date.is_a?(String)
+        
         purchase_request = PurchaseRequest.create!(
           part: @part,
           quantity: quantity,
           urgency: urgency,
           notes: notes,
-          requested_by: current_user,  # This is a single user, correct!
+          requested_by: current_user,
+          needed_by_date: needed_by_date,
           status: 'pending'
-          # due_date: calculate_due_date(urgency)  ← REMOVED - field doesn't exist
         )
         
-        # NOTIFY BILLING TEAM - Iterate through each billing user
-        User.where(role: 'billing').each do |billing_user|
+        # NOTIFY PROCUREMENT TEAM
+        User.where(role: 'procurement').each do |procurement_user|
           Notification.create!(
-            user: billing_user,
+            user: procurement_user,
             title: "New Purchase Request: #{@part.name}",
-            message: "#{current_user.name} requested #{quantity} units of #{@part.name}. Please create RFQ.",
+            message: "#{current_user.name} requested #{quantity} units of #{@part.name}. Needed by #{needed_by_date}",
             notifiable: purchase_request,
-            link: vmcott_billing_dashboard_path
+            link: vmcott_procurement_dashboard_path
           )
         end
 
-        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name} and sent to billing team"
+        flash[:success] = "Purchase request created for #{quantity} units of #{@part.name} and sent to procurement team"
         
       rescue ActiveRecord::RecordNotFound
         flash[:alert] = "Part not found"
@@ -207,11 +267,9 @@ module Vmcott
         flash[:alert] = "Error creating purchase request: #{e.message}"
       end
       
-      # Always redirect to purchase requests page
       redirect_to vmcott_inventory_purchase_requests_path
     end
     
-    # IMPORT CSV FUNCTIONALITY
     def import_csv
       if request.get?
         render 'vmcott/inventory/import_csv'
@@ -225,17 +283,12 @@ module Vmcott
           csv_text = File.read(params[:csv_file].tempfile)
           csv = CSV.parse(csv_text, headers: true, encoding: 'UTF-8')
           
-          import_results = {
-            success: 0,
-            errors: [],
-            skipped: 0
-          }
+          import_results = { success: 0, errors: [], skipped: 0 }
           
           csv.each_with_index do |row, index|
-            row_number = index + 2 # +2 because index starts at 0 and we skip header
+            row_number = index + 2
             
             begin
-              # Extract data from CSV row
               name = row['name'].to_s.strip
               part_number = row['part_number'].to_s.strip.presence
               category = row['category'].to_s.strip.presence
@@ -248,13 +301,11 @@ module Vmcott
               unit_of_measure = row['unit_of_measure'].to_s.strip.presence || 'each'
               is_consumable = row['is_consumable'].to_s.downcase == 'true'
               
-              # Handle supplier
               supplier_name = row['supplier_name'].to_s.strip.presence
               supplier = if supplier_name.present?
                           Supplier.find_or_create_by!(name: supplier_name)
                         end
               
-              # Check if part already exists
               existing_part = if part_number.present?
                                Part.find_by(part_number: part_number)
                              else
@@ -262,35 +313,22 @@ module Vmcott
                              end
               
               if existing_part
-                # Update existing part
                 existing_part.update!(
-                  name: name,
-                  category: category,
-                  description: description,
-                  cost_price: cost_price,
-                  sale_price: sale_price,
+                  name: name, category: category, description: description,
+                  cost_price: cost_price, sale_price: sale_price,
                   current_stock: current_stock || existing_part.current_stock,
-                  minimum_stock: minimum_stock,
-                  reorder_point: reorder_point,
-                  unit_of_measure: unit_of_measure,
-                  is_consumable: is_consumable,
+                  minimum_stock: minimum_stock, reorder_point: reorder_point,
+                  unit_of_measure: unit_of_measure, is_consumable: is_consumable,
                   supplier: supplier
                 )
                 import_results[:success] += 1
               else
-                # Create new part
                 Part.create!(
-                  name: name,
-                  part_number: part_number,
-                  category: category,
-                  description: description,
-                  cost_price: cost_price,
-                  sale_price: sale_price,
-                  current_stock: current_stock || 0,
-                  minimum_stock: minimum_stock,
-                  reorder_point: reorder_point,
-                  unit_of_measure: unit_of_measure,
-                  is_consumable: is_consumable,
+                  name: name, part_number: part_number, category: category,
+                  description: description, cost_price: cost_price,
+                  sale_price: sale_price, current_stock: current_stock || 0,
+                  minimum_stock: minimum_stock, reorder_point: reorder_point,
+                  unit_of_measure: unit_of_measure, is_consumable: is_consumable,
                   supplier: supplier
                 )
                 import_results[:success] += 1
@@ -337,16 +375,13 @@ module Vmcott
                 type: 'text/csv'
     end
     
-    # EXPORT REPORT FUNCTIONALITY - FIXED for XLSX and PDF
     def export_report
-      # Set default dates for the report
       @start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : 30.days.ago.to_date
       @end_date = params[:end_date].present? ? Date.parse(params[:end_date]) : Date.today
       @agency = current_user.agency || Agency.find_by(code: 'VMCOTT')
       
       @parts = Part.includes(:supplier)
       
-      # Apply filters
       if params[:category].present?
         @parts = @parts.where(category: params[:category])
       end
@@ -371,13 +406,11 @@ module Vmcott
                              "%#{params[:search]}%", "%#{params[:search]}%")
       end
       
-      # Calculate statistics for the PDF
       @total_stock_value = @parts.sum { |p| p.stock_value || 0 }
       @low_stock_count = @parts.count { |p| p.needs_reorder? && p.current_stock > 0 }
       @out_of_stock_count = @parts.count { |p| p.current_stock == 0 }
       @low_stock_parts = @parts.select { |p| p.needs_reorder? }
       
-      # Get recent transactions if requested
       if params[:include_transactions] == "1"
         @transactions = InventoryTransaction
           .where(created_at: @start_date.beginning_of_day..@end_date.end_of_day)
@@ -388,10 +421,7 @@ module Vmcott
       report_type = params[:type] || 'full'
       
       respond_to do |format|
-        format.html do
-          render 'vmcott/inventory/export_report'
-        end
-        
+        format.html { render 'vmcott/inventory/export_report' }
         format.csv do
           filename = case report_type
                      when 'low_stock' then "low-stock-report-#{Date.today}.csv"
@@ -416,11 +446,9 @@ module Vmcott
           wb = p.workbook
           
           wb.add_worksheet(name: "Inventory Report") do |sheet|
-            # Add headers
             sheet.add_row ['Name', 'Part Number', 'Category', 'Supplier', 'Current Stock', 
                           'Minimum Stock', 'Reorder Point', 'Cost Price', 'Selling Price', 'Status']
             
-            # Add data rows
             @parts.each do |part|
               stock_status = if part.current_stock <= 0
                               'Out of Stock'
@@ -433,35 +461,23 @@ module Vmcott
                             end
               
               sheet.add_row [
-                part.name,
-                part.part_number,
-                part.category,
-                part.supplier&.name || 'N/A',
-                part.current_stock,
-                part.minimum_stock,
-                part.reorder_point,
-                part.cost_price,
-                part.sale_price,
-                stock_status
+                part.name, part.part_number, part.category,
+                part.supplier&.name || 'N/A', part.current_stock,
+                part.minimum_stock, part.reorder_point,
+                part.cost_price, part.sale_price, stock_status
               ]
             end
           end
           
-          send_data p.to_stream.read, 
-                    filename: filename,
-                    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          send_data p.to_stream.read, filename: filename, type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         end
         
         format.pdf do
           @report_type = report_type
           @generated_at = Time.current
           
-          # FIXED: Use the correct template name without .pdf extension
           pdf = WickedPdf.new.pdf_from_string(
-            render_to_string(
-              template: 'vmcott/inventory/export_report',  # ← Remove .pdf from here
-              layout: 'pdf'
-            ),
+            render_to_string(template: 'vmcott/inventory/export_report', layout: 'pdf'),
             margin: { top: 10, bottom: 10, left: 10, right: 10 },
             orientation: 'landscape'
           )
@@ -478,7 +494,6 @@ module Vmcott
       end
     end
     
-    # SETTINGS FUNCTIONALITY
     def settings
       @notification_settings = {
         low_stock_email: @inventory_settings[:low_stock_email] || true,
@@ -528,7 +543,6 @@ module Vmcott
         adjustment_type = params[:adjustment_type]
         notes = params[:notes]
         
-        # Use the reliable method we just created
         if @part.reliable_adjust_stock(quantity, adjustment_type.to_sym, notes, current_user)
           flash[:success] = "Stock adjusted successfully. New quantity: #{@part.current_stock}"
         else
@@ -556,6 +570,7 @@ module Vmcott
           shortfall,
           urgency: 'high',
           requested_by: current_user,
+          needed_by_date: 14.days.from_now.to_date,
           notes: "Bulk order for job template: #{template.name}. Needed: #{missing_part[:needed]}, Available: #{missing_part[:available]}"
         )
         
@@ -582,7 +597,6 @@ module Vmcott
         .page(params[:page])
         .per(50)
       
-      # Calculate summary statistics
       @summary = {
         total_in: @transactions.where(transaction_type: ['stock_in', 'receipt']).sum(:quantity),
         total_out: @transactions.where(transaction_type: ['stock_out', 'consumption', 'sale']).sum(:quantity).abs,
@@ -609,23 +623,19 @@ module Vmcott
         end
         .sort_by { |p| p[:days_of_supply].to_f }
       
-      # Group by supplier for easier ordering
       @suggestions_by_supplier = @parts.group_by { |p| p[:supplier] }
       
-      render 'vmcott/inventory/reorder_suggestions'
+      render 'vmcott/inventory/parts/reorder_suggestions'
     end
     
-    # Vendor Management redirect
     def vendor_management
       redirect_to suppliers_path
     end
     
-    # Vendor Invoices redirect
     def vendor_invoices
       redirect_to vendor_invoices_path
     end
     
-    # New method for inventory valuation report
     def valuation_report
       @parts = Part.includes(:supplier)
         .where('cost_price IS NOT NULL AND current_stock > 0')
@@ -636,13 +646,11 @@ module Vmcott
       @total_valuation = @parts.sum('current_stock * cost_price')
       @average_valuation = @parts.average('current_stock * cost_price')
       
-      # Group by category
       @category_valuations = Part.group(:category)
         .where('cost_price IS NOT NULL')
         .sum('current_stock * cost_price')
         .sort_by { |_, value| -value }
       
-      # Group by supplier
       @supplier_valuations = Part.joins(:supplier)
         .where('cost_price IS NOT NULL')
         .group('suppliers.name')
@@ -653,14 +661,6 @@ module Vmcott
     end
     
     private
-    
-    def require_vmcott_user
-      return if current_user.admin?
-      
-      unless current_user.agency&.code == 'VMCOTT'
-        redirect_to root_path, alert: 'Access denied. VMCOTT users only.'
-      end
-    end
     
     def calculate_due_date(urgency)
       case urgency
@@ -674,30 +674,22 @@ module Vmcott
     end
     
     def set_inventory_settings
-      # Load settings from database or use defaults
       @inventory_settings = Rails.cache.fetch('inventory_settings', expires_in: 1.hour) do
         {
-          # General Settings
-          default_reorder_percentage: 150,  # 150% of minimum stock
-          low_stock_threshold: 7,           # 7 days supply
-          default_markup_percentage: 30.0,  # 30% markup
+          default_reorder_percentage: 150,
+          low_stock_threshold: 7,
+          default_markup_percentage: 30.0,
           currency: 'TTD',
           default_unit_of_measure: 'each',
-          
-          # Notification Settings
           low_stock_email: true,
           daily_report_email: false,
           critical_stock_notification: true,
           purchase_request_approval_notification: true,
-          
-          # Import/Export Settings
           csv_column_mapping: 'default',
           export_format: 'csv',
           max_file_size_mb: 10,
           auto_backup_enabled: false,
           backup_frequency: 'weekly',
-          
-          # Supplier Settings
           default_payment_terms: 'net30',
           minimum_order_quantity: 1,
           lead_time_days: 7

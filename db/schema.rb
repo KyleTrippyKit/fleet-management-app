@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_22_014837) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -908,11 +908,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
     t.string "po_number", null: false
     t.bigint "quotation_id"
     t.string "rails_code"
+    t.datetime "ready_for_payment_at"
     t.datetime "received_at"
     t.datetime "rejected_at"
     t.bigint "rejected_by_id"
     t.text "rejection_reason"
+    t.integer "rfq_id"
+    t.datetime "sent_at"
     t.string "status", default: "draft", null: false
+    t.datetime "stock_updated_at"
     t.bigint "supplier_id"
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id"
@@ -1557,11 +1561,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
     t.date "due_date"
     t.boolean "finance_review_ready", default: false
     t.text "notes"
+    t.datetime "po_received_at"
+    t.datetime "po_sent_at"
+    t.string "po_status"
     t.bigint "processing_agency_id"
     t.string "rfq_number", null: false
     t.date "sent_date"
     t.string "status", default: "draft", null: false
     t.datetime "updated_at", null: false
+    t.bigint "vehicle_id"
     t.index ["awarded_vendor_quotation_id"], name: "index_vendor_rfqs_on_awarded_vendor_quotation_id"
     t.index ["created_by_id"], name: "index_vendor_rfqs_on_created_by_id"
     t.index ["finance_review_ready"], name: "index_vendor_rfqs_on_finance_review_ready"
@@ -1569,6 +1577,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
     t.index ["rfq_number"], name: "index_vendor_rfqs_on_rfq_number", unique: true
     t.index ["status", "created_at"], name: "index_vendor_rfqs_on_status_and_created_at"
     t.index ["status"], name: "index_vendor_rfqs_on_status"
+    t.index ["vehicle_id"], name: "index_vendor_rfqs_on_vehicle_id"
   end
 
   create_table "z_reports", force: :cascade do |t|
@@ -1715,5 +1724,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_09_011222) do
   add_foreign_key "vendor_rfq_responses", "suppliers"
   add_foreign_key "vendor_rfqs", "agencies", column: "processing_agency_id"
   add_foreign_key "vendor_rfqs", "users", column: "created_by_id"
+  add_foreign_key "vendor_rfqs", "vehicles"
   add_foreign_key "vendor_rfqs", "vendor_quotations", column: "awarded_vendor_quotation_id"
 end

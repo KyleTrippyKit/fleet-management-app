@@ -3,22 +3,137 @@
   <div class="row justify-content-center">
     <div class="col-lg-10">
       <div class="card">
-        <div class="card-header">
+        <div class="card-header bg-primary text-white">
           <h3 class="mb-0">
             <i class="fas fa-file-purchase-order me-2"></i>
             New Purchase Order
           </h3>
+          <% if @rfq.present? %>
+            <p class="mb-0 mt-1 small">
+              <i class="fas fa-link me-1"></i>
+              Creating PO from RFQ: <strong><%= @rfq.rfq_number %></strong>
+            </p>
+          <% end %>
         </div>
         <div class="card-body">
           <%= render 'form', purchase_order: @purchase_order %>
         </div>
-        <div class="card-footer text-muted">
-          <small>
-            <i class="fas fa-info-circle me-1"></i>
-            Purchase Orders require approval before they can be processed.
-          </small>
+        <div class="card-footer bg-light text-muted">
+          <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <div>
+              <i class="fas fa-info-circle me-1"></i>
+              Purchase Orders require approval before they can be processed.
+            </div>
+            <div class="mt-2 mt-sm-0">
+              <span class="badge bg-info me-1">Draft</span>
+              <span class="badge bg-warning">Pending Approval</span>
+              <span class="badge bg-success">Approved</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- JavaScript to handle RFQ data if passed from controller -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if we have RFQ data to pre-populate
+  <% if @rfq.present? && @quotations.present? %>
+    // Auto-select the cheapest vendor if available
+    <% if @cheapest_supplier.present? %>
+      const vendorSelect = document.querySelector('.vendor-select');
+      if (vendorSelect && vendorSelect.options.length > 0) {
+        // Find and select the cheapest vendor
+        for (let i = 0; i < vendorSelect.options.length; i++) {
+          if (vendorSelect.options[i].value == '<%= @cheapest_supplier.id %>') {
+            vendorSelect.selectedIndex = i;
+            break;
+          }
+        }
+        // Trigger change event to update prices
+        const changeEvent = new Event('change', { bubbles: true });
+        vendorSelect.dispatchEvent(changeEvent);
+        
+        // Show notification about auto-selection
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+        alertDiv.innerHTML = `
+          <i class="fas fa-check-circle me-2"></i>
+          <strong>Best value detected!</strong> We've automatically selected 
+          <strong><%= @cheapest_supplier.name %></strong> as the cheapest supplier 
+          (Total: <%= number_to_currency(@cheapest_total) %>).
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        const form = document.querySelector('form');
+        if (form) {
+          form.insertBefore(alertDiv, form.firstChild);
+          
+          // Auto-dismiss after 5 seconds
+          setTimeout(() => {
+            alertDiv.classList.remove('show');
+            setTimeout(() => alertDiv.remove(), 300);
+          }, 5000);
+        }
+      }
+    <% end %>
+  <% end %>
+  
+  // Add tooltips to the status badges
+  const badges = document.querySelectorAll('.badge');
+  badges.forEach(badge => {
+    if (badge.textContent.includes('Draft')) {
+      badge.title = 'Work in progress, not yet submitted';
+    } else if (badge.textContent.includes('Pending')) {
+      badge.title = 'Awaiting approval from finance';
+    } else if (badge.textContent.includes('Approved')) {
+      badge.title = 'Ready to be sent to vendor';
+    }
+    badge.setAttribute('data-bs-toggle', 'tooltip');
+  });
+  
+  // Initialize tooltips if Bootstrap is available
+  if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  }
+  
+  // Add keyboard shortcut for save (Ctrl+S)
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      const saveButton = document.querySelector('input[type="submit"][value*="Save"]');
+      if (saveButton) saveButton.click();
+    }
+  });
+});
+</script>
+
+<style>
+  .card-header {
+    background: linear-gradient(135deg, #0a2b4e 0%, #1e3a6b 100%);
+  }
+  
+  .badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.65rem;
+  }
+  
+  .alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .alert {
+    animation: fadeIn 0.3s ease-out;
+  }
+</style>
