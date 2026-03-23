@@ -1,776 +1,864 @@
 <%# app/views/vmcott/inventory_manager/dashboard/index.html.erb %>
-<%# Inventory Manager Dashboard - Parts inventory, stock management, and parts requests %>
-<%# Renamed from parts_coordinator to inventory_manager %>
+<div class="container-fluid px-4 py-5">
 
-<div class="container-fluid py-4">
-  <!-- Header -->
-  <div class="row mb-4">
-    <div class="col">
-      <h1 class="h2">
-        <i class="bi bi-box-seam me-2"></i>
-        Inventory Manager Dashboard
-      </h1>
-      <p class="text-muted">Manage parts inventory, stock levels, and parts requests</p>
-    </div>
-    <div class="col-auto">
-      <div class="btn-group">
-        <%= link_to "📦 Parts Catalog", vmcott_parts_path, class: "btn btn-outline-primary" %>
-        <%= link_to "⚠️ Low Stock", low_stock_vmcott_inventory_manager_parts_path, class: "btn btn-outline-warning" %>
-        <%= link_to "📊 Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "btn btn-primary" %>
-      </div>
-    </div>
-  </div>
-
-  <!-- KPI Cards Row -->
-  <div class="row mb-4 g-3">
-    <!-- Pending Parts -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-primary text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">Pending Review</h6>
-              <h2 class="mb-0"><%= @stats[:pending_parts] %></h2>
-            </div>
-            <i class="bi bi-clock-history fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50"><%= @stats[:in_stock_count] %> in stock • <%= @stats[:out_of_stock_count] %> to order</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- With Procurement -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-warning text-dark h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-dark-50 mb-1">With Procurement</h6>
-              <h2 class="mb-0"><%= @stats[:pending_procurement] %></h2>
-            </div>
-            <i class="bi bi-send fs-1 opacity-50"></i>
-          </div>
-          <small class="text-dark-50">RFQs sent to vendors</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- With Finance -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-info text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">Finance Review</h6>
-              <h2 class="mb-0"><%= @stats[:pending_finance] %></h2>
-            </div>
-            <i class="bi bi-cash-stack fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50">Quotes received</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Ordered -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-secondary text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">Ordered</h6>
-              <h2 class="mb-0"><%= @stats[:ordered_count] %></h2>
-            </div>
-            <i class="bi bi-truck fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50">POs created</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Received -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-success text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">Received</h6>
-              <h2 class="mb-0"><%= @stats[:parts_received] %></h2>
-            </div>
-            <i class="bi bi-check-circle fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50">Ready for workshop</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Low Stock -->
-    <div class="col-xl-2 col-md-4 col-6">
-      <div class="card bg-danger text-white h-100">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <h6 class="text-white-50 mb-1">Low Stock</h6>
-              <h2 class="mb-0"><%= @stats[:low_stock_count] %></h2>
-            </div>
-            <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
-          </div>
-          <small class="text-white-50">Below reorder point</small>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Main Workflow Tabs -->
+  <!-- Page Header -->
   <div class="row mb-4">
     <div class="col-12">
-      <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending" type="button" role="tab">
-            <i class="bi bi-clock-history me-1"></i>
-            Pending Review
-            <% if @stats[:pending_parts] > 0 %>
-              <span class="badge bg-primary ms-2"><%= @stats[:pending_parts] %></span>
-            <% end %>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="procurement-tab" data-bs-toggle="tab" data-bs-target="#procurement" type="button" role="tab">
-            <i class="bi bi-send me-1"></i>
-            With Procurement
-            <% if @stats[:pending_procurement] > 0 %>
-              <span class="badge bg-warning ms-2"><%= @stats[:pending_procurement] %></span>
-            <% end %>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance" type="button" role="tab">
-            <i class="bi bi-cash-stack me-1"></i>
-            Finance Review
-            <% if @stats[:pending_finance] > 0 %>
-              <span class="badge bg-info ms-2"><%= @stats[:pending_finance] %></span>
-            <% end %>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="ordered-tab" data-bs-toggle="tab" data-bs-target="#ordered" type="button" role="tab">
-            <i class="bi bi-truck me-1"></i>
-            Ordered
-            <% if @stats[:ordered_count] > 0 %>
-              <span class="badge bg-secondary ms-2"><%= @stats[:ordered_count] %></span>
-            <% end %>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="received-tab" data-bs-toggle="tab" data-bs-target="#received" type="button" role="tab">
-            <i class="bi bi-check-circle me-1"></i>
-            Received
-            <% if @stats[:parts_received] > 0 %>
-              <span class="badge bg-success ms-2"><%= @stats[:parts_received] %></span>
-            <% end %>
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="pos-tab" data-bs-toggle="tab" data-bs-target="#pos" type="button" role="tab">
-            <i class="bi bi-file-text me-1"></i>
-            Purchase Orders
-            <% if @stats[:approved_po_count] + @stats[:ordered_po_count] > 0 %>
-              <span class="badge bg-dark ms-2"><%= @stats[:approved_po_count] + @stats[:ordered_po_count] %></span>
-            <% end %>
-          </button>
-        </li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- Tab Content -->
-  <div class="tab-content" id="inventoryTabsContent">
-    
-    <!-- TAB 1: Pending Review -->
-    <div class="tab-pane fade show active" id="pending" role="tabpanel">
-      <div class="card">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i> Parts Pending Review</h5>
-          <span class="badge bg-light text-primary"><%= @stats[:pending_parts] %> pending</span>
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2 mb-1 fw-bold" style="color: #1e293b;">Inventory Manager Dashboard</h1>
+          <p class="text-muted mb-0">Parts Management & Procurement Tracking</p>
         </div>
-        <div class="card-body">
-          <% if @pending_parts.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Part</th>
-                    <th>Quantity</th>
-                    <th>Status</th>
-                    <th>Stock Status</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @pending_parts.each do |pr| %>
-                    <tr>
-                      <td>
-                        <strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong><br>
-                        <small><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
-                       </td>
-                        <td>
-                        <strong><%= pr.part&.name || pr.custom_part_name %></strong><br>
-                        <small><%= pr.part&.part_number %></small>
-                        </td>
-                        <td><%= pr.quantity %></td>
-                        <td>
-                        <span class="badge bg-<%= pr.status == 'pending' ? 'warning' : 'info' %>">
-                          <%= pr.status.humanize %>
-                        </span>
-                        </td>
-                        <td>
-                        <% if pr.in_stock? %>
-                          <span class="badge bg-success">In Stock</span>
-                          <small class="d-block text-muted">Qty: <%= pr.part&.current_stock %></small>
-                        <% else %>
-                          <span class="badge bg-danger">Out of Stock</span>
-                        <% end %>
-                        </td>
-                        <td>
-                        <div class="btn-group btn-group-sm">
-                          <% if pr.in_stock? %>
-                            <%= button_to "✓ Mark In Stock", 
-                                vmcott_inventory_manager_mark_in_stock_path(pr.id),
-                                method: :post,
-                                class: "btn btn-success",
-                                form: { style: 'display: inline;', data: { turbo: false } },
-                                data: { confirm: "Mark this part as in-stock and approved?" } %>
-                          <% else %>
-                            <%= button_to "📤 Send to Procurement", 
-                                vmcott_inventory_manager_send_to_procurement_path(pr.id),
-                                method: :post,
-                                class: "btn btn-warning",
-                                form: { style: 'display: inline;', data: { turbo: false } },
-                                data: { confirm: "Send this part to procurement team for RFQ creation?" } %>
-                          <% end %>
-                          <%= link_to "🔍 View", 
-                              vmcott_parts_request_path(pr),
-                              class: "btn btn-outline-secondary" %>
-                        </div>
-                        </td>
-                      </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-4">No parts pending review at this time.</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 2: With Procurement -->
-    <div class="tab-pane fade" id="procurement" role="tabpanel">
-      <div class="card">
-        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-send me-2"></i> Parts with Procurement Team</h5>
-          <span class="badge bg-dark text-white"><%= @stats[:pending_procurement] %> items</span>
-        </div>
-        <div class="card-body">
-          <% if @pending_procurement.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Part</th>
-                    <th>Quantity</th>
-                    <th>Status</th>
-                    <th>Sent to Procurement</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @pending_procurement.each do |pr| %>
-                    <tr>
-                       <td>
-                        <strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong>
-                      </td>
-                      <td><%= pr.part&.name || pr.custom_part_name %></td>
-                      <td><%= pr.quantity %></td>
-                      <td>
-                        <span class="badge bg-warning"><%= pr.status.humanize %></span>
-                      </td>
-                      <td><%= pr.sent_to_procurement_at ? time_ago_in_words(pr.sent_to_procurement_at) + ' ago' : 'N/A' %></td>
-                      <td>
-                        <%= link_to "Track RFQ", 
-                            vmcott_vendor_rfqs_path(part_id: pr.part_id),
-                            class: "btn btn-sm btn-outline-warning" %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-4">No parts with procurement team at this time.</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: Finance Review -->
-    <div class="tab-pane fade" id="finance" role="tabpanel">
-      <div class="card">
-        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-cash-stack me-2"></i> Parts with Finance for Review</h5>
-          <span class="badge bg-light text-info"><%= @stats[:pending_finance] %> items</span>
-        </div>
-        <div class="card-body">
-          <% if @pending_finance.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Part</th>
-                    <th>Quotes Received</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @pending_finance.each do |pr| %>
-                    <% rfq = VendorRfq.joins(:vendor_rfq_items).where(vendor_rfq_items: { part_id: pr.part_id }).first %>
-                    <tr>
-                      <td><%= pr.inspection&.vehicle&.license_plate %></td>
-                      <td><%= pr.part&.name %></td>
-                      <td>
-                        <% if rfq %>
-                          <%= rfq.vendor_quotations.where(status: 'received').count %> quotes
-                        <% else %>
-                          <span class="text-muted">N/A</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <span class="badge bg-info"><%= pr.status.humanize %></span>
-                      </td>
-                      <td>
-                        <% if rfq %>
-                          <%= link_to "Compare Quotes", 
-                              vmcott_inventory_manager_compare_quotations_path(rfq.id),
-                              class: "btn btn-sm btn-info" %>
-                        <% end %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-4">No parts with finance team at this time.</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 4: Ordered -->
-    <div class="tab-pane fade" id="ordered" role="tabpanel">
-      <div class="card">
-        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Ordered Parts (POs Created)</h5>
-          <span class="badge bg-light text-secondary"><%= @stats[:ordered_count] %> items</span>
-        </div>
-        <div class="card-body">
-          <% if @ordered_requests.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Part</th>
-                    <th>PO #</th>
-                    <th>Supplier</th>
-                    <th>Ordered Date</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @ordered_requests.each do |pr| %>
-                    <tr>
-                      <td><%= pr.inspection&.vehicle&.license_plate %></td>
-                      <td><%= pr.part&.name %></td>
-                      <td>
-                        <% if pr.purchase_order %>
-                          <strong><%= pr.purchase_order.po_number %></strong>
-                        <% else %>
-                          <span class="text-muted">N/A</span>
-                        <% end %>
-                      </td>
-                      <td><%= pr.purchase_order&.vendor %></td>
-                      <td><%= pr.purchase_order&.ordered_at&.strftime("%b %d, %Y") %></td>
-                      <td>
-                        <span class="badge bg-secondary"><%= pr.status.humanize %></span>
-                      </td>
-                      <td>
-                        <% if pr.purchase_order %>
-                          <%= button_to "Receive Parts", 
-                              receive_parts_vmcott_inventory_manager_path(
-                                purchase_order_id: pr.purchase_order_id,
-                                parts_request_id: pr.id
-                              ),
-                              method: :post,
-                              class: "btn btn-sm btn-success",
-                              form: { data: { turbo: false } },
-                              data: { confirm: "Mark parts as received?" } %>
-                        <% end %>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-4">No ordered parts at this time.</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 5: Received -->
-    <div class="tab-pane fade" id="received" role="tabpanel">
-      <div class="card">
-        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i> Parts Received - Ready for Workshop</h5>
-          <span class="badge bg-light text-success"><%= @stats[:parts_received] %> items</span>
-        </div>
-        <div class="card-body">
-          <% if @parts_received.any? %>
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Vehicle</th>
-                    <th>Parts Received</th>
-                    <th>Inspection</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @parts_received.each do |pr| %>
-                    <tr id="inspection-row-<%= pr.inspection_id %>">
-                      <td>
-                        <strong><%= pr.inspection&.vehicle&.license_plate %></strong><br>
-                        <small><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
-                      </td>
-                      <td>
-                        <% if pr.inspection %>
-                          <% pr.inspection.parts_requests.where(status: 'parts_received').each do |part_req| %>
-                            <div><small>✓ <%= part_req.part&.name %> x<%= part_req.quantity %></small></div>
-                          <% end %>
-                        <% end %>
-                      </td>
-                      <td>#<%= pr.inspection_id %></td>
-                      <td>
-                        <span class="badge bg-success">All Parts Received</span>
-                      </td>
-                      <td>
-                        <div class="workshop-action" data-inspection-id="<%= pr.inspection_id %>">
-                          <%= button_to "🔧 Pass to Mechanic Workshop", 
-                              vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
-                              method: :post,
-                              class: "btn btn-sm btn-success pass-to-workshop-btn",
-                              form: { 
-                                data: { 
-                                  turbo: false,
-                                  inspection_id: pr.inspection_id
-                                } 
-                              },
-                              data: { 
-                                confirm: "All parts received. Pass this job to mechanic workshop?",
-                                disable_with: "Processing..."
-                              } %>
-                        </div>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-            
-            <% if @ready_for_workshop.any? %>
-              <hr>
-              <h6 class="mt-3">Inspections Ready for Workshop:</h6>
-              <div class="list-group mt-2">
-                <% @ready_for_workshop.each do |inspection| %>
-                  <div class="list-group-item d-flex justify-content-between align-items-center" id="workshop-item-<%= inspection.id %>">
-                    <div>
-                      <strong><%= inspection.vehicle.license_plate %></strong> - 
-                      <%= inspection.vehicle.make %> <%= inspection.vehicle.model %>
-                    </div>
-                    <div class="workshop-action" data-inspection-id="<%= inspection.id %>">
-                      <%= button_to "🔧 Pass to Mechanic Workshop", 
-                          vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
-                          method: :post,
-                          class: "btn btn-sm btn-success pass-to-workshop-btn",
-                          form: { 
-                            data: { 
-                              turbo: false,
-                              inspection_id: inspection.id
-                            } 
-                          },
-                          data: { 
-                            confirm: "Pass this job to mechanic workshop?",
-                            disable_with: "Processing..."
-                          } %>
-                    </div>
-                  </div>
-                <% end %>
-              </div>
-            <% end %>
-          <% else %>
-            <p class="text-muted text-center py-4">No parts received at this time.</p>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 6: Purchase Orders -->
-    <div class="tab-pane fade" id="pos" role="tabpanel">
-      <div class="row">
-        <!-- Approved POs -->
-        <div class="col-md-6 mb-4">
-          <div class="card h-100">
-            <div class="card-header bg-primary text-white">
-              <h5 class="mb-0"><i class="bi bi-check-circle me-2"></i> Approved POs (Ready to Order)</h5>
-              <span class="badge bg-light text-primary"><%= @stats[:approved_po_count] %> POs</span>
-            </div>
-            <div class="card-body">
-              <% if @approved_pos.any? %>
-                <div class="list-group">
-                  <% @approved_pos.each do |po| %>
-                    <div class="list-group-item">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <strong><%= po.po_number %></strong> - <%= po.vendor %><br>
-                          <small class="text-muted">
-                            <%= po.purchase_order_items.count %> items • 
-                            <%= number_to_currency(po.amount) %>
-                          </small>
-                        </div>
-                        <div>
-                          <%= button_to "Mark Ordered", 
-                              vmcott_inventory_manager_mark_po_ordered_path(po.id),
-                              method: :post,
-                              class: "btn btn-sm btn-success",
-                              form: { data: { turbo: false } },
-                              data: { confirm: "Mark PO as ordered?" } %>
-                        </div>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <p class="text-muted text-center py-3">No approved POs</p>
-              <% end %>
-            </div>
-          </div>
-        </div>
-
-        <!-- Ordered POs -->
-        <div class="col-md-6 mb-4">
-          <div class="card h-100">
-            <div class="card-header bg-warning text-dark">
-              <h5 class="mb-0"><i class="bi bi-truck me-2"></i> Ordered POs (Awaiting Delivery)</h5>
-              <span class="badge bg-dark text-white"><%= @stats[:ordered_po_count] %> POs</span>
-            </div>
-            <div class="card-body">
-              <% if @ordered_pos.any? %>
-                <div class="list-group">
-                  <% @ordered_pos.each do |po| %>
-                    <div class="list-group-item">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                          <strong><%= po.po_number %></strong> - <%= po.vendor %><br>
-                          <small class="text-muted">
-                            Ordered: <%= po.ordered_at&.strftime("%b %d") %> • 
-                            <%= number_to_currency(po.amount) %>
-                          </small>
-                        </div>
-                        <div>
-                          <%= button_to "Receive", 
-                              vmcott_inventory_manager_mark_po_received_path(po.id),
-                              method: :post,
-                              class: "btn btn-sm btn-success",
-                              form: { data: { turbo: false } },
-                              data: { confirm: "Mark PO as received?" } %>
-                        </div>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <p class="text-muted text-center py-3">No ordered POs</p>
-              <% end %>
-            </div>
+        <div class="text-end">
+          <div class="bg-white rounded-3 px-3 py-2 shadow-sm">
+            <i class="bi bi-calendar3 me-2 text-primary"></i>
+            <%= Time.current.strftime("%A, %B %d, %Y") %>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Low Stock Alerts Section - ENHANCED with Request Status -->
-  <% if @low_stock_parts.any? %>
-    <div class="row mt-4">
-      <div class="col-12">
-        <div class="card border-danger">
-          <div class="card-header bg-danger text-white">
-            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i> Low Stock Alerts</h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Part #</th>
-                    <th>Part Name</th>
-                    <th>Current Stock</th>
-                    <th>Reorder Point</th>
-                    <th>Status</th>
-                    <th>Request Status</th>
-                    <th>Actions</th>
-                  </thead>
-                <tbody>
-                  <% @low_stock_parts.each do |part| %>
-                    <%
-                      # Check if there's already a pending purchase request for this part
-                      pending_request = PurchaseRequest.where(
-                        part_id: part.id,
-                        status: ['pending', 'approved']
-                      ).order(created_at: :desc).first
-                      
-                      # Check if there's an ordered or received request
-                      ordered_request = PurchaseRequest.where(
-                        part_id: part.id,
-                        status: ['ordered', 'received']
-                      ).order(created_at: :desc).first
-                    %>
-                    <tr>
-                      <td><%= part.part_number %></td>
-                      <td><strong><%= part.name %></strong></td>
-                      <td class="<%= part.current_stock <= 0 ? 'text-danger fw-bold' : 'text-warning' %>">
-                        <%= part.current_stock %>
-                      </td>
-                      <td><%= part.reorder_point %></td>
-                      <td>
-                        <% if part.current_stock <= 0 %>
-                          <span class="badge bg-danger">Out of Stock</span>
-                        <% else %>
-                          <span class="badge bg-warning">Low Stock</span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <% if ordered_request.present? %>
-                          <span class="badge bg-success">
-                            <i class="bi bi-check-circle"></i> Already Ordered
-                          </span>
-                          <br>
-                          <small class="text-muted">PO #: <%= ordered_request.purchase_order&.po_number || 'Processing' %></small>
-                        <% elsif pending_request.present? %>
-                          <span class="badge bg-info">
-                            <i class="bi bi-clock-history"></i> Request Pending
-                          </span>
-                          <br>
-                          <small class="text-muted">Submitted: <%= time_ago_in_words(pending_request.created_at) %> ago</small>
-                        <% else %>
-                          <span class="badge bg-secondary">
-                            <i class="bi bi-exclamation-circle"></i> No Request
-                          </span>
-                        <% end %>
-                      </td>
-                      <td>
-                        <div class="btn-group btn-group-sm">
-                          <%= link_to "🔍 View", vmcott_part_path(part), class: "btn btn-sm btn-info" %>
-                          
-                          <% if pending_request.present? %>
-                            <%= link_to "📋 View Request", 
-                                vmcott_purchase_request_path(pending_request),
-                                class: "btn btn-sm btn-outline-primary" %>
-                          <% elsif ordered_request.present? %>
-                            <%= link_to "📦 View Order", 
-                                vmcott_purchase_order_path(ordered_request.purchase_order),
-                                class: "btn btn-sm btn-outline-success" %>
-                          <% else %>
-                            <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
-                              <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-                              <input type="hidden" name="quantity" value="<%= part.suggested_reorder_quantity %>">
-                              <input type="hidden" name="urgency" value="<%= part.current_stock <= part.minimum_stock ? 'high' : 'normal' %>">
-                              <input type="hidden" name="notes" value="Low stock alert: Current: <%= part.current_stock %>, Min: <%= part.minimum_stock %>">
-                              <button type="submit" class="btn btn-sm btn-warning">
-                                <i class="bi bi-cart-plus"></i> Request PO
-                              </button>
-                            <% end %>
-                          <% end %>
-                        </div>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+  <!-- Flash Messages -->
+  <% if flash[:success] %>
+    <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert" id="successAlert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+        <div><%= flash[:success] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
       </div>
     </div>
   <% end %>
 
-  <!-- Quick Stats Footer -->
-  <div class="row mt-4">
-    <div class="col-12">
-      <div class="card bg-light">
-        <div class="card-body">
-          <div class="row text-center">
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:pending_parts] %></h6>
-              <small class="text-muted">Pending</small>
+  <% if flash[:notice] %>
+    <div class="alert alert-info alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+        <div><%= flash[:notice] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+      </div>
+    </div>
+  <% end %>
+
+  <% if flash[:alert] %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+        <div><%= flash[:alert] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- SECTION 1: PENDING REVIEW - MOVED TO TOP -->
+  <div id="pending-review-section" class="card border-0 shadow-lg mb-4" style="border-top: 4px solid #f59e0b;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-clock-history me-2" style="color: #f59e0b;"></i>
+            Pending Review
+          </h5>
+          <p class="text-muted small mb-0">Parts requests waiting for initial review</p>
+        </div>
+        <span class="badge px-3 py-2 rounded-pill" style="background: #fef3c7; color: #b45309;">
+          <i class="bi bi-hourglass-split me-1"></i> <%= @pending_parts&.count || 0 %> Pending
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <% if @pending_parts&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              56
+                <th class="border-0 py-3">Vehicle</th>
+                <th class="border-0 py-3">Part</th>
+                <th class="border-0 py-3 text-center">Quantity</th>
+                <th class="border-0 py-3">Requested By</th>
+                <th class="border-0 py-3">Stock Status</th>
+                <th class="border-0 py-3 text-end">Action</th>
+               </thead>
+            <tbody>
+              <% @pending_parts.each do |pr| %>
+                <tr id="pending-request-<%= pr.id %>">
+                  <td>
+                    <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                    <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
+                    </td>
+                    <td>
+                    <div><strong><%= pr.part&.name || pr.custom_part_name %></strong></div>
+                    <small class="text-muted"><%= pr.part&.part_number %></small>
+                    </td>
+                  <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                  <td>
+                    <div>
+                      <% if pr.inspection_job&.assigned_mechanic %>
+                        <%= pr.inspection_job.assigned_mechanic.name %>
+                        <span class="badge bg-info ms-1">Mechanic</span>
+                      <% elsif pr.inspection&.inspector %>
+                        <%= pr.inspection.inspector.name %>
+                        <span class="badge bg-secondary ms-1">Inspector</span>
+                      <% else %>
+                        <span class="text-muted">System</span>
+                      <% end %>
+                    </div>
+                    <small class="text-muted"><%= time_ago_in_words(pr.created_at) %> ago</small>
+                  </td>
+                  <td>
+                    <% if pr.in_stock? %>
+                      <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> In Stock</span>
+                      <small class="d-block text-muted">Available: <%= pr.part&.current_stock %></small>
+                    <% else %>
+                      <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> Out of Stock</span>
+                    <% end %>
+                  </td>
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                      <% if pr.in_stock? %>
+                        <%= button_to "✓ Mark In Stock", 
+                            vmcott_inventory_manager_mark_in_stock_path(pr.id),
+                            method: :post,
+                            class: "btn btn-success btn-sm rounded-pill px-3",
+                            form: { data: { turbo: false } },
+                            data: { confirm: "Mark this part as in-stock and approved for use?" } %>
+                      <% else %>
+                        <%= button_to "📤 Send to Procurement", 
+                            vmcott_inventory_manager_send_to_procurement_path(pr.id),
+                            method: :post,
+                            class: "btn btn-warning btn-sm rounded-pill px-3",
+                            form: { data: { turbo: false } },
+                            data: { confirm: "Send this part to procurement team for RFQ creation?" } %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
+          <h6 class="text-muted">No parts pending review</h6>
+          <p class="small text-muted">All parts have been processed</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- SECTION 2: WORKFLOW STATUS - SIMPLIFIED -->
+  <div class="workflow-container rounded-4 mb-4" style="background: #ffffff; border: 1px solid #e2e8f0;">
+    <div class="p-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-diagram-3 me-2" style="color: #3b82f6;"></i>
+            Parts Procurement Workflow
+          </h5>
+          <p class="text-muted small mt-1 mb-0">Click on any step to jump to that section</p>
+        </div>
+        <div class="bg-light rounded-pill px-3 py-1">
+          <i class="bi bi-arrow-repeat me-1 text-primary"></i>
+          <small class="text-muted">Live Updates</small>
+        </div>
+      </div>
+
+      <%
+        pending_count = @pending_parts&.count.to_i
+        procurement_count = @pending_procurement&.count.to_i
+        ordered_count = @ordered_requests&.count.to_i
+        received_count = @parts_received&.count.to_i
+        
+        current_step = if pending_count > 0
+          'pending'
+        elsif procurement_count > 0
+          'procurement'
+        elsif ordered_count > 0
+          'ordered'
+        elsif received_count > 0
+          'received'
+        else
+          'complete'
+        end
+      %>
+
+      <div class="workflow-steps-wrapper">
+        <div class="workflow-steps d-flex justify-content-between align-items-center">
+          <% steps = [
+            { 
+              name: 'Pending', 
+              count: pending_count,
+              active: current_step == 'pending',
+              icon: 'bi-clock-history',
+              color: pending_count > 0 ? '#f59e0b' : '#94a3b8',
+              bg: pending_count > 0 ? '#fef3c7' : '#f1f5f9',
+              detail: pending_count > 0 ? "#{pending_count} waiting" : "None",
+              tooltip: "Parts pending initial review",
+              target: '#pending-review-section'
+            },
+            { 
+              name: 'Procurement', 
+              count: procurement_count,
+              active: current_step == 'procurement',
+              icon: 'bi-send',
+              color: procurement_count > 0 ? '#3b82f6' : '#94a3b8',
+              bg: procurement_count > 0 ? '#dbeafe' : '#f1f5f9',
+              detail: procurement_count > 0 ? "#{procurement_count} with RFQ" : "None",
+              tooltip: "RFQs sent to vendors",
+              target: '#procurement-section'
+            },
+            { 
+              name: 'Ordered', 
+              count: ordered_count,
+              active: current_step == 'ordered',
+              icon: 'bi-truck',
+              color: ordered_count > 0 ? '#10b981' : '#94a3b8',
+              bg: ordered_count > 0 ? '#d1fae5' : '#f1f5f9',
+              detail: ordered_count > 0 ? "#{ordered_count} ordered" : "None",
+              tooltip: "Purchase orders created",
+              target: '#ordered-section'
+            },
+            { 
+              name: 'Received', 
+              count: received_count,
+              active: current_step == 'received',
+              icon: 'bi-check-circle',
+              color: received_count > 0 ? '#10b981' : '#94a3b8',
+              bg: received_count > 0 ? '#d1fae5' : '#f1f5f9',
+              detail: received_count > 0 ? "#{received_count} ready" : "None",
+              tooltip: "Parts received, ready for workshop",
+              target: '#received-section'
+            }
+          ] %>
+          
+          <% steps.each_with_index do |step, index| %>
+            <div class="workflow-step-item text-center flex-grow-1 position-relative clickable-step" 
+                 data-bs-toggle="tooltip" 
+                 title="<%= step[:tooltip] %>"
+                 data-target="<%= step[:target] %>"
+                 data-step-name="<%= step[:name] %>"
+                 style="cursor: pointer; transition: all 0.2s ease;">
+              <div class="step-wrapper">
+                <div class="step-circle <%= 'active' if step[:active] %>" 
+                     style="background: <%= step[:active] ? step[:color] : '#e2e8f0' %>;
+                            box-shadow: <%= step[:active] ? '0 4px 12px ' + step[:color] + '40' : 'none' %>;">
+                  <i class="bi <%= step[:icon] %> text-white"></i>
+                  <% if step[:count] > 0 %>
+                    <span class="step-count-badge"><%= step[:count] %></span>
+                  <% end %>
+                </div>
+                <div class="step-number small mt-2 text-muted">Step <%= index + 1 %></div>
+                <div class="step-label mt-1">
+                  <strong class="d-block" style="color: #1e293b;"><%= step[:name] %></strong>
+                  <span class="badge mt-1" style="background: <%= step[:bg] %>; color: <%= step[:color] %>;">
+                    <%= step[:detail] %>
+                  </span>
+                </div>
+              </div>
+              <% if index < 3 %>
+                <div class="step-connector <%= 'active-connector' if steps[index + 1][:active] || step[:active] %>"></div>
+              <% end %>
             </div>
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:pending_procurement] %></h6>
-              <small class="text-muted">Procurement</small>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Action Hint -->
+      <div class="mt-4">
+        <% if pending_count > 0 %>
+          <div class="alert alert-warning border-0 rounded-3 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+              <div class="alert-icon me-3"><i class="bi bi-clock-history fs-4"></i></div>
+              <div>
+                <strong class="d-block">Parts Pending Review</strong>
+                <span><%= pending_count %> part<%= 's' if pending_count > 1 %> waiting for your review.</span>
+              </div>
             </div>
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:pending_finance] %></h6>
-              <small class="text-muted">Finance</small>
-            </div>
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:ordered_count] %></h6>
-              <small class="text-muted">Ordered</small>
-            </div>
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:parts_received] %></h6>
-              <small class="text-muted">Received</small>
-            </div>
-            <div class="col-md-2 col-6">
-              <h6 class="mb-0"><%= @stats[:low_stock_count] %></h6>
-              <small class="text-muted">Low Stock</small>
+            <a href="#pending-review-section" class="btn btn-warning btn-sm rounded-pill px-4">Review Now →</a>
+          </div>
+        <% elsif procurement_count > 0 %>
+          <div class="alert alert-info border-0 rounded-3 d-flex align-items-center">
+            <div class="alert-icon me-3"><i class="bi bi-send fs-4"></i></div>
+            <div>
+              <strong class="d-block">RFQs Sent to Procurement</strong>
+              <span><%= procurement_count %> RFQ<%= 's' if procurement_count > 1 %> awaiting vendor responses.</span>
             </div>
           </div>
-        </div>
+        <% elsif ordered_count > 0 %>
+          <div class="alert alert-secondary border-0 rounded-3 d-flex align-items-center">
+            <div class="alert-icon me-3"><i class="bi bi-truck fs-4"></i></div>
+            <div>
+              <strong class="d-block">Parts Ordered</strong>
+              <span><%= ordered_count %> item<%= 's' if ordered_count > 1 %> awaiting delivery.</span>
+            </div>
+          </div>
+        <% elsif received_count > 0 %>
+          <div class="alert alert-success border-0 rounded-3 d-flex align-items-center">
+            <div class="alert-icon me-3"><i class="bi bi-check-circle fs-4"></i></div>
+            <div>
+              <strong class="d-block">Parts Received</strong>
+              <span><%= received_count %> part request<%= 's' if received_count > 1 %> ready to pass to workshop.</span>
+            </div>
+          </div>
+        <% else %>
+          <div class="alert alert-success border-0 rounded-3 d-flex align-items-center">
+            <div class="alert-icon me-3"><i class="bi bi-check-all fs-4"></i></div>
+            <div>
+              <strong class="d-block">All Caught Up!</strong>
+              <span>No pending parts requests. Great job!</span>
+            </div>
+          </div>
+        <% end %>
       </div>
     </div>
   </div>
+
+  <!-- SECTION 3: With Procurement Team -->
+  <div id="procurement-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #3b82f6;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-send me-2" style="color: #3b82f6;"></i>
+            With Procurement Team
+          </h5>
+          <p class="text-muted small mb-0">RFQs sent, awaiting vendor responses</p>
+        </div>
+        <span class="badge px-3 py-2 rounded-pill" style="background: #dbeafe; color: #1e40af;">
+          <i class="bi bi-send me-1"></i> <%= @pending_procurement&.count || 0 %> Active
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <% if @pending_procurement&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              56
+                <th class="border-0 py-3">Vehicle</th>
+                <th class="border-0 py-3">Part</th>
+                <th class="border-0 py-3 text-center">Quantity</th>
+                <th class="border-0 py-3">Sent to Procurement</th>
+                <th class="border-0 py-3">Status</th>
+                <th class="border-0 py-3 text-end">Action</th>
+               </thead>
+            <tbody>
+              <% @pending_procurement.each do |pr| %>
+                <tr>
+                  <td>
+                    <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                    <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td>
+                    <div><strong><%= pr.part&.name || pr.custom_part_name %></strong></div>
+                    <small class="text-muted"><%= pr.part&.part_number %></small>
+                  </td>
+                  <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                  <td><%= time_ago_in_words(pr.sent_to_procurement_at) %> ago</td>
+                  <td><span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i> RFQ Sent</span></td>
+                  <td class="text-end">
+                    <%= link_to "📋 Track RFQ", 
+                        vmcott_vendor_rfqs_path(part_id: pr.part_id),
+                        class: "btn btn-sm btn-outline-info rounded-pill px-3" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
+          <h6 class="text-muted">No parts with procurement</h6>
+          <p class="small text-muted">All RFQs have been processed</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Ordered - Awaiting Delivery -->
+  <div id="ordered-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #10b981;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-truck me-2" style="color: #10b981;"></i>
+            Ordered - Awaiting Delivery
+          </h5>
+          <p class="text-muted small mb-0">Purchase orders created, parts on order</p>
+        </div>
+        <span class="badge px-3 py-2 rounded-pill" style="background: #d1fae5; color: #059669;">
+          <i class="bi bi-truck me-1"></i> <%= @ordered_requests&.count || 0 %> In Transit
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <% if @ordered_requests&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              56
+                <th class="border-0 py-3">Vehicle</th>
+                <th class="border-0 py-3">Part</th>
+                <th class="border-0 py-3 text-center">Quantity</th>
+                <th class="border-0 py-3">PO Number</th>
+                <th class="border-0 py-3">Supplier</th>
+                <th class="border-0 py-3">Ordered Date</th>
+                <th class="border-0 py-3 text-end">Action</th>
+               </thead>
+            <tbody>
+              <% @ordered_requests.each do |pr| %>
+                <tr id="ordered-request-<%= pr.id %>">
+                  <td>
+                    <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                    <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td>
+                    <div><strong><%= pr.part&.name || pr.custom_part_name %></strong></div>
+                    <small class="text-muted"><%= pr.part&.part_number %></small>
+                  </td>
+                  <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                  <td>
+                    <% if pr.purchase_order %>
+                      <strong class="text-primary"><%= pr.purchase_order.po_number %></strong>
+                    <% else %>
+                      <span class="text-muted">N/A</span>
+                    <% end %>
+                  </td>
+                  <td><%= pr.purchase_order&.vendor %></td>
+                  <td><%= pr.purchase_order&.ordered_at&.strftime("%b %d, %Y") || 'N/A' %></td>
+                  <td class="text-end">
+                    <% if pr.purchase_order %>
+                      <%= button_to "📦 Receive Parts", 
+                          receive_parts_vmcott_inventory_manager_path(
+                            purchase_order_id: pr.purchase_order_id,
+                            parts_request_id: pr.id
+                          ),
+                          method: :post,
+                          class: "btn btn-sm btn-success rounded-pill px-3",
+                          form: { data: { turbo: false } },
+                          data: { confirm: "Mark parts as received and update inventory?" } %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
+          <h6 class="text-muted">No parts currently on order</h6>
+          <p class="small text-muted">All orders have been received</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- SECTION 5: Received - Ready for Workshop -->
+  <div id="received-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #10b981;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-check-circle me-2" style="color: #10b981;"></i>
+            Received - Ready for Workshop
+          </h5>
+          <p class="text-muted small mb-0">Parts received, ready to pass to mechanics</p>
+        </div>
+        <span class="badge px-3 py-2 rounded-pill" style="background: #d1fae5; color: #059669;">
+          <i class="bi bi-check-circle me-1"></i> <%= @parts_received&.count || 0 %> Ready
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <% if @parts_received&.any? || @ready_for_workshop&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              56
+                <th class="border-0 py-3">Vehicle</th>
+                <th class="border-0 py-3">Parts Received</th>
+                <th class="border-0 py-3">Inspection</th>
+                <th class="border-0 py-3">Received Date</th>
+                <th class="border-0 py-3 text-end">Action</th>
+               </thead>
+            <tbody>
+              <% @parts_received.each do |pr| %>
+                <tr id="received-inspection-<%= pr.inspection_id %>">
+                  <td>
+                    <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                    <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td>
+                    <% if pr.inspection %>
+                      <% pr.inspection.parts_requests.where(status: 'parts_received').each do |part_req| %>
+                        <div class="mb-1">
+                          <i class="bi bi-check-circle-fill text-success me-1"></i>
+                          <small><%= part_req.part&.name || part_req.custom_part_name %> x<%= part_req.quantity %></small>
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </td>
+                  <td class="fw-semibold">#<%= pr.inspection_id %></td>
+                  <td><%= time_ago_in_words(pr.updated_at) %> ago</td>
+                  <td class="text-end">
+                    <div class="workshop-action" data-inspection-id="<%= pr.inspection_id %>">
+                      <%= button_to "🔧 Pass to Mechanic Workshop", 
+                          vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
+                          method: :post,
+                          class: "btn btn-sm btn-success rounded-pill px-3 pass-to-workshop-btn",
+                          form: { data: { turbo: false } },
+                          data: { 
+                            confirm: "All parts received. Pass this job to mechanic workshop?",
+                            disable_with: "<i class='bi bi-hourglass-split'></i> Processing..."
+                          } %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Additional ready for workshop inspections -->
+        <% if @ready_for_workshop&.any? %>
+          <hr class="my-4">
+          <h6 class="mb-3">Additional Inspections Ready for Workshop:</h6>
+          <div class="row g-3">
+            <% @ready_for_workshop.each do |inspection| %>
+              <div class="col-md-6 col-lg-4" id="workshop-item-<%= inspection.id %>">
+                <div class="card border-success bg-light h-100">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <span class="fw-semibold text-primary">Inspection #<%= inspection.id %></span>
+                      <span class="badge bg-success">All Parts Ready</span>
+                    </div>
+                    <h6 class="fw-bold mb-2"><%= inspection.vehicle.license_plate %></h6>
+                    <div class="text-muted small mb-2">
+                      <%= inspection.vehicle.make %> <%= inspection.vehicle.model %><br>
+                      <i class="bi bi-gear me-1"></i> <%= inspection.inspection_jobs.count %> jobs pending
+                    </div>
+                    <div class="workshop-action mt-2" data-inspection-id="<%= inspection.id %>">
+                      <%= button_to "🔧 Pass to Mechanic Workshop", 
+                          vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
+                          method: :post,
+                          class: "btn btn-success btn-sm w-100 rounded-pill pass-to-workshop-btn",
+                          form: { data: { turbo: false } },
+                          data: { 
+                            confirm: "Pass this inspection to mechanic workshop?",
+                            disable_with: "<i class='bi bi-hourglass-split'></i> Processing..."
+                          } %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
+          <h6 class="text-muted">No parts ready for workshop</h6>
+          <p class="small text-muted">Check back when parts are received</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- SECTION 6: Low Stock Alerts - KEPT AT BOTTOM -->
+  <% if @low_stock_parts.any? %>
+    <div class="card border-0 shadow-sm mb-4" style="border-top: 4px solid #ef4444;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-exclamation-triangle me-2" style="color: #ef4444;"></i>
+              Low Stock Alerts
+            </h5>
+            <p class="text-muted small mb-0">Parts below reorder point requiring attention</p>
+          </div>
+          <span class="badge px-3 py-2 rounded-pill" style="background: #fee2e2; color: #dc2626;">
+            <i class="bi bi-exclamation-triangle me-1"></i> <%= @low_stock_parts.count %> Alerts
+          </span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              56
+                <th class="border-0 py-3">Part #</th>
+                <th class="border-0 py-3">Part Name</th>
+                <th class="border-0 py-3 text-center">Current Stock</th>
+                <th class="border-0 py-3 text-center">Reorder Point</th>
+                <th class="border-0 py-3">Status</th>
+                <th class="border-0 py-3">Request Status</th>
+                <th class="border-0 py-3 text-end">Action</th>
+               </thead>
+            <tbody>
+              <% @low_stock_parts.each do |part| %>
+                <%
+                  pending_request = PurchaseRequest.where(
+                    part_id: part.id,
+                    status: ['pending', 'approved']
+                  ).order(created_at: :desc).first
+                  
+                  ordered_request = PurchaseRequest.where(
+                    part_id: part.id,
+                    status: ['ordered', 'received']
+                  ).order(created_at: :desc).first
+                %>
+                <tr>
+                  <td class="text-muted"><%= part.part_number %></td>
+                  <td><strong><%= part.name %></strong></td>
+                  <td class="text-center">
+                    <span class="badge <%= part.current_stock <= 0 ? 'bg-danger' : 'bg-warning' %>">
+                      <%= part.current_stock %>
+                    </span>
+                  </td>
+                  <td class="text-center"><%= part.reorder_point %></td>
+                  <td>
+                    <% if part.current_stock <= 0 %>
+                      <span class="badge bg-danger">Out of Stock</span>
+                    <% else %>
+                      <span class="badge bg-warning">Low Stock</span>
+                    <% end %>
+                  </td>
+                  <td>
+                    <% if ordered_request.present? %>
+                      <span class="badge bg-success">
+                        <i class="bi bi-check-circle"></i> Ordered
+                      </span>
+                      <br>
+                      <small class="text-muted">PO: <%= ordered_request.purchase_order&.po_number || 'Processing' %></small>
+                    <% elsif pending_request.present? %>
+                      <span class="badge bg-info">
+                        <i class="bi bi-clock-history"></i> Pending
+                      </span>
+                      <br>
+                      <small class="text-muted"><%= time_ago_in_words(pending_request.created_at) %> ago</small>
+                    <% else %>
+                      <span class="badge bg-secondary">
+                        <i class="bi bi-exclamation-circle"></i> No Request
+                      </span>
+                    <% end %>
+                  </td>
+                  <td class="text-end">
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "🔍 View", vmcott_part_path(part), class: "btn btn-sm btn-outline-secondary rounded-pill" %>
+                      
+                      <% if pending_request.present? %>
+                        <%= link_to "📋 Request", 
+                            vmcott_purchase_request_path(pending_request),
+                            class: "btn btn-sm btn-outline-primary rounded-pill" %>
+                      <% elsif ordered_request.present? && ordered_request.purchase_order %>
+                        <%= link_to "📦 PO", 
+                            vmcott_purchase_order_path(ordered_request.purchase_order),
+                            class: "btn btn-sm btn-outline-success rounded-pill" %>
+                      <% else %>
+                        <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
+                          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
+                          <input type="hidden" name="quantity" value="<%= part.suggested_reorder_quantity %>">
+                          <input type="hidden" name="urgency" value="<%= part.current_stock <= part.minimum_stock ? 'high' : 'normal' %>">
+                          <button type="submit" class="btn btn-sm btn-warning rounded-pill">
+                            <i class="bi bi-cart-plus"></i> Request PO
+                          </button>
+                        <% end %>
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>
 
-<!-- JavaScript -->
+<style>
+  /* Stats Cards */
+  .stats-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  .stats-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+  }
+  
+  /* Workflow Timeline */
+  .workflow-container {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+  }
+  .workflow-steps-wrapper {
+    padding: 1rem 0;
+  }
+  .workflow-steps {
+    position: relative;
+  }
+  .workflow-step-item {
+    position: relative;
+    z-index: 2;
+  }
+  .step-circle {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    background: #e2e8f0;
+    position: relative;
+  }
+  .step-circle.active {
+    transform: scale(1.08);
+    animation: pulse 2s infinite;
+  }
+  .step-count-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #ef4444;
+    color: white;
+    border-radius: 20px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: bold;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+  }
+  .step-circle i { font-size: 1.5rem; }
+  .step-connector {
+    position: absolute;
+    top: 32px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: #e2e8f0;
+    z-index: -1;
+  }
+  .step-connector.active-connector {
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  }
+  .step-number { font-size: 0.7rem; font-weight: 600; }
+  .step-label { font-size: 0.85rem; }
+  .alert-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+  
+  /* Clickable Steps */
+  .clickable-step {
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .clickable-step:hover {
+    transform: scale(1.02);
+  }
+  .clickable-step:hover .step-circle {
+    transform: scale(1.05);
+    transition: transform 0.2s ease;
+  }
+  
+  /* Table styling */
+  .table > :not(caption) > * > * { padding: 0.75rem 0.75rem; }
+  .bg-light th { 
+    background-color: #f8fafc !important;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #475569;
+  }
+  [data-bs-toggle="tooltip"] { cursor: help; }
+  
+  /* Card styling */
+  .card {
+    border-radius: 16px !important;
+    overflow: hidden;
+  }
+  .card-header {
+    background: white !important;
+  }
+  
+  /* Hover effects */
+  .table tbody tr:hover {
+    background-color: #f8fafc;
+    transition: background-color 0.2s ease;
+  }
+  
+  /* Responsive */
+  @media (max-width: 992px) {
+    .step-connector { display: none; }
+    .workflow-steps { flex-wrap: wrap; gap: 1.5rem; }
+    .workflow-step-item { flex: 0 0 calc(33.333% - 1rem); }
+  }
+  @media (max-width: 768px) {
+    .step-circle { width: 52px; height: 52px; }
+    .step-circle i { font-size: 1.25rem; }
+    .workflow-step-item { flex: 0 0 calc(50% - 1rem); }
+    .step-connector { display: none; }
+  }
+</style>
+
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // Handle workshop button clicks with visual feedback
-    document.querySelectorAll('.pass-to-workshop-btn').forEach(button => {
-      button.addEventListener('click', function(e) {
-        const form = this.closest('form');
-        if (form) {
-          this.disabled = true;
-          this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-fade success alerts after 5 seconds
+  const successAlert = document.getElementById('successAlert');
+  if (successAlert) {
+    setTimeout(() => {
+      successAlert.style.transition = 'opacity 0.5s ease';
+      successAlert.style.opacity = '0';
+      setTimeout(() => {
+        if (successAlert && successAlert.remove) {
+          successAlert.remove();
         }
-      });
+      }, 500);
+    }, 5000);
+  }
+  
+  // Make workflow steps clickable
+  document.querySelectorAll('.clickable-step').forEach(step => {
+    step.addEventListener('click', function(e) {
+      const targetId = this.getAttribute('data-target');
+      const stepName = this.getAttribute('data-step-name');
+      
+      if (targetId && targetId !== '#') {
+        const targetElement = document.querySelector(targetId);
+        if (targetElement) {
+          targetElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start',
+            inline: 'nearest'
+          });
+          
+          // Add a highlight effect
+          targetElement.style.transition = 'box-shadow 0.3s ease';
+          targetElement.style.boxShadow = '0 0 0 3px #3b82f6, 0 0 0 6px rgba(59,130,246,0.2)';
+          setTimeout(() => {
+            targetElement.style.boxShadow = '';
+          }, 1500);
+        }
+      }
     });
   });
-
-  // Auto-refresh every 5 minutes
-  setTimeout(function() {
-    location.reload();
-  }, 300000);
+  
+  // Handle workshop button clicks with visual feedback
+  document.querySelectorAll('.pass-to-workshop-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      const form = this.closest('form');
+      if (form) {
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+      }
+    });
+  });
+});
 </script>

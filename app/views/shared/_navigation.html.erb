@@ -37,7 +37,7 @@
   @in_progress_count_ptsc ||= 0
   @ready_for_pickup_count_ptsc ||= 0
   @pending_rfq_responses_count ||= 0
-  @pending_condition_reports_count ||= 0  # NEW for gate officer
+  @pending_condition_reports_count ||= 0
 %>
 
 <%# ============================================================
@@ -50,12 +50,12 @@
 <% is_vmcott_inventory_clerk = user_role == 'inventory_clerk' && agency_code == "VMCOTT" %>
 
 <%# Explicit VMCOTT workflow roles - RENAMED %>
-<% is_vmcott_security_gate_officer = user_role == 'security_gate_officer' && agency_code == "VMCOTT" %>  <%# was receptionist %>
-<% is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT" %>  <%# KEPT AS IS %>
-<% is_vmcott_inventory_manager = user_role == 'inventory_manager' && agency_code == "VMCOTT" %>  <%# was parts_coordinator %>
-<% is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT" %>  <%# KEPT AS IS %>
-<% is_vmcott_procurement = user_role == 'procurement' && agency_code == "VMCOTT" %>  <%# was billing %>
-<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>  <%# KEPT AS finance %>
+<% is_vmcott_security_gate_officer = user_role == 'security_gate_officer' && agency_code == "VMCOTT" %>
+<% is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT" %>
+<% is_vmcott_inventory_manager = user_role == 'inventory_manager' && agency_code == "VMCOTT" %>
+<% is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT" %>
+<% is_vmcott_procurement = user_role == 'procurement' && agency_code == "VMCOTT" %>
+<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>
 
 <%# Keep old names for backward compatibility in views %>
 <% is_vmcott_receptionist = is_vmcott_security_gate_officer %>
@@ -122,10 +122,11 @@
   mechanic_alerts = @available_jobs_count.to_i + @pending_qc_count.to_i
 %>
 
-<div class="mb-4">
-  <div class="card border-0 shadow-sm nav-card">
-    <div class="card-body p-3">
-      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+<!-- Navigation with highest stacking context -->
+<div class="mb-4" style="position: relative; z-index: 9999;">
+  <div class="card border-0 shadow-sm nav-card" style="border-radius: 16px; overflow: visible;">
+    <div class="card-body p-3" style="overflow: visible;">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2" style="overflow: visible;">
 
         <!-- LEFT SIDE - MAIN WORKFLOW BUTTONS -->
         <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -263,7 +264,7 @@
 
             <!-- PTSC FINANCE - PROCUREMENT DROPDOWN -->
             <% if is_ptsc_finance || is_ptsc_admin %>
-              <div class="dropdown nav-dd">
+              <div class="dropdown nav-dd" style="position: relative;">
                 <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle position-relative"
                         type="button"
                         data-bs-toggle="dropdown"
@@ -278,8 +279,8 @@
                   <% end %>
                 </button>
 
-                <ul class="dropdown-menu dropdown-menu-float dropdown-scroll">
-                  <li class="dropdown-section">📋 RFQs</li>
+                <ul class="dropdown-menu dropdown-menu-float dropdown-scroll" style="position: absolute; z-index: 1000000; background: white !important;">
+                  <li class="dropdown-section" style="color: #0d47a1 !important;">📋 RFQs</li>
                   
                   <% if agency.present? %>
                     <li>
@@ -305,7 +306,7 @@
                   </li>
 
                   <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📊 REVIEW</li>
+                  <li class="dropdown-section" style="color: #0d47a1 !important;">📊 REVIEW</li>
 
                   <% if defined?(ptsc_quotation_review_path) %>
                     <li>
@@ -324,7 +325,7 @@
                   <% end %>
 
                   <li><hr class="dropdown-divider"></li>
-                  <li class="dropdown-section">📦 ORDERS</li>
+                  <li class="dropdown-section" style="color: #0d47a1 !important;">📦 ORDERS</li>
                   <li>
                     <%= link_to purchase_orders_path, class: "dropdown-item" do %>
                       <i class="bi bi-bag-check me-2"></i> All Purchase Orders
@@ -381,8 +382,8 @@
 
         </div>
 
-        <!-- RIGHT SIDE - NOTIFICATIONS, AGENCY, USER MENU (THEME TOGGLE REMOVED) -->
-        <div class="d-flex gap-2 align-items-center">
+        <!-- RIGHT SIDE - NOTIFICATIONS, AGENCY, USER MENU -->
+        <div class="d-flex gap-2 align-items-center" style="position: relative;">
 
           <!-- AGENCY BADGE -->
           <% if agency_code.present? %>
@@ -394,8 +395,8 @@
             </span>
           <% end %>
 
-          <!-- NOTIFICATION CENTER - FIXED VERSION -->
-          <div class="dropdown nav-dd">
+          <!-- NOTIFICATION CENTER -->
+          <div class="dropdown nav-dd" style="position: relative;">
             <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 position-relative"
                     type="button"
                     data-bs-toggle="dropdown"
@@ -408,12 +409,12 @@
               <% end %>
             </button>
 
-            <ul class="dropdown-menu dropdown-menu-float dropdown-scroll" style="min-width: 300px;">
-              <li class="dropdown-section">🔔 NOTIFICATIONS</li>
+            <ul class="dropdown-menu" style="position: absolute; z-index: 1000000; background: white !important; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); min-width: 300px; right: 0; left: auto;">
+              <li class="dropdown-section" style="color: #0d47a1 !important;">🔔 NOTIFICATIONS</li>
               <% if @recent_notifications && @recent_notifications.any? %>
                 <% @recent_notifications.first(5).each do |notification| %>
                   <li>
-                    <%= link_to notification_path(notification), class: "dropdown-item #{'fw-bold' unless notification.read?}" do %>
+                    <%= link_to notification_path(notification), class: "dropdown-item #{'fw-bold' unless notification.read?}", style: "color: #1e293b !important;" do %>
                       <div class="d-flex align-items-center">
                         <div class="me-2"><%= notification.title %></div>
                         <small class="text-muted ms-auto"><%= time_ago_in_words(notification.created_at) %> ago</small>
@@ -423,7 +424,7 @@
                 <% end %>
                 <li><hr class="dropdown-divider"></li>
                 <li>
-                  <%= link_to notifications_path, class: "dropdown-item text-center" do %>
+                  <%= link_to notifications_path, class: "dropdown-item text-center", style: "color: #1e293b !important;" do %>
                     View All
                   <% end %>
                 </li>
@@ -433,8 +434,8 @@
             </ul>
           </div>
 
-          <!-- USER MENU -->
-          <div class="dropdown nav-dd">
+          <!-- USER MENU - HIGHEST Z-INDEX -->
+          <div class="dropdown nav-dd" style="position: relative;">
             <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 dropdown-toggle"
                     type="button"
                     data-bs-toggle="dropdown"
@@ -442,119 +443,108 @@
               <i class="bi bi-person-circle me-1"></i> <%= current_user.name&.split&.first || 'User' %>
             </button>
 
-            <ul class="dropdown-menu dropdown-menu-float dropdown-menu-end">
+            <ul class="dropdown-menu dropdown-menu-end" style="position: absolute; z-index: 10000000; background: white !important; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.25); min-width: 280px; max-height: 90vh; overflow-y: auto; right: 0; left: auto; top: 100%; margin-top: 8px;">
               
               <!-- QUICK LINKS SECTION -->
-              <li class="dropdown-section">⚡ QUICK LINKS</li>
+              <li class="dropdown-section" style="color: #0d47a1 !important; font-weight: bold;">⚡ QUICK LINKS</li>
               
               <% if agency_code == "VMCOTT" %>
-                <!-- VMCOTT Quick Links - UPDATED WITH WORKING LINKS -->
+                <!-- VMCOTT Quick Links -->
                 <% if is_vmcott_admin %>
-                  <%# REMOVED: "All RFQs" link %>
-                  <%# REMOVED: "All POs" link %>
-                  <li><%= link_to "Parts Catalog", "/vmcott/parts", class: "dropdown-item" %></li>
-                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Parts Catalog", "/vmcott/parts", class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_inventory_manager %>
-                  <li><%= link_to "Parts Catalog", "/vmcott/parts", class: "dropdown-item" %></li>
-                  <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Low Stock", low_stock_vmcott_inventory_manager_parts_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Parts Catalog", "/vmcott/parts", class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Low Stock", low_stock_vmcott_inventory_manager_parts_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_procurement %>
-                  <%# REMOVED: "All RFQs" link %>
-                  <%# REMOVED: "Quotations Received" link %>
-                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_finance %>
-                  <li><%= link_to "RFQ Inbox", vmcott_vendor_rfqs_path, class: "dropdown-item" %></li>
-                  <%# REMOVED: "All POs" link %>
-                  <li><%= link_to "Invoices", vmcott_finance_invoices_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Quotations", vmcott_finance_quotations_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Aging Report", vmcott_finance_aging_report_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "RFQ Inbox", vmcott_vendor_rfqs_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Invoices", vmcott_finance_invoices_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Quotations", vmcott_finance_quotations_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Aging Report", vmcott_finance_aging_report_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_security_gate_officer %>
-                  <li><%= link_to "Today's Check-ins", today_vmcott_security_gate_officer_reception_logs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Manual Entry", vmcott_security_gate_officer_manual_entry_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Today's Check-ins", today_vmcott_security_gate_officer_reception_logs_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Manual Entry", vmcott_security_gate_officer_manual_entry_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_inspector %>
-                  <li><%= link_to "Pending QC", vmcott_inspector_dashboard_path(anchor: 'qc-pending'), class: "dropdown-item" %></li>
-                  <li><%= link_to "Inspections Today", vmcott_inspector_inspections_path(today: true), class: "dropdown-item" %></li>
+                  <li><%= link_to "Pending QC", vmcott_inspector_dashboard_path(anchor: 'qc-pending'), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Inspections Today", vmcott_inspector_inspections_today_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Recent Activity", vmcott_inspector_recent_activity_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_mechanic %>
-                  <li><%= link_to "Dashboard", vmcott_mechanic_dashboard_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "My Jobs", assigned_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Available Jobs", available_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Completed Jobs", completed_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Verification Queue", verification_vmcott_mechanic_jobs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Parts Request", new_vmcott_mechanic_parts_request_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Dashboard", vmcott_mechanic_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Verification Queue", verification_vmcott_mechanic_jobs_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Request Part", new_vmcott_mechanic_parts_request_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
 
               <% elsif agency_code == "PTSC" %>
                 <!-- PTSC Quick Links -->
                 <% if is_ptsc_admin %>
-                  <li><%= link_to "Live Vehicle Status", ptsc_admin_vehicle_status_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Fleet Dashboard", ptsc_fleet_dashboard_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Maintenance Schedule", ptsc_maintenance_dashboard_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "All Vehicles", vehicles_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Live Vehicle Status", ptsc_admin_vehicle_status_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Fleet Dashboard", ptsc_fleet_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Maintenance Schedule", ptsc_maintenance_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "All Vehicles", vehicles_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% if agency.present? %>
-                    <li><%= link_to "New RFQ", new_agency_rfq_path(agency), class: "dropdown-item" %></li>
+                    <li><%= link_to "New RFQ", new_agency_rfq_path(agency), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
                 <% elsif is_ptsc_fleet_manager %>
-                  <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item" %></li>
-                  <li><%= link_to "Vehicle Status", vehicles_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Vehicle Status", vehicles_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_ptsc_finance %>
-                  <li><%= link_to "RFQ Inbox", sent_rfqs_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Quotations Received", received_quotations_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Purchase Orders", purchase_orders_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Invoices", invoices_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Payables", payables_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "RFQ Inbox", sent_rfqs_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Quotations Received", received_quotations_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Purchase Orders", purchase_orders_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Invoices", invoices_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Payables", payables_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_ptsc_maintenance %>
-                  <li><%= link_to "Gantt View", gantt_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "Work Orders", maintenances_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Gantt View", gantt_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Work Orders", maintenances_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
               <% else %>
                 <!-- Non-VMCOTT/PTSC Quick Links -->
                 <% if is_fleet_manager %>
-                  <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item" %></li>
+                  <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
                 <% if is_maintenance_supervisor %>
-                  <li><%= link_to "Gantt View", gantt_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Gantt View", gantt_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
                 <% if is_financial_officer %>
-                  <li><%= link_to "Payables", payables_path, class: "dropdown-item" %></li>
+                  <li><%= link_to "Payables", payables_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
               <% end %>
 
               <!-- ADMIN SECTION - For all admins -->
               <% if is_admin %>
                 <li><hr class="dropdown-divider"></li>
-                <li class="dropdown-section">🔐 ADMIN</li>
+                <li class="dropdown-section" style="color: #0d47a1 !important; font-weight: bold;">🔐 ADMIN</li>
                 
-                <!-- User Management -->
-                <li><%= link_to "Manage Users", admin_users_path, class: "dropdown-item" %></li>
+                <li><%= link_to "Manage Users", admin_users_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 
-                <!-- Create New User - Agency specific -->
                 <% if agency_code == "VMCOTT" %>
-                  <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
+                  <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% if defined?(admin_roles_path) %>
-                    <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item" %></li>
+                    <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
                   <% if defined?(admin_settings_path) %>
-                    <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item" %></li>
+                    <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
                 <% elsif agency_code == "PTSC" %>
-                  <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
-                  <!-- PTSC Admin Reports -->
-                  <li><%= link_to "Vehicle Status Report", ptsc_admin_vehicle_status_path, class: "dropdown-item" %></li>
-                  <li><%= link_to "RFQ Reports", "#", class: "dropdown-item", onclick: "return false;" %></li>
+                  <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Vehicle Status Report", ptsc_admin_vehicle_status_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% else %>
-                  <li><%= link_to "Create New User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item" %></li>
+                  <li><%= link_to "Create New User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
               <% end %>
 
               <!-- ACCOUNT SECTION -->
               <li><hr class="dropdown-divider"></li>
-              <li class="dropdown-section">👤 ACCOUNT</li>
-              <li><%= link_to "Profile", "#", class: "dropdown-item", onclick: "return false;" %></li>
-              <li><%= link_to "Settings", "#", class: "dropdown-item", onclick: "return false;" %></li>
+              <li class="dropdown-section" style="color: #0d47a1 !important; font-weight: bold;">👤 ACCOUNT</li>
+              <li><%= link_to "Profile", "#", class: "dropdown-item", onclick: "return false;", style: "color: #1e293b !important;" %></li>
+              <li><%= link_to "Settings", "#", class: "dropdown-item", onclick: "return false;", style: "color: #1e293b !important;" %></li>
               
               <!-- LOGOUT -->
               <li><hr class="dropdown-divider"></li>
@@ -562,7 +552,8 @@
                 <%= button_to destroy_user_session_path,
                     method: :delete,
                     class: "dropdown-item text-danger",
-                    form: { "data-turbo" => "false" } do %>
+                    style: "color: #dc2626 !important;",
+                    form: { "data-turbo" => "false", style: "width: 100%;" } do %>
                   <i class="bi bi-box-arrow-right me-2"></i> Logout
                 <% end %>
               </li>
@@ -584,8 +575,6 @@
   .nav-card {
     border-radius: 16px;
     position: relative;
-    z-index: 1040;
-    overflow: visible !important;
     background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
   }
 
@@ -674,21 +663,40 @@
   }
 
   /* =========================================================
-     DROPDOWN STYLING
+     DROPDOWN STYLING - WHITE BACKGROUND WITH DARK TEXT
      ========================================================= */
 
-  .dropdown-menu-float {
-    position: absolute !important;
-    z-index: 9999 !important;
-    top: 100% !important;
-    right: 0 !important;
-    margin-top: 0.5rem !important;
-    min-width: 260px;
-    padding: 0.5rem;
-    border: none;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
-    box-shadow: 0 14px 34px rgba(13, 71, 161, 0.45), 0 3px 8px rgba(0, 0, 0, 0.2);
+  .dropdown-menu {
+    background: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .dropdown-menu .dropdown-item {
+    color: #1e293b !important;
+    font-weight: 500;
+    padding: 0.6rem 1rem;
+    transition: background-color 0.15s ease;
+  }
+
+  .dropdown-menu .dropdown-item:hover {
+    background: #f1f5f9 !important;
+    color: #1e293b !important;
+  }
+
+  .dropdown-menu .dropdown-divider {
+    border-top: 1px solid #e2e8f0;
+    margin: 0.5rem 0;
+  }
+
+  .dropdown-section {
+    padding: 0.6rem 1rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    font-weight: 800;
+    color: #0d47a1 !important;
+    text-transform: uppercase;
   }
 
   .dropdown-menu-end {
@@ -696,55 +704,27 @@
     left: auto !important;
   }
 
-  .dropdown-scroll {
-    max-height: 78vh;
-    overflow-y: auto;
-  }
-
-  .dropdown-section {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    font-weight: 800;
-    color: rgba(255,255,255,0.85);
-    text-transform: uppercase;
-  }
-
-  .dropdown-menu-float .dropdown-item {
-    color: #ffffff !important;
-    font-weight: 600;
-    border-radius: 10px;
-    padding: 0.5rem 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: background-color 0.15s ease;
-  }
-
-  .dropdown-menu-float .dropdown-item:hover {
-    background: rgba(255, 255, 255, 0.17);
-    color: #ffffff !important;
-  }
-
-  .dropdown-menu-float .dropdown-item i {
-    width: 18px;
-    display: inline-block;
-  }
-
-  .dropdown-menu-float .dropdown-divider {
-    border-top: 1px solid rgba(255, 255, 255, 0.22);
-    margin: 0.35rem 0.25rem;
-  }
-
   .text-danger {
-    color: #ff6b6b !important;
+    color: #dc2626 !important;
+  }
+
+  /* Force dropdown to be above everything */
+  .dropdown.show .dropdown-menu {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
   @media (max-width: 768px) {
-    .dropdown-menu-float {
-      right: 0 !important;
-      left: auto !important;
-      min-width: 280px !important;
+    .dropdown-menu {
+      position: fixed !important;
+      top: auto !important;
+      bottom: auto !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+      width: 90% !important;
+      max-width: 320px;
     }
     
     .nav-agency-pill .badge {

@@ -1,11 +1,11 @@
 <%# app/views/vmcott/inspector/dashboard/pre_inspection.html.erb %>
-<div data-controller="debug" class="container-fluid py-4">
+<div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
       <div class="d-flex justify-content-between align-items-center">
         <div>
           <h1 class="h2"><i class="bi bi-clipboard2-check me-2"></i>Vehicle Inspection</h1>
-          <p class="text-muted">Step 1: Document findings | Step 2: List required parts</p>
+          <p class="text-muted">Document findings and observations | Mechanic will determine required work</p>
         </div>
         <%= link_to "← Back", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary", data: { turbo: false } %>
       </div>
@@ -13,15 +13,15 @@
   </div>
 
   <div class="row">
-    <div class="col-lg-10 mx-auto">
-      <%= form_with url: vmcott_inspector_proceed_to_jobs_path, method: :post, local: true, id: "inspection-form", html: { onsubmit: "return validateForm()" } do |f| %>
+    <div class="col-lg-12">
+      <%= form_with url: vmcott_inspector_proceed_to_jobs_path, method: :post, local: true, id: "inspection-form", multipart: true, html: { onsubmit: "return validateForm()" } do |f| %>
         <%= hidden_field_tag :vehicle_id, @vehicle.id %>
 
         <!-- Vehicle Summary -->
         <div class="card mb-4">
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-truck me-2"></i><%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %></h5>
-            <span class="badge bg-light text-dark">Mileage: <%= @vehicle.mileage || 'N/A' %></span>
+            <span class="badge bg-light text-dark">Current Odometer: <%= @vehicle.mileage || 'N/A' %> km</span>
           </div>
           <div class="card-body">
             <div class="row">
@@ -57,15 +57,16 @@
           </div>
         <% end %>
 
-        <!-- TWO-COLUMN LAYOUT: Findings on Left, Parts on Right -->
+        <!-- TWO-COLUMN LAYOUT: Findings on Left, Photos & Sign-off on Right -->
         <div class="row">
           <!-- LEFT COLUMN: Inspection Findings -->
           <div class="col-md-6">
             <div class="card mb-4 h-100">
               <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0"><i class="bi bi-search me-2"></i>Inspection Findings</h5>
+                <p class="small mb-0 mt-1 text-white-50">Document all observations. Mechanic will review and determine required work.</p>
               </div>
-              <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+              <div class="card-body" style="max-height: 700px; overflow-y: auto;">
                 
                 <!-- Exterior Section -->
                 <div class="mb-4">
@@ -100,7 +101,7 @@
                       </div>
                     </div>
                   </div>
-                  <textarea name="findings[exterior][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Exterior notes..."></textarea>
+                  <textarea name="findings[exterior][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Exterior notes (location of damage, etc.)"></textarea>
                 </div>
 
                 <!-- Interior Section -->
@@ -152,12 +153,12 @@
                         <input type="checkbox" name="findings[mechanical][leaks]" value="true" id="leaks" class="form-check-input">
                         <label for="leaks" class="form-check-label">Fluid Leaks</label>
                       </div>
+                    </div>
+                    <div class="col-6">
                       <div class="form-check mb-2">
                         <input type="checkbox" name="findings[mechanical][brakes]" value="true" id="brakes" class="form-check-input">
                         <label for="brakes" class="form-check-label">Brake Issues</label>
                       </div>
-                    </div>
-                    <div class="col-6">
                       <div class="form-check mb-2">
                         <input type="checkbox" name="findings[mechanical][transmission]" value="true" id="transmission" class="form-check-input">
                         <label for="transmission" class="form-check-label">Transmission Issues</label>
@@ -166,17 +167,107 @@
                         <input type="checkbox" name="findings[mechanical][steering]" value="true" id="steering" class="form-check-input">
                         <label for="steering" class="form-check-label">Steering Issues</label>
                       </div>
-                      <div class="form-check mb-2">
-                        <input type="checkbox" name="findings[mechanical][suspension]" value="true" id="suspension" class="form-check-input">
-                        <label for="suspension" class="form-check-label">Suspension Issues</label>
-                      </div>
                     </div>
                   </div>
                   <textarea name="findings[mechanical][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Mechanical notes..."></textarea>
                 </div>
 
+                <!-- Safety Systems -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Safety Systems</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[safety][seatbelts]" value="true" id="seatbelts" class="form-check-input">
+                        <label for="seatbelts" class="form-check-label">Seatbelts Issue</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[safety][airbag]" value="true" id="airbag" class="form-check-input">
+                        <label for="airbag" class="form-check-label">Airbag Light</label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[safety][horn]" value="true" id="horn" class="form-check-input">
+                        <label for="horn" class="form-check-label">Horn Not Working</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[safety][wipers]" value="true" id="wipers" class="form-check-input">
+                        <label for="wipers" class="form-check-label">Wipers Issue</label>
+                      </div>
+                    </div>
+                  </div>
+                  <textarea name="findings[safety][notes]" class="form-control form-control-sm mt-2" rows="2" placeholder="Safety system notes..."></textarea>
+                </div>
+
+                <!-- Fluids & Leaks -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Fluids & Leaks</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[fluids][oil]" value="true" id="oil_leak" class="form-check-input">
+                        <label for="oil_leak" class="form-check-label">Oil Leak</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[fluids][coolant]" value="true" id="coolant_leak" class="form-check-input">
+                        <label for="coolant_leak" class="form-check-label">Coolant Leak</label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[fluids][brake_fluid]" value="true" id="brake_fluid_leak" class="form-check-input">
+                        <label for="brake_fluid_leak" class="form-check-label">Brake Fluid Leak</label>
+                      </div>
+                      <div class="form-check mb-2">
+                        <input type="checkbox" name="findings[fluids][transmission]" value="true" id="transmission_leak" class="form-check-input">
+                        <label for="transmission_leak" class="form-check-label">Transmission Leak</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="row mt-2">
+                    <div class="col-4">
+                      <label class="form-label small">Oil Level</label>
+                      <%= select_tag :oil_level, options_for_select(['Full', 'OK', 'Low', 'Empty']), { prompt: 'Select', class: 'form-select form-select-sm' } %>
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">Coolant Level</label>
+                      <%= select_tag :coolant_level, options_for_select(['Full', 'OK', 'Low', 'Empty']), { prompt: 'Select', class: 'form-select form-select-sm' } %>
+                    </div>
+                    <div class="col-4">
+                      <label class="form-label small">Brake Fluid</label>
+                      <%= select_tag :brake_fluid_level, options_for_select(['Full', 'OK', 'Low', 'Empty']), { prompt: 'Select', class: 'form-select form-select-sm' } %>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Brake & Tire Measurements -->
+                <div class="mb-4">
+                  <h6 class="border-bottom pb-2">Brake & Tire Measurements</h6>
+                  <div class="row">
+                    <div class="col-6">
+                      <label class="form-label small">Front Brake Pad Thickness (mm)</label>
+                      <input type="number" name="brake_front" class="form-control form-control-sm" step="0.5" placeholder="mm">
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small">Rear Brake Pad Thickness (mm)</label>
+                      <input type="number" name="brake_rear" class="form-control form-control-sm" step="0.5" placeholder="mm">
+                    </div>
+                  </div>
+                  <div class="row mt-2">
+                    <div class="col-6">
+                      <label class="form-label small">Tire Tread Depth (mm)</label>
+                      <input type="number" name="tire_tread" class="form-control form-control-sm" step="0.5" placeholder="mm">
+                    </div>
+                    <div class="col-6">
+                      <label class="form-label small">Tire Pressure (PSI)</label>
+                      <input type="number" name="tire_pressure" class="form-control form-control-sm" placeholder="PSI">
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Diagnostic Codes -->
-                <div class="mb-3">
+                <div class="mb-4">
                   <h6 class="border-bottom pb-2">Diagnostic Codes</h6>
                   <input type="text" name="diagnostic_codes" class="form-control form-control-sm mb-2" placeholder="e.g., P0300, P0420">
                   <input type="text" name="diagnostic_equipment" class="form-control form-control-sm" placeholder="Equipment used">
@@ -184,60 +275,168 @@
 
                 <!-- Summary -->
                 <div class="mb-3">
-                  <h6 class="border-bottom pb-2">Preliminary Summary *</h6>
-                  <textarea name="preliminary_summary" class="form-control" rows="3" required placeholder="Summarize your findings..."></textarea>
+                  <h6 class="border-bottom pb-2">Inspection Summary *</h6>
+                  <textarea name="preliminary_summary" class="form-control" rows="4" required placeholder="Summarize your findings. Include what you observed, any concerns, and recommendations for the mechanic."></textarea>
+                  <small class="text-muted">The mechanic will review this summary to determine required work.</small>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- RIGHT COLUMN: Parts Needed -->
+          <!-- RIGHT COLUMN: Photo Documentation & Sign-off with Camera Support -->
           <div class="col-md-6">
             <div class="card mb-4 h-100">
-              <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Parts Needed</h5>
-                <button type="button" class="btn btn-sm btn-light" onclick="addPartRow()">+ Add Part</button>
+              <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-camera me-2"></i>Photo Documentation & Sign-off</h5>
+                <p class="small mb-0 mt-1 text-white-50">Take photos now or upload from gallery</p>
               </div>
-              <div class="card-body" style="max-height: 600px; overflow-y: auto;" id="parts-container">
-                <p class="text-muted text-center" id="no-parts-msg">Click "Add Part" to list required parts</p>
+              <div class="card-body" style="max-height: 700px; overflow-y: auto;">
+                <div class="alert alert-info mb-3">
+                  <i class="bi bi-info-circle me-2"></i>
+                  <small><i class="bi bi-camera me-1"></i> Tap camera icon to take photo immediately, or click "Browse" to select existing photos</small>
+                </div>
                 
-                <!-- Parts will be added here dynamically -->
-                <div id="parts-list"></div>
+                <!-- Front View with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Front View
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[front]" accept="image/*" capture="environment" class="form-control" id="photo_front">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_front')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_front" class="mt-2" style="display: none;">
+                    <img id="preview_front_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <!-- Rear View with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Rear View
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[rear]" accept="image/*" capture="environment" class="form-control" id="photo_rear">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_rear')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_rear" class="mt-2" style="display: none;">
+                    <img id="preview_rear_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <!-- Left Side with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Left Side
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[left]" accept="image/*" capture="environment" class="form-control" id="photo_left">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_left')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_left" class="mt-2" style="display: none;">
+                    <img id="preview_left_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <!-- Right Side with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Right Side
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[right]" accept="image/*" capture="environment" class="form-control" id="photo_right">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_right')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_right" class="mt-2" style="display: none;">
+                    <img id="preview_right_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <!-- Dashboard with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Dashboard
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[dashboard]" accept="image/*" capture="environment" class="form-control" id="photo_dashboard">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_dashboard')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_dashboard" class="mt-2" style="display: none;">
+                    <img id="preview_dashboard_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <!-- Damage / Issue Area (Multiple photos allowed) -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Damage / Issue Area
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[damage]" accept="image/*" capture="environment" class="form-control" id="photo_damage" multiple>
+                    <button type="button" class="btn btn-outline-primary" onclick="captureMultiplePhotos()">
+                      <i class="bi bi-camera"></i> Take Photos
+                    </button>
+                  </div>
+                  <small class="text-muted">You can select multiple photos or take multiple photos</small>
+                  <div id="preview_damage" class="mt-2 d-flex flex-wrap gap-2" style="display: none;"></div>
+                </div>
+                
+                <!-- Underbody / Chassis with Camera Support -->
+                <div class="mb-3">
+                  <label class="form-label fw-bold">
+                    <i class="bi bi-camera-fill me-1"></i> Underbody / Chassis
+                  </label>
+                  <div class="input-group">
+                    <input type="file" name="photos[underbody]" accept="image/*" capture="environment" class="form-control" id="photo_underbody">
+                    <button type="button" class="btn btn-outline-primary" onclick="capturePhoto('photo_underbody')">
+                      <i class="bi bi-camera"></i> Take Photo
+                    </button>
+                  </div>
+                  <div id="preview_underbody" class="mt-2" style="display: none;">
+                    <img id="preview_underbody_img" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                  </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- Inspector Sign-off -->
+                <div class="border rounded p-3 bg-light">
+                  <h6 class="fw-bold mb-3"><i class="bi bi-pen me-2"></i>Inspector Sign-off</h6>
+                  <div class="form-check mb-2">
+                    <input type="checkbox" name="inspector_confirmation" id="inspector_confirmation" class="form-check-input" required>
+                    <label for="inspector_confirmation" class="form-check-label">
+                      I confirm that I have personally inspected this vehicle and all findings are accurate
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input type="checkbox" name="photos_complete" id="photos_complete" class="form-check-input" required>
+                    <label for="photos_complete" class="form-check-label">
+                      I have documented all damage areas with photos
+                    </label>
+                  </div>
+                  <div class="mt-3">
+                    <label class="form-label fw-bold">Inspector Name</label>
+                    <input type="text" class="form-control" value="<%= current_user.name %>" readonly disabled>
+                  </div>
+                  <div class="mt-2">
+                    <label class="form-label fw-bold">Date & Time</label>
+                    <input type="text" class="form-control" value="<%= Time.current.strftime('%B %d, %Y at %I:%M %p') %>" readonly disabled>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        <!-- Hidden template for new part row -->
-        <template id="part-row-template">
-          <div class="part-row border rounded p-3 mb-3 bg-light">
-            <div class="row g-2">
-              <div class="col-md-5">
-                <select name="parts[][part_type]" class="form-select form-select-sm part-type" onchange="togglePartInput(this)">
-                  <option value="inventory">Select from Inventory</option>
-                  <option value="custom">Custom Part (Not in System)</option>
-                </select>
-              </div>
-              <div class="col-md-5">
-                <div class="inventory-part-input">
-                  <input type="text" class="form-control form-control-sm part-search" placeholder="Search parts..." oninput="searchParts(this)">
-                  <input type="hidden" name="parts[][part_id]" class="part-id">
-                  <div class="search-results dropdown-menu w-100" style="display: none; max-height: 200px; overflow-y: auto;"></div>
-                </div>
-                <div class="custom-part-input" style="display: none;">
-                  <input type="text" name="parts[][custom_name]" class="form-control form-control-sm" placeholder="Enter part name">
-                </div>
-              </div>
-              <div class="col-md-2">
-                <input type="number" name="parts[][quantity]" class="form-control form-control-sm" value="1" min="1">
-              </div>
-              <div class="col-md-12 text-end mt-2">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removePart(this)">Remove</button>
-              </div>
-            </div>
-            <input type="hidden" name="parts[][is_custom]" class="is-custom" value="false">
-          </div>
-        </template>
 
         <!-- Submit Button -->
         <div class="d-flex justify-content-between mt-4">
@@ -251,113 +450,85 @@
   </div>
 </div>
 
-<!-- JavaScript for parts management -->
 <script>
-let partCounter = 0;
-const partsList = document.getElementById('parts-list');
-const noPartsMsg = document.getElementById('no-parts-msg');
-
-function addPartRow() {
-  const template = document.getElementById('part-row-template');
-  const clone = template.content.cloneNode(true);
-  const rowId = `part-row-${partCounter++}`;
-  
-  // Add a unique identifier
-  clone.querySelector('.part-row').id = rowId;
-  
-  partsList.appendChild(clone);
-  noPartsMsg.style.display = 'none';
-  
-  // Scroll to the new row
-  document.getElementById(rowId).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function removePart(btn) {
-  const row = btn.closest('.part-row');
-  row.remove();
-  
-  if (partsList.children.length === 0) {
-    noPartsMsg.style.display = 'block';
-  }
-}
-
-function togglePartInput(select) {
-  const row = select.closest('.part-row');
-  const inventoryInput = row.querySelector('.inventory-part-input');
-  const customInput = row.querySelector('.custom-part-input');
-  const isCustom = row.querySelector('.is-custom');
-  
-  if (select.value === 'custom') {
-    inventoryInput.style.display = 'none';
-    customInput.style.display = 'block';
-    isCustom.value = 'true';
-  } else {
-    inventoryInput.style.display = 'block';
-    customInput.style.display = 'none';
-    isCustom.value = 'false';
-  }
-}
-
-function searchParts(input) {
-  const query = input.value;
-  const resultsDiv = input.closest('.inventory-part-input').querySelector('.search-results');
-  const partIdField = input.closest('.inventory-part-input').querySelector('.part-id');
-  
-  if (query.length < 2) {
-    resultsDiv.style.display = 'none';
-    return;
-  }
-  
-  // Show loading
-  resultsDiv.innerHTML = '<div class="dropdown-item">Searching...</div>';
-  resultsDiv.style.display = 'block';
-  
-  // Fetch parts from server
-  fetch(`/vmcott/parts/search?q=${encodeURIComponent(query)}`)
-    .then(response => response.json())
-    .then(parts => {
-      if (parts.length === 0) {
-        resultsDiv.innerHTML = '<div class="dropdown-item text-muted">No parts found</div>';
-        return;
+// Camera capture function for single photos
+function capturePhoto(inputId) {
+  const fileInput = document.getElementById(inputId);
+  if (fileInput) {
+    fileInput.click();
+    fileInput.addEventListener('change', function(e) {
+      if (e.target.files && e.target.files[0]) {
+        const previewId = inputId.replace('photo_', 'preview_');
+        const previewDiv = document.getElementById(previewId);
+        const previewImg = document.getElementById(previewId + '_img');
+        
+        if (previewImg) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            previewDiv.style.display = 'block';
+          };
+          reader.readAsDataURL(e.target.files[0]);
+        }
       }
-      
-      resultsDiv.innerHTML = '';
-      parts.forEach(part => {
-        const item = document.createElement('div');
-        item.className = 'dropdown-item';
-        item.style.cursor = 'pointer';
-        item.innerHTML = `
-          <div class="d-flex justify-content-between">
-            <span><strong>${part.name}</strong> <small class="text-muted">${part.part_number || ''}</small></span>
-            <span class="badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'}">Stock: ${part.current_stock}</span>
-          </div>
-        `;
-        item.onclick = () => {
-          input.value = part.name;
-          partIdField.value = part.id;
-          resultsDiv.style.display = 'none';
-          
-          // Show stock status
-          const stockBadge = document.createElement('span');
-          stockBadge.className = `badge ${part.current_stock > 0 ? 'bg-success' : 'bg-danger'} ms-2`;
-          stockBadge.textContent = part.current_stock > 0 ? `In Stock (${part.current_stock})` : 'Out of Stock';
-          input.parentNode.appendChild(stockBadge);
-        };
-        resultsDiv.appendChild(item);
-      });
-    })
-    .catch(error => {
-      resultsDiv.innerHTML = '<div class="dropdown-item text-danger">Error loading parts</div>';
-    });
-}
-
-// Close search results when clicking outside
-document.addEventListener('click', function(e) {
-  if (!e.target.closest('.inventory-part-input')) {
-    document.querySelectorAll('.search-results').forEach(el => {
-      el.style.display = 'none';
     });
   }
+}
+
+// Handle multiple photos for damage area
+function captureMultiplePhotos() {
+  const fileInput = document.getElementById('photo_damage');
+  if (fileInput) {
+    fileInput.click();
+    fileInput.addEventListener('change', function(e) {
+      const previewDiv = document.getElementById('preview_damage');
+      previewDiv.style.display = 'flex';
+      
+      for (let i = 0; i < e.target.files.length; i++) {
+        const file = e.target.files[i];
+        const img = document.createElement('img');
+        img.style.maxWidth = '80px';
+        img.style.maxHeight = '80px';
+        img.style.borderRadius = '8px';
+        img.style.border = '1px solid #ddd';
+        img.style.objectFit = 'cover';
+        
+        const reader = new FileReader();
+        reader.onload = (function(img) {
+          return function(e) {
+            img.src = e.target.result;
+          };
+        })(img);
+        reader.readAsDataURL(file);
+        previewDiv.appendChild(img);
+      }
+    });
+  }
+}
+
+// Add preview for all photo inputs on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const photoInputs = document.querySelectorAll('input[type="file"][accept="image/*"]');
+  photoInputs.forEach(input => {
+    if (input.id && input.id !== 'photo_damage') {
+      input.addEventListener('change', function(e) {
+        if (e.target.files && e.target.files[0]) {
+          const previewId = input.id.replace('photo_', 'preview_');
+          const previewDiv = document.getElementById(previewId);
+          const previewImg = document.getElementById(previewId + '_img');
+          
+          if (previewImg) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              previewImg.src = e.target.result;
+              previewDiv.style.display = 'block';
+            };
+            reader.readAsDataURL(e.target.files[0]);
+          }
+        }
+      });
+    }
+  });
 });
 
 function validateForm() {
@@ -366,6 +537,8 @@ function validateForm() {
   const condition = document.getElementById('vehicle_condition');
   const priority = document.getElementById('inspection_priority');
   const summary = document.querySelector('textarea[name="preliminary_summary"]');
+  const inspectorConfirm = document.getElementById('inspector_confirmation');
+  const photosComplete = document.getElementById('photos_complete');
   
   if (!mileage.value || mileage.value < 0) {
     alert('Please enter current mileage');
@@ -392,12 +565,23 @@ function validateForm() {
   }
   
   if (!summary.value.trim()) {
-    alert('Please enter preliminary summary');
+    alert('Please enter inspection summary');
     summary.focus();
     return false;
   }
   
-  // Disable submit button
+  if (!inspectorConfirm.checked) {
+    alert('Please confirm that your inspection findings are accurate');
+    inspectorConfirm.focus();
+    return false;
+  }
+  
+  if (!photosComplete.checked) {
+    alert('Please confirm that you have documented damage with photos');
+    photosComplete.focus();
+    return false;
+  }
+  
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
@@ -407,50 +591,51 @@ function validateForm() {
 </script>
 
 <style>
-/* Fix scroll anchoring */
-* {
-  overflow-anchor: none !important;
-}
-
-/* Part row styling */
-.part-row {
-  position: relative;
-  background: white;
-  transition: all 0.2s;
-}
-
-.part-row:hover {
-  background: #f8f9fa;
-}
-
-/* Search results */
-.search-results {
-  position: absolute;
-  z-index: 1000;
-  max-height: 200px;
-  overflow-y: auto;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.search-results .dropdown-item {
-  padding: 8px 12px;
-  border-bottom: 1px solid #eee;
-}
-
-.search-results .dropdown-item:hover {
-  background: #f0f0f0;
-}
-
-/* Two-column layout */
-.col-md-6 .card {
-  min-height: 500px;
-}
-
-/* Scrollable areas */
 .card-body {
   scroll-behavior: smooth;
+}
+
+/* Better touch targets for tablet/mobile */
+@media (max-width: 768px) {
+  .btn-outline-primary {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  
+  .form-control, .form-select {
+    font-size: 16px; /* Prevents zoom on focus in iOS */
+  }
+  
+  .input-group {
+    flex-wrap: wrap;
+  }
+  
+  .input-group .btn {
+    margin-top: 8px;
+    width: 100%;
+  }
+  
+  #preview_damage img {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* Preview image styling */
+#preview_front img, #preview_rear img, #preview_left img, 
+#preview_right img, #preview_dashboard img, #preview_underbody img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 120px;
+}
+
+/* Damage area preview */
+#preview_damage {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 </style>

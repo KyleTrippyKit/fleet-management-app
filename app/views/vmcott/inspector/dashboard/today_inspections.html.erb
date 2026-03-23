@@ -1,0 +1,79 @@
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-calendar-check me-2"></i>
+      Today's Inspections
+      <span class="badge bg-primary ms-2"><%= @today_count %> inspections</span>
+    </h1>
+    <div>
+      <%= link_to vmcott_inspector_inspections_path, class: "btn btn-outline-secondary me-2" do %>
+        <i class="bi bi-list-ul me-1"></i> All Inspections
+      <% end %>
+      <%= link_to vmcott_inspector_dashboard_path, class: "btn btn-outline-primary" do %>
+        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+      <% end %>
+    </div>
+  </div>
+
+  <% if @inspections.any? %>
+    <div class="card">
+      <div class="card-header bg-white">
+        <h5 class="mb-0">
+          <i class="bi bi-calendar-date me-2"></i>
+          <%= Date.current.strftime("%A, %B %d, %Y") %>
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Vehicle</th>
+                <th>Inspector</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th>Mileage</th>
+                <th>Actions</th>
+               </thead>
+              <tbody>
+                <% @inspections.each do |inspection| %>
+                  <tr>
+                    <td>#<%= inspection.id %></td>
+                    <td>
+                      <strong><%= inspection.vehicle&.license_plate || 'N/A' %></strong><br>
+                      <small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
+                    </td>
+                    <td><%= inspection.inspector&.name || 'N/A' %></td>
+                    <td>
+                      <span class="badge bg-<%= inspection.status == 'completed' ? 'success' : (inspection.status == 'pending_inspection' ? 'warning' : 'info') %>">
+                        <%= inspection.status.humanize %>
+                      </span>
+                    </td>
+                    <td><%= inspection.created_at.strftime("%I:%M %p") %></td>
+                    <td><%= inspection.mileage_at_inspection || 'N/A' %> km</td>
+                    <td>
+                      <%= link_to "View", vmcott_inspector_inspection_path(inspection), class: "btn btn-sm btn-outline-primary" %>
+                    </td>
+                   </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card-footer">
+          <%= paginate @inspections %>
+        </div>
+      </div>
+    <% else %>
+      <div class="text-center py-5">
+        <i class="bi bi-calendar-x fs-1 text-muted"></i>
+        <h4 class="text-muted mt-3">No inspections today</h4>
+        <p class="text-muted">Check back later for new inspections.</p>
+        <%= link_to vmcott_inspector_dashboard_path, class: "btn btn-primary mt-2" do %>
+          <i class="bi bi-arrow-left me-1"></i> Return to Dashboard
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

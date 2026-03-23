@@ -130,6 +130,7 @@ Rails.application.routes.draw do
     # 2. INSPECTOR - Diagnostics and QC (KEPT AS IS)
     namespace :inspector do
       get "dashboard", to: "dashboard#index", as: :dashboard
+      get "inspections/today", to: "inspections#today", as: :inspections_today
       get "inspection/:vehicle_id/new", to: "dashboard#new_inspection", as: :new_inspection
       post "inspections", to: "dashboard#create_inspection"
       get "inspection/:id", to: "dashboard#show_inspection", as: :inspection
@@ -140,6 +141,9 @@ Rails.application.routes.draw do
       # Pre-inspection routes
       get "pre_inspection/:vehicle_id", to: "dashboard#pre_inspection", as: :pre_inspection
       post "proceed_to_jobs", to: "dashboard#proceed_to_jobs", as: :proceed_to_jobs
+      
+      # Recent activity route
+      get "recent_activity", to: "dashboard#recent_activity", as: :recent_activity
       
       resources :inspections, only: [:index, :show] do
         member do

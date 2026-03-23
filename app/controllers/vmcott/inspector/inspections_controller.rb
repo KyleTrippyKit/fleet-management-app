@@ -2,8 +2,47 @@
 class Vmcott::Inspector::InspectionsController < ApplicationController
   before_action :authenticate_user!
   before_action :require_inspector
-  before_action :set_inspection, only: [:complete_inspection]
+  before_action :set_inspection, only: [:complete_inspection, :show]
 
+  # GET /vmcott/inspector/inspections/today
+  def today
+    @inspections = Inspection.includes(:vehicle, :inspector)
+                              .where(created_at: Date.current.beginning_of_day..Date.current.end_of_day)
+                              .order(created_at: :desc)
+                              .page(params[:page])
+                              .per(20)
+    
+    @today_count = @inspections.total_count
+    @title = "Today's Inspections"
+    
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    # Render from the dashboard folder instead
+    render "vmcott/inspector/dashboard/today_inspections"
+  end
+
+  # GET /vmcott/inspector/inspections
+  def index
+    @inspections = Inspection.includes(:vehicle, :inspector)
+                              .order(created_at: :desc)
+                              .page(params[:page])
+                              .per(20)
+    
+    @today_count = Inspection.where(created_at: Date.current.beginning_of_day..Date.current.end_of_day).count
+    @title = "All Inspections"
+    
+    render "vmcott/inspector/dashboard/all_inspections"
+  end
+
+  # GET /vmcott/inspector/inspections/:id
+  def show
+    @inspection = Inspection.includes(:vehicle, :inspector, :inspection_jobs).find(params[:id])
+  end
+
+  # PATCH /vmcott/inspector/inspections/:id/complete_inspection
   def complete_inspection
     if @inspection.update(
         status: 'pending_mechanic_review',

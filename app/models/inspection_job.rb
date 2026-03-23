@@ -7,6 +7,9 @@ class InspectionJob < ApplicationRecord
   has_many :inspection_job_parts, dependent: :destroy
   has_many :parts, through: :inspection_job_parts
   has_many :mechanic_assignments, dependent: :destroy
+  
+  # ADD THIS LINE - the inverse association to PartsRequest
+  has_many :parts_requests, foreign_key: :inspection_job_id, dependent: :nullify
 
   PRIORITIES = ['low', 'normal', 'high', 'critical'].freeze
 

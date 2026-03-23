@@ -15,15 +15,15 @@ class Inspection < ApplicationRecord
     pending_mechanic_review: 'pending_mechanic_review',
     parts_coordinator_review: 'parts_coordinator_review',
     billing_review: 'billing_review',
-    awaiting_customer_approval_original: 'awaiting_customer_approval_original',  # Split
-    awaiting_customer_approval_additional: 'awaiting_customer_approval_additional', # Split
+    awaiting_customer_approval_original: 'awaiting_customer_approval_original',
+    awaiting_customer_approval_additional: 'awaiting_customer_approval_additional',
     approved_for_repair: 'approved_for_repair',
     in_progress: 'in_progress',
     ready_for_qc: 'ready_for_qc',
     qc_completed: 'qc_completed',
     ready_for_pickup: 'ready_for_pickup',
     completed: 'completed',
-    cancelled_by_agency: 'cancelled_by_agency'  # New
+    cancelled_by_agency: 'cancelled_by_agency'
   }, default: :pending_inspection, validate: true
 
   validates :status, presence: true
@@ -37,11 +37,36 @@ class Inspection < ApplicationRecord
   scope :ready_for_final_qc, -> { where(status: :ready_for_qc) }
   scope :ready_for_pickup, -> { where(status: :ready_for_pickup) }
 
+  # 🔥 NEW: Parts used by mechanics (from parts_requests that have been received/used)
+  def parts_used_by_mechanics
+    parts_requests.where(status: ['parts_received', 'used', 'installed', 'completed'])
+  end
+
+  def total_parts_used
+    parts_used_by_mechanics.sum(:quantity)
+  end
+
+  def parts_used_list
+    parts_used_by_mechanics.map { |pr| pr.part&.name || pr.custom_part_name }.compact.uniq
+  end
+
+  def parts_used_display
+    total = total_parts_used
+    return "No parts used" if total == 0
+
+    list = parts_used_list
+    if list.size <= 3
+      "#{total} part(s): #{list.join(', ')}"
+    else
+      "#{total} part(s): #{list.first(3).join(', ')} + #{list.size - 3} more"
+    end
+  end
+
   # After inspection is completed, notify parts coordinator if any parts are needed
   after_update :notify_parts_coordinator_if_needed, if: :saved_change_to_status?
 
   def total_estimated_cost
-    inspection_jobs.sum(&:estimated_total)  # now sums only labor, parts are separate
+    inspection_jobs.sum(&:estimated_total)
   end
 
   def all_parts_available?

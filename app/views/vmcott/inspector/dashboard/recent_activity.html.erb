@@ -1,0 +1,127 @@
+<%# app/views/vmcott/inspector/dashboard/recent_activity.html.erb %>
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+      <i class="bi bi-clock-history me-2"></i>
+      Recent Activity
+    </h1>
+    <%= link_to vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" do %>
+      <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+    <% end %>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="row mb-4 g-3">
+    <div class="col-md-4">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h6 class="card-title">Total Completed</h6>
+          <h2 class="mb-0"><%= @total_count %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h6 class="card-title">Approved for Repair</h6>
+          <h2 class="mb-0"><%= @approved_count %></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h6 class="card-title">Parts Received</h6>
+          <h2 class="mb-0"><%= @parts_received_count %></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <%= form_tag vmcott_inspector_recent_activity_path, method: :get, class: "row g-3" do %>
+        <div class="col-md-3">
+          <%= label_tag :from_date, "From Date", class: "form-label" %>
+          <%= date_field_tag :from_date, params[:from_date], class: "form-control" %>
+        </div>
+        <div class="col-md-3">
+          <%= label_tag :to_date, "To Date", class: "form-label" %>
+          <%= date_field_tag :to_date, params[:to_date], class: "form-control" %>
+        </div>
+        <div class="col-md-3">
+          <%= label_tag :status, "Status", class: "form-label" %>
+          <%= select_tag :status, 
+                options_for_select([
+                  ['All Statuses', ''],
+                  ['Approved for Repair', 'approved_for_repair'],
+                  ['Ready for Pickup', 'ready_for_pickup'],
+                  ['QC Completed', 'qc_completed'],
+                  ['Completed', 'completed'],
+                  ['Parts Received', 'parts_received']
+                ], params[:status]),
+                class: "form-select" %>
+        </div>
+        <div class="col-md-3">
+          <%= label_tag :vehicle_id, "Vehicle", class: "form-label" %>
+          <%= select_tag :vehicle_id,
+                options_from_collection_for_select(@vehicles, :id, :license_plate, params[:vehicle_id]),
+                include_blank: "All Vehicles",
+                class: "form-select" %>
+        </div>
+        <div class="col-12">
+          <%= submit_tag "Apply Filters", class: "btn btn-primary" %>
+          <%= link_to "Clear Filters", vmcott_inspector_recent_activity_path, class: "btn btn-outline-secondary ms-2" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Inspections List -->
+  <div class="card">
+    <div class="card-header bg-white">
+      <h5 class="mb-0">Inspection History</h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Vehicle</th>
+              <th>Inspector</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @inspections.each do |inspection| %>
+              <tr>
+                <td>#<%= inspection.id %></td>
+                <td>
+                  <strong><%= inspection.vehicle&.license_plate || 'N/A' %></strong><br>
+                  <small class="text-muted"><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></small>
+                </td>
+                <td><%= inspection.inspector&.name || 'N/A' %></td>
+                <td>
+                  <span class="badge bg-<%= inspection.status == 'approved_for_repair' ? 'success' : (inspection.status == 'completed' ? 'info' : 'warning') %>">
+                    <%= inspection.status.humanize %>
+                  </span>
+                </td>
+                <td><%= inspection.created_at.strftime("%b %d, %Y") %></td>
+                <td>
+                  <%= link_to "View", vmcott_inspector_inspection_path(inspection), class: "btn btn-sm btn-outline-primary" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer">
+      <%= paginate @inspections %>
+    </div>
+  </div>
+</div>

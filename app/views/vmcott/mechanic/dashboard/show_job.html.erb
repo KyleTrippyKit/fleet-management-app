@@ -51,7 +51,7 @@
           <div class="row">
             <div class="col-md-6">
               <table class="table table-sm">
-                <tr>
+                  <tr>
                   <th>Job ID:</th>
                   <td><strong>#<%= @job&.id %></strong></td>
                 </tr>
@@ -246,7 +246,7 @@
     </div>
 
     <div class="col-md-4">
-      <!-- Actions Card -->
+      <!-- Actions Card - UPDATED (Removed Additional Finding Button) -->
       <div class="card mb-4">
         <div class="card-header bg-dark text-white">
           <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Actions</h5>
@@ -254,7 +254,6 @@
         <div class="card-body">
           <div class="d-grid gap-2">
             <% if @job.assigned_mechanic_id.nil? %>
-              <!-- Job not assigned - anyone can take it -->
               <%= button_to "Take This Job", vmcott_mechanic_assign_job_path(@job), 
                     method: :post, 
                     class: "btn btn-success btn-lg",
@@ -262,7 +261,6 @@
               <p class="text-muted small text-center mt-2">Take this job to start working on it</p>
               
             <% elsif @job.assigned_mechanic_id == current_user.id %>
-              <!-- Job assigned to current user -->
               <% if @assignment&.status == 'assigned' || @assignment.nil? %>
                 <%= button_to "Start Work", vmcott_mechanic_start_job_path(@job), 
                       method: :post, 
@@ -275,15 +273,11 @@
                   <i class="bi bi-pencil-square me-2"></i>Update Progress
                 </button>
                 
-                <!-- Request Parts Button -->
                 <button type="button" class="btn btn-info btn-lg" data-bs-toggle="modal" data-bs-target="#requestPartModal">
                   <i class="bi bi-box-seam me-2"></i>Request Parts
                 </button>
                 
-                <!-- Additional Finding Button -->
-                <button type="button" class="btn btn-secondary btn-lg" data-bs-toggle="modal" data-bs-target="#additionalFindingModal">
-                  <i class="bi bi-exclamation-triangle me-2"></i>Report Additional Finding
-                </button>
+                <!-- Additional Finding Button REMOVED -->
                 
                 <%= button_to "Request QC", vmcott_mechanic_request_qc_path(@job), 
                       method: :post, 
@@ -292,7 +286,6 @@
               <% end %>
               
             <% else %>
-              <!-- Job assigned to someone else - view only -->
               <div class="alert alert-info">
                 <i class="bi bi-info-circle me-2"></i>
                 This job is assigned to another mechanic. You can view details but cannot take it.
@@ -376,7 +369,7 @@
           <h5 class="modal-title">Update Progress</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-        <%= form_with url: vmcott_mechanic_update_progress_path(@job), method: :post, local: true do |f| %>
+        <%= form_with url: vmcott_mechanic_update_progress_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
           <div class="modal-body">
             <div class="mb-3">
               <%= label_tag :progress_update, "What have you completed?", class: "form-label fw-bold" %>
@@ -393,7 +386,7 @@
     </div>
   </div>
 
-  <!-- Request Parts Modal - FIXED WITH PROPER INITIALIZATION -->
+  <!-- Request Parts Modal -->
   <div class="modal fade" id="requestPartModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
@@ -421,7 +414,7 @@
                 <div class="position-relative">
                   <%= text_field_tag :part_search, nil, 
                         class: "form-control form-control-lg", 
-                        placeholder: "Type part name or number... (e.g., 'Spark Plug', 'Battery')",
+                        placeholder: "Type part name or number...",
                         id: "part-search-input",
                         autocomplete: "off" %>
                   <div id="search-spinner" class="position-absolute end-0 top-0 mt-2 me-3" style="display: none;">
@@ -433,17 +426,12 @@
                 <small class="text-muted">Start typing to search for parts in inventory</small>
               </div>
 
-              <!-- Search Results Container -->
               <div id="search-results" class="mb-3" style="max-height: 300px; overflow-y: auto; display: none;">
-                <div class="list-group">
-                  <!-- Results will be dynamically inserted here -->
-                </div>
+                <div class="list-group"></div>
               </div>
 
-              <!-- Selected Part (hidden field) -->
               <%= hidden_field_tag :part_id, nil, id: "selected-part-id" %>
               
-              <!-- Quick Select for Common Parts -->
               <div class="mb-3" id="common-parts-section">
                 <label class="form-label fw-bold">Quick Select</label>
                 <div class="d-flex flex-wrap gap-2">
@@ -456,7 +444,6 @@
                 </div>
               </div>
 
-              <!-- Selected Part Display -->
               <div id="selected-part-display" class="alert alert-success mt-2" style="display: none;">
                 <i class="bi bi-check-circle-fill me-2"></i>
                 Selected: <strong id="selected-part-name"></strong>
@@ -468,7 +455,7 @@
               <div class="mb-3">
                 <%= label_tag :custom_part_name, "Part Name", class: "form-label fw-bold" %>
                 <%= text_field_tag :custom_part_name, nil, class: "form-control form-control-lg", 
-                      placeholder: "e.g., Special bracket for model XYZ", id: "custom-part-name-input" %>
+                      placeholder: "Enter custom part name", id: "custom-part-name-input" %>
                 <small class="text-muted">Enter the name of the custom part you need</small>
               </div>
             </div>
@@ -483,7 +470,6 @@
               <%= text_area_tag :description, nil, class: "form-control", rows: 2, placeholder: "Any specific requirements..." %>
             </div>
 
-            <!-- Hidden fields to pass the correct associations -->
             <%= hidden_field_tag :inspection_id, @job.inspection_id %>
             <%= hidden_field_tag :inspection_job_id, @job.id %>
           </div>
@@ -496,40 +482,10 @@
     </div>
   </div>
 
-  <!-- Additional Finding Modal - FIXED VERSION -->
-  <div class="modal fade" id="additionalFindingModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header bg-secondary text-white">
-          <h5 class="modal-title">Report Additional Finding</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <%= form_with url: vmcott_mechanic_create_additional_finding_path(@job.inspection), method: :post, local: true, data: { turbo: false } do |f| %>
-          <div class="modal-body">
-            <div class="mb-3">
-              <%= label_tag :description, "Description of Additional Work Needed", class: "form-label fw-bold" %>
-              <%= text_area_tag :description, nil, class: "form-control", rows: 3, 
-                    placeholder: "Describe what additional work is needed...", required: true %>
-            </div>
-            <div class="alert alert-warning">
-              <i class="bi bi-exclamation-triangle me-2"></i>
-              Additional work will require a new quotation from finance.
-            </div>
-            
-            <!-- Add hidden job_id field to ensure we can redirect back -->
-            <%= hidden_field_tag :job_id, @job.id %>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <%= f.submit "Report Finding", class: "btn btn-warning" %>
-          </div>
-        <% end %>
-      </div>
-    </div>
-  </div>
+  <!-- Additional Finding Modal - REMOVED COMPLETELY -->
+  
 </div>
 
-<!-- JavaScript for part usage, search, and form toggles - FIXED VERSION -->
 <script>
 (function() {
   'use strict';
@@ -539,7 +495,6 @@
   function initializePartsSearch() {
     console.log('🔍 Initializing parts search...');
     
-    // Handle part type toggle
     const inventoryRadio = document.getElementById('part_type_inventory');
     const customRadio = document.getElementById('part_type_custom');
     const inventoryFields = document.getElementById('inventory-part-fields');
@@ -556,7 +511,6 @@
     const customPartNameInput = document.getElementById('custom-part-name-input');
     const commonPartButtons = document.querySelectorAll('.common-part');
     
-    // Check if we're on the right page
     if (!inventoryRadio || !customRadio) {
       console.log('❌ Part type radios not found - wrong page');
       return;
@@ -565,9 +519,7 @@
     console.log('✅ Elements found, attaching event listeners');
     
     let searchTimeout;
-    let selectedPart = null;
   
-    // Function to update field visibility and required attributes
     function updatePartFields() {
       if (inventoryRadio && inventoryRadio.checked) {
         inventoryFields.style.display = 'block';
@@ -582,7 +534,6 @@
           customPartNameInput.disabled = true;
           customPartNameInput.value = '';
         }
-        
         updateSubmitButton();
         
       } else if (customRadio && customRadio.checked) {
@@ -599,28 +550,21 @@
           setTimeout(() => customPartNameInput.focus(), 100);
         }
         
-        // Clear any selected inventory part
-        selectedPart = null;
         selectedPartId.value = '';
         selectedPartDisplay.style.display = 'none';
         searchResults.style.display = 'none';
-        
         updateSubmitButton();
       }
     }
   
-    // Function to update submit button state
     function updateSubmitButton() {
       if (inventoryRadio && inventoryRadio.checked) {
-        // Inventory mode: need selected part and quantity
         submitButton.disabled = !(selectedPartId.value && quantityInput.value > 0);
       } else if (customRadio && customRadio.checked) {
-        // Custom mode: need custom name and quantity
         submitButton.disabled = !(customPartNameInput.value.trim() && quantityInput.value > 0);
       }
     }
   
-    // Search function
     function searchParts(query) {
       if (query.length < 2) {
         searchResults.style.display = 'none';
@@ -637,12 +581,7 @@
         },
         credentials: 'same-origin'
       })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
+      .then(response => response.json())
       .then(data => {
         searchSpinner.style.display = 'none';
         
@@ -661,7 +600,6 @@
       });
     }
   
-    // Display search results
     function displaySearchResults(parts) {
       let html = '';
       parts.forEach(part => {
@@ -672,8 +610,7 @@
           <button type="button" class="list-group-item list-group-item-action part-result" 
                   data-part-id="${part.id}"
                   data-part-name="${part.name}"
-                  data-part-number="${part.part_number || ''}"
-                  data-stock="${part.current_stock || 0}">
+                  data-part-number="${part.part_number || ''}">
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <strong>${escapeHtml(part.name)}</strong>
@@ -690,21 +627,18 @@
       searchResults.innerHTML = html;
       searchResults.style.display = 'block';
       
-      // Add click handlers to results
       document.querySelectorAll('.part-result').forEach(btn => {
         btn.addEventListener('click', function(e) {
           e.preventDefault();
           e.stopPropagation();
           selectPart({
             id: this.dataset.partId,
-            name: this.dataset.partName,
-            number: this.dataset.partNumber
+            name: this.dataset.partName
           });
         });
       });
     }
   
-    // Helper function to escape HTML
     function escapeHtml(text) {
       if (!text) return '';
       return String(text)
@@ -715,7 +649,6 @@
         .replace(/'/g, "&#039;");
     }
   
-    // Select a part
     function selectPart(part) {
       selectedPartId.value = part.id;
       selectedPartName.textContent = part.name;
@@ -725,7 +658,6 @@
       updateSubmitButton();
     }
   
-    // Clear selected part
     if (clearSelectedPart) {
       clearSelectedPart.addEventListener('click', function(e) {
         e.preventDefault();
@@ -738,21 +670,9 @@
       });
     }
   
-    // Set initial state
-    if (inventoryRadio && inventoryRadio.checked) {
-      updatePartFields();
-    }
+    if (inventoryRadio) inventoryRadio.addEventListener('change', updatePartFields);
+    if (customRadio) customRadio.addEventListener('change', updatePartFields);
   
-    // Add event listeners for radio buttons
-    if (inventoryRadio) {
-      inventoryRadio.addEventListener('change', updatePartFields);
-    }
-    
-    if (customRadio) {
-      customRadio.addEventListener('change', updatePartFields);
-    }
-  
-    // Search input handler
     if (partSearchInput) {
       partSearchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
@@ -767,17 +687,9 @@
       });
     }
   
-    // Quantity input handler
-    if (quantityInput) {
-      quantityInput.addEventListener('input', updateSubmitButton);
-    }
+    if (quantityInput) quantityInput.addEventListener('input', updateSubmitButton);
+    if (customPartNameInput) customPartNameInput.addEventListener('input', updateSubmitButton);
   
-    // Custom part name input handler
-    if (customPartNameInput) {
-      customPartNameInput.addEventListener('input', updateSubmitButton);
-    }
-  
-    // Common part buttons
     commonPartButtons.forEach(btn => {
       const newBtn = btn.cloneNode(true);
       btn.parentNode.replaceChild(newBtn, btn);
@@ -792,7 +704,6 @@
       });
     });
   
-    // Handle use part clicks
     document.querySelectorAll('.use-part').forEach(button => {
       const newBtn = button.cloneNode(true);
       button.parentNode.replaceChild(newBtn, button);
@@ -839,32 +750,62 @@
       });
     }
     
+    updatePartFields();
     console.log('✅ Parts search initialized successfully');
   }
   
-  // Try multiple initialization methods
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializePartsSearch);
   } else {
     initializePartsSearch();
   }
   
-  // Handle Turbolinks/Turbo
   document.addEventListener('turbo:load', initializePartsSearch);
-  document.addEventListener('turbolinks:load', initializePartsSearch);
   
-  // Also try when modal is shown
   document.getElementById('requestPartModal')?.addEventListener('shown.bs.modal', function() {
-    console.log('📱 Modal shown, reinitializing...');
     setTimeout(initializePartsSearch, 100);
   });
   
-  // Fallback initialization
   setTimeout(initializePartsSearch, 500);
-  
 })();
 </script>
 
 <style>
-/* Keep existing styles */
+/* Modal backdrop fix */
+.modal-backdrop {
+  z-index: 1040 !important;
+}
+
+.modal {
+  z-index: 1050 !important;
+}
+
+.modal-content {
+  z-index: 1060 !important;
+}
+
+/* Button loading state */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.btn-loading:after {
+  content: '';
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  top: 50%;
+  right: 1rem;
+  margin-top: -0.5rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spinner 0.6s linear infinite;
+}
+
+@keyframes spinner {
+  to { transform: rotate(360deg); }
+}
 </style>

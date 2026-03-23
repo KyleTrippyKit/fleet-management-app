@@ -47,6 +47,45 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
+  # NEW: Recent Activity page - Shows all completed inspections with filters
+  def recent_activity
+    @inspections = Inspection.includes(:vehicle, :inspector)
+                             .where(status: ['approved_for_repair', 'ready_for_pickup', 'qc_completed', 'completed', 'parts_received'])
+                             .order(updated_at: :desc)
+    
+    # Filter by date range if provided
+    if params[:from_date].present?
+      @inspections = @inspections.where("created_at >= ?", params[:from_date].to_date.beginning_of_day)
+    end
+    
+    if params[:to_date].present?
+      @inspections = @inspections.where("created_at <= ?", params[:to_date].to_date.end_of_day)
+    end
+    
+    # Filter by status if provided
+    if params[:status].present?
+      @inspections = @inspections.where(status: params[:status])
+    end
+    
+    # Filter by vehicle if provided
+    if params[:vehicle_id].present?
+      @inspections = @inspections.where(vehicle_id: params[:vehicle_id])
+    end
+    
+    @inspections = @inspections.page(params[:page]).per(20)
+    
+    # Get vehicles for filter dropdown
+    @vehicles = Vehicle.order(:license_plate)
+    
+    # Stats for the page
+    @total_count = @inspections.total_count
+    @approved_count = Inspection.where(status: 'approved_for_repair').count
+    @completed_count = Inspection.where(status: 'completed').count
+    @parts_received_count = Inspection.where(status: 'parts_received').count
+    
+    render layout: 'application'
+  end
+
   def pre_inspection
     @vehicle = Vehicle.find_by(id: params[:vehicle_id])
     
