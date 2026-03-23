@@ -7,6 +7,7 @@ class Inspection < ApplicationRecord
 
   has_many :inspection_jobs, dependent: :destroy
   has_many :parts_requests, dependent: :destroy
+  has_many :quotations, dependent: :nullify  # <-- ADDED: Link to quotations
 
   # Status workflow - added pending_mechanic_review
   enum :status, {
@@ -133,6 +134,26 @@ class Inspection < ApplicationRecord
 
   def notify_receptionist_for_pickup!
     Rails.logger.info "Would notify receptionist that vehicle #{vehicle.license_plate} is ready for pickup"
+  end
+
+  # 🔥 NEW: Get the latest quotation for this inspection
+  def latest_quotation
+    quotations.order(created_at: :desc).first
+  end
+
+  # 🔥 NEW: Check if customer has approved the quotation
+  def customer_approved?
+    quotations.exists?(status: ['approved', 'partially_approved'])
+  end
+
+  # 🔥 NEW: Check if customer approval is pending
+  def customer_approval_pending?
+    quotations.exists?(status: ['sent', 'pending_approval'])
+  end
+
+  # 🔥 NEW: Get the quotation that needs customer approval
+  def pending_quotation
+    quotations.where(status: ['sent', 'pending_approval']).order(created_at: :desc).first
   end
 
   private

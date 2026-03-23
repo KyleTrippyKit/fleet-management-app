@@ -1,0 +1,232 @@
+<%# app/views/customer_portal/dashboard.html.erb %>
+<div class="container py-4">
+  <!-- Logout button -->
+  <div class="text-end mb-3">
+    <%= link_to "Logout", customer_logout_path, method: :delete, class: "btn btn-sm btn-outline-secondary" %>
+  </div>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+          <h4 class="mb-0">Your Vehicle Repair Status</h4>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Vehicle Information</h5>
+              <p>
+                <strong>License Plate:</strong> <%= @reception&.vehicle&.license_plate || 'N/A' %><br>
+                <strong>Make/Model:</strong> <%= @reception&.vehicle&.make %> <%= @reception&.vehicle&.model %><br>
+                <strong>Drop-off Date:</strong> <%= @reception&.created_at&.strftime("%B %d, %Y") || 'N/A' %><br>
+                <strong>Status:</strong> 
+                <span class="badge bg-<%= status_badge_color(@inspection&.status) %>">
+                  <%= @inspection&.status&.humanize || 'Pending' %>
+                </span>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <div class="progress mb-3" style="height: 10px;">
+                <div class="progress-bar bg-success" style="width: <%= work_progress_percentage(@inspection) %>%"></div>
+              </div>
+              <p class="text-muted">Repair Progress: <%= work_progress_percentage(@inspection) %>%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Quotation Approval Section - Only show if quotation exists and not yet approved %>
+  <% if @quotation.present? && @quotation.status != 'approved' && @quotation.status != 'partially_approved' && @quotation.quotation_jobs.present? %>
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card shadow">
+          <div class="card-header bg-warning">
+            <h5 class="mb-0">Quotation Ready for Your Approval</h5>
+          </div>
+          <div class="card-body">
+            <%= render 'quotation', jobs: @quotation.quotation_jobs %>
+            
+            <div class="mt-3">
+              <button type="button" class="btn btn-success" id="approveAllBtn">
+                Approve All Jobs
+              </button>
+              <button type="button" class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#selectJobsModal">
+                Approve Selected Jobs
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Already Approved Section - Show approved jobs %>
+  <% if @quotation.present? && (@quotation.status == 'approved' || @quotation.status == 'partially_approved') && @quotation.quotation_jobs.where(client_approved: true).any? %>
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card shadow">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Approved Work</h5>
+          </div>
+          <div class="card-body">
+            <p>Thank you for approving the following work:</p>
+            <ul class="list-group">
+              <% @quotation.quotation_jobs.where(client_approved: true).each do |job| %>
+                <li class="list-group-item">
+                  <i class="bi bi-check-circle-fill text-success me-2"></i>
+                  <%= job.name || job.description %>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Timeline Section - FIXED: Use vehicle_statuses from vehicle %>
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card shadow">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0">Repair Timeline</h5>
+        </div>
+        <div class="card-body">
+          <div class="timeline">
+            <% if @vehicle && @vehicle.vehicle_statuses.any? %>
+              <% @vehicle.vehicle_statuses.order(created_at: :asc).each do |status| %>
+                <div class="timeline-item mb-3">
+                  <i class="bi bi-check-circle-fill text-success"></i>
+                  <strong><%= status.status.humanize %></strong><br>
+                  <small class="text-muted"><%= status.created_at.strftime("%B %d, %Y at %I:%M %p") %></small>
+                  <p class="mb-0"><%= status.notes %></p>
+                </div>
+              <% end %>
+            <% else %>
+              <p class="text-muted">No timeline events yet. Your vehicle will be inspected soon.</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for selecting jobs -->
+<div class="modal fade" id="selectJobsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title">Select Jobs to Approve</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: customer_approve_quotation_path(@quotation), method: :post, local: true do |f| %>
+        <div class="modal-body">
+          <p>Select which jobs you want to approve:</p>
+          <% if @quotation && @quotation.quotation_jobs.present? %>
+            <div class="mb-3">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="selectAllJobs">
+                <label class="form-check-label fw-bold" for="selectAllJobs">Select All Jobs</label>
+              </div>
+            </div>
+            <div class="list-group">
+              <% @quotation.quotation_jobs.each do |job| %>
+                <div class="list-group-item">
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input job-checkbox" 
+                           name="approved_jobs[]" value="<%= job.id %>" id="job_<%= job.id %>">
+                    <label class="form-check-label" for="job_<%= job.id %>">
+                      <strong><%= job.name || job.description %></strong>
+                      <% if job.total_labor_cost.present? %>
+                        <br><small class="text-muted">Labor: $<%= number_with_delimiter(job.total_labor_cost) %></small>
+                      <% end %>
+                    </label>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <p class="text-muted">No jobs available for approval.</p>
+          <% end %>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= submit_tag "Approve Selected Jobs", name: "approved_jobs_submit", class: "btn btn-success", disabled: !(@quotation && @quotation.quotation_jobs.present?) %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Approve All button
+  const approveAllBtn = document.getElementById('approveAllBtn');
+  if (approveAllBtn) {
+    approveAllBtn.addEventListener('click', function() {
+      if (confirm('Approve all jobs? This will authorize work to begin.')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<%= customer_approve_quotation_path(@quotation) if @quotation %>';
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'approve_all';
+        input.value = 'true';
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+  }
+  
+  // Select all checkbox functionality
+  const selectAll = document.getElementById('selectAllJobs');
+  const checkboxes = document.querySelectorAll('.job-checkbox');
+  const submitBtn = document.querySelector('input[name="approved_jobs_submit"]');
+  
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      checkboxes.forEach(cb => cb.checked = this.checked);
+      if (submitBtn) {
+        submitBtn.disabled = !Array.from(checkboxes).some(cb => cb.checked);
+      }
+    });
+  }
+  
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+      if (selectAll) {
+        selectAll.checked = Array.from(checkboxes).every(c => c.checked);
+      }
+      if (submitBtn) {
+        submitBtn.disabled = !Array.from(checkboxes).some(c => c.checked);
+      }
+    });
+  });
+  
+  // Initial state for submit button
+  if (submitBtn && checkboxes.length > 0) {
+    submitBtn.disabled = !Array.from(checkboxes).some(cb => cb.checked);
+  }
+});
+</script>
+
+<style>
+.timeline-item {
+  border-left: 3px solid #0d6efd;
+  padding-left: 15px;
+  position: relative;
+}
+.timeline-item i {
+  position: absolute;
+  left: -8px;
+  top: 0;
+  background: white;
+}
+.list-group-item .form-check {
+  margin-bottom: 0;
+}
+</style>

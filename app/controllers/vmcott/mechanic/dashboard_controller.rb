@@ -299,6 +299,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     render json: { success: false, message: "An error occurred: #{e.message}" }, status: :internal_server_error
   end
 
+  # UPDATED: request_part method - ALL parts go to Inventory Manager for approval
   def request_part
     if @job.assigned_mechanic_id != current_user.id
       redirect_to vmcott_mechanic_dashboard_path, alert: "Access Denied: You cannot request parts for a job that isn't assigned to you."
@@ -336,13 +337,14 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       )
       
       if existing_request
-        rfq_sent_statuses = ['rfq_sent', 'procurement_notified', 'ordered', 'approved']
+        # Check if the request is already processed
+        processed_statuses = ['approved', 'parts_received', 'parts_ordered', 'rfq_sent']
         
-        if rfq_sent_statuses.include?(existing_request.status)
+        if processed_statuses.include?(existing_request.status)
           flash[:alert] = "⚠️ Can't Request More\n\n" \
                           "Part: #{part.name}\n" \
-                          "Status: Already sent to Procurement\n\n" \
-                          "This part has already been ordered. Please contact procurement to add more."
+                          "Status: #{existing_request.status.humanize}\n\n" \
+                          "This part request has already been processed. Please contact inventory manager."
         else
           new_quantity = existing_request.quantity + quantity
           existing_request.update(quantity: new_quantity)
@@ -354,14 +356,17 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           flash[:notice] = "✅ Quantity Updated\n\n" \
                           "Part: #{part.name}\n" \
                           "Added: #{quantity} units\n" \
-                          "Total: #{new_quantity} units"
+                          "Total: #{new_quantity} units\n\n" \
+                          "Waiting for inventory manager approval."
         end
       else
+        # FIXED: ALWAYS set status to 'pending' so Inventory Manager can review
+        # Even if part is in stock, it needs approval before being allocated
         new_request = PartsRequest.new(
           inspection_id: @job.inspection_id,
           part_id: part.id,
           quantity: quantity,
-          status: part.current_stock >= quantity ? 'approved' : 'pending',
+          status: 'pending',  # ALWAYS go to inventory manager for approval
           in_stock: part.current_stock >= quantity,
           inspection_job_id: @job.id
         )
@@ -371,18 +376,19 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
             mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part.name}"
           )
           
-          notify_parts_coordinator(@job.inspection) if new_request.status == 'pending'
+          # Notify inventory manager about the request
+          notify_inventory_manager(@job.inspection, part.name, quantity)
           
-          if new_request.status == 'approved'
-            flash[:notice] = "✅ Request Approved\n\n" \
+          if new_request.in_stock
+            flash[:notice] = "📋 Request Submitted\n\n" \
                             "Part: #{part.name}\n" \
                             "Quantity: #{quantity} units\n\n" \
-                            "In stock - you may proceed with the repair."
+                            "Part is in stock. Waiting for inventory manager approval."
           else
             flash[:notice] = "📦 Request Submitted\n\n" \
                             "Part: #{part.name}\n" \
                             "Quantity: #{quantity} units\n\n" \
-                            "Out of stock - procurement has been notified."
+                            "Out of stock. Inventory manager will coordinate ordering."
           end
         else
           redirect_to vmcott_mechanic_job_path(@job), alert: "System Error: Failed to create parts request. Please contact support."
@@ -404,13 +410,13 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       )
       
       if existing_request
-        rfq_sent_statuses = ['rfq_sent', 'procurement_notified', 'ordered', 'approved']
+        processed_statuses = ['approved', 'parts_received', 'parts_ordered', 'rfq_sent']
         
-        if rfq_sent_statuses.include?(existing_request.status)
+        if processed_statuses.include?(existing_request.status)
           flash[:alert] = "⚠️ Can't Request More\n\n" \
                           "Part: #{part_name} (Custom)\n" \
-                          "Status: Already sent to Procurement\n\n" \
-                          "This custom part has already been ordered. Please contact procurement to add more."
+                          "Status: #{existing_request.status.humanize}\n\n" \
+                          "This custom part request has already been processed."
         else
           new_quantity = existing_request.quantity + quantity
           existing_request.update(quantity: new_quantity)
@@ -422,7 +428,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           flash[:notice] = "✅ Quantity Updated\n\n" \
                           "Part: #{part_name} (Custom)\n" \
                           "Added: #{quantity} units\n" \
-                          "Total: #{new_quantity} units"
+                          "Total: #{new_quantity} units\n\n" \
+                          "Waiting for inventory manager approval."
         end
       else
         new_request = PartsRequest.new(
@@ -438,12 +445,12 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           assignment.update(
             mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part_name} (custom part)"
           )
-          notify_parts_coordinator(@job.inspection)
+          notify_inventory_manager(@job.inspection, part_name, quantity, true)
           
           flash[:notice] = "📦 Request Submitted\n\n" \
                           "Part: #{part_name} (Custom)\n" \
                           "Quantity: #{quantity} units\n\n" \
-                          "Procurement has been notified."
+                          "Inventory manager has been notified."
         else
           redirect_to vmcott_mechanic_job_path(@job), alert: "System Error: Failed to create custom parts request. Please contact support."
           return
@@ -582,7 +589,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
               inspection_job: @job,
               part: part,
               quantity: job_part.quantity,
-              status: 'approved',
+              status: 'pending',  # Always go to inventory manager
               in_stock: true
             )
           else
@@ -636,7 +643,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                   inspection_job: corrected_job,
                   part: part,
                   quantity: part_data[:quantity],
-                  status: 'approved',
+                  status: 'pending',
                   in_stock: true
                 )
               else
@@ -668,7 +675,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       if inspection.inspection_jobs.where(verification_status: 'pending').none?
         if inspection.inspection_jobs.joins(:parts_requests).where(parts_requests: { status: 'pending' }).any?
           inspection.update!(status: 'parts_coordinator_review')
-          notify_parts_coordinator(inspection)
+          notify_inventory_manager(inspection)
         else
           inspection.update!(status: 'approved_for_repair')
           notify_mechanics_work_ready(inspection)
@@ -809,16 +816,28 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     true
   end
 
-  def notify_parts_coordinator(inspection)
-    coordinator_ids = User.where(role: 'inventory_manager').pluck(:id)
-    Notification.create!(
-      title: "Parts Required",
-      message: "Inspection ##{inspection.id} for #{inspection.vehicle.license_plate} has parts that need ordering.",
-      link: "/vmcott/inventory_manager/dashboard",
-      user_id: coordinator_ids,
-      notifiable_type: 'Inspection',
-      notifiable_id: inspection.id
-    )
+  # UPDATED: Notify inventory manager (was parts_coordinator)
+  def notify_inventory_manager(inspection, part_name = nil, quantity = nil, is_custom = false)
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    
+    if inventory_manager_ids.any?
+      if part_name
+        title = "New Part Request"
+        message = "Part: #{part_name} x#{quantity} requested for #{inspection.vehicle.license_plate}"
+      else
+        title = "Parts Need Review"
+        message = "Inspection ##{inspection.id} for #{inspection.vehicle.license_plate} has parts pending review."
+      end
+      
+      Notification.create!(
+        title: title,
+        message: message,
+        link: "/vmcott/inventory_manager/dashboard",
+        user_id: inventory_manager_ids,
+        notifiable_type: 'Inspection',
+        notifiable_id: inspection.id
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to create notification: #{e.message}"
   end

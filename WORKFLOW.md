@@ -897,3 +897,7 @@ Bulk Payments	FINANCE
 Walk-in Payments	FINANCE at pickup
 Procurement Notifications	Gets updates on ALL major events
 This response is AI-generated, for reference only.
+
+
+
+but here is what i want when the parts are ready i want two options 1) send client quotation before work begins and wait for their approval of the jobs/parts before beginning work (they send po before work begins)  or 2) send quotation after work is finished ( quotation is still sent but work can continue), if 1 is choosen only when the client accepts the quotation then the mechanic starts the work, and work on the jobs/parts the client pays for , if 2) is selected the mechanic works on the vehicle and and that quoation will be sent but work can continue and the client will pay based on the manual entry form payment choice, also the 2 options would be presented and shown to a supervisor role to say either option 1, or 2, wheather the supervisor selects 1 or 2 procurement team will send a quotation to the client with jobs/price parts/price but the jobs and parts go together, ( i think the supervisor will set the price of the job/labor , and parts  but to guide the supervisor the parts initial payment price will be displayed, so if he chooses 1 mechanic waits on procurement to recieve the purchase order or cashpayment/cash approval from client ( how ever they accept) after that aceeptance is documented then the mechainic team gets the go to start the work

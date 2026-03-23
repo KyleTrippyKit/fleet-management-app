@@ -50,7 +50,51 @@
     </div>
   <% end %>
 
-  <!-- SECTION 1: PENDING REVIEW - MOVED TO TOP -->
+  <!-- Quick Stats Row -->
+  <div class="row mb-4 g-2">
+    <div class="col-md-3 col-6">
+      <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Pending Review</span>
+          <span class="badge bg-warning"><%= @pending_parts&.count || 0 %></span>
+        </div>
+        <h4 class="mb-0 mt-2"><%= @pending_parts&.count || 0 %></h4>
+        <small class="text-muted">needs attention</small>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">In Transit</span>
+          <span class="badge bg-info"><%= @ordered_requests&.count || 0 %></span>
+        </div>
+        <h4 class="mb-0 mt-2"><%= @ordered_requests&.count || 0 %></h4>
+        <small class="text-muted">parts coming</small>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Ready for Workshop</span>
+          <span class="badge bg-success"><%= @parts_received&.count || 0 %></span>
+        </div>
+        <h4 class="mb-0 mt-2"><%= @parts_received&.count || 0 %></h4>
+        <small class="text-muted">to pass to mechanics</small>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Low Stock</span>
+          <span class="badge bg-danger"><%= @low_stock_parts&.count || 0 %></span>
+        </div>
+        <h4 class="mb-0 mt-2"><%= @low_stock_parts&.count || 0 %></h4>
+        <small class="text-muted">needs reorder</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: PENDING REVIEW -->
   <div id="pending-review-section" class="card border-0 shadow-lg mb-4" style="border-top: 4px solid #f59e0b;">
     <div class="card-header bg-white border-0 pt-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -61,17 +105,33 @@
           </h5>
           <p class="text-muted small mb-0">Parts requests waiting for initial review</p>
         </div>
-        <span class="badge px-3 py-2 rounded-pill" style="background: #fef3c7; color: #b45309;">
-          <i class="bi bi-hourglass-split me-1"></i> <%= @pending_parts&.count || 0 %> Pending
-        </span>
+        <div class="d-flex gap-2">
+          <div class="input-group input-group-sm" style="width: 250px;">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control form-control-sm border-start-0" 
+                   id="pendingSearch" placeholder="Search by vehicle, part, or requester...">
+          </div>
+          <span class="badge px-3 py-2 rounded-pill" style="background: #fef3c7; color: #b45309;">
+            <i class="bi bi-hourglass-split me-1"></i> <%= @pending_parts&.count || 0 %> Pending
+          </span>
+        </div>
+      </div>
+      <!-- Filter Buttons -->
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-sm btn-outline-secondary active filter-btn" data-filter="all">All</button>
+        <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-filter="instock">In Stock</button>
+        <button type="button" class="btn btn-sm btn-outline-danger filter-btn" data-filter="outofstock">Out of Stock</button>
       </div>
     </div>
     <div class="card-body">
       <% if @pending_parts&.any? %>
         <div class="table-responsive">
-          <table class="table table-hover align-middle">
+          <table class="table table-hover align-middle" id="pendingTable">
             <thead class="bg-light">
               56
+                <th class="border-0 py-3" style="width: 30px;">
+                  <input type="checkbox" id="selectAll" class="form-check-input">
+                </th>
                 <th class="border-0 py-3">Vehicle</th>
                 <th class="border-0 py-3">Part</th>
                 <th class="border-0 py-3 text-center">Quantity</th>
@@ -81,15 +141,16 @@
                </thead>
             <tbody>
               <% @pending_parts.each do |pr| %>
-                <tr id="pending-request-<%= pr.id %>">
+                <tr id="pending-request-<%= pr.id %>" data-stock-status="<%= pr.in_stock? ? 'instock' : 'outofstock' %>">
+                  <td class="text-center"><input type="checkbox" class="form-check-input row-checkbox" data-id="<%= pr.id %>" data-in-stock="<%= pr.in_stock? %>"></td>
                   <td>
                     <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
                     <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
-                    </td>
-                    <td>
+                  </td>
+                  <td>
                     <div><strong><%= pr.part&.name || pr.custom_part_name %></strong></div>
                     <small class="text-muted"><%= pr.part&.part_number %></small>
-                    </td>
+                  </td>
                   <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
                   <td>
                     <div>
@@ -107,47 +168,66 @@
                   </td>
                   <td>
                     <% if pr.in_stock? %>
-                      <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> In Stock</span>
+                      <span class="badge bg-success" data-tooltip="Available in inventory - ready to allocate"><i class="bi bi-check-circle me-1"></i> In Stock</span>
                       <small class="d-block text-muted">Available: <%= pr.part&.current_stock %></small>
                     <% else %>
-                      <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i> Out of Stock</span>
+                      <span class="badge bg-danger" data-tooltip="Not in inventory - needs to be ordered"><i class="bi bi-x-circle me-1"></i> Out of Stock</span>
                     <% end %>
                   </td>
                   <td class="text-end">
                     <div class="btn-group btn-group-sm">
                       <% if pr.in_stock? %>
-                        <%= button_to "✓ Mark In Stock", 
+                        <%= button_to "✓ Approve & Allocate", 
                             vmcott_inventory_manager_mark_in_stock_path(pr.id),
                             method: :post,
                             class: "btn btn-success btn-sm rounded-pill px-3",
                             form: { data: { turbo: false } },
-                            data: { confirm: "Mark this part as in-stock and approved for use?" } %>
+                            data: { confirm: "Approve this part and allocate to the job?" } %>
                       <% else %>
-                        <%= button_to "📤 Send to Procurement", 
+                        <%= button_to "📦 Order from Supplier", 
                             vmcott_inventory_manager_send_to_procurement_path(pr.id),
                             method: :post,
                             class: "btn btn-warning btn-sm rounded-pill px-3",
                             form: { data: { turbo: false } },
-                            data: { confirm: "Send this part to procurement team for RFQ creation?" } %>
+                            data: { confirm: "Send this part to procurement for ordering?" } %>
                       <% end %>
                     </div>
                   </td>
                 </tr>
               <% end %>
             </tbody>
-          </table>
+           </table>
+        </div>
+        
+        <!-- Batch Actions Bar -->
+        <div id="batchActions" class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded-3" style="display: none;">
+          <div class="text-muted">
+            <i class="bi bi-check2-square me-1"></i>
+            <span id="selectedCount">0</span> selected
+          </div>
+          <div>
+            <button class="btn btn-sm btn-success me-2" id="batchMarkInStock">
+              <i class="bi bi-check-circle"></i> Approve & Allocate
+            </button>
+            <button class="btn btn-sm btn-warning" id="batchSendToProcurement">
+              <i class="bi bi-cart"></i> Order from Supplier
+            </button>
+          </div>
         </div>
       <% else %>
         <div class="text-center py-5">
-          <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
-          <h6 class="text-muted">No parts pending review</h6>
-          <p class="small text-muted">All parts have been processed</p>
+          <div class="empty-state-icon mb-3">
+            <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+          </div>
+          <h6 class="text-muted">All caught up!</h6>
+          <p class="small text-muted mb-0">No parts pending review at the moment</p>
+          <p class="small text-muted">Great job keeping the inventory moving! 🎉</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- SECTION 2: WORKFLOW STATUS - SIMPLIFIED -->
+  <!-- SECTION 2: WORKFLOW STATUS -->
   <div class="workflow-container rounded-4 mb-4" style="background: #ffffff; border: 1px solid #e2e8f0;">
     <div class="p-4">
       <div class="d-flex justify-content-between align-items-center mb-4">
@@ -345,7 +425,7 @@
                </thead>
             <tbody>
               <% @pending_procurement.each do |pr| %>
-                <tr>
+                <tr id="procurement-request-<%= pr.id %>">
                   <td>
                     <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
                     <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
@@ -355,7 +435,13 @@
                     <small class="text-muted"><%= pr.part&.part_number %></small>
                   </td>
                   <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
-                  <td><%= time_ago_in_words(pr.sent_to_procurement_at) %> ago</td>
+                  <td>
+                    <% if pr.sent_to_procurement_at.present? %>
+                      <%= time_ago_in_words(pr.sent_to_procurement_at) %> ago
+                    <% else %>
+                      <span class="text-muted">Recently</span>
+                    <% end %>
+                  </td>
                   <td><span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i> RFQ Sent</span></td>
                   <td class="text-end">
                     <%= link_to "📋 Track RFQ", 
@@ -427,7 +513,13 @@
                     <% end %>
                   </td>
                   <td><%= pr.purchase_order&.vendor %></td>
-                  <td><%= pr.purchase_order&.ordered_at&.strftime("%b %d, %Y") || 'N/A' %></td>
+                  <td>
+                    <% if pr.purchase_order&.ordered_at.present? %>
+                      <%= pr.purchase_order.ordered_at.strftime("%b %d, %Y") %>
+                    <% else %>
+                      <span class="text-muted">Pending</span>
+                    <% end %>
+                  </td>
                   <td class="text-end">
                     <% if pr.purchase_order %>
                       <%= button_to "📦 Receive Parts", 
@@ -567,7 +659,7 @@
     </div>
   </div>
 
-  <!-- SECTION 6: Low Stock Alerts - KEPT AT BOTTOM -->
+  <!-- SECTION 6: Low Stock Alerts -->
   <% if @low_stock_parts.any? %>
     <div class="card border-0 shadow-sm mb-4" style="border-top: 4px solid #ef4444;">
       <div class="card-header bg-white border-0 pt-4">
@@ -621,9 +713,9 @@
                   <td class="text-center"><%= part.reorder_point %></td>
                   <td>
                     <% if part.current_stock <= 0 %>
-                      <span class="badge bg-danger">Out of Stock</span>
+                      <span class="badge bg-danger" data-tooltip="Immediate action required">Out of Stock</span>
                     <% else %>
-                      <span class="badge bg-warning">Low Stock</span>
+                      <span class="badge bg-warning" data-tooltip="Order soon">Low Stock</span>
                     <% end %>
                   </td>
                   <td>
@@ -658,14 +750,12 @@
                             vmcott_purchase_order_path(ordered_request.purchase_order),
                             class: "btn btn-sm btn-outline-success rounded-pill" %>
                       <% else %>
-                        <%= form_tag vmcott_inventory_create_purchase_request_path(part.id), method: :post, class: 'd-inline' do %>
-                          <%= hidden_field_tag :authenticity_token, form_authenticity_token %>
-                          <input type="hidden" name="quantity" value="<%= part.suggested_reorder_quantity %>">
-                          <input type="hidden" name="urgency" value="<%= part.current_stock <= part.minimum_stock ? 'high' : 'normal' %>">
-                          <button type="submit" class="btn btn-sm btn-warning rounded-pill">
-                            <i class="bi bi-cart-plus"></i> Request PO
-                          </button>
-                        <% end %>
+                        <button type="button" class="btn btn-sm btn-primary rounded-pill quick-reorder" 
+                                data-part-id="<%= part.id %>"
+                                data-part-name="<%= part.name %>"
+                                data-quantity="<%= part.suggested_reorder_quantity %>">
+                          <i class="bi bi-cart-plus"></i> Quick Reorder
+                        </button>
                       <% end %>
                     </div>
                   </td>
@@ -777,7 +867,25 @@
     letter-spacing: 0.5px;
     color: #475569;
   }
-  [data-bs-toggle="tooltip"] { cursor: help; }
+  [data-bs-toggle="tooltip"], [data-tooltip] { cursor: help; }
+  [data-tooltip] {
+    position: relative;
+    cursor: help;
+  }
+  [data-tooltip]:hover:after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 10;
+  }
   
   /* Card styling */
   .card {
@@ -792,6 +900,15 @@
   .table tbody tr:hover {
     background-color: #f8fafc;
     transition: background-color 0.2s ease;
+  }
+  
+  /* Empty state */
+  .empty-state-icon {
+    animation: float 3s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
   }
   
   /* Responsive */
@@ -828,18 +945,13 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.clickable-step').forEach(step => {
     step.addEventListener('click', function(e) {
       const targetId = this.getAttribute('data-target');
-      const stepName = this.getAttribute('data-step-name');
-      
       if (targetId && targetId !== '#') {
         const targetElement = document.querySelector(targetId);
         if (targetElement) {
           targetElement.scrollIntoView({ 
             behavior: 'smooth', 
-            block: 'start',
-            inline: 'nearest'
+            block: 'start'
           });
-          
-          // Add a highlight effect
           targetElement.style.transition = 'box-shadow 0.3s ease';
           targetElement.style.boxShadow = '0 0 0 3px #3b82f6, 0 0 0 6px rgba(59,130,246,0.2)';
           setTimeout(() => {
@@ -850,13 +962,138 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Handle workshop button clicks with visual feedback
+  // Handle workshop button clicks
   document.querySelectorAll('.pass-to-workshop-btn').forEach(button => {
     button.addEventListener('click', function(e) {
       const form = this.closest('form');
       if (form) {
         this.disabled = true;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+      }
+    });
+  });
+  
+  // Search functionality
+  const searchInput = document.getElementById('pendingSearch');
+  if (searchInput) {
+    searchInput.addEventListener('keyup', function() {
+      const searchTerm = this.value.toLowerCase();
+      const rows = document.querySelectorAll('#pendingTable tbody tr');
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+      });
+    });
+  }
+  
+  // Filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const filter = this.getAttribute('data-filter');
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const rows = document.querySelectorAll('#pendingTable tbody tr');
+      rows.forEach(row => {
+        const stockStatus = row.getAttribute('data-stock-status');
+        if (filter === 'all') {
+          row.style.display = '';
+        } else if (filter === 'instock' && stockStatus === 'instock') {
+          row.style.display = '';
+        } else if (filter === 'outofstock' && stockStatus === 'outofstock') {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  });
+  
+  // Batch selection
+  const selectAll = document.getElementById('selectAll');
+  const checkboxes = document.querySelectorAll('#pendingTable tbody .row-checkbox');
+  const batchActions = document.getElementById('batchActions');
+  const selectedCountSpan = document.getElementById('selectedCount');
+  
+  function updateBatchActions() {
+    const selected = document.querySelectorAll('#pendingTable tbody .row-checkbox:checked');
+    if (selectedCountSpan) selectedCountSpan.innerText = selected.length;
+    if (batchActions) batchActions.style.display = selected.length > 0 ? 'flex' : 'none';
+  }
+  
+  if (selectAll) {
+    selectAll.addEventListener('change', function() {
+      const visibleRows = document.querySelectorAll('#pendingTable tbody tr:not([style*="display: none"])');
+      visibleRows.forEach(row => {
+        const cb = row.querySelector('.row-checkbox');
+        if (cb) cb.checked = this.checked;
+      });
+      updateBatchActions();
+    });
+  }
+  
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', updateBatchActions);
+  });
+  
+  // Batch actions
+  const batchMarkInStock = document.getElementById('batchMarkInStock');
+  const batchSendToProcurement = document.getElementById('batchSendToProcurement');
+  
+  if (batchMarkInStock) {
+    batchMarkInStock.addEventListener('click', function() {
+      const selected = document.querySelectorAll('#pendingTable tbody .row-checkbox:checked');
+      const inStockItems = Array.from(selected).filter(cb => cb.getAttribute('data-in-stock') === 'true');
+      
+      if (inStockItems.length > 0) {
+        if (confirm(`Approve and allocate ${inStockItems.length} item(s)?`)) {
+          inStockItems.forEach(cb => {
+            const form = cb.closest('tr').querySelector('.btn-success');
+            if (form && form.closest('form')) {
+              form.closest('form').submit();
+            }
+          });
+        }
+      } else if (selected.length > 0) {
+        alert('Selected items are out of stock. Use "Order from Supplier" for those.');
+      }
+    });
+  }
+  
+  if (batchSendToProcurement) {
+    batchSendToProcurement.addEventListener('click', function() {
+      const selected = document.querySelectorAll('#pendingTable tbody .row-checkbox:checked');
+      const outOfStockItems = Array.from(selected).filter(cb => cb.getAttribute('data-in-stock') === 'false');
+      
+      if (outOfStockItems.length > 0) {
+        if (confirm(`Order ${outOfStockItems.length} item(s) from supplier?`)) {
+          outOfStockItems.forEach(cb => {
+            const form = cb.closest('tr').querySelector('.btn-warning');
+            if (form && form.closest('form')) {
+              form.closest('form').submit();
+            }
+          });
+        }
+      } else if (selected.length > 0) {
+        alert('Selected items are already in stock. Use "Approve & Allocate" for those.');
+      }
+    });
+  }
+  
+  // Quick reorder functionality
+  document.querySelectorAll('.quick-reorder').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const partId = this.dataset.partId;
+      const partName = this.dataset.partName;
+      const quantity = this.dataset.quantity;
+      
+      if (confirm(`Order ${quantity} x ${partName}?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/vmcott/inventory/create_purchase_request/${partId}`;
+        form.innerHTML = `<input type="hidden" name="quantity" value="${quantity}">
+                          <input type="hidden" name="authenticity_token" value="${document.querySelector('meta[name="csrf-token"]').content}">`;
+        document.body.appendChild(form);
+        form.submit();
       }
     });
   });

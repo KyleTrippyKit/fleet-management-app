@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_22_014837) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_23_113002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1107,6 +1107,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_22_014837) do
     t.string "condition_status", default: "pending"
     t.string "contact_number"
     t.datetime "created_at", null: false
+    t.string "customer_email"
+    t.string "customer_phone"
     t.string "driver_name"
     t.string "email"
     t.string "id_number"
@@ -1116,8 +1118,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_22_014837) do
     t.jsonb "metadata", default: {}
     t.text "notes"
     t.string "person_to_visit"
+    t.datetime "portal_access_expires_at"
+    t.string "portal_access_token"
     t.bigint "purchase_order_id"
     t.string "purpose"
+    t.string "receipt_number"
     t.datetime "received_at"
     t.string "status", default: "checked_in"
     t.datetime "updated_at", null: false

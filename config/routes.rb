@@ -64,6 +64,17 @@ Rails.application.routes.draw do
   get 'screensaver', to: 'screensaver#show'
   
   # ========================
+  # CUSTOMER PORTAL ROUTES
+  # ========================
+  get "customer/login", to: "customer_portal#login", as: :customer_login
+  post "customer/authenticate", to: "customer_portal#authenticate", as: :customer_authenticate
+  delete "customer/logout", to: "customer_portal#logout", as: :customer_logout
+  get "customer/dashboard", to: "customer_portal#dashboard", as: :customer_dashboard
+  get "customer/quotation/:id", to: "customer_portal#quotation", as: :customer_quotation
+  post "customer/approve/:id", to: "customer_portal#approve", as: :customer_approve_quotation
+  get "customer/status", to: "customer_portal#status", as: :customer_status
+
+  # ========================
   # PTSC Namespace - All PTSC-specific dashboards
   # ========================
   namespace :ptsc do
