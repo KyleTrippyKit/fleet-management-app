@@ -1,6 +1,7 @@
 # app/controllers/vmcott/security_gate_officer/reception_logs_controller.rb
+
 class Vmcott::SecurityGateOfficer::ReceptionLogsController < ApplicationController
-  # Skip caching for this entire controller - THIS FIXES THE ERROR
+  # Skip caching for this entire controller
   skip_around_action :cache_dashboard_data
   
   before_action :authenticate_user!
@@ -12,7 +13,6 @@ class Vmcott::SecurityGateOfficer::ReceptionLogsController < ApplicationControll
                         .page(params[:page])
                         .per(20)
                         
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -22,7 +22,6 @@ class Vmcott::SecurityGateOfficer::ReceptionLogsController < ApplicationControll
     @log = ReceptionLog.includes(:vehicle, :security_gate_officer, :condition_report, :inspector)
                        .find(params[:id])
                        
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -35,7 +34,6 @@ class Vmcott::SecurityGateOfficer::ReceptionLogsController < ApplicationControll
                         .page(params[:page])
                         .per(20)
                         
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"

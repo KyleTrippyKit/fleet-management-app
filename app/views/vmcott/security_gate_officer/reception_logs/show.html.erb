@@ -61,7 +61,22 @@
                 </tr>
                 <tr>
                   <th>ID Number:</th>
-                  <td><%= @log.id_number.presence || 'Not provided' %></td>
+                  <td>
+                    <% if @log.condition_report.present? %>
+                      <%= @log.condition_report.driver_id_number.presence || 'Not provided' %>
+                      <br>
+                      <small class="text-success">✓<%=%></small>
+                    <% else %>
+                      Not provided
+                      <% if @log.condition_report_id.present? %>
+                        <br>
+                        <small class="text-warning">⚠️ Has condition_report_id: <%= @log.condition_report_id %> but report not found</small>
+                      <% else %>
+                        <br>
+                        <small class="text-danger">❌ No condition report linked</small>
+                      <% end %>
+                    <% end %>
+                  </td>
                 </tr>
               </table>
             </div>
@@ -73,7 +88,7 @@
       <% if @log.condition_report %>
         <div class="card shadow-sm mb-4">
           <div class="card-header <%= @log.condition_report.exterior_damage? ? 'bg-warning' : 'bg-success' %> text-white">
-            <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i> Condition Report</h5>
+            <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i> Condition Report #<%= @log.condition_report.id %></h5>
           </div>
           <div class="card-body">
             <div class="row">
@@ -107,18 +122,38 @@
               <div class="col-md-6">
                 <h6 class="fw-bold">Condition Summary</h6>
                 <ul class="list-unstyled">
-                  <li><strong>Exterior:</strong> <%= @log.condition_report.exterior_damage_summary %></li>
-                  <li><strong>Interior:</strong> <%= @log.condition_report.interior_summary %></li>
-                  <li><strong>Tires:</strong> <%= @log.condition_report.tire_status_display %></li>
-                  <li><strong>Warnings:</strong> <%= @log.condition_report.warning_lights_display %></li>
+                  <li><strong>Exterior:</strong> 
+                    <% if @log.condition_report.condition_data&.[]('exterior_damage')&.any? %>
+                      <%= @log.condition_report.condition_data['exterior_damage'].join(', ') %>
+                    <% else %>
+                      No damage
+                    <% end %>
+                  </li>
+                  <li><strong>Interior:</strong> 
+                    <% if @log.condition_report.condition_data&.[]('interior_issues')&.any? %>
+                      <%= @log.condition_report.condition_data['interior_issues'].join(', ') %>
+                    <% else %>
+                      Clean
+                    <% end %>
+                  </li>
+                  <li><strong>Tires:</strong> 
+                    <%= @log.condition_report.condition_data&.[]('tire_status')&.humanize || 'Good' %>
+                  </li>
+                  <li><strong>Warnings:</strong> 
+                    <% if @log.condition_report.condition_data&.[]('warning_lights')&.any? %>
+                      <%= @log.condition_report.condition_data['warning_lights'].join(', ') %>
+                    <% else %>
+                      None
+                    <% end %>
+                  </li>
                 </ul>
               </div>
             </div>
 
-            <% if @log.condition_report.additional_notes.present? %>
+            <% if @log.condition_report.condition_data&.[]('additional_notes').present? %>
               <div class="mt-3 p-3 bg-light rounded">
                 <strong>Notes:</strong><br>
-                <%= @log.condition_report.additional_notes %>
+                <%= @log.condition_report.condition_data['additional_notes'] %>
               </div>
             <% end %>
 
@@ -126,6 +161,15 @@
               <%= link_to "View Full Report", vmcott_vehicle_condition_report_path(@log.condition_report), 
                   class: "btn btn-outline-primary btn-sm" %>
             </div>
+          </div>
+        </div>
+      <% else %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i> No Condition Report</h5>
+          </div>
+          <div class="card-body">
+            <p class="mb-0">This reception log is not linked to a condition report. Condition report ID: <%= @log.condition_report_id || 'Not set' %></p>
           </div>
         </div>
       <% end %>
@@ -205,9 +249,11 @@
             <li class="mb-2">
               <strong>Condition Report:</strong><br>
               <% if @log.condition_report %>
-                <span class="badge bg-success">Completed</span>
+                <span class="badge bg-success">Completed (ID: <%= @log.condition_report.id %>)</span>
+              <% elsif @log.condition_report_id.present? %>
+                <span class="badge bg-danger">Missing - Report #<%= @log.condition_report_id %> not found</span>
               <% else %>
-                <span class="badge bg-danger">Missing</span>
+                <span class="badge bg-danger">Not Linked</span>
               <% end %>
             </li>
           </ul>
