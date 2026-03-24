@@ -73,6 +73,9 @@ Rails.application.routes.draw do
   get "customer/quotation/:id", to: "customer_portal#quotation", as: :customer_quotation
   post "customer/approve/:id", to: "customer_portal#approve", as: :customer_approve_quotation
   get "customer/status", to: "customer_portal#status", as: :customer_status
+  get "customer/recover", to: "customer_portal#recover", as: :customer_recover
+  post "customer/send_recovery", to: "customer_portal#send_recovery", as: :customer_send_recovery
+  get "customer/contact_support", to: "customer_portal#contact_support", as: :customer_contact_support
 
   # ========================
   # PTSC Namespace - All PTSC-specific dashboards
@@ -214,6 +217,9 @@ Rails.application.routes.draw do
       get "upload_quotation/:rfq_id", to: "dashboard#upload_quotation", as: :upload_quotation
       post "create_quotation/:rfq_id", to: "dashboard#create_quotation", as: :create_quotation
       post "forward_to_finance/:rfq_id", to: "dashboard#forward_to_finance", as: :forward_to_finance
+      
+      # Accept Quotation
+      post "accept_quotation/:id", to: "dashboard#accept_quotation", as: :accept_quotation
       
       # Legacy routes
       post "rfq/:id/send_to_suppliers", to: "dashboard#send_rfq_to_suppliers", as: :send_rfq_to_suppliers

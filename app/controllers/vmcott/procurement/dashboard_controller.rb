@@ -1,5 +1,3 @@
-# app/controllers/vmcott/procurement/dashboard_controller.rb
-
 class Vmcott::Procurement::DashboardController < ApplicationController
   # Skip the dashboard caching for this controller
   skip_around_action :cache_dashboard_data, if: :dashboard_controller?
@@ -183,6 +181,11 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     @quotation = @rfq.vendor_quotations.new
     @suppliers = Supplier.where(is_active: true).order(:name)
     
+    # Pre-select supplier if specified
+    if params[:supplier_id].present?
+      @preselected_supplier = Supplier.find_by(id: params[:supplier_id])
+    end
+    
     # Get RFQ items to display in the form
     @rfq_items = @rfq.vendor_rfq_items
     
@@ -195,6 +198,7 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     redirect_to vmcott_procurement_dashboard_path
   end
 
+  # UPDATED: Enhanced create_quotation to handle multiple suppliers and improved unit price detection
   def create_quotation
     @rfq = VendorRfq.find(params[:rfq_id])
     
@@ -207,16 +211,16 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     
     Rails.logger.info "RFQ #{@rfq.id} has #{@rfq.vendor_rfq_items.count} items"
     
-    # Handle multiple quotations from the form
+    # Handle multiple quotations from the form (new format with quotations array)
     if params[:quotations].present?
       success_count = 0
       error_count = 0
       errors = []
       
-      # Convert ActionController::Parameters to hash and get values safely
+      # Convert ActionController::Parameters to hash
       quotations_hash = params[:quotations].to_unsafe_h
       
-      # If it's a hash with numeric keys, get the values
+      # Get all quotation values
       if quotations_hash.is_a?(Hash)
         quotations_array = quotations_hash.values
       else
@@ -231,7 +235,6 @@ class Vmcott::Procurement::DashboardController < ApplicationController
         next if quotation_data['supplier_id'].blank?
         
         Rails.logger.info "Processing quotation for supplier #{quotation_data['supplier_id']}"
-        Rails.logger.info "Quotation data: #{quotation_data.inspect}"
         
         # Create a new vendor quotation
         @quotation = @rfq.vendor_quotations.new(
@@ -251,42 +254,63 @@ class Vmcott::Procurement::DashboardController < ApplicationController
           
           # Create quotation lines for each RFQ item
           lines_created = 0
+          
           @rfq.vendor_rfq_items.each do |rfq_item|
-            # Get unit price from form
             unit_price = nil
             
-            # Check in items hash
+            # Try multiple ways to find the unit price
+            
+            # Method 1: Check in items hash using the RFQ item ID as key
             if quotation_data['items'].present?
-              quotation_data['items'].each do |item_key, item_value|
-                if item_key.to_s.include?(rfq_item.id.to_s) && item_value.is_a?(Hash)
-                  unit_price = item_value['unit_price']
-                  Rails.logger.info "Found unit price #{unit_price} for item #{rfq_item.id} from items hash with key #{item_key}"
+              if quotation_data['items'][rfq_item.id.to_s].present?
+                unit_price = quotation_data['items'][rfq_item.id.to_s]['unit_price'].to_f
+              elsif quotation_data['items'][rfq_item.id.to_sym].present?
+                unit_price = quotation_data['items'][rfq_item.id.to_sym]['unit_price'].to_f
+              end
+            end
+            
+            # Method 2: Check directly in quotation_data with unit_price_ prefix
+            if unit_price.blank? && quotation_data["unit_price_#{rfq_item.id}"].present?
+              unit_price = quotation_data["unit_price_#{rfq_item.id}"].to_f
+            end
+            
+            # Method 3: Check for unit_price in the main params (backward compatibility)
+            if unit_price.blank? && params["unit_price_#{rfq_item.id}"].present?
+              unit_price = params["unit_price_#{rfq_item.id}"].to_f
+            end
+            
+            # Method 4: Check in items array format
+            if unit_price.blank? && quotation_data['items'].is_a?(Array)
+              quotation_data['items'].each do |item|
+                if item.is_a?(Hash) && item['rfq_item_id'].to_s == rfq_item.id.to_s
+                  unit_price = item['unit_price'].to_f
+                  break
                 end
               end
             end
             
-            # Also check direct unit_price field
-            if unit_price.blank? && quotation_data['unit_price'].present?
-              unit_price = quotation_data['unit_price']
-              Rails.logger.info "Found unit price #{unit_price} from direct field"
+            # Method 5: Check for unit_price in the global params hash
+            if unit_price.blank? && params[:unit_price].present? && params[:unit_price][rfq_item.id.to_s].present?
+              unit_price = params[:unit_price][rfq_item.id.to_s].to_f
             end
             
-            if unit_price.blank?
-              Rails.logger.warn "No unit price found for RFQ item #{rfq_item.id}"
+            if unit_price.blank? || unit_price <= 0
+              Rails.logger.warn "No valid unit price found for RFQ item #{rfq_item.id}"
               next
             end
             
+            Rails.logger.info "Found unit price #{unit_price} for item #{rfq_item.id}"
+            
             # Calculate total price
             quantity = rfq_item.quantity.to_f
-            unit_price_f = unit_price.to_f
-            total_price = (quantity * unit_price_f).round(2)
+            total_price = (quantity * unit_price).round(2)
             
             # Create vendor quotation line
             line = @quotation.vendor_quotation_lines.new(
               part_id: rfq_item.part_id,
               description: rfq_item.description || rfq_item.part&.name || rfq_item.custom_part_name,
               quantity: rfq_item.quantity,
-              unit_price: unit_price_f,
+              unit_price: unit_price,
               total_price: total_price
             )
             
@@ -303,6 +327,9 @@ class Vmcott::Procurement::DashboardController < ApplicationController
             Rails.logger.info "Created #{lines_created} lines for quotation #{@quotation.id}"
           else
             Rails.logger.warn "No lines created for quotation #{@quotation.id}"
+            @quotation.destroy
+            error_count += 1
+            errors << "Supplier #{quotation_data['supplier_id']}: No valid unit prices provided"
           end
         else
           error_count += 1
@@ -324,15 +351,16 @@ class Vmcott::Procurement::DashboardController < ApplicationController
         
         flash[:notice] = "#{success_count} quotation(s) uploaded successfully"
         flash[:alert] = "#{error_count} quotation(s) failed to upload: #{errors.join('; ')}" if error_count > 0
-        redirect_to vmcott_procurement_dashboard_path
+        redirect_to vmcott_vendor_rfq_path(@rfq)
       else
         flash[:alert] = "No quotations were uploaded. #{errors.join('; ')}"
         @suppliers = Supplier.where(is_active: true).order(:name)
         @rfq_items = @rfq.vendor_rfq_items
         render :upload_quotation
       end
-    else
-      # Fallback to single quotation format
+      
+    # Handle single quotation upload (fallback for backward compatibility)
+    elsif params[:vendor_quotation].present?
       @quotation = @rfq.vendor_quotations.new(quotation_params)
       @quotation.status = 'received'
       
@@ -340,45 +368,36 @@ class Vmcott::Procurement::DashboardController < ApplicationController
         lines_created = 0
         
         # Create quotation lines from RFQ items
-        if @rfq.vendor_rfq_items.present?
-          if params[:unit_price].present?
-            # Single unit price for all items
-            @rfq.vendor_rfq_items.each do |rfq_item|
-              unit_price = params[:unit_price].to_f
-              total_price = (rfq_item.quantity.to_f * unit_price).round(2)
-              
-              @quotation.vendor_quotation_lines.create(
-                part_id: rfq_item.part_id,
-                description: rfq_item.description || rfq_item.part&.name || rfq_item.custom_part_name,
-                quantity: rfq_item.quantity,
-                unit_price: unit_price,
-                total_price: total_price
-              )
-              lines_created += 1
-            end
-          elsif params[:quotations] && params[:quotations][0] && params[:quotations][0]['items'].present?
-            # Multiple unit prices from form
-            params[:quotations][0]['items'].each do |item_key, item_data|
-              rfq_item = @rfq.vendor_rfq_items.find { |item| item.id.to_s == item_key.to_s.gsub('item_', '') }
-              next unless rfq_item
-              
-              unit_price = item_data['unit_price'].to_f
-              total_price = (rfq_item.quantity.to_f * unit_price).round(2)
-              
-              @quotation.vendor_quotation_lines.create(
-                part_id: rfq_item.part_id,
-                description: rfq_item.description || rfq_item.part&.name || rfq_item.custom_part_name,
-                quantity: rfq_item.quantity,
-                unit_price: unit_price,
-                total_price: total_price
-              )
-              lines_created += 1
-            end
+        @rfq.vendor_rfq_items.each do |rfq_item|
+          # Get unit price from params with improved handling
+          unit_price = nil
+          
+          # Check multiple possible parameter names
+          if params["unit_price_#{rfq_item.id}"].present?
+            unit_price = params["unit_price_#{rfq_item.id}"].to_f
+          elsif params[:unit_price].present? && params[:unit_price].is_a?(Hash) && params[:unit_price][rfq_item.id.to_s].present?
+            unit_price = params[:unit_price][rfq_item.id.to_s].to_f
+          elsif params[:items].present? && params[:items][rfq_item.id.to_s].present? && params[:items][rfq_item.id.to_s][:unit_price].present?
+            unit_price = params[:items][rfq_item.id.to_s][:unit_price].to_f
           end
+          
+          next if unit_price.blank? || unit_price <= 0
+          
+          total_price = (rfq_item.quantity.to_f * unit_price).round(2)
+          
+          line = @quotation.vendor_quotation_lines.create(
+            part_id: rfq_item.part_id,
+            description: rfq_item.description || rfq_item.part&.name || rfq_item.custom_part_name,
+            quantity: rfq_item.quantity,
+            unit_price: unit_price,
+            total_price: total_price
+          )
+          
+          lines_created += 1 if line.persisted?
         end
         
         if lines_created > 0
-          @rfq.update(status: 'quotations_received')
+          @rfq.update(status: 'quotations_received') if @rfq.status != 'quotations_received'
           
           # Update associated parts requests
           @rfq.vendor_rfq_items.each do |item|
@@ -388,10 +407,10 @@ class Vmcott::Procurement::DashboardController < ApplicationController
             end
           end
           
-          redirect_to vmcott_procurement_dashboard_path, notice: "Quotation uploaded successfully with #{lines_created} item(s)"
+          redirect_to vmcott_vendor_rfq_path(@rfq), notice: "Quotation uploaded successfully for #{@quotation.supplier&.name} with #{lines_created} item(s)."
         else
           @quotation.destroy
-          flash[:alert] = "No unit prices were provided. Please enter unit prices for each part."
+          flash[:alert] = "No valid unit prices were provided. Please enter unit prices for each part."
           @suppliers = Supplier.where(is_active: true).order(:name)
           @rfq_items = @rfq.vendor_rfq_items
           render :upload_quotation
@@ -402,6 +421,9 @@ class Vmcott::Procurement::DashboardController < ApplicationController
         @rfq_items = @rfq.vendor_rfq_items
         render :upload_quotation
       end
+    else
+      flash[:alert] = "No quotation data provided."
+      redirect_to vmcott_procurement_upload_quotation_path(rfq_id: @rfq.id)
     end
   rescue => e
     Rails.logger.error "Error creating quotation: #{e.message}"
@@ -429,6 +451,65 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     Rails.logger.error "Error forwarding to finance: #{e.message}"
     flash[:alert] = "Error forwarding quotations: #{e.message}"
     redirect_to vmcott_procurement_dashboard_path
+  end
+
+  # Accept Quotation and Create Purchase Order
+  def accept_quotation
+    @quotation = VendorQuotation.find(params[:id])
+    @rfq = @quotation.vendor_rfq
+    
+    begin
+      ActiveRecord::Base.transaction do
+        # Update quotation status
+        @quotation.update!(status: 'accepted')
+        
+        # Create purchase order from accepted quotation
+        po = PurchaseOrder.create!(
+          po_number: generate_po_number,
+          supplier_id: @quotation.supplier_id,
+          vendor: @quotation.supplier.name,
+          amount: @quotation.vendor_quotation_lines.sum(:total_price),
+          status: 'approved',
+          created_by_id: current_user.id,
+          rfq_id: @rfq.id,
+          notes: "Created from RFQ #{@rfq.rfq_number} - Accepted quotation from #{@quotation.supplier.name}"
+        )
+        
+        # Add items to purchase order
+        @quotation.vendor_quotation_lines.each do |line|
+          po.purchase_order_items.create!(
+            part_id: line.part_id,
+            description: line.description,
+            quantity: line.quantity,
+            unit_price: line.unit_price,
+            total_price: line.total_price
+          )
+        end
+        
+        # Update RFQ status
+        @rfq.update!(
+          status: 'accepted', 
+          awarded_vendor_quotation_id: @quotation.id, 
+          awarded_at: Time.current
+        )
+        
+        # Update parts requests status
+        @rfq.vendor_rfq_items.each do |item|
+          if item.part_id
+            PartsRequest.where(part_id: item.part_id, status: 'quotations_received')
+                       .update_all(status: 'purchase_order_created', purchase_order_id: po.id)
+          end
+        end
+        
+        flash[:notice] = "Quotation accepted. Purchase Order ##{po.po_number} created successfully."
+        redirect_to purchase_order_path(po)
+      end
+    rescue => e
+      Rails.logger.error "Error accepting quotation: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      flash[:alert] = "Error accepting quotation: #{e.message}"
+      redirect_to vmcott_vendor_rfq_path(@rfq)
+    end
   end
 
   # Legacy routes
@@ -497,7 +578,7 @@ class Vmcott::Procurement::DashboardController < ApplicationController
              .limit(10) || []
   end
 
-  # NEW METHOD: Load all RFQs including those with POs
+  # Load all RFQs including those with POs
   def load_all_quotes_with_pos
     # Get RFQs with quotations received OR that have POs
     VendorRfq.where(status: 'quotations_received')
@@ -509,6 +590,10 @@ class Vmcott::Procurement::DashboardController < ApplicationController
 
   def generate_rfq_number
     "RFQ-#{Time.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
+  end
+
+  def generate_po_number
+    "PO-#{Time.current.strftime('%Y%m%d')}-#{SecureRandom.hex(4).upcase}"
   end
 
   def rfq_params

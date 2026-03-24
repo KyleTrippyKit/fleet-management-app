@@ -901,3 +901,120 @@ This response is AI-generated, for reference only.
 
 
 but here is what i want when the parts are ready i want two options 1) send client quotation before work begins and wait for their approval of the jobs/parts before beginning work (they send po before work begins)  or 2) send quotation after work is finished ( quotation is still sent but work can continue), if 1 is choosen only when the client accepts the quotation then the mechanic starts the work, and work on the jobs/parts the client pays for , if 2) is selected the mechanic works on the vehicle and and that quoation will be sent but work can continue and the client will pay based on the manual entry form payment choice, also the 2 options would be presented and shown to a supervisor role to say either option 1, or 2, wheather the supervisor selects 1 or 2 procurement team will send a quotation to the client with jobs/price parts/price but the jobs and parts go together, ( i think the supervisor will set the price of the job/labor , and parts  but to guide the supervisor the parts initial payment price will be displayed, so if he chooses 1 mechanic waits on procurement to recieve the purchase order or cashpayment/cash approval from client ( how ever they accept) after that aceeptance is documented then the mechainic team gets the go to start the work
+
+Improved Flow with Client Portal:
+1. Procurement creates quotation in system
+2. System sends email to client with link
+3. Client clicks link, logs in to portal
+4. Client sees:
+   ┌─────────────────────────────────────────┐
+   │  QUOTATION #Q-2025-001                   │
+   │  Vehicle: PBC-7065 (Mitsubishi Lancer)   │
+   │                                          │
+   │  Jobs:                                    │
+   │  ☑ Brake Replacement    $250             │
+   │  ☐ Wheel Alignment     $80              │
+   │  ☑ Oil Change          $45              │
+   │                                          │
+   │  Parts:                                   │
+   │  ☑ Brake Pads          $120             │
+   │  ☐ Rotors              $180             │
+   │                                          │
+   │  Total: $595                             │
+   │                                          │
+   │  [Approve All] [Approve Selected]        │
+   │  [Request Changes] [Upload PO]           │
+   └─────────────────────────────────────────┘
+
+5. Client selects which jobs/parts to approve
+6. Client uploads PO number/document
+7. System automatically updates VMCOTT
+8. Procurement notified, work starts on approved items
+
+✅ Benefits:
+- Client has real-time visibility
+- No email/phone delays
+- Client controls approval themselves
+- Automatic notification to VMCOTT
+- Audit trail of who approved what
+
+PHASE 1: Reception (Security Gate Officer)
+├── Captures client type and payment terms
+└── Creates inspection (status: pending_inspection)
+
+PHASE 2: Inspector Assessment
+├── Creates inspection jobs (NO PARTS)
+└── Status → pending_mechanic_review
+
+PHASE 3: Mechanic Review
+├── Reviews and corrects jobs
+├── Requests parts needed
+└── Status → parts_coordinator_review
+
+PHASE 4: Inventory Manager
+├── Reviews parts requests
+├── In stock → marks available
+├── Out of stock → sends to procurement
+└── NOTIFIES PROCUREMENT when all parts ready
+
+┌─────────────────────────────────────────────────────────────┐
+│  PHASE 4.5: SUPERVISOR WORKFLOW SELECTION (NEW) ⭐         │
+├─────────────────────────────────────────────────────────────┤
+│  • Supervisor reviews the completed parts request          │
+│  • Sees total cost: labor + parts                          │
+│  • CHOOSES WORKFLOW TYPE for this job:                      │
+│                                                            │
+│    Option A: Payment Before Work                           │
+│    └── Work will only start after client approval/payment  │
+│    └── Use for: new companies, walk-ins, high-value jobs   │
+│                                                            │
+│    Option B: Work Before Payment                           │
+│    └── Work can start immediately                          │
+│    └── Quotation sent after work or during                │
+│    └── Use for: trusted agencies, repeat customers        │
+│                                                            │
+│  • Supervisor also can adjust:                             │
+│    └── Labor rates (if needed)                            │
+│    └── Parts markup percentage                            │
+│  • Sends to PROCUREMENT to create quotation                │
+└─────────────────────────────────────────────────────────────┘
+
+PHASE 5: Procurement Creates Quotation
+├── Based on supervisor's workflow selection
+├── Creates quotation with:
+│   ├── All jobs and parts (as one package)
+│   ├── Total cost
+│   └── Payment terms from Phase 1
+├── Sends to client
+└── Status → awaiting_client_approval
+
+PHASE 6: Client Response (Based on Workflow Type)
+├── If Option A (Payment Before Work):
+│   ├── Client MUST approve BEFORE work starts
+│   ├── Client can approve ALL or SELECTED jobs
+│   ├── Payment must be received
+│   └── THEN mechanic notified to start ONLY approved jobs
+│
+└── If Option B (Work Before Payment):
+    ├── Client can approve anytime (before/during/after)
+    ├── Mechanic starts work immediately
+    └── Payment collected at pickup via manual entry
+
+PHASE 7: Mechanic Work
+├── Sees ONLY approved jobs (based on client approval)
+├── Starts work immediately (Option B) or after approval (Option A)
+├── Logs parts used
+├── Reports additional issues if found
+└── Requests QC when done
+
+PHASE 8: Inspector QC
+├── Verifies ONLY approved jobs were done correctly
+├── Documents any additional issues
+└── Notifies PROCUREMENT of completion
+
+PHASE 9: Finance & Payment
+├── For Option A: Process payment before release
+├── For Option B: Process payment at pickup
+├── For Agencies: Add to aging report
+├── For Companies: Follow selected payment terms
+└── Generate invoice

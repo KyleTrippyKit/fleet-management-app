@@ -2,26 +2,28 @@
 class CustomerPortalController < ApplicationController
   layout 'customer_portal'
   
-  skip_before_action :authenticate_user! # Customers don't need to be VMCOTT employees
+  skip_before_action :authenticate_user!
   skip_before_action :verify_authenticity_token, only: [:authenticate]
   before_action :authenticate_customer, only: [:dashboard, :quotation, :approve, :status, :logout]
   before_action :set_customer_reception, only: [:dashboard, :status]
   before_action :set_quotation, only: [:quotation, :approve]
   before_action :authorize_quotation_access, only: [:quotation, :approve]
   
-  # Helper methods for views
+  # Helper methods
   helper_method :status_badge_color, :work_progress_percentage, :current_customer_reception
 
+  # VMCOTT Contact Information
+  VMCOTT_PHONE = "868-625-1234"
+  VMCOTT_EMAIL = "service@vmcott.com"
+  VMCOTT_ADDRESS = "Golden Grove Road, Piarco, Trinidad"
+
   def login
-    # Customer enters their vehicle license plate and receipt number
-    # Redirect to dashboard if already logged in
     if session[:customer_token].present? && current_customer_reception.present?
       redirect_to customer_dashboard_path and return
     end
   end
 
   def authenticate
-    # Find vehicle first, then find reception by vehicle_id
     vehicle = Vehicle.find_by(license_plate: params[:license_plate])
     reception = ReceptionLog.find_by(
       vehicle_id: vehicle&.id,
@@ -29,13 +31,13 @@ class CustomerPortalController < ApplicationController
     )
     
     if reception
-      # Generate temporary access token
       token = SecureRandom.hex(32)
       reception.update(
         portal_access_token: token,
-        portal_access_expires_at: 7.days.from_now,
+        portal_access_expires_at: 30.days.from_now,
         customer_email: params[:email],
-        customer_phone: params[:phone]
+        customer_phone: params[:phone],
+        customer_name: params[:customer_name]
       )
       
       session[:customer_token] = token
@@ -48,26 +50,44 @@ class CustomerPortalController < ApplicationController
     end
   end
 
+  def recover
+    # Show recovery form
+  end
+
+  def send_recovery
+    @reception = ReceptionLog.find_by(customer_email: params[:email]) if params[:email].present?
+    @reception ||= ReceptionLog.find_by(customer_phone: params[:phone]) if params[:phone].present?
+    
+    if @reception
+      @reception.send_recovery_email!
+      flash[:notice] = "Recovery email sent to #{@reception.customer_email}. Please check your inbox."
+      redirect_to customer_login_path
+    else
+      flash[:alert] = "No records found with that email or phone number. Please contact VMCOTT for assistance."
+      render :recover
+    end
+  end
+
+  def contact_support
+    @vmcott_phone = VMCOTT_PHONE
+    @vmcott_email = VMCOTT_EMAIL
+    @vmcott_address = VMCOTT_ADDRESS
+  end
+
   def dashboard
     @reception = @customer_reception
     @vehicle = @reception&.vehicle
     @condition_report = @reception&.condition_report
-    
-    # Find inspection by vehicle (since inspection has vehicle_id)
     @inspection = Inspection.find_by(vehicle: @vehicle) if @vehicle
-    
     @jobs = @inspection&.inspection_jobs || []
     @parts_requests = @inspection&.parts_requests || []
-    
-    # Find quotation by vehicle (quotations have vehicle_id, not inspection_id)
     @quotation = Quotation.find_by(vehicle: @vehicle) if @vehicle
-    
     @inspection_progress = work_progress_percentage(@inspection)
+    @vmcott_phone = VMCOTT_PHONE
   end
 
   def quotation
     @quotation = Quotation.find(params[:id])
-    # Find inspection by vehicle (since quotations have vehicle_id)
     @inspection = Inspection.find_by(vehicle: @quotation.vehicle) if @quotation.vehicle
     @jobs = @quotation.quotation_jobs
     @parts = @quotation.quotation_job_parts
@@ -123,7 +143,6 @@ class CustomerPortalController < ApplicationController
   end
 
   def logout
-    # Clear session
     session[:customer_token] = nil
     session[:customer_log_id] = nil
     redirect_to customer_login_path, notice: "You have been logged out."
@@ -132,7 +151,6 @@ class CustomerPortalController < ApplicationController
   private
 
   def authenticate_customer
-    # Support both session token and URL parameter token
     token = session[:customer_token] || params[:token]
     
     if token.blank?
@@ -151,7 +169,6 @@ class CustomerPortalController < ApplicationController
       redirect_to customer_login_path, alert: "Your session has expired. Please log in again." and return false
     end
     
-    # Store token in session if it came from URL parameter
     if params[:token].present? && session[:customer_token].blank?
       session[:customer_token] = token
       session[:customer_log_id] = @reception.id
@@ -190,7 +207,6 @@ class CustomerPortalController < ApplicationController
   def build_timeline(reception, inspection)
     timeline = []
     
-    # Check-in
     timeline << {
       date: reception.received_at,
       title: "Vehicle Received",
@@ -199,7 +215,6 @@ class CustomerPortalController < ApplicationController
       status: "completed"
     }
     
-    # Condition Report
     if reception.condition_report&.completed?
       timeline << {
         date: reception.condition_report.signed_at || reception.created_at,
@@ -210,7 +225,6 @@ class CustomerPortalController < ApplicationController
       }
     end
     
-    # Inspection
     if inspection.present?
       timeline << {
         date: inspection.created_at,
@@ -220,7 +234,6 @@ class CustomerPortalController < ApplicationController
         status: inspection.status != 'pending_inspection' ? "completed" : "in_progress"
       }
       
-      # Jobs
       if inspection.inspection_jobs.any?
         completed_jobs = inspection.inspection_jobs.where.not(completed_at: nil).count
         total_jobs = inspection.inspection_jobs.count
@@ -234,7 +247,6 @@ class CustomerPortalController < ApplicationController
         }
       end
       
-      # QC
       if inspection.status == 'ready_for_pickup' || inspection.status == 'completed'
         timeline << {
           date: inspection.ready_for_pickup_at || inspection.updated_at,
@@ -245,7 +257,6 @@ class CustomerPortalController < ApplicationController
         }
       end
       
-      # Ready for Pickup
       if inspection.ready_for_pickup_at.present?
         timeline << {
           date: inspection.ready_for_pickup_at,
@@ -260,31 +271,19 @@ class CustomerPortalController < ApplicationController
     timeline.sort_by { |t| t[:date] || Time.current }
   end
 
-  # Helper methods
   def status_badge_color(status)
     case status.to_s
-    when 'pending_inspection'
-      'secondary'
-    when 'approved_for_repair'
-      'success'
-    when 'in_progress'
-      'warning'
-    when 'parts_coordinator_review'
-      'info'
-    when 'ready_for_qc'
-      'info'
-    when 'qc_completed'
-      'success'
-    when 'ready_for_pickup'
-      'success'
-    when 'completed'
-      'success'
-    when 'approved'
-      'success'
-    when 'partially_approved'
-      'warning'
-    else
-      'primary'
+    when 'pending_inspection' then 'secondary'
+    when 'approved_for_repair' then 'success'
+    when 'in_progress' then 'warning'
+    when 'parts_coordinator_review' then 'info'
+    when 'ready_for_qc' then 'info'
+    when 'qc_completed' then 'success'
+    when 'ready_for_pickup' then 'success'
+    when 'completed' then 'success'
+    when 'approved' then 'success'
+    when 'partially_approved' then 'warning'
+    else 'primary'
     end
   end
 

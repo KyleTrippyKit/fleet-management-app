@@ -2,21 +2,26 @@
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-12">
-      <div class="card">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">RFQ #<%= @vendor_rfq.rfq_number %></h5>
-          <span class="badge bg-light text-dark">Status: <%= @vendor_rfq.status.titleize %></span>
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center rounded-top-4">
+          <h5 class="mb-0 fw-bold">
+            <i class="bi bi-file-text me-2"></i>
+            RFQ #<%= @vendor_rfq.rfq_number %>
+          </h5>
+          <span class="badge bg-light text-dark px-3 py-2">
+            Status: <%= @vendor_rfq.status.titleize %>
+          </span>
         </div>
-        <div class="card-body">
+        <div class="card-body p-4">
           
           <!-- Next Step Guidance -->
           <% if @vendor_rfq.draft? %>
-            <div class="alert alert-info">
+            <div class="alert alert-info border-0 rounded-3 mb-4">
               <i class="bi bi-info-circle me-2"></i>
               <strong>Next step:</strong> Review the RFQ details and send to suppliers.
             </div>
           <% elsif @vendor_rfq.sent? %>
-            <div class="alert alert-warning">
+            <div class="alert alert-warning border-0 rounded-3 mb-4">
               <i class="bi bi-clock-history me-2"></i>
               <strong>Waiting for vendor responses.</strong> Upload quotations when they arrive.
             </div>
@@ -25,45 +30,24 @@
           <!-- RFQ Details -->
           <div class="row mb-4">
             <div class="col-md-6">
-              <h6>RFQ Information</h6>
+              <h6 class="fw-bold mb-3">RFQ Information</h6>
               <table class="table table-sm">
-                 <tr>
-                  <th style="width: 30%;">Created:</th>
-                  <td><%= @vendor_rfq.created_at.strftime("%b %d, %Y") %></td>
-                </tr>
-                <tr>
-                  <th>Due Date:</th>
-                  <td><%= @vendor_rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %></td>
-                </tr>
-                <tr>
-                  <th>Sent Date:</th>
-                  <td><%= @vendor_rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %></td>
-                </tr>
-                <tr>
-                  <th>Notes:</th>
-                  <td><%= @vendor_rfq.notes.presence || 'None' %></td>
-                </tr>
-              </table>
+                   <tr><th style="width: 30%;">Created:</th><td><%= @vendor_rfq.created_at.strftime("%b %d, %Y") %></td></tr>
+                   <tr><th>Due Date:</th><td><%= @vendor_rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %></td></tr>
+                   <tr><th>Sent Date:</th><td><%= @vendor_rfq.sent_date&.strftime("%b %d, %Y") || 'Not sent' %></td></tr>
+                   <tr><th>Notes:</th><td><%= @vendor_rfq.notes.presence || 'None' %></td></tr>
+                </table>
             </div>
             <div class="col-md-6">
-              <h6>Parts Requested</h6>
+              <h6 class="fw-bold mb-3">Parts Requested</h6>
               <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>Part</th>
-                    <th>Quantity</th>
-                    <th>Unit</th>
-                  </tr>
+                <thead class="bg-light">
+                  <tr><th>Part</th><th>Quantity</th><th>Unit</th></tr>
                 </thead>
                 <tbody>
                   <% @vendor_rfq.vendor_rfq_items.each do |item| %>
                     <tr>
-                      <td>
-                        <%= item.part&.name || item.custom_part_name || 'Unknown Part' %>
-                        <% if item.custom_part_name.present? && item.part_id.nil? %>
-                          <span class="badge bg-warning ms-1">Custom</span>
-                        <% end %>
-                      </td>
+                      <td><%= item.part&.name || item.custom_part_name || 'Unknown Part' %></td>
                       <td><%= item.quantity %></td>
                       <td><%= item.unit_of_measure || 'each' %></td>
                     </tr>
@@ -73,84 +57,92 @@
             </div>
           </div>
           
-          <!-- Selected Suppliers with Status Indicators -->
-          <h6>Selected Suppliers (<%= @vendor_rfq.vendor_quotations.count %>)</h6>
-          <div class="mb-4">
-            <div class="row">
-              <% @vendor_rfq.vendor_quotations.each do |quote| %>
-                <div class="col-md-4 mb-3">
-                  <div class="card <%= quote.status == 'received' ? 'border-success' : 'border-warning' %>">
-                    <div class="card-body">
-                      <h6 class="card-title"><%= quote.supplier&.name || 'Unknown' %></h6>
-                      <p class="small mb-2">
-                        Status: 
-                        <% if quote.status == 'received' %>
-                          <span class="badge bg-success">✅ Quotation Received</span>
-                          <br>
-                          <small class="text-success">
-                            <%= number_to_currency(quote.total_amount) if quote.total_amount.present? %>
-                          </small>
-                        <% else %>
-                          <span class="badge bg-warning">⏳ Awaiting Response</span>
-                        <% end %>
-                      </p>
-                      
-                      <!-- Attachment link if available -->
-                      <% if quote.status == 'received' && quote.respond_to?(:attachment) && quote.attachment.attached? %>
-                        <div class="mt-2">
-                          <i class="bi bi-paperclip"></i>
-                          <%= link_to "View Attachment", url_for(quote.attachment), target: "_blank", class: "small" %>
-                        </div>
+          <!-- Selected Suppliers with Status Indicators - ADD UPLOAD BUTTON FOR EACH -->
+          <h6 class="fw-bold mb-3">Selected Suppliers (<%= @vendor_rfq.vendor_quotations.count %>)</h6>
+          <div class="row mb-4">
+            <% @vendor_rfq.vendor_quotations.each do |quote| %>
+              <div class="col-md-4 mb-3">
+                <div class="card h-100 <%= quote.status == 'received' ? 'border-success' : 'border-warning' %>">
+                  <div class="card-body">
+                    <h6 class="card-title fw-bold"><%= quote.supplier&.name || 'Unknown' %></h6>
+                    <p class="small mb-2">
+                      Status: 
+                      <% if quote.status == 'received' %>
+                        <span class="badge bg-success">✅ Quotation Received</span>
+                        <br>
+                        <small class="text-success fw-bold mt-1 d-block">
+                          $<%= number_with_delimiter(quote.vendor_quotation_lines.sum(:total_price)) %>
+                        </small>
+                      <% else %>
+                        <span class="badge bg-warning text-dark">⏳ Awaiting Response</span>
                       <% end %>
-                      
-                      <!-- Upload button for procurement users -->
-                      <% if current_user.procurement? && quote.status != 'received' && @vendor_rfq.sent? %>
-                        <div class="mt-2">
-                          <%= link_to "Upload Quotation", 
-                                vmcott_procurement_upload_quotation_path(rfq_id: @vendor_rfq.id),
-                                class: "btn btn-sm btn-outline-primary" %>
-                        </div>
-                      <% end %>
+                    </p>
+                    
+                    <!-- UPLOAD BUTTON FOR EVERY SUPPLIER - ALWAYS VISIBLE -->
+                    <div class="mt-2">
+                      <%= link_to "Upload Quotation for #{quote.supplier&.name}", 
+                            vmcott_procurement_upload_quotation_path(rfq_id: @vendor_rfq.id, supplier_id: quote.supplier_id),
+                            class: "btn btn-sm btn-outline-primary w-100" %>
                     </div>
+                    
+                    <!-- View quotation if received -->
+                    <% if quote.status == 'received' && quote.vendor_quotation_lines.any? %>
+                      <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-info w-100" data-bs-toggle="collapse" data-bs-target="#quote-details-<%= quote.id %>">
+                          <i class="bi bi-eye"></i> View Details
+                        </button>
+                        <div class="collapse mt-2" id="quote-details-<%= quote.id %>">
+                          <div class="card card-body bg-light">
+                            <% quote.vendor_quotation_lines.each do |line| %>
+                              <div class="small d-flex justify-content-between">
+                                <span><%= line.description %></span>
+                                <span>$<%= number_with_delimiter(line.unit_price) %> x <%= line.quantity %></span>
+                              </div>
+                            <% end %>
+                            <hr class="my-1">
+                            <div class="d-flex justify-content-between fw-bold">
+                              <span>Total:</span>
+                              <span>$<%= number_with_delimiter(quote.vendor_quotation_lines.sum(:total_price)) %></span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
                   </div>
                 </div>
-              <% end %>
-            </div>
+              </div>
+            <% end %>
           </div>
           
-          <!-- All Quotations Received Alert -->
-          <% if @vendor_rfq.vendor_quotations.where(status: 'received').count == @vendor_rfq.vendor_quotations.count && @vendor_rfq.vendor_quotations.count > 0 %>
-            <div class="alert alert-success mt-3">
-              <i class="bi bi-check-circle-fill me-2"></i>
-              <strong>All quotations received!</strong> 
-              <%= link_to "Forward to Finance", vmcott_procurement_forward_to_finance_path(rfq_id: @vendor_rfq.id), 
-                    method: :post,
-                    class: "btn btn-sm btn-success ms-3",
-                    data: { confirm: "Forward these quotations to Finance team for review?" } %>
-            </div>
-          <% end %>
-          
-          <!-- Quotations Summary (for received quotes) -->
+          <!-- Quotations Summary Table -->
           <% if @vendor_rfq.vendor_quotations.where(status: 'received').any? %>
             <div class="mt-4">
-              <h6>Quotations Summary</h6>
+              <h6 class="fw-bold mb-3">Quotations Summary</h6>
               <div class="table-responsive">
-                <table class="table table-sm table-bordered">
-                  <thead class="table-light">
+                <table class="table table-hover">
+                  <thead class="bg-light">
                     <tr>
                       <th>Supplier</th>
                       <th>Total Amount</th>
                       <th>Notes</th>
                       <th>Received</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     <% @vendor_rfq.vendor_quotations.where(status: 'received').each do |quote| %>
-                      <tr>
+                      <tr id="quotation-<%= quote.id %>">
                         <td><strong><%= quote.supplier&.name %></strong></td>
-                        <td><%= number_to_currency(quote.total_amount) %></td>
+                        <td class="text-success fw-bold">$<%= number_with_delimiter(quote.vendor_quotation_lines.sum(:total_price)) %></td>
                         <td><%= quote.notes.truncate(30) if quote.notes.present? %></td>
                         <td><%= quote.created_at.strftime("%b %d, %Y") %></td>
+                        <td>
+                          <%= link_to "Accept", 
+                                vmcott_procurement_accept_quotation_path(quote.id),
+                                method: :post,
+                                class: "btn btn-sm btn-success",
+                                data: { confirm: "Accept this quotation? This will create a Purchase Order." } %>
+                        </td>
                       </tr>
                     <% end %>
                   </tbody>
@@ -160,22 +152,23 @@
           <% end %>
           
           <!-- Action Buttons -->
-          <div class="d-flex justify-content-end gap-2 mt-4">
-            <%= link_to "Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
+          <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+            <%= link_to "Back to Dashboard", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary rounded-pill px-4" %>
             
             <% if @vendor_rfq.draft? %>
               <%= button_to "Send to Suppliers", 
                     send_to_suppliers_vmcott_vendor_rfq_path(@vendor_rfq),
                     method: :post,
-                    class: "btn btn-success",
+                    class: "btn btn-success rounded-pill px-4",
                     form: { "data-turbo" => "false" },
                     data: { confirm: "Send this RFQ to #{@vendor_rfq.vendor_quotations.count} suppliers?" } %>
             <% end %>
             
-            <% if @vendor_rfq.sent? && @vendor_rfq.vendor_quotations.where(status: 'received').count < @vendor_rfq.vendor_quotations.count %>
-              <%= link_to "Upload Quotation", 
+            <!-- Add a button to upload more quotations -->
+            <% if @vendor_rfq.sent? || @vendor_rfq.status == 'quotations_received' %>
+              <%= link_to "Upload More Quotations", 
                     vmcott_procurement_upload_quotation_path(rfq_id: @vendor_rfq.id),
-                    class: "btn btn-primary" %>
+                    class: "btn btn-primary rounded-pill px-4" %>
             <% end %>
           </div>
         </div>

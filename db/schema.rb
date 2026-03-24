@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_23_113002) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_24_052306) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -1041,6 +1041,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_113002) do
   end
 
   create_table "quotation_jobs", force: :cascade do |t|
+    t.boolean "client_approved"
+    t.datetime "client_approved_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.decimal "estimated_hours", precision: 5, scale: 2
@@ -1108,6 +1110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_113002) do
     t.string "contact_number"
     t.datetime "created_at", null: false
     t.string "customer_email"
+    t.string "customer_name"
     t.string "customer_phone"
     t.string "driver_name"
     t.string "email"
@@ -1120,10 +1123,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_23_113002) do
     t.string "person_to_visit"
     t.datetime "portal_access_expires_at"
     t.string "portal_access_token"
+    t.datetime "portal_invitation_sent_at"
     t.bigint "purchase_order_id"
     t.string "purpose"
     t.string "receipt_number"
     t.datetime "received_at"
+    t.datetime "recovery_email_sent_at"
     t.string "status", default: "checked_in"
     t.datetime "updated_at", null: false
     t.bigint "user_id"

@@ -2,24 +2,29 @@
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-md-10 mx-auto">
-      <div class="card">
-        <div class="card-header bg-primary text-white">
-          <h5 class="mb-0">📄 Upload Vendor Quotations for RFQ #<%= @rfq.rfq_number %></h5>
+      <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-header bg-primary text-white rounded-top-4">
+          <h5 class="mb-0 fw-bold">
+            <i class="bi bi-upload me-2"></i>
+            Upload Vendor Quotations for RFQ #<%= @rfq.rfq_number %>
+          </h5>
+          <p class="small mb-0 mt-1 text-white-50">Add quotations from suppliers who have responded</p>
         </div>
-        <div class="card-body">
+        <div class="card-body p-4">
           
           <!-- Display RFQ Info -->
-          <div class="alert alert-info mb-4">
+          <div class="alert alert-info mb-4 border-0 bg-light">
             <div class="row">
               <div class="col-md-6">
-                <h6>RFQ Details:</h6>
+                <h6 class="fw-bold mb-2">RFQ Details:</h6>
                 <p class="mb-0">
                   <strong>RFQ Number:</strong> <%= @rfq.rfq_number %><br>
-                  <strong>Reference Number:</strong> <%= @rfq.rfq_number %> (auto-assigned)
+                  <strong>Due Date:</strong> <%= @rfq.due_date&.strftime("%b %d, %Y") || 'Not set' %><br>
+                  <strong>Status:</strong> <%= @rfq.status.humanize %>
                 </p>
               </div>
               <div class="col-md-6">
-                <h6>Parts:</h6>
+                <h6 class="fw-bold mb-2">Parts Requested:</h6>
                 <ul class="mb-0">
                   <% @rfq.vendor_rfq_items.each do |item| %>
                     <li>
@@ -35,74 +40,119 @@
             </div>
           </div>
 
-          <%= form_with url: vmcott_procurement_create_quotation_path(@rfq), multipart: true, local: true do |f| %>
+          <%= form_with url: vmcott_procurement_create_quotation_path(@rfq), 
+                        method: :post, 
+                        local: true,
+                        multipart: true,
+                        class: "needs-validation" do |f| %>
             
-            <!-- Multiple Quotations Container -->
-            <div id="quotations-container">
-              <!-- Template for first supplier -->
-              <div class="quotation-card border p-3 mb-4 rounded">
-                <h6 class="fw-bold mb-3">Supplier 1</h6>
-                
-                <div class="row mb-3">
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold">Supplier <span class="text-danger">*</span></label>
-                    <%= select_tag "quotations[0][supplier_id]", 
-                          options_from_collection_for_select(Supplier.active.order(:name), :id, :name, @suppliers&.first&.id),
-                          prompt: "Select supplier...", 
-                          class: "form-control supplier-select", 
-                          required: true %>
+            <!-- Supplier Selection - AUTO-SELECTED from URL parameter -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Supplier <span class="text-danger">*</span></label>
+              <% if @preselected_supplier.present? %>
+                <div class="alert alert-success mb-2 d-flex align-items-center">
+                  <i class="bi bi-check-circle-fill me-2"></i>
+                  <div>
+                    Uploading quotation for: <strong><%= @preselected_supplier.name %></strong>
+                    <% if @preselected_supplier.contact_person.present? %>
+                      <br><small class="text-muted">Contact: <%= @preselected_supplier.contact_person %></small>
+                    <% end %>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label fw-bold">Upload Quotation (PDF/Image)</label>
-                    <%= file_field_tag "quotations[0][attachment]", class: "form-control", accept: ".pdf,.jpg,.jpeg,.png" %>
-                  </div>
+                  <input type="hidden" name="vendor_quotation[supplier_id]" value="<%= @preselected_supplier.id %>">
                 </div>
-
-                <div class="mb-3">
-                  <label class="form-label fw-bold">Notes</label>
-                  <%= text_area_tag "quotations[0][notes]", nil, class: "form-control", rows: 2, placeholder: "Optional notes about this quotation..." %>
+                <div class="small text-muted">
+                  <i class="bi bi-info-circle"></i> 
+                  This quotation will be linked to <%= @preselected_supplier.name %>.
+                  <%= link_to "Upload for a different supplier?", vmcott_procurement_upload_quotation_path(rfq_id: @rfq.id), class: "ms-2" %>
                 </div>
-
-                <h6 class="fw-bold mb-3">Quotation Items</h6>
-                
-                <% @rfq.vendor_rfq_items.each_with_index do |item, index| %>
-                  <div class="row mb-2 align-items-end item-row">
-                    <div class="col-md-4">
-                      <label class="form-label">Part</label>
-                      <input type="text" class="form-control" value="<%= item.part&.name || item.custom_part_name || 'Unknown Part' %>" readonly>
-                      <input type="hidden" name="quotations[0][items][item_<%= item.id %>][part_id]" value="<%= item.part_id %>">
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Qty</label>
-                      <input type="number" class="form-control" value="<%= item.quantity %>" readonly>
-                      <input type="hidden" name="quotations[0][items][item_<%= item.id %>][quantity]" value="<%= item.quantity %>">
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Unit Price ($) <span class="text-danger">*</span></label>
-                      <input type="number" name="quotations[0][items][item_<%= item.id %>][unit_price]" 
-                             class="form-control unit-price" step="0.01" required>
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Total</label>
-                      <input type="number" name="quotations[0][items][item_<%= item.id %>][total_price]" 
-                             class="form-control total-price" step="0.01" readonly>
-                    </div>
+              <% else %>
+                <select name="vendor_quotation[supplier_id]" class="form-select" required>
+                  <option value="">Select a supplier</option>
+                  <% @suppliers.each do |supplier| %>
+                    <option value="<%= supplier.id %>">
+                      <%= supplier.name %>
+                      <% if supplier.contact_person.present? %> - <%= supplier.contact_person %><% end %>
+                    </option>
+                  <% end %>
+                </select>
+                <div class="small text-muted mt-1">Select the supplier that provided this quotation</div>
+              <% end %>
+            </div>
+            
+            <!-- Parts & Prices Section - Single supplier version with flat naming -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Parts & Prices</label>
+              <div class="card border">
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Part</th>
+                          <th>Quantity</th>
+                          <th class="text-end">Unit Price ($)</th>
+                          <th class="text-end">Total ($)</th>
+                         </thead>
+                      <tbody>
+                        <% @rfq.vendor_rfq_items.each_with_index do |item, idx| %>
+                          <tr class="item-row" data-item-id="<%= item.id %>">
+                            <td>
+                              <strong><%= item.part&.name || item.custom_part_name || 'Unknown Part' %></strong>
+                              <% if item.description.present? %>
+                                <br><small class="text-muted"><%= item.description %></small>
+                              <% end %>
+                              <!-- Store RFQ item ID for reference -->
+                              <input type="hidden" name="items[<%= item.id %>][rfq_item_id]" value="<%= item.id %>">
+                              <input type="hidden" name="items[<%= item.id %>][part_id]" value="<%= item.part_id %>">
+                              <input type="hidden" name="items[<%= item.id %>][quantity]" value="<%= item.quantity %>">
+                             </td>
+                            <td class="text-center"><%= item.quantity %></td>
+                            <td class="text-end">
+                              <input type="number" 
+                                     name="unit_price_<%= item.id %>" 
+                                     class="form-control form-control-sm unit-price text-end" 
+                                     step="0.01" 
+                                     min="0" 
+                                     placeholder="0.00"
+                                     data-quantity="<%= item.quantity %>"
+                                     data-item-id="<%= item.id %>"
+                                     required>
+                             </td>
+                            <td class="text-end">
+                              <span class="total-price fw-semibold text-success" data-item-id="<%= item.id %>">$0.00</span>
+                             </td>
+                           </tr>
+                        <% end %>
+                      </tbody>
+                      <tfoot>
+                        <tr class="table-active">
+                          <td colspan="3" class="text-end fw-bold">Grand Total:</td>
+                          <td class="text-end fw-bold text-success fs-5" id="grand-total">$0.00</td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
-                <% end %>
-
-                <div class="text-end mt-2">
-                  <button type="button" class="btn btn-outline-danger btn-sm remove-quotation">Remove Supplier</button>
                 </div>
               </div>
             </div>
-
-            <button type="button" class="btn btn-outline-primary mb-4" id="add-supplier">
-              <i class="bi bi-plus-circle"></i> Add Another Supplier
-            </button>
-
-            <div class="d-flex justify-content-end gap-2">
-              <%= link_to "Cancel", vmcott_procurement_dashboard_path, class: "btn btn-outline-secondary" %>
-              <%= f.submit "Upload All Quotations", class: "btn btn-primary" %>
+            
+            <!-- Notes -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Notes (Optional)</label>
+              <textarea name="vendor_quotation[notes]" class="form-control" rows="3" placeholder="e.g., Delivery time, warranty information, special conditions..."></textarea>
+            </div>
+            
+            <!-- Attachment -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">Attachment (Optional)</label>
+              <input type="file" name="vendor_quotation[attachment]" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+              <small class="text-muted">Upload PDF, JPG, or PNG files (max 5MB)</small>
+            </div>
+            
+            <!-- Submit Buttons -->
+            <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+              <%= link_to "Cancel", vmcott_vendor_rfq_path(@rfq), class: "btn btn-outline-secondary rounded-pill px-4" %>
+              <%= f.submit "Upload Quotation", class: "btn btn-primary rounded-pill px-4", id: "submit-btn" %>
             </div>
           <% end %>
         </div>
@@ -113,66 +163,72 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  let supplierCount = 1;
+  // Get all unit price inputs
+  const unitPriceInputs = document.querySelectorAll('.unit-price');
+  const grandTotalSpan = document.getElementById('grand-total');
+  const submitBtn = document.getElementById('submit-btn');
   
-  // Add new supplier quotation card
-  document.getElementById('add-supplier').addEventListener('click', function() {
-    supplierCount++;
-    const container = document.getElementById('quotations-container');
-    const template = document.querySelector('.quotation-card').cloneNode(true);
+  function calculateAllTotals() {
+    let grandTotal = 0;
     
-    // Update all input names to use the new index
-    template.querySelectorAll('input, select, textarea').forEach(el => {
-      if (el.name) {
-        el.name = el.name.replace(/quotations\[\d+\]/, `quotations[${supplierCount - 1}]`);
+    unitPriceInputs.forEach(input => {
+      const quantity = parseFloat(input.dataset.quantity) || 0;
+      const unitPrice = parseFloat(input.value) || 0;
+      const total = quantity * unitPrice;
+      const itemId = input.dataset.itemId;
+      const totalSpan = document.querySelector(`.total-price[data-item-id="${itemId}"]`);
+      
+      if (totalSpan) {
+        totalSpan.textContent = `$${total.toFixed(2)}`;
       }
-      if (el.type !== 'hidden' && el.type !== 'file') {
-        el.value = '';
-      }
-      if (el.classList.contains('supplier-select')) {
-        el.value = '';
-      }
-      // Reset unit price and total fields
-      if (el.classList.contains('unit-price')) {
-        el.value = '';
-      }
-      if (el.classList.contains('total-price')) {
-        el.value = '';
-      }
+      
+      grandTotal += total;
     });
     
-    // Update the heading
-    const heading = template.querySelector('h6');
-    if (heading) {
-      heading.textContent = `Supplier ${supplierCount}`;
+    if (grandTotalSpan) {
+      grandTotalSpan.textContent = `$${grandTotal.toFixed(2)}`;
     }
     
-    container.appendChild(template);
-  });
+    // Enable/disable submit button
+    if (submitBtn) {
+      const hasAnyPrice = Array.from(unitPriceInputs).some(input => parseFloat(input.value) > 0);
+      submitBtn.disabled = !hasAnyPrice;
+    }
+  }
   
-  // Remove supplier card
-  document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('remove-quotation')) {
-      const card = e.target.closest('.quotation-card');
-      if (document.querySelectorAll('.quotation-card').length > 1) {
-        card.remove();
-      } else {
-        alert('You need at least one supplier quotation.');
+  // Add event listeners to each unit price input
+  unitPriceInputs.forEach(input => {
+    input.addEventListener('input', calculateAllTotals);
+    input.addEventListener('blur', function() {
+      if (this.value && parseFloat(this.value) < 0) {
+        this.value = 0;
+        calculateAllTotals();
       }
-    }
+    });
   });
   
-  // Calculate total when unit price changes
-  document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('unit-price')) {
-      const row = e.target.closest('.item-row');
-      const quantityInput = row.querySelector('input[name*="[quantity]"]');
-      const quantity = quantityInput ? parseFloat(quantityInput.value) : 1;
-      const unitPrice = parseFloat(e.target.value) || 0;
-      const totalField = row.querySelector('.total-price');
-      
-      totalField.value = (unitPrice * quantity).toFixed(2);
-    }
-  });
+  // Initial calculation
+  calculateAllTotals();
 });
 </script>
+
+<style>
+  .unit-price:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+  }
+  .total-price {
+    font-weight: 600;
+  }
+  #grand-total {
+    font-weight: bold;
+  }
+  .alert-info {
+    background-color: #f8fafc;
+    border-left: 4px solid #3b82f6;
+  }
+  .alert-success {
+    background-color: #d1fae5;
+    border: 1px solid #10b981;
+  }
+</style>
