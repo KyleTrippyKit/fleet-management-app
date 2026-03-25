@@ -76,3 +76,13 @@ gem "redis", "~> 5.0"  # Required for Action Cable in production
 gem "whenever", require: false
 gem "importmap-rails"
 gem 'letter_opener'
+# Testing gems
+group :test do
+  gem "minitest"
+  gem "minitest-rails"
+  gem "minitest-reporters"
+  gem "rails-controller-testing"
+  gem "capybara"
+  gem "selenium-webdriver"
+  gem "webdrivers"
+end

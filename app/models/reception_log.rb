@@ -4,6 +4,11 @@
 # Added enhanced customer portal functionality
 
 class ReceptionLog < ApplicationRecord
+  after_initialize :debug_attributes
+
+  def debug_attributes
+    puts "DEBUG: ReceptionLog attributes: #{attributes.inspect}"
+  end
   # Associations
   belongs_to :vehicle
   belongs_to :security_gate_officer, class_name: 'User', foreign_key: 'user_id'
@@ -45,12 +50,13 @@ class ReceptionLog < ApplicationRecord
   end
   
   def create_vehicle_status
+    puts "DEBUG: Creating VehicleStatus with user_id: #{user_id}"
     VehicleStatus.create!(
       vehicle: vehicle,
       status: 'vehicle_received',
       notes: "Received from #{driver_name} at #{received_at.strftime('%I:%M %p')}",
       current: true,
-      created_by: security_gate_officer
+      created_by_id: user_id
     )
   end
   
@@ -227,7 +233,7 @@ class ReceptionLog < ApplicationRecord
       status: inspection&.status || 'Pending',
       portal_active: portal_access_valid?,
       portal_token: portal_access_token,
-      created_by: security_gate_officer&.name
+      created_by_id: user_id
     }
   end
 

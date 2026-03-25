@@ -17,6 +17,8 @@ class Quotation < ApplicationRecord
   belongs_to :vehicle, optional: true
   belongs_to :rfq, optional: true
   
+  include Auditable
+  
   # Keep agency for backward compatibility
   belongs_to :agency, optional: true
   
@@ -65,7 +67,8 @@ class Quotation < ApplicationRecord
     expired: 4,
     converted: 5,
     pending_acceptance: 6,
-    partially_rejected: 7
+    partially_rejected: 7,
+    superseded: 8
   }, default: :draft
 
   # ------------------------------------------------------------

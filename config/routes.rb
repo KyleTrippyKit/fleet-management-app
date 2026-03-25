@@ -364,6 +364,68 @@ Rails.application.routes.draw do
     end
 
     # ========================
+    # WORKFLOW MANAGEMENT ROUTES
+    # ========================
+    resources :inspections do
+      member do
+        # Phase 2: Inspection
+        post :record_findings
+        
+        # Phase 3: Mechanic Review
+        post :mechanic_review
+        post :request_parts
+        
+        # Phase 4.5: Supervisor Selection
+        post :select_workflow
+        
+        # Phase 5: Quotation
+        post :create_quotation
+        
+        # Phase 7: Job Execution
+        post :start_job
+        post :pause_job
+        post :block_job
+        post :add_finding
+        post :complete_job
+        
+        # Phase 8: Quality Check
+        post :perform_qc
+        
+        # Phase 9: Payment & Pickup
+        post :process_payment
+        post :schedule_pickup
+        post :pickup_vehicle
+      end
+      
+      resources :quotations do
+        member do
+          # Phase 6: Client Approval
+          post :client_approve
+          post :client_approve_partial
+          post :client_reject
+          post :client_request_changes
+        end
+      end
+    end
+
+        # ========================
+    # CLIENT PORTAL ROUTES
+    # ========================
+    namespace :client_portal do
+      get :dashboard
+      get :quotations
+      get 'quotation/:id', to: 'quotations#show'
+      post 'quotation/:id/approve', to: 'quotations#approve'
+      post 'quotation/:id/approve_selected', to: 'quotations#approve_selected'
+      post 'quotation/:id/reject', to: 'quotations#reject'
+      post 'quotation/:id/request_changes', to: 'quotations#request_changes'
+      post 'quotation/:id/upload_po', to: 'quotations#upload_po'
+      get :payments
+      post :make_payment
+      get :vehicle_status
+    end
+
+    # ========================
     # PARTS REQUESTS - Stock update
     # ========================
     resources :parts_requests, only: [:index, :show, :update] do

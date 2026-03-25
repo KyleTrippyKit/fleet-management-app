@@ -1,0 +1,583 @@
+# test/services/workflow_manager_test.rb
+require 'test_helper'
+
+class WorkflowManagerTest < ActiveSupport::TestCase
+  setup do
+    # Create fresh test data - no fixtures!
+    @agency = Agency.create!(name: "Test Agency", code: "TEST")
+    
+    @vehicle = Vehicle.create!(
+      license_plate: "PBC-1234",
+      make: "Toyota",
+      model: "Corolla",
+      year_of_manufacture: 2020,
+      vehicle_type: "Sedan",
+      chassis_number: "CHAS123456",
+      serial_number: "SER123456",
+      status: "active",
+      agency: @agency
+    )
+    
+    @inspector = User.create!(
+      email: "inspector_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "inspector",
+      name: "Test Inspector",
+      agency: @agency
+    )
+    
+    @procurement = User.create!(
+      email: "procurement_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "procurement",
+      name: "Test Procurement",
+      agency: @agency
+    )
+    
+    @workshop_supervisor = User.create!(
+      email: "workshop_supervisor_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "workshop_supervisor",
+      name: "Test Workshop Supervisor",
+      agency: @agency
+    )
+    
+    @mechanic = User.create!(
+      email: "mechanic_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "mechanic",
+      name: "Test Mechanic",
+      agency: @agency
+    )
+    
+    @client = User.create!(
+      email: "client_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "client",
+      name: "Test Client",
+      agency: @agency
+    )
+    
+    @inspection = Inspection.create!(
+      vehicle: @vehicle,
+      inspector: @inspector,
+      status: "pending_inspection",
+      workflow_type: "work_before_payment",
+      client_approval_status: "pending",
+      payment_status: "pending"
+    )
+    
+    @workflow = WorkflowManager.new(@inspection)
+    
+    # Set Current.user for the workflow
+    Current.user = @inspector
+  end
+
+  teardown do
+    Current.user = nil
+    # Delete in correct order to avoid foreign key violations
+    Notification.destroy_all
+    Payment.destroy_all
+    Invoice.destroy_all
+    Quotation.destroy_all
+    VendorRfq.destroy_all
+    PartsRequest.destroy_all
+    InspectionJob.destroy_all
+    Finding.destroy_all
+    ReceptionLog.destroy_all
+    Inspection.destroy_all
+    Vehicle.destroy_all
+    User.where(agency: @agency).destroy_all
+    Agency.destroy_all
+  end
+
+  # PHASE 1: Vehicle Intake Tests
+  test "scenario_1_walkin_customer_intake" do
+    params = {
+      client_type: 'walkin',
+      payment_terms: 'cash',
+      customer_name: 'John Doe',
+      visitor_name: 'John Doe',
+      driver_name: 'John Doe',
+      customer_phone: '868-123-4567',
+      customer_email: 'john@example.com',
+      expected_pickup_date: 3.days.from_now.to_date
+    }
+    
+    @workflow.intake_vehicle(params)
+    
+    assert_equal 'pending_inspection', @inspection.status
+    assert_equal 'walkin', @inspection.client_type
+    assert_equal 'cash', @inspection.payment_terms
+    assert @inspection.received_at.present?
+    assert @inspection.vehicle.reception_logs.exists?
+  end
+
+  test "scenario_2_scheduled_dropoff_intake" do
+    params = {
+      client_type: 'scheduled',
+      payment_terms: 'net_30',
+      visitor_name: 'Jane Smith',
+      driver_name: 'Jane Smith',
+      expected_pickup_date: 5.days.from_now.to_date
+    }
+    
+    @workflow.intake_vehicle(params)
+    
+    assert_equal 'pending_inspection', @inspection.status
+    assert_equal 'scheduled', @inspection.client_type
+  end
+
+  test "scenario_3_company_vehicle_intake" do
+    params = {
+      client_type: 'company',
+      payment_terms: 'net_30',
+      visitor_name: 'Company Driver',
+      driver_name: 'Company Driver',
+      expected_pickup_date: 5.days.from_now.to_date
+    }
+    
+    @workflow.intake_vehicle(params)
+    
+    assert_equal 'company', @inspection.client_type
+    assert_equal 'net_30', @inspection.payment_terms
+  end
+
+  # PHASE 2: Inspection Tests
+  test "scenario_4_normal_inspection_with_issues" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    
+    findings = [
+      {
+        description: "Brake pads worn",
+        labor_cost: 85.00,
+        severity: 'major',
+        blocking: false,
+        priority: 'high'
+      }
+    ]
+    
+    result = @workflow.perform_inspection(findings)
+    
+    assert_equal 'needs_mechanic_review', result[:status]
+    assert_equal 1, @inspection.inspection_jobs.count
+    assert_equal 1, @inspection.findings.count
+  end
+
+  test "scenario_5_no_issues_found" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    result = @workflow.perform_inspection([])
+    
+    assert_equal 'no_work_needed', result[:status]
+    assert_equal 'ready_for_pickup', @inspection.status
+    assert @inspection.no_work_needed
+  end
+
+  # PHASE 3: Mechanic Review Tests
+  test "scenario_10_parts_in_stock" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    job = @inspection.inspection_jobs.first
+    
+    part = Part.create!(name: "Brake Pads", part_number: "BP-001", current_stock: 10, price: 45.00)
+    
+    review_params = {
+      description: "Brake repair with parts",
+      labor_cost: 85.00,
+      parts_requested: [
+        { part: part, quantity: 2 }
+      ]
+    }
+    
+    job = @workflow.mechanic_review(job.id, review_params)
+    
+    assert_equal 'pending_parts_review', job.status
+    assert job.requires_part_approval
+    assert job.parts_requests.exists?
+  end
+
+  test "scenario_11_parts_not_in_stock" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    job = @inspection.inspection_jobs.first
+    
+    part = Part.create!(name: "Rare Part", part_number: "RP-001", current_stock: 0, price: 150.00)
+    
+    review_params = {
+      description: "Brake repair with rare part",
+      labor_cost: 85.00,
+      parts_requested: [
+        { part: part, quantity: 1 }
+      ]
+    }
+    
+    job = @workflow.mechanic_review(job.id, review_params)
+    parts_request = job.parts_requests.first
+    
+    # Process parts request as out of stock
+    @workflow.process_parts_request(parts_request.id, :send_to_procurement)
+    
+    parts_request.reload
+    assert_equal 'rfq_sent', parts_request.status
+  end
+
+  # PHASE 4.5: Supervisor Workflow Selection
+  test "scenario_workflow_payment_before_work" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Engine repair", labor_cost: 500.00, severity: 'major' }])
+    
+    params = {
+      workflow_type: 'payment_before_work',
+      labor_rate: 85.00,
+      parts_markup_percentage: 30
+    }
+    
+    @workflow.supervisor_select_workflow(params)
+    
+    assert_equal 'payment_before_work', @inspection.workflow_type
+    assert_equal 'pending_procurement_quotation', @inspection.status
+    assert_equal 85.00, @inspection.labor_rate
+  end
+
+  test "scenario_workflow_work_before_payment" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Engine repair", labor_cost: 500.00, severity: 'major' }])
+    
+    params = {
+      workflow_type: 'work_before_payment',
+      labor_rate: 85.00,
+      parts_markup_percentage: 30
+    }
+    
+    @workflow.supervisor_select_workflow(params)
+    
+    assert_equal 'work_before_payment', @inspection.workflow_type
+  end
+
+  # PHASE 6: Client Approval Tests
+  test "scenario_6_full_approval" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Job 1", labor_cost: 100, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    
+    # Create quotation
+    quotation = @workflow.create_quotation({})
+    job_ids = @inspection.inspection_jobs.map(&:id)
+    
+    # Client approves all
+    @workflow.client_approve_quotation(quotation, { jobs: job_ids })
+    
+    assert_equal 'accepted', quotation.status
+    assert_equal 'full_approved', @inspection.client_approval_status
+    assert_equal 'approved_for_repair', @inspection.status
+  end
+
+  test "scenario_7_partial_approval" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([
+      { description: "Job 1", labor_cost: 100, severity: 'major' },
+      { description: "Job 2", labor_cost: 200, severity: 'major' },
+      { description: "Job 3", labor_cost: 150, severity: 'major' }
+    ])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    
+    # Create quotation
+    quotation = @workflow.create_quotation({})
+    job_ids = @inspection.inspection_jobs.map(&:id)
+    
+    # Client approves only first 2 jobs
+    approved_jobs = job_ids.first(2)
+    @workflow.client_approve_quotation(quotation, { jobs: approved_jobs })
+    
+    # Should create a new quotation version with only approved items
+    new_quotation = Quotation.where(original_quotation_id: quotation.id).last
+    assert new_quotation.present?
+    assert_equal 'accepted', new_quotation.status
+    assert_equal 2, new_quotation.quotation_jobs.count
+    assert_equal 'partial_approved', @inspection.client_approval_status
+  end
+
+  test "scenario_8_rejection" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Job 1", labor_cost: 100, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    
+    quotation = @workflow.create_quotation({})
+    
+    @workflow.client_approve_quotation(quotation, { jobs: [] })
+    
+    assert_equal 'rejected', quotation.status
+    assert_equal 'rejected', @inspection.client_approval_status
+    assert_equal 'on_hold', @inspection.status
+  end
+
+  # PHASE 7: Job Execution Tests
+  test "scenario_13_smooth_job_execution" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    
+    # Start job
+    @workflow.execute_job(job.id, :start)
+    job.reload
+    assert_equal 'in_progress', job.status
+    assert job.started_at.present?
+    
+    # Complete job
+    @workflow.execute_job(job.id, :complete, { actual_labor_cost: 85.00 })
+    job.reload
+    assert_equal 'completed', job.status
+    assert job.completed_at.present?
+  end
+
+  test "scenario_14_mechanic_pauses_job" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    
+    # Pause job
+    @workflow.execute_job(job.id, :pause, { reason: "Waiting for parts" })
+    job.reload
+    assert_equal 'paused', job.status
+    assert_equal "Waiting for parts", job.paused_reason
+  end
+
+  test "scenario_15_job_blocked_critical_issue" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Engine repair", labor_cost: 500.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    
+    # Block job with critical finding
+    @workflow.execute_job(job.id, :block, { reason: "Found cracked engine block", requires_quote: true })
+    job.reload
+    assert_equal 'blocked', job.status
+    assert @inspection.findings.exists?(blocking: true)
+  end
+
+  test "scenario_16_non_blocking_issue" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    
+    # Add non-blocking finding
+    @workflow.execute_job(job.id, :add_finding, { 
+      description: "Slight oil weep, recommend monitoring", 
+      severity: 'minor',
+      requires_approval: false 
+    })
+    
+    assert @inspection.findings.exists?(description: "Slight oil weep, recommend monitoring")
+    job.reload
+    assert_equal 'in_progress', job.status
+  end
+
+  # PHASE 8: Quality Check Tests
+  test "scenario_19_inspector_approves" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    @workflow.execute_job(job.id, :complete)
+    
+    # Perform QC
+    @workflow.perform_qc({ approved: true, notes: "Work looks good", photos: [] })
+    @inspection.reload
+    
+    assert_equal 'ready_for_pickup', @inspection.status
+    assert @inspection.pickup_code.present?
+    assert @inspection.qc_completed_at.present?
+  end
+
+  test "scenario_20_inspector_rejects_work" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    @workflow.execute_job(job.id, :complete)
+    
+    # Reject in QC
+    @workflow.perform_qc({ approved: false, reason: "Brakes not properly bled", photos: [] })
+    @inspection.reload
+    job.reload
+    
+    assert_equal 'rework_needed', @inspection.status
+    assert_equal 'rework_needed', job.status
+    assert_equal "Brakes not properly bled", @inspection.qc_failure_reason
+  end
+
+  # PHASE 9: Payment & Pickup Tests
+  test "scenario_21_immediate_payment" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'payment_before_work', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    
+    # Process payment
+    @workflow.process_payment({ 
+      paid_now: true, 
+      amount: 85.00, 
+      method: 'credit_card',
+      transaction_id: 'txn_123456'
+    })
+    
+    assert_equal 'paid', @inspection.payment_status
+    assert @inspection.paid_at.present?
+  end
+
+  test "scenario_22_pay_at_pickup" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    # Process as pay at pickup
+    @workflow.process_payment({ paid_now: false })
+    
+    assert_equal 'pending_pickup_payment', @inspection.payment_status
+  end
+
+  test "scenario_23_company_billing" do
+    # Create a company vehicle
+    agency = Agency.create!(name: "Test Agency", code: "TEST_AGENCY")
+    company = Client.create!(name: "ABC Corp", client_type: "corporate")
+    vehicle = Vehicle.create!(
+      license_plate: "ABC-123", 
+      make: "Toyota", 
+      model: "Corolla", 
+      owner: company,
+      agency: agency,
+      status: "active"
+    )
+    
+    inspector = User.create!(
+      email: "inspector_company_#{Time.current.to_i}_#{rand(1000)}@test.com",
+      password: "password123",
+      role: "inspector",
+      name: "Test Inspector",
+      agency: agency
+    )
+    
+    inspection = Inspection.create!(
+      vehicle: vehicle,
+      inspector: inspector,
+      client_type: 'company',
+      payment_terms: 'net_30',
+      status: "pending_inspection"
+    )
+    
+    workflow = WorkflowManager.new(inspection)
+    workflow.intake_vehicle({ client_type: 'company', payment_terms: 'net_30', visitor_name: 'Company Driver', driver_name: 'Company Driver' })
+    workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = workflow.create_quotation({})
+    workflow.client_approve_quotation(quotation, { jobs: inspection.inspection_jobs.map(&:id) })
+    
+    workflow.process_payment({ paid_now: false })
+    
+    assert_equal 'on_account', inspection.payment_status
+  end
+
+  test "scenario_25_scheduled_pickup" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    @workflow.execute_job(job.id, :complete)
+    @workflow.perform_qc({ approved: true, notes: "Good", photos: [] })
+    
+    # Schedule and pickup
+    @inspection.update!(pickup_scheduled_at: 1.hour.from_now)
+    result = @workflow.pickup_vehicle({ pickup_code: @inspection.pickup_code, picked_up_by: "John Doe" })
+    
+    assert result[:success]
+    @inspection.reload
+    assert_equal 'completed', @inspection.status
+    assert @inspection.actual_pickup_date.present?
+  end
+
+  test "scenario_26_late_pickup_with_storage_fee" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([{ description: "Brake repair", labor_cost: 85.00, severity: 'major' }])
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    job = @inspection.inspection_jobs.first
+    @workflow.execute_job(job.id, :start)
+    @workflow.execute_job(job.id, :complete)
+    @workflow.perform_qc({ approved: true, notes: "Good", photos: [] })
+    
+    # Set expected pickup date to 5 days ago
+    @inspection.update!(expected_pickup_date: 5.days.ago.to_date)
+    
+    # Pickup now (late)
+    result = @workflow.pickup_vehicle({ pickup_code: @inspection.pickup_code, picked_up_by: "John Doe" })
+    
+    assert result[:success]
+    @inspection.reload
+    assert_equal 5, @inspection.storage_fee_days
+  end
+
+  # BONUS SCENARIO: Job Dependencies
+  test "scenario_28_job_dependencies" do
+    @workflow.intake_vehicle({ client_type: 'walkin', payment_terms: 'cash', visitor_name: 'John Doe', driver_name: 'John Doe' })
+    @workflow.perform_inspection([
+      { description: "Suspension repair", labor_cost: 200.00, severity: 'major' },
+      { description: "Wheel alignment", labor_cost: 80.00, severity: 'major' }
+    ])
+    
+    job1 = @inspection.inspection_jobs.first
+    job2 = @inspection.inspection_jobs.last
+    
+    # Add dependency: wheel alignment depends on suspension repair
+    job2.add_dependency(job1)
+    
+    @workflow.supervisor_select_workflow({ workflow_type: 'work_before_payment', labor_rate: 85, parts_markup_percentage: 30 })
+    quotation = @workflow.create_quotation({})
+    @workflow.client_approve_quotation(quotation, { jobs: @inspection.inspection_jobs.map(&:id) })
+    
+    # Try to start job2 before job1
+    result = @workflow.execute_job(job2.id, :start)
+    assert result[:error].present?
+    
+    # Complete job1 first
+    @workflow.execute_job(job1.id, :start)
+    @workflow.execute_job(job1.id, :complete)
+    
+    # Now job2 can start
+    result = @workflow.execute_job(job2.id, :start)
+    assert result.is_a?(InspectionJob)
+  end
+end

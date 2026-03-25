@@ -136,7 +136,7 @@ class VehicleStatus < ApplicationRecord
         if agency_users.any?
           agency_users.each do |user|
             Notification.create!(
-              user: user,
+              user_id: user.id,
               title: "Vehicle Status Update",
               message: "Vehicle #{license_plate} is now #{status_display}",
               link: Rails.application.routes.url_helpers.vehicle_path(vehicle),

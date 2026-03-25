@@ -12,7 +12,7 @@ class QuotationJob < ApplicationRecord
   # Validations
   validates :name, presence: true
   validates :job_type, presence: true
-  validates :quotation_id, presence: true
+  # validates :quotation_id, presence: true
   
   # Comment out the enum for now to see if that's the issue
   # enum job_type: {

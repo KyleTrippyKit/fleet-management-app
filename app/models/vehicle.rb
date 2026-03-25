@@ -6,6 +6,7 @@
 # UPDATED: Added skip_optional_validation flag for manual entry form
 
 class Vehicle < ApplicationRecord
+  has_many :reception_logs
   # ------------------------------------------------------------
   # Polymorphic Association (replaces belongs_to :agency)
   # ------------------------------------------------------------

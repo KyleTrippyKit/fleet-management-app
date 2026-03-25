@@ -369,7 +369,7 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # DASHBOARD CACHING - FIXED (Find this method around line 380)
+  # DASHBOARD CACHING - FIXED
   # =====================================================
   def cache_dashboard_data
     return yield unless current_user.present?
@@ -880,9 +880,13 @@ class ApplicationController < ActionController::Base
   end
 
   def set_current_context
-    Current.with(current_user, request) do
-      yield
-    end
+    # Set Current attributes before yielding to the action
+    Current.user = current_user
+    Current.set_request(request)
+    yield
+  ensure
+    # Clean up after the action completes
+    Current.reset
   end
 
   def set_current_user
