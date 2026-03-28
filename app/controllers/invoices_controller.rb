@@ -268,31 +268,33 @@ class InvoicesController < ApplicationController
   # ========================
   # GET /invoices/:id/print
   # ========================
+  # In your invoices_controller.rb, find the print action
   def print
     authorize @invoice
 
     respond_to do |format|
       format.pdf do
         render pdf: "invoice-#{@invoice.invoice_number}",
-               template: "invoices/print",
-               layout: "pdf",
-               formats: [:html],
-               encoding: 'UTF-8',
-               page_size: 'A4',
-               margin: { top: 20, bottom: 20, left: 15, right: 15 },
-               show_as_html: params[:debug].present?,
-               header: {
+              template: "invoices/print",
+              layout: "pdf",
+              formats: [:html],
+              encoding: 'UTF-8',
+              page_size: 'A4',
+              margin: { top: 20, bottom: 20, left: 15, right: 15 },
+              show_as_html: params[:debug].present?,
+              header: {
                   html: {
-                    content: render_to_string(partial: 'shared/pdf/header', formats: [:html], layout: false)
+                    content: render_to_string(partial: 'shared/pdf/header', formats: [:html], layout: 'pdf')
                   }
                 },
                 footer: {
                   html: {
-                    content: render_to_string(partial: 'shared/pdf/footer', formats: [:html], layout: false)
+                    content: render_to_string(partial: 'shared/pdf/footer', formats: [:html], layout: 'pdf')
                   }
                 }
       end
-      format.html { render :print, layout: false }
+      # ✅ FIXED: Use pdf layout for HTML print version too
+      format.html { render :print, layout: 'pdf' }
     end
   end
 

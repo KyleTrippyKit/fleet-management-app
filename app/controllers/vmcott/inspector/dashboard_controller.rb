@@ -1,4 +1,3 @@
-# app/controllers/vmcott/inspector/dashboard_controller.rb
 class Vmcott::Inspector::DashboardController < ApplicationController
   # Skip the dashboard caching for this controller - THIS IS THE FIX!
   skip_around_action :cache_dashboard_data, if: :dashboard_controller?
@@ -15,7 +14,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
   def index
     # FIXED: Only show reception logs that don't have any inspection yet
-    # We need to check if an inspection exists for this vehicle
     vehicle_ids_with_inspections = Inspection.pluck(:vehicle_id).uniq
     
     @pending_inspections = ReceptionLog.where(status: 'checked_in')
@@ -23,37 +21,31 @@ class Vmcott::Inspector::DashboardController < ApplicationController
                                        .includes(:vehicle)
                                        .order(created_at: :desc)
     
-    # Show inspections that are in progress (started by current inspector)
     @in_progress = Inspection.where(inspector: current_user)
                              .where(status: 'pending_inspection')
                              .includes(:vehicle, :inspection_jobs)
                              .order(updated_at: :desc)
     
-    # QC pending inspections (completed by mechanics, waiting for inspector QC)
     @qc_pending = Inspection.where(status: 'ready_for_qc')
                             .includes(:vehicle, :inspection_jobs)
                             .order(updated_at: :desc)
     
-    # Recent completed inspections
     @recent_completed = Inspection.where(inspector: current_user)
                                    .where(status: ['qc_completed', 'ready_for_pickup', 'completed', 'approved_for_repair'])
                                    .includes(:vehicle, :inspection_jobs)
                                    .order(created_at: :desc)
                                    .limit(5)
     
-    # Set headers to prevent caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
-  # NEW: Recent Activity page - Shows all completed inspections with filters
   def recent_activity
     @inspections = Inspection.includes(:vehicle, :inspector)
                              .where(status: ['approved_for_repair', 'ready_for_pickup', 'qc_completed', 'completed', 'parts_received'])
                              .order(updated_at: :desc)
     
-    # Filter by date range if provided
     if params[:from_date].present?
       @inspections = @inspections.where("created_at >= ?", params[:from_date].to_date.beginning_of_day)
     end
@@ -62,22 +54,16 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       @inspections = @inspections.where("created_at <= ?", params[:to_date].to_date.end_of_day)
     end
     
-    # Filter by status if provided
     if params[:status].present?
       @inspections = @inspections.where(status: params[:status])
     end
     
-    # Filter by vehicle if provided
     if params[:vehicle_id].present?
       @inspections = @inspections.where(vehicle_id: params[:vehicle_id])
     end
     
     @inspections = @inspections.page(params[:page]).per(20)
-    
-    # Get vehicles for filter dropdown
     @vehicles = Vehicle.order(:license_plate)
-    
-    # Stats for the page
     @total_count = @inspections.total_count
     @approved_count = Inspection.where(status: 'approved_for_repair').count
     @completed_count = Inspection.where(status: 'completed').count
@@ -97,7 +83,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @inspection = Inspection.find_by(vehicle: @vehicle, status: 'pending_inspection')
     @original_request = find_original_request(@vehicle)
     
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -180,7 +165,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @job_templates = JobTemplate.for_vehicle(@vehicle).active
     @pre_inspection_data = session[:pre_inspection_data]
     
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -205,6 +189,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       diagnostic_equipment: session[:pre_inspection_data]['diagnostic_equipment']
     }
 
+    # 🔥 FIX: Status goes to supervisor for review
     @inspection = Inspection.new(
       vehicle: @vehicle,
       inspector: current_user,
@@ -212,13 +197,14 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       notes: build_final_notes(session[:pre_inspection_data], params[:notes]),
       next_service_mileage: params[:next_service_mileage],
       next_service_date: params[:next_service_date],
-      status: :pending_mechanic_review,
+      status: :pending_supervisor_review,  # 🔥 Send to supervisor, not mechanics
       metadata: metadata
     )
 
     ActiveRecord::Base.transaction do
       @inspection.save!
 
+      # Add inspector's job recommendations (not final jobs)
       if params[:job_template_ids].present?
         params[:job_template_ids].each do |template_id|
           template = JobTemplate.find(template_id)
@@ -227,7 +213,8 @@ class Vmcott::Inspector::DashboardController < ApplicationController
             description: template.name,
             priority: session[:pre_inspection_data]['priority'] || 'normal',
             recommendation_source: 'inspector',
-            verification_status: 'pending'
+            verification_status: 'pending',
+            status: 'pending_supervisor_review'  # 🔥 Needs supervisor approval
           )
         end
       end
@@ -238,19 +225,22 @@ class Vmcott::Inspector::DashboardController < ApplicationController
             description: custom_job[:description],
             priority: session[:pre_inspection_data]['priority'] || 'normal',
             recommendation_source: 'inspector',
-            verification_status: 'pending'
+            verification_status: 'pending',
+            status: 'pending_supervisor_review'  # 🔥 Needs supervisor approval
           )
         end
       end
 
       @inspection.vehicle.update(mileage: session[:pre_inspection_data]['mileage']) if session[:pre_inspection_data]['mileage'].present?
 
-      notify_mechanics_for_review(@inspection)
+      # 🔥 FIX: Notify supervisor, not mechanics
+      notify_supervisor_for_review(@inspection)
 
       session.delete(:pre_inspection_data)
       session.delete(:pre_inspection_completed)
 
-      redirect_to vmcott_inspector_inspection_path(@inspection), notice: "Inspection completed. Sent to mechanics for review."
+      redirect_to vmcott_inspector_inspection_path(@inspection), 
+                  notice: "✅ Inspection completed. Job recommendations sent to supervisor for approval."
     end
   rescue ActiveRecord::RecordInvalid => e
     flash[:alert] = "Error saving inspection: #{e.message}"
@@ -273,7 +263,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     
     @pre_inspection_data = @inspection.metadata&.[]('pre_inspection')
     
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -288,13 +277,11 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     
     @vehicle = @inspection.vehicle
     
-    # Check if the inspection is ready for QC
     unless @inspection.ready_for_qc?
       flash[:alert] = "This inspection is not ready for QC. Current status: #{@inspection.status}"
       redirect_to vmcott_inspector_inspection_path(@inspection) and return
     end
     
-    # Disable caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
@@ -319,19 +306,15 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       failure_reason = params[:failure_reason] || "Quality control failed"
       
       begin
-        # Reset ALL jobs in this inspection so mechanics can work on them again
         @inspection.inspection_jobs.each do |job|
-          # Clear completed_at timestamp
           job.update_columns(completed_at: nil)
           
-          # Find and reset the mechanic assignment back to in_progress
           assignment = MechanicAssignment.find_by(inspection_job_id: job.id)
           if assignment
             assignment.update!(status: 'in_progress')
           end
         end
         
-        # Update the inspection with failure notes and set status back to in_progress
         @inspection.update!(
           notes: @inspection.notes.to_s + "\n\n" + "="*50 + 
                  "\n🔴 QC FAILED\n" +
@@ -342,10 +325,9 @@ class Vmcott::Inspector::DashboardController < ApplicationController
           status: :in_progress
         )
         
-        # Notify mechanics that the job needs rework
         notify_mechanics_for_rework(@inspection, failure_reason)
         
-        redirect_to vmcott_inspector_dashboard_path, alert: "❌ QC failed - job sent back to mechanic for rework. They will see it in their dashboard."
+        redirect_to vmcott_inspector_dashboard_path, alert: "❌ QC failed - job sent back to mechanic for rework."
       rescue => e
         Rails.logger.error "Error in QC failure: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
@@ -356,14 +338,13 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
   def approve_for_repair
     if @inspection.update(status: 'approved_for_repair')
-      
-      # ✅ FIX: Use update_columns to bypass validations
       approved_count = 0
       @inspection.inspection_jobs.each do |job|
         begin
           job.update_columns(
             verification_status: 'approved',
-            parts_approved: true
+            parts_approved: true,
+            status: 'pending_mechanic_work'  # 🔥 Now ready for mechanics
           )
           approved_count += 1
         rescue => e
@@ -371,14 +352,13 @@ class Vmcott::Inspector::DashboardController < ApplicationController
         end
       end
       
-      # Notify mechanics that new jobs are available
       notify_mechanics_work_ready(@inspection)
       
       redirect_to vmcott_inspector_inspection_path(@inspection), 
-                  notice: "✅ Inspection approved! #{approved_count} of #{@inspection.inspection_jobs.count} jobs are now available to mechanics in 'Ready to Start'."
+                  notice: "✅ Inspection approved! #{approved_count} jobs are now available to mechanics."
     else
       redirect_to vmcott_inspector_inspection_path(@inspection), 
-                  alert: "❌ Could not approve inspection. Please try again."
+                  alert: "❌ Could not approve inspection."
     end
   end
 
@@ -410,7 +390,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
   def ensure_can_approve
     return unless @inspection
-    unless @inspection.status.in?(['pending_mechanic_review', 'parts_coordinator_review'])
+    unless @inspection.status.in?(['pending_mechanic_review', 'parts_coordinator_review', 'pending_supervisor_review'])
       flash[:alert] = "This inspection cannot be approved for repair at this stage (current status: #{@inspection.status})"
       redirect_to vmcott_inspector_inspection_path(@inspection) and return false
     end
@@ -422,7 +402,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     end
   end
   
-  # Add this method to disable caching for all actions
   def disable_caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -497,13 +476,14 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     notes.join("\n")
   end
 
-  def notify_mechanics_for_review(inspection)
-    mechanic_ids = User.where(role: 'mechanic').pluck(:id)
+  # 🔥 NEW: Notify supervisor, not mechanics
+  def notify_supervisor_for_review(inspection)
+    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
     Notification.create!(
       title: "New Inspection Ready for Review",
-      message: "Inspection for #{inspection.vehicle.license_plate} is ready. Please review and determine parts needed.",
-      link: "/vmcott/mechanic/dashboard",
-      user_id: mechanic_ids,
+      message: "Inspection for #{inspection.vehicle.license_plate} is ready. Please review and approve jobs.",
+      link: "/vmcott/workshop_supervisor/inspections/#{inspection.id}/review",
+      user_id: supervisor_ids,
       notifiable_type: 'Inspection',
       notifiable_id: inspection.id
     )

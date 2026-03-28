@@ -16,6 +16,7 @@ class Quotation < ApplicationRecord
   # ------------------------------------------------------------
   belongs_to :vehicle, optional: true
   belongs_to :rfq, optional: true
+  belongs_to :work_order, optional: true
   
   include Auditable
   

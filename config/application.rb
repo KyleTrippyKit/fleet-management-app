@@ -29,5 +29,41 @@ module ActivePlusDemo
     
     # Demo mode toggle
     config.x.demo_mode = Rails.env.development?
+    
+    # =====================================================
+    # SIDEKIQ CRON SCHEDULE CONFIGURATION
+    # =====================================================
+    config.after_initialize do
+      if defined?(Sidekiq) && Sidekiq.server?
+        schedule_file = Rails.root.join("config", "sidekiq_schedule.yml")
+        
+        if File.exist?(schedule_file)
+          begin
+            # Load the schedule file
+            schedule = YAML.load_file(schedule_file)
+            
+            # Schedule each job
+            schedule.each do |job_name, job_config|
+              # Skip if already scheduled
+              next if Sidekiq::Cron::Job.find(job_name)
+              
+              # Create the cron job
+              Sidekiq::Cron::Job.create(
+                name: job_name,
+                cron: job_config['cron'],
+                class: job_config['class'],
+                queue: job_config['queue'] || 'default',
+                args: job_config['args'] || [],
+                description: job_config['description'] || "Scheduled job: #{job_name}"
+              )
+            end
+            
+            Rails.logger.info "Sidekiq cron jobs loaded from #{schedule_file}"
+          rescue => e
+            Rails.logger.error "Failed to load Sidekiq cron schedule: #{e.message}"
+          end
+        end
+      end
+    end
   end
 end

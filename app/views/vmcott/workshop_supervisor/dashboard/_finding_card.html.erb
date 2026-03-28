@@ -1,0 +1,39 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/_finding_card.html.erb %>
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-3">
+  <div class="flex justify-between items-start">
+    <div class="flex-1">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+          Pending Review
+        </span>
+        <span class="text-xs text-gray-500">
+          Reported <%= time_ago_in_words(finding.created_at) %> ago
+        </span>
+      </div>
+      <h3 class="font-medium text-gray-900">
+        <%= finding.finding_type || 'Finding' %>
+      </h3>
+      <p class="text-sm text-gray-600 mt-1">
+        <%= finding.description %>
+      </p>
+      <div class="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
+        <span><i class="fas fa-car mr-1"></i> <%= finding.work_order&.vehicle&.license_plate || 'N/A' %></span>
+        <span><i class="fas fa-exclamation-triangle mr-1"></i> Severity: <%= finding.severity || 'Normal' %></span>
+        <% if finding.blocking %>
+          <span class="text-red-600"><i class="fas fa-ban mr-1"></i> Blocking</span>
+        <% end %>
+      </div>
+      <% if finding.created_by %>
+        <p class="text-xs text-gray-400 mt-1">
+          Reported by: <%= finding.created_by.name %>
+        </p>
+      <% end %>
+    </div>
+  </div>
+  
+  <div class="mt-3 flex gap-2">
+    <%= link_to "View Details", vmcott_workshop_supervisor_finding_path(finding), class: "text-blue-600 text-sm hover:underline" %>
+    <%= button_to "Approve", vmcott_workshop_supervisor_approve_finding_path(finding), method: :post, class: "bg-green-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-green-600 transition" %>
+    <%= button_to "Reject", vmcott_workshop_supervisor_reject_finding_path(finding), method: :post, class: "bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition", data: { confirm: "Reject this finding?" } %>
+  </div>
+</div>

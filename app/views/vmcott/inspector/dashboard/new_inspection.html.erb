@@ -1,12 +1,14 @@
-<%# app/views/vmcott/inspector/dashboard/new_inspection.html.erb %>
 <div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h1 class="h2"><i class="bi bi-wrench me-2"></i>Add Custom Jobs</h1>
-          <p class="text-muted">Step 2: Add custom jobs that need to be performed on <%= @vehicle.license_plate %></p>
-          <p class="text-info"><i class="bi bi-info-circle me-1"></i> Parts will be requested by mechanics during repair</p>
+          <h1 class="h2"><i class="bi bi-clipboard-check me-2"></i>Job Recommendations</h1>
+          <p class="text-muted">Step 2: Recommend jobs for <%= @vehicle.license_plate %></p>
+          <div class="alert alert-info mt-2">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> These are <strong>recommendations</strong>. The supervisor will review and finalize the jobs.
+          </div>
         </div>
         <%= link_to "← Back to Pre-Inspection", vmcott_inspector_pre_inspection_path(@vehicle.id), class: "btn btn-outline-secondary" %>
       </div>
@@ -35,25 +37,25 @@
         <!-- Custom Jobs Section -->
         <div class="card mb-4">
           <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Add Custom Jobs</h5>
+            <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Recommended Jobs</h5>
           </div>
           <div class="card-body">
-            <p class="text-muted mb-3">Add one or more custom jobs that need to be performed. You can add multiple jobs.</p>
+            <p class="text-muted mb-3">Add recommended jobs that need to be performed. Supervisor will review and finalize.</p>
             
             <!-- Add New Custom Job Input -->
             <div class="mb-3">
-              <label for="custom-job-input" class="form-label fw-bold">New Custom Job</label>
+              <label for="custom-job-input" class="form-label fw-bold">New Recommended Job</label>
               <div class="input-group">
                 <input type="text" 
                        id="custom-job-input" 
                        class="form-control" 
-                       placeholder="e.g., 'Check unusual noise', 'Inspect electrical system'"
+                       placeholder="e.g., 'Replace brake pads', 'Check unusual noise', 'Inspect electrical system'"
                        autocomplete="off">
                 <button class="btn btn-primary" type="button" id="add-custom-job-btn">
-                  <i class="bi bi-plus-circle me-1"></i>Add Job
+                  <i class="bi bi-plus-circle me-1"></i>Add Recommendation
                 </button>
               </div>
-              <div class="form-text">Press Enter or click Add Job to add to the list</div>
+              <div class="form-text">Press Enter or click Add Recommendation to add to the list</div>
             </div>
 
             <!-- List of Added Custom Jobs -->
@@ -64,7 +66,7 @@
             <!-- Hidden field to ensure at least one job is submitted -->
             <div id="no-jobs-message" class="alert alert-warning mt-3" style="display: none;">
               <i class="bi bi-exclamation-triangle me-2"></i>
-              Please add at least one custom job before proceeding.
+              Please add at least one job recommendation before proceeding.
             </div>
           </div>
         </div>
@@ -72,13 +74,13 @@
         <!-- Additional Notes -->
         <div class="card mb-4">
           <div class="card-header bg-info text-white">
-            <h5 class="mb-0"><i class="bi bi-pencil me-2"></i>Additional Notes for Mechanics</h5>
+            <h5 class="mb-0"><i class="bi bi-pencil me-2"></i>Additional Notes for Supervisor</h5>
           </div>
           <div class="card-body">
             <%= text_area_tag :notes, nil, 
                   class: "form-control", 
                   rows: 3,
-                  placeholder: "Any specific instructions or observations for the mechanics..." %>
+                  placeholder: "Any specific instructions or observations for the supervisor..." %>
           </div>
         </div>
 
@@ -105,7 +107,7 @@
         <div class="d-flex justify-content-between">
           <%= link_to "Cancel", vmcott_inspector_dashboard_path, class: "btn btn-outline-secondary" %>
           <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
-            <i class="bi bi-check-circle me-2"></i>Complete Inspection & Send to Mechanics
+            <i class="bi bi-check-circle me-2"></i>Submit Recommendations to Supervisor
           </button>
         </div>
       <% end %>
@@ -113,7 +115,7 @@
   </div>
 </div>
 
-<!-- JavaScript for Custom Jobs Management - TURBO FIXED VERSION -->
+<!-- JavaScript for Custom Jobs Management -->
 <script>
 (function() {
   'use strict';
@@ -161,19 +163,20 @@
       
       // Create job element
       const jobDiv = document.createElement('div');
-      jobDiv.className = 'custom-job-item card mb-2 border-start border-4 border-success';
+      jobDiv.className = 'custom-job-item card mb-2 border-start border-4 border-warning';
       jobDiv.style.animation = 'slideIn 0.3s ease';
       jobDiv.innerHTML = `
         <div class="card-body py-3">
           <div class="d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center">
-              <i class="bi bi-wrench text-success me-3 fs-5"></i>
+              <i class="bi bi-star text-warning me-3 fs-5"></i>
               <div>
                 <span class="fw-medium">${escapeHtml(description)}</span>
+                <span class="badge bg-warning text-dark ms-2">Recommended</span>
                 <input type="hidden" name="custom_jobs[][description]" value="${escapeHtml(description)}">
               </div>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-danger remove-custom-job" title="Remove job">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-custom-job" title="Remove recommendation">
               <i class="bi bi-trash"></i>
             </button>
           </div>
@@ -221,7 +224,7 @@
         
         // Only show empty message if no jobs exist
         if (!updatedList.querySelector('.custom-job-item')) {
-          updatedList.innerHTML = '<div class="text-center text-muted py-4" id="empty-jobs-message"><i class="bi bi-inbox fs-1 d-block mb-2"></i>No jobs added yet. Add a custom job above.</div>';
+          updatedList.innerHTML = '<div class="text-center text-muted py-4" id="empty-jobs-message"><i class="bi bi-inbox fs-1 d-block mb-2"></i>No recommendations added yet. Add a job recommendation above.</div>';
         }
       } else {
         updatedNoJobs.style.display = 'none';
@@ -313,12 +316,12 @@ style.textContent = `
 
 .custom-job-item {
   background-color: #f8f9fa;
-  border-left: 4px solid #28a745 !important;
+  border-left: 4px solid #ffc107 !important;
   transition: all 0.2s ease;
 }
 
 .custom-job-item:hover {
-  background-color: #f0f9ff;
+  background-color: #fff8e7;
   transform: translateX(5px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
@@ -364,12 +367,12 @@ document.head.appendChild(style);
 <style>
 .custom-job-item {
   background-color: #f8f9fa;
-  border-left: 4px solid #28a745 !important;
+  border-left: 4px solid #ffc107 !important;
   transition: all 0.2s ease;
 }
 
 .custom-job-item:hover {
-  background-color: #f0f9ff;
+  background-color: #fff8e7;
   transform: translateX(5px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }

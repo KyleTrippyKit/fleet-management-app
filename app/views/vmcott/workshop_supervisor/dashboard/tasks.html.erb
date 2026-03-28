@@ -1,0 +1,58 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/tasks.html.erb %>
+<div class="min-h-screen bg-gray-100">
+  <div class="bg-white shadow p-4">
+    <div class="flex justify-between items-center">
+      <h1 class="text-xl font-bold">All Tasks</h1>
+      <div class="flex gap-2">
+        <%= link_to "All", workshop_supervisor_tasks_path, class: "px-3 py-1 rounded #{params[:status].blank? ? 'bg-blue-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Pending", workshop_supervisor_tasks_path(status: 'pending'), class: "px-3 py-1 rounded #{params[:status] == 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Blocked", workshop_supervisor_tasks_path(status: 'blocked'), class: "px-3 py-1 rounded #{params[:status] == 'blocked' ? 'bg-red-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Completed", workshop_supervisor_tasks_path(status: 'completed'), class: "px-3 py-1 rounded #{params[:status] == 'completed' ? 'bg-green-500 text-white' : 'bg-gray-200'}" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-4">
+    <% if @tasks.any? %>
+      <% @tasks.each do |task| %>
+        <div class="bg-white rounded-xl shadow p-4 mb-3">
+          <div class="flex justify-between items-start">
+            <div class="flex-1">
+              <h3 class="font-semibold text-gray-800"><%= task.name %></h3>
+              <p class="text-sm text-gray-600 mt-1">
+                <%= task.inspection_job.work_order.vehicle.license_plate %>
+              </p>
+              <div class="flex flex-wrap gap-2 mt-2 text-xs text-gray-500">
+                <span>Job: <%= task.inspection_job.description.truncate(30) %></span>
+                <span>Est: <%= task.estimated_hours %> hrs</span>
+                <span>Mechanic: <%= task.assigned_mechanic&.name || 'Unassigned' %></span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs px-2 py-1 rounded 
+                <%= case task.status
+                    when 'pending' then 'bg-yellow-100 text-yellow-800'
+                    when 'blocked' then 'bg-red-100 text-red-800'
+                    when 'completed' then 'bg-green-100 text-green-800'
+                    else 'bg-gray-100 text-gray-800'
+                    end %>">
+                <%= task.status.upcase %>
+              </span>
+              <div class="mt-2">
+                <%= link_to "View", workshop_supervisor_task_path(task), class: "text-blue-600 text-sm hover:underline" %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+      <div class="mt-4">
+        <%= will_paginate @tasks %>
+      </div>
+    <% else %>
+      <div class="bg-white rounded-xl p-8 text-center text-gray-500">
+        No tasks found
+      </div>
+    <% end %>
+  </div>
+</div>

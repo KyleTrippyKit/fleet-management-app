@@ -8,6 +8,7 @@ class Inspection < ApplicationRecord
   belongs_to :supervisor, class_name: 'User', optional: true  # NEW
   belongs_to :purchase_order, optional: true
   belongs_to :final_inspector, class_name: 'User', optional: true
+  belongs_to :work_order, optional: true  # NEW: Link to work order
 
   has_many :inspection_jobs, dependent: :destroy
   has_many :parts_requests, dependent: :destroy
@@ -293,6 +294,18 @@ class Inspection < ApplicationRecord
 
   def pending_quotation
     quotations.where(status: ['sent', 'pending_approval']).order(created_at: :desc).first
+  end
+
+  # =====================================================
+  # NEW METHODS FOR WORK ORDER INTEGRATION
+  # =====================================================
+  
+  def update_work_order_status!
+    return unless work_order
+    
+    if status == 'completed' && work_order.received?
+      work_order.transition_to!('inspected')
+    end
   end
 
   private

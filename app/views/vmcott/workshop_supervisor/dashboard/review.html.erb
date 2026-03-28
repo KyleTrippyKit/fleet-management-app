@@ -1,0 +1,205 @@
+<%# app/views/vmcott/workshop_supervisor/jobs/review.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">Review Job Recommendations</h1>
+          <p class="text-muted">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
+          <p class="text-muted">Inspector: <%= @inspection.inspector.name %></p>
+        </div>
+        <%= link_to "Back to Dashboard", workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <%= form_with url: update_jobs_workshop_supervisor_inspection_path(@inspection), 
+                    method: :patch, 
+                    local: true do |f| %>
+        
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Inspector's Recommendations</h5>
+          </div>
+          <div class="card-body">
+            <% if @pending_approval.any? %>
+              <% @pending_approval.each do |job| %>
+                <div class="job-item border rounded p-3 mb-3">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <div class="mb-2">
+                        <label class="form-label fw-bold">Description</label>
+                        <input type="text" 
+                               name="jobs[<%= job.id %>][description]" 
+                               value="<%= job.description %>" 
+                               class="form-control">
+                      </div>
+                      <div class="mb-2">
+                        <label class="form-label">Estimated Cost</label>
+                        <input type="number" 
+                               name="jobs[<%= job.id %>][estimated_labor_cost]" 
+                               value="<%= job.estimated_labor_cost || 85.00 %>" 
+                               step="0.01" 
+                               class="form-control">
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="mb-2">
+                        <label class="form-label">Priority</label>
+                        <select name="jobs[<%= job.id %>][priority]" class="form-select">
+                          <option value="low" <%= job.priority == 'low' ? 'selected' : '' %>>Low</option>
+                          <option value="normal" <%= job.priority == 'normal' ? 'selected' : '' %>>Normal</option>
+                          <option value="high" <%= job.priority == 'high' ? 'selected' : '' %>>High</option>
+                          <option value="critical" <%= job.priority == 'critical' ? 'selected' : '' %>>Critical</option>
+                        </select>
+                      </div>
+                      <div class="mb-2">
+                        <label class="form-label">Assign Mechanic</label>
+                        <select name="jobs[<%= job.id %>][assigned_mechanic_id]" class="form-select">
+                          <option value="">Unassigned</option>
+                          <% @mechanics.each do |mechanic| %>
+                            <option value="<%= mechanic.id %>" <%= job.assigned_mechanic_id == mechanic.id ? 'selected' : '' %>>
+                              <%= mechanic.name %>
+                            </option>
+                          <% end %>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                      <div class="form-check mt-4">
+                        <input type="checkbox" 
+                               name="remove_job_ids[]" 
+                               value="<%= job.id %>" 
+                               class="form-check-input"
+                               id="remove_job_<%= job.id %>">
+                        <label class="form-check-label text-danger" for="remove_job_<%= job.id %>">
+                          Remove
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <div class="alert alert-info">
+                No job recommendations from inspector. You can add jobs below.
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+        <div class="card mb-4">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Add Additional Jobs</h5>
+          </div>
+          <div class="card-body">
+            <div id="new-jobs-container">
+              <div class="new-job-item mb-3">
+                <div class="row">
+                  <div class="col-md-6">
+                    <input type="text" 
+                           name="new_jobs[][description]" 
+                           class="form-control" 
+                           placeholder="Job description">
+                  </div>
+                  <div class="col-md-3">
+                    <input type="number" 
+                           name="new_jobs[][estimated_labor_cost]" 
+                           class="form-control" 
+                           placeholder="Est. cost"
+                           step="0.01">
+                  </div>
+                  <div class="col-md-2">
+                    <select name="new_jobs[][priority]" class="form-select">
+                      <option value="normal">Priority</option>
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </div>
+                  <div class="col-md-1">
+                    <button type="button" class="btn btn-danger remove-job-btn" style="display: none;">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-job-btn">
+              <i class="bi bi-plus-circle"></i> Add Another Job
+            </button>
+          </div>
+        </div>
+        
+        <div class="d-flex justify-content-between">
+          <%= button_to "Reject & Send Back", reject_workshop_supervisor_inspection_path(@inspection), 
+                        method: :post,
+                        data: { confirm: "Send back to inspector for revision?" },
+                        class: "btn btn-outline-danger" %>
+          <div>
+            <%= link_to "Cancel", workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary me-2" %>
+            <button type="submit" class="btn btn-success btn-lg">
+              <i class="bi bi-check-circle me-2"></i>Approve & Assign Jobs
+            </button>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.getElementById('new-jobs-container');
+  const addBtn = document.getElementById('add-job-btn');
+  
+  function updateRemoveButtons() {
+    const items = container.querySelectorAll('.new-job-item');
+    items.forEach((item, index) => {
+      const removeBtn = item.querySelector('.remove-job-btn');
+      if (items.length > 1) {
+        removeBtn.style.display = 'block';
+        removeBtn.onclick = () => item.remove();
+      } else {
+        removeBtn.style.display = 'none';
+      }
+    });
+  }
+  
+  addBtn.addEventListener('click', function() {
+    const newItem = document.createElement('div');
+    newItem.className = 'new-job-item mb-3';
+    newItem.innerHTML = `
+      <div class="row">
+        <div class="col-md-6">
+          <input type="text" name="new_jobs[][description]" class="form-control" placeholder="Job description">
+        </div>
+        <div class="col-md-3">
+          <input type="number" name="new_jobs[][estimated_labor_cost]" class="form-control" placeholder="Est. cost" step="0.01">
+        </div>
+        <div class="col-md-2">
+          <select name="new_jobs[][priority]" class="form-select">
+            <option value="normal">Priority</option>
+            <option value="low">Low</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="col-md-1">
+          <button type="button" class="btn btn-danger remove-job-btn">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+    `;
+    container.appendChild(newItem);
+    updateRemoveButtons();
+  });
+  
+  updateRemoveButtons();
+});
+</script>

@@ -17,7 +17,8 @@ module Vmcott
       @total_parts = Part.count
       @low_stock_parts = Part.below_reorder_point.count
       @out_of_stock_parts = Part.out_of_stock.count
-      render 'vmcott/inventory/index', layout: false
+      # ✅ FIXED: Render with proper layout that has DOCTYPE
+      render 'vmcott/inventory/index', layout: 'inventory'
     end
     
     def dashboard
@@ -71,7 +72,8 @@ module Vmcott
         }
       end
       
-      render 'vmcott/inventory/dashboard', layout: false
+      # ✅ FIXED: Use main application layout (has DOCTYPE)
+      render 'vmcott/inventory/dashboard'
     end
     
     def dashboard_no_nav
@@ -119,13 +121,18 @@ module Vmcott
         }
       end
       
-      render layout: false
+      # ✅ FIXED: Use minimal layout with DOCTYPE
+      render layout: 'minimal'
     end
     
     def hello
       @total_parts = Part.count
-      render 'vmcott/inventory/hello', layout: false
+      render 'vmcott/inventory/hello', layout: 'minimal'
     end
+    
+    # ... rest of your controller methods remain the same
+  end
+end
     
     def test_ok
       render plain: "OK - Controller is working at #{Time.current}"

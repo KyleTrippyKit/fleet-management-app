@@ -1072,6 +1072,7 @@ class QuotationsController < ApplicationController
   end
 
   # GET /quotations/1/print
+  # In your quotations_controller.rb, find the print action
   def print
     @vehicle = @quotation.vehicle
     @agency = @quotation.agency || @vehicle&.agency || set_default_agency
@@ -1080,13 +1081,14 @@ class QuotationsController < ApplicationController
     @quotation_jobs = @quotation.quotation_jobs.includes(:quotation_job_parts => :part) if @quotation.respond_to?(:quotation_jobs)
     
     respond_to do |format|
-      format.html { render :print, layout: false }
+      # ✅ FIXED: Use pdf layout instead of layout: false
+      format.html { render :print, layout: 'pdf' }
       format.pdf do
         render pdf: "quotation-#{@quotation.quote_number}",
-               template: 'quotations/show',
-               layout: 'pdf',
-               page_size: 'A4',
-               disposition: 'inline'
+              template: 'quotations/show',
+              layout: 'pdf',
+              page_size: 'A4',
+              disposition: 'inline'
       end
     end
   end

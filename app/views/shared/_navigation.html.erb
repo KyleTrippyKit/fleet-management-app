@@ -1,20 +1,20 @@
 <%# app/views/shared/_navigation.html.erb - COMPLETE VMCOTT WORKFLOW NAVIGATION %>
-<%# UPDATED: Renamed roles - security_gate_officer (was receptionist), inventory_manager (was parts_coordinator), procurement (was billing) %>
-<%# KEPT: inspector, mechanic as is %>
-<%# finance kept as finance (finance_accounting for display) %>
+<%# UPDATED: Added Workshop Supervisor role %>
+<%# UPDATED: Fixed route helpers to use correct namespace %>
+<%# UPDATED: Added safety guards to prevent blank pages %>
+<%# FIXED: Added rescue for missing route helpers %>
 
 <% return unless current_user.present? %>
 
-<% agency      = current_user&.agency %>
-<% agency_code = agency&.code.to_s.upcase %>
-<% user_role   = current_user.role.to_s %>
-
-<% is_admin = !!current_user&.admin? %>
-
-<%# ============================================================
-    NOTIFICATION COUNTS
-   ============================================================ %>
 <%
+  # SAFETY GUARD: Ensure all required variables exist
+  agency = current_user&.agency
+  agency_code = agency&.code.to_s.upcase
+  user_role = current_user&.role.to_s
+
+  is_admin = !!current_user&.admin?
+
+  # SAFETY GUARD: Default values for ALL missing instance variables
   @unread_notifications_count ||= 0
   @pending_inspections_count ||= 0
   @pending_parts_count ||= 0
@@ -38,88 +38,105 @@
   @ready_for_pickup_count_ptsc ||= 0
   @pending_rfq_responses_count ||= 0
   @pending_condition_reports_count ||= 0
+  @pre_check_completed_count ||= 0
+  @recent_notifications ||= []
+%>
+
+<%# ============================================================
+    HELPER: Safe route helper with rescue
+   ============================================================ %>
+<%
+  def safe_route(route_method, *args, &block)
+    return nil unless respond_to?(route_method)
+    send(route_method, *args, &block)
+  rescue NameError, NoMethodError
+    nil
+  end
 %>
 
 <%# ============================================================
     VMCOTT ROLE DEFINITIONS - RENAMED
    ============================================================ %>
-<% is_vmcott_admin = is_admin && agency_code == "VMCOTT" %>
-<% is_vmcott_staff = user_role == 'vmcott_staff' %>
-<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>
-<% is_vmcott_workshop_manager = user_role == 'workshop_manager' && agency_code == "VMCOTT" %>
-<% is_vmcott_inventory_clerk = user_role == 'inventory_clerk' && agency_code == "VMCOTT" %>
+<%
+  is_vmcott_admin = is_admin && agency_code == "VMCOTT"
+  is_vmcott_staff = user_role == 'vmcott_staff'
+  is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT"
+  is_vmcott_workshop_manager = (user_role == 'workshop_supervisor' || user_role == 'workshop_manager') && agency_code == "VMCOTT"
+  is_vmcott_inventory_clerk = user_role == 'inventory_clerk' && agency_code == "VMCOTT"
 
-<%# Explicit VMCOTT workflow roles - RENAMED %>
-<% is_vmcott_security_gate_officer = user_role == 'security_gate_officer' && agency_code == "VMCOTT" %>
-<% is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT" %>
-<% is_vmcott_inventory_manager = user_role == 'inventory_manager' && agency_code == "VMCOTT" %>
-<% is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT" %>
-<% is_vmcott_procurement = user_role == 'procurement' && agency_code == "VMCOTT" %>
-<% is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT" %>
+  # Explicit VMCOTT workflow roles - RENAMED
+  is_vmcott_security_gate_officer = user_role == 'security_gate_officer' && agency_code == "VMCOTT"
+  is_vmcott_inspector = user_role == 'inspector' && agency_code == "VMCOTT"
+  is_vmcott_inventory_manager = user_role == 'inventory_manager' && agency_code == "VMCOTT"
+  is_vmcott_mechanic = user_role == 'mechanic' && agency_code == "VMCOTT"
+  is_vmcott_procurement = user_role == 'procurement' && agency_code == "VMCOTT"
+  is_vmcott_finance = user_role == 'finance' && agency_code == "VMCOTT"
 
-<%# Keep old names for backward compatibility in views %>
-<% is_vmcott_receptionist = is_vmcott_security_gate_officer %>
-<% is_vmcott_parts_coordinator = is_vmcott_inventory_manager %>
-<% is_vmcott_billing = is_vmcott_procurement %>
+  # Keep old names for backward compatibility
+  is_vmcott_receptionist = is_vmcott_security_gate_officer
+  is_vmcott_parts_coordinator = is_vmcott_inventory_manager
+  is_vmcott_billing = is_vmcott_procurement
 
-<%# PTSC Role Definitions %>
-<% is_ptsc_admin = is_admin && agency_code == "PTSC" %>
-<% is_ptsc_fleet_manager = user_role == 'fleet_manager' && agency_code == "PTSC" %>
-<% is_ptsc_finance = user_role == 'finance' && agency_code == "PTSC" %>
-<% is_ptsc_driver = user_role == 'driver' && agency_code == "PTSC" %>
-<% is_ptsc_maintenance = user_role == 'maintenance' && agency_code == "PTSC" %>
+  # PTSC Role Definitions
+  is_ptsc_admin = is_admin && agency_code == "PTSC"
+  is_ptsc_fleet_manager = user_role == 'fleet_manager' && agency_code == "PTSC"
+  is_ptsc_finance = user_role == 'finance' && agency_code == "PTSC"
+  is_ptsc_driver = user_role == 'driver' && agency_code == "PTSC"
+  is_ptsc_maintenance = user_role == 'maintenance' && agency_code == "PTSC"
 
-<%# Regular users see only their specific role %>
-<% is_fleet_manager = user_role == 'fleet_manager' %>
-<% is_maintenance_supervisor = user_role == 'maintenance_supervisor' || user_role == 'maintenance' %>
-<% is_financial_officer = user_role == 'finance' %>
-<% is_driver = user_role == 'driver' %>
-<% is_supervisor = user_role == 'supervisor' %>
+  # Regular users see only their specific role
+  is_fleet_manager = user_role == 'fleet_manager'
+  is_maintenance_supervisor = user_role == 'maintenance_supervisor' || user_role == 'maintenance'
+  is_financial_officer = user_role == 'finance'
+  is_driver = user_role == 'driver'
+  is_supervisor = user_role == 'supervisor'
 
-<%# Admins see all roles for their agency type %>
-<% if is_admin %>
-  <% case agency_code %>
-  <% when 'VMCOTT' %>
-    <% is_vmcott_admin = true %>
-    <% is_vmcott_security_gate_officer = true %>
-    <% is_vmcott_inspector = true %>
-    <% is_vmcott_inventory_manager = true %>
-    <% is_vmcott_mechanic = true %>
-    <% is_vmcott_procurement = true %>
-    <% is_vmcott_finance = true %>
-    <% is_vmcott_workshop_manager = true %>
-    <% is_vmcott_inventory_clerk = true %>
-  <% when 'PTSC' %>
-    <% is_ptsc_admin = true %>
-    <% is_ptsc_fleet_manager = true %>
-    <% is_ptsc_finance = true %>
-    <% is_ptsc_driver = true %>
-    <% is_ptsc_maintenance = true %>
-  <% else %>
-    <% is_fleet_manager = true %>
-    <% is_maintenance_supervisor = true %>
-    <% is_financial_officer = true %>
-  <% end %>
-<% end %>
+  # Admins see all roles for their agency type
+  if is_admin
+    case agency_code
+    when 'VMCOTT'
+      is_vmcott_admin = true
+      is_vmcott_security_gate_officer = true
+      is_vmcott_inspector = true
+      is_vmcott_inventory_manager = true
+      is_vmcott_mechanic = true
+      is_vmcott_procurement = true
+      is_vmcott_finance = true
+      is_vmcott_workshop_manager = true
+      is_vmcott_inventory_clerk = true
+    when 'PTSC'
+      is_ptsc_admin = true
+      is_ptsc_fleet_manager = true
+      is_ptsc_finance = true
+      is_ptsc_driver = true
+      is_ptsc_maintenance = true
+    else
+      is_fleet_manager = true
+      is_maintenance_supervisor = true
+      is_financial_officer = true
+    end
+  end
 
-<%# Supervisors also get maintenance supervisor access %>
-<% if is_supervisor %>
-  <% is_maintenance_supervisor = true %>
-<% end %>
+  # Supervisors also get maintenance supervisor access
+  if is_supervisor
+    is_maintenance_supervisor = true
+  end
 
-<%# Only VMCOTT can write maintenance %>
-<% can_write_maintenance = agency_code == "VMCOTT" %>
+  # Only VMCOTT can write maintenance
+  can_write_maintenance = agency_code == "VMCOTT"
+%>
 
 <%# ============================================================
     HELPER: Calculate total alerts for a role
    ============================================================ %>
-<% 
+<%
   security_gate_alerts = @pending_condition_reports_count.to_i + @pending_inspections_count.to_i
   inspector_alerts = @pending_inspections_count.to_i + @pending_qc_inspections_count.to_i
   inventory_alerts = @pending_parts_count.to_i + @low_stock_alert_count.to_i
   procurement_alerts = @pending_parts_requests_count.to_i
   finance_alerts = @quotations_to_review_count.to_i + @pending_po_approval_count.to_i + @ready_for_pickup_count.to_i
   mechanic_alerts = @available_jobs_count.to_i + @pending_qc_count.to_i
+  workshop_supervisor_alerts = @pre_check_completed_count.to_i + @pending_parts_requests_count.to_i
 %>
 
 <!-- Navigation with highest stacking context -->
@@ -134,8 +151,8 @@
           <!-- ================= VMCOTT WORKFLOW ================= -->
           <% if agency_code == "VMCOTT" %>
 
-            <!-- STEP 1: SECURITY GATE OFFICER (was Reception) -->
-            <% if is_vmcott_security_gate_officer || is_vmcott_admin %>
+            <!-- STEP 1: SECURITY GATE OFFICER -->
+            <% if (is_vmcott_security_gate_officer || is_vmcott_admin) && safe_route(:vmcott_security_gate_officer_dashboard_path) %>
               <%= link_to vmcott_security_gate_officer_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_security_gate_officer_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-door-open me-1"></i> Gate
@@ -147,8 +164,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 2: INSPECTOR (KEPT AS IS) -->
-            <% if is_vmcott_inspector || is_vmcott_admin %>
+            <!-- STEP 2: INSPECTOR -->
+            <% if (is_vmcott_inspector || is_vmcott_admin) && safe_route(:vmcott_inspector_dashboard_path) %>
               <%= link_to vmcott_inspector_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_inspector_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-search me-1"></i> Inspector
@@ -160,8 +177,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 3: INVENTORY MANAGER (was Parts Coordinator) -->
-            <% if is_vmcott_inventory_manager || is_vmcott_admin %>
+            <!-- STEP 3: INVENTORY MANAGER -->
+            <% if (is_vmcott_inventory_manager || is_vmcott_admin) && safe_route(:vmcott_inventory_manager_dashboard_path) %>
               <%= link_to vmcott_inventory_manager_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_inventory_manager_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-box-seam me-1"></i> Inventory
@@ -173,8 +190,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 4: PROCUREMENT (was Billing) -->
-            <% if is_vmcott_procurement || is_vmcott_admin %>
+            <!-- STEP 4: PROCUREMENT -->
+            <% if (is_vmcott_procurement || is_vmcott_admin) && safe_route(:vmcott_procurement_dashboard_path) %>
               <%= link_to vmcott_procurement_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_procurement_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-envelope-paper me-1"></i> Procurement
@@ -186,8 +203,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 5: FINANCE (kept as Finance) -->
-            <% if is_vmcott_finance || is_vmcott_admin %>
+            <!-- STEP 5: FINANCE -->
+            <% if (is_vmcott_finance || is_vmcott_admin) && safe_route(:vmcott_finance_dashboard_path) %>
               <%= link_to vmcott_finance_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_finance_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-cash-stack me-1"></i> Finance
@@ -199,8 +216,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 5.5: RFQ INBOX - For Finance -->
-            <% if is_vmcott_finance || is_vmcott_admin %>
+            <!-- STEP 5.5: RFQ INBOX -->
+            <% if (is_vmcott_finance || is_vmcott_admin) && safe_route(:vmcott_vendor_rfqs_path) %>
               <%= link_to vmcott_vendor_rfqs_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_vendor_rfqs_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-envelope me-1"></i> RFQ Inbox
@@ -212,8 +229,8 @@
               <% end %>
             <% end %>
 
-            <!-- STEP 6: MECHANIC (KEPT AS IS) -->
-            <% if is_vmcott_mechanic || is_vmcott_admin %>
+            <!-- STEP 6: MECHANIC -->
+            <% if (is_vmcott_mechanic || is_vmcott_admin) && safe_route(:vmcott_mechanic_dashboard_path) %>
               <%= link_to vmcott_mechanic_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_mechanic_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-tools me-1"></i> Mechanic
@@ -225,8 +242,21 @@
               <% end %>
             <% end %>
 
-            <!-- READY FOR PICKUP - For Finance/Admin -->
-            <% if is_vmcott_finance || is_vmcott_admin %>
+            <!-- STEP 7: WORKSHOP SUPERVISOR -->
+            <% if (is_vmcott_workshop_manager || is_vmcott_admin) && safe_route(:vmcott_workshop_supervisor_dashboard_path) %>
+              <%= link_to vmcott_workshop_supervisor_dashboard_path,
+                  class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(vmcott_workshop_supervisor_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
+                <i class="bi bi-person-badge me-1"></i> Workshop Supervisor
+                <% if workshop_supervisor_alerts > 0 %>
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    <%= workshop_supervisor_alerts %>
+                  </span>
+                <% end %>
+              <% end %>
+            <% end %>
+
+            <!-- READY FOR PICKUP -->
+            <% if (is_vmcott_finance || is_vmcott_admin) && safe_route(:vmcott_finance_invoices_path) %>
               <%= link_to vmcott_finance_invoices_path(status: 'pending'), 
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative btn-outline-primary" do %>
                 <i class="bi bi-truck me-1"></i> Pickup
@@ -242,7 +272,7 @@
           <% elsif agency_code == "PTSC" %>
 
             <!-- PTSC FLEET MANAGER DASHBOARD -->
-            <% if is_ptsc_fleet_manager || is_ptsc_admin %>
+            <% if (is_ptsc_fleet_manager || is_ptsc_admin) && safe_route(:ptsc_fleet_dashboard_path) %>
               <%= link_to ptsc_fleet_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(ptsc_fleet_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-truck me-1"></i> Fleet
@@ -250,7 +280,7 @@
             <% end %>
 
             <!-- PTSC ADMIN - VEHICLE STATUS TRACKING -->
-            <% if is_ptsc_admin %>
+            <% if is_ptsc_admin && safe_route(:ptsc_admin_vehicle_status_path) %>
               <%= link_to ptsc_admin_vehicle_status_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(ptsc_admin_vehicle_status_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-eye me-1"></i> Live Status
@@ -263,7 +293,7 @@
             <% end %>
 
             <!-- PTSC FINANCE - PROCUREMENT DROPDOWN -->
-            <% if is_ptsc_finance || is_ptsc_admin %>
+            <% if (is_ptsc_finance || is_ptsc_admin) && safe_route(:new_agency_rfq_path) %>
               <div class="dropdown nav-dd" style="position: relative;">
                 <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill dropdown-toggle position-relative"
                         type="button"
@@ -282,7 +312,7 @@
                 <ul class="dropdown-menu dropdown-menu-float dropdown-scroll" style="position: absolute; z-index: 1000000; background: white !important;">
                   <li class="dropdown-section" style="color: #0d47a1 !important;">📋 RFQs</li>
                   
-                  <% if agency.present? %>
+                  <% if agency.present? && safe_route(:new_agency_rfq_path, agency) %>
                     <li>
                       <%= link_to new_agency_rfq_path(agency), class: "dropdown-item" do %>
                         <i class="bi bi-file-earmark-plus me-2"></i> New RFQ (to VMCOTT)
@@ -290,25 +320,29 @@
                     </li>
                   <% end %>
 
-                  <li>
-                    <%= link_to sent_rfqs_path, class: "dropdown-item" do %>
-                      <i class="bi bi-send me-2"></i> Sent RFQs
-                    <% end %>
-                  </li>
-
-                  <li>
-                    <%= link_to received_quotations_path, class: "dropdown-item" do %>
-                      <i class="bi bi-inbox me-2"></i> Quotations Inbox
-                      <% if @pending_rfq_responses_count.to_i > 0 %>
-                        <span class="badge bg-warning float-end"><%= @pending_rfq_responses_count %></span>
+                  <% if safe_route(:sent_rfqs_path) %>
+                    <li>
+                      <%= link_to sent_rfqs_path, class: "dropdown-item" do %>
+                        <i class="bi bi-send me-2"></i> Sent RFQs
                       <% end %>
-                    <% end %>
-                  </li>
+                    </li>
+                  <% end %>
+
+                  <% if safe_route(:received_quotations_path) %>
+                    <li>
+                      <%= link_to received_quotations_path, class: "dropdown-item" do %>
+                        <i class="bi bi-inbox me-2"></i> Quotations Inbox
+                        <% if @pending_rfq_responses_count.to_i > 0 %>
+                          <span class="badge bg-warning float-end"><%= @pending_rfq_responses_count %></span>
+                        <% end %>
+                      <% end %>
+                    </li>
+                  <% end %>
 
                   <li><hr class="dropdown-divider"></li>
                   <li class="dropdown-section" style="color: #0d47a1 !important;">📊 REVIEW</li>
 
-                  <% if defined?(ptsc_quotation_review_path) %>
+                  <% if defined?(ptsc_quotation_review_path) && safe_route(:ptsc_quotation_review_path) %>
                     <li>
                       <%= link_to ptsc_quotation_review_path, class: "dropdown-item" do %>
                         <i class="bi bi-ui-checks me-2"></i> Quotation Review
@@ -316,7 +350,7 @@
                     </li>
                   <% end %>
 
-                  <% if defined?(ptsc_po_acceptance_path) %>
+                  <% if defined?(ptsc_po_acceptance_path) && safe_route(:ptsc_po_acceptance_path) %>
                     <li>
                       <%= link_to ptsc_po_acceptance_path, class: "dropdown-item" do %>
                         <i class="bi bi-clipboard-check me-2"></i> PO Acceptance Queue
@@ -336,7 +370,7 @@
             <% end %>
 
             <!-- PTSC FINANCE DASHBOARD -->
-            <% if is_ptsc_finance || is_ptsc_admin %>
+            <% if (is_ptsc_finance || is_ptsc_admin) && safe_route(:ptsc_finance_dashboard_path) %>
               <%= link_to ptsc_finance_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(ptsc_finance_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-cash-stack me-1"></i> Finance
@@ -344,7 +378,7 @@
             <% end %>
 
             <!-- PTSC MAINTENANCE -->
-            <% if is_ptsc_maintenance || is_ptsc_admin %>
+            <% if (is_ptsc_maintenance || is_ptsc_admin) && safe_route(:ptsc_maintenance_dashboard_path) %>
               <%= link_to ptsc_maintenance_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(ptsc_maintenance_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-wrench me-1"></i> Maintenance
@@ -352,7 +386,7 @@
             <% end %>
 
             <!-- PTSC DRIVER -->
-            <% if is_ptsc_driver || is_ptsc_admin %>
+            <% if (is_ptsc_driver || is_ptsc_admin) && safe_route(:ptsc_driver_dashboard_path) %>
               <%= link_to ptsc_driver_dashboard_path,
                   class: "btn btn-sm rounded-pill px-3 py-2 fw-semibold nav-pill position-relative #{current_page?(ptsc_driver_dashboard_path) ? 'btn-primary nav-active' : 'btn-outline-primary'}" do %>
                 <i class="bi bi-person-badge me-1"></i> Driver
@@ -361,19 +395,19 @@
 
           <!-- ================= OTHER AGENCIES ================= -->
           <% else %>
-            <% if is_fleet_manager %>
+            <% if is_fleet_manager && safe_route(:agency_vehicles_path, agency) %>
               <%= link_to agency_vehicles_path(agency), class: "btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill" do %>
                 <i class="bi bi-truck me-1"></i> Fleet
               <% end %>
             <% end %>
 
-            <% if is_maintenance_supervisor %>
+            <% if is_maintenance_supervisor && safe_route(:maintenances_path) %>
               <%= link_to maintenances_path, class: "btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill" do %>
                 <i class="bi bi-wrench me-1"></i> Maintenance
               <% end %>
             <% end %>
 
-            <% if is_financial_officer %>
+            <% if is_financial_officer && safe_route(:invoices_path) %>
               <%= link_to invoices_path, class: "btn btn-sm btn-outline-primary rounded-pill px-3 py-2 fw-semibold nav-pill" do %>
                 <i class="bi bi-receipt me-1"></i> Invoices
               <% end %>
@@ -411,7 +445,7 @@
 
             <ul class="dropdown-menu" style="position: absolute; z-index: 1000000; background: white !important; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); min-width: 300px; right: 0; left: auto;">
               <li class="dropdown-section" style="color: #0d47a1 !important;">🔔 NOTIFICATIONS</li>
-              <% if @recent_notifications && @recent_notifications.any? %>
+              <% if @recent_notifications.present? && @recent_notifications.any? %>
                 <% @recent_notifications.first(5).each do |notification| %>
                   <li>
                     <%= link_to notification_path(notification), class: "dropdown-item #{'fw-bold' unless notification.read?}", style: "color: #1e293b !important;" do %>
@@ -455,6 +489,11 @@
                   <li><%= link_to "Suppliers", suppliers_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <li><%= link_to "Condition Reports", vmcott_vehicle_condition_reports_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                <% elsif is_vmcott_workshop_manager %>
+                  <li><%= link_to "Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Pending Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Work Orders", vmcott_workshop_supervisor_work_orders_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <li><%= link_to "Mechanics", vmcott_workshop_supervisor_mechanics_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% elsif is_vmcott_inventory_manager %>
                   <li><%= link_to "Parts Catalog", "/vmcott/parts", class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <li><%= link_to "Inventory Dashboard", vmcott_inventory_dashboard_no_nav_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
@@ -488,7 +527,7 @@
                   <li><%= link_to "Fleet Dashboard", ptsc_fleet_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <li><%= link_to "Maintenance Schedule", ptsc_maintenance_dashboard_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <li><%= link_to "All Vehicles", vehicles_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
-                  <% if agency.present? %>
+                  <% if agency.present? && safe_route(:new_agency_rfq_path, agency) %>
                     <li><%= link_to "New RFQ", new_agency_rfq_path(agency), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
                 <% elsif is_ptsc_fleet_manager %>
@@ -506,13 +545,13 @@
                 <% end %>
               <% else %>
                 <!-- Non-VMCOTT/PTSC Quick Links -->
-                <% if is_fleet_manager %>
+                <% if is_fleet_manager && safe_route(:agency_analytics_path, agency) %>
                   <li><%= link_to "Fleet Analytics", agency_analytics_path(agency), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
-                <% if is_maintenance_supervisor %>
+                <% if is_maintenance_supervisor && safe_route(:gantt_path) %>
                   <li><%= link_to "Gantt View", gantt_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
-                <% if is_financial_officer %>
+                <% if is_financial_officer && safe_route(:payables_path) %>
                   <li><%= link_to "Payables", payables_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                 <% end %>
               <% end %>
@@ -522,21 +561,31 @@
                 <li><hr class="dropdown-divider"></li>
                 <li class="dropdown-section" style="color: #0d47a1 !important; font-weight: bold;">🔐 ADMIN</li>
                 
-                <li><%= link_to "Manage Users", admin_users_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                <% if safe_route(:admin_users_path) %>
+                  <li><%= link_to "Manage Users", admin_users_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                <% end %>
                 
                 <% if agency_code == "VMCOTT" %>
-                  <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
-                  <% if defined?(admin_roles_path) %>
+                  <% if agency.present? && safe_route(:new_admin_user_path, agency_id: agency.id) %>
+                    <li><%= link_to "Create VMCOTT User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% end %>
+                  <% if defined?(admin_roles_path) && safe_route(:admin_roles_path) %>
                     <li><%= link_to "Role Management", admin_roles_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
-                  <% if defined?(admin_settings_path) %>
+                  <% if defined?(admin_settings_path) && safe_route(:admin_settings_path) %>
                     <li><%= link_to "System Settings", admin_settings_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
                   <% end %>
                 <% elsif agency_code == "PTSC" %>
-                  <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
-                  <li><%= link_to "Vehicle Status Report", ptsc_admin_vehicle_status_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% if agency.present? && safe_route(:new_admin_user_path, agency_id: agency.id) %>
+                    <li><%= link_to "Create PTSC User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% end %>
+                  <% if safe_route(:ptsc_admin_vehicle_status_path) %>
+                    <li><%= link_to "Vehicle Status Report", ptsc_admin_vehicle_status_path, class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% end %>
                 <% else %>
-                  <li><%= link_to "Create New User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% if agency.present? && safe_route(:new_admin_user_path, agency_id: agency.id) %>
+                    <li><%= link_to "Create New User", new_admin_user_path(agency_id: agency.id), class: "dropdown-item", style: "color: #1e293b !important;" %></li>
+                  <% end %>
                 <% end %>
               <% end %>
 

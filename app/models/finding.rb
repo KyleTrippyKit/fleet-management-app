@@ -4,6 +4,7 @@ class Finding < ApplicationRecord
   belongs_to :inspection_job, optional: true
   belongs_to :created_by, class_name: 'User', optional: true
   belongs_to :job, class_name: 'InspectionJob', optional: true
+  belongs_to :work_order, optional: true
 
   validates :finding_type, presence: true
   validates :description, presence: true

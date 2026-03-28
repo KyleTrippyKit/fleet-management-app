@@ -1,19 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <%# File: app/views/layouts/application.html.erb %>
-    <title>Trinidad Fleet Management</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <meta name="page-type" content="<%= content_for?(:gantt_page) ? 'gantt' : 'normal' %>">
-
-    <%# Comment out favicon line until you add a favicon.ico file %>
-    <%# <%= favicon_link_tag 'favicon.ico' %>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trinidad Fleet Management</title>
     
-    <!-- Alternative: Use an inline SVG favicon to avoid 404 -->
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🚗%3C/text%3E%3C/svg%3E">
-
+    <!-- Physical favicon file - served directly from public folder -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- Fallback SVG favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23ce1126'/%3E%3Crect width='32' height='8' y='12' fill='%23ffffff'/%3E%3Crect width='32' height='4' y='14' fill='%23000000'/%3E%3C/svg%3E">
+    
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -34,16 +32,8 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
-    <% if content_for?(:gantt_page) %>
-      <link rel="stylesheet" href="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.css">
-    <% end %>
-
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
-
-    <% if content_for?(:gantt_page) %>
-      <script src="https://cdn.dhtmlx.com/gantt/edge/dhtmlxgantt.js" crossorigin="anonymous"></script>
-    <% end %>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -58,21 +48,8 @@
         background: linear-gradient(135deg, #e9f0f5 0%, #d9e4ec 100%) !important;
         background-attachment: fixed !important;
         min-height: 100vh;
-        padding-top: 20px;
         margin: 0;
-      }
-      
-      /* Optional: Add a subtle pattern overlay for depth - FIXED */
-      body::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2399c2e0' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        pointer-events: none;
-        z-index: -1;
+        padding: 20px;
       }
       
       /* Cards - Clean white with subtle shadow */
@@ -81,20 +58,22 @@
         border: none !important;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
         transition: all 0.3s ease;
+        margin-bottom: 20px;
       }
       
       .card:hover {
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.02) !important;
       }
       
-      /* Card headers - subtle grey-blue accent */
+      /* Card headers */
       .card-header {
         background: linear-gradient(135deg, #f8fafc 0%, #f0f4f8 100%) !important;
         border-bottom: 1px solid #e2e8f0 !important;
         color: #1e3a5f !important;
+        font-weight: 600;
       }
       
-      /* Tables - Clean white background */
+      /* Tables */
       .table {
         background: #ffffff !important;
       }
@@ -117,21 +96,7 @@
         background: #fafcff !important;
       }
       
-      /* Stats Cards - For KPI dashboard */
-      .stats-card {
-        background: #ffffff !important;
-        border: none !important;
-        border-radius: 16px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-      }
-      
-      .stats-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08) !important;
-      }
-      
-      /* Buttons - Consistent styling */
+      /* Buttons */
       .btn-primary {
         background: linear-gradient(135deg, #1e4a76 0%, #0f3a5a 100%) !important;
         border: none !important;
@@ -153,24 +118,6 @@
         background: #1e4a76 !important;
         border-color: #1e4a76 !important;
         color: white !important;
-      }
-      
-      /* Form controls */
-      .form-control, .form-select {
-        border-color: #d1d9e6 !important;
-        background: #ffffff !important;
-      }
-      
-      .form-control:focus, .form-select:focus {
-        border-color: #1e4a76 !important;
-        box-shadow: 0 0 0 0.2rem rgba(30, 74, 118, 0.15) !important;
-      }
-      
-      /* Navigation card - Keep blue but match theme */
-      .nav-card {
-        background: linear-gradient(135deg, #1e4a76 0%, #0f3a5a 100%) !important;
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
       }
       
       /* Alerts */
@@ -221,57 +168,6 @@
         background: #d32f2f !important;
       }
       
-      /* Pagination */
-      .pagination .page-link {
-        color: #1e4a76 !important;
-        border-color: #e2e8f0 !important;
-      }
-      
-      .pagination .page-item.active .page-link {
-        background: #1e4a76 !important;
-        border-color: #1e4a76 !important;
-        color: white !important;
-      }
-      
-      /* Dropdown menus - FIXED */
-      .dropdown-menu {
-        background: #ffffff !important;
-        border: 1px solid #e2e8f0 !important;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
-        z-index: 99999 !important;
-      }
-      
-      .dropdown-item {
-        color: #1e293b !important;
-      }
-      
-      .dropdown-item:hover {
-        background: #f0f4f8 !important;
-        color: #1e293b !important;
-      }
-      
-      /* Modal - FIXED to ensure they appear above everything */
-      .modal {
-        z-index: 100000 !important;
-      }
-      
-      .modal-backdrop {
-        z-index: 99999 !important;
-      }
-      
-      .modal-content {
-        background: #ffffff !important;
-        border: none !important;
-        border-radius: 16px !important;
-        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2) !important;
-        z-index: 100001 !important;
-      }
-      
-      .modal-header {
-        background: linear-gradient(135deg, #f8fafc 0%, #f0f4f8 100%) !important;
-        border-bottom: 1px solid #e2e8f0 !important;
-      }
-      
       /* Progress bars */
       .progress {
         background: #e2e8f0 !important;
@@ -283,34 +179,21 @@
         border-radius: 10px !important;
       }
       
-      /* Timeline for workflow */
-      .timeline-marker {
-        background: #1e4a76 !important;
+      /* Navigation card */
+      .nav-card {
+        background: linear-gradient(135deg, #1e4a76 0%, #0f3a5a 100%) !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        margin-bottom: 20px;
       }
       
-      /* Container spacing - REMOVED position relative to fix dropdown AND modal issues */
+      /* Container */
       .container {
         max-width: 1400px;
         margin: 0 auto;
-        padding: 20px;
       }
       
-      /* PTSC theme overrides - Keep consistent */
-      body.ptsc-theme-active .ptsc-header {
-        background: linear-gradient(135deg, #1e4a76 0%, #0f3a5a 100%) !important;
-      }
-
-      /* Gantt chart container */
-      .gantt-chart {
-        width: 100%;
-        height: 600px;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        overflow: hidden;
-        background: #ffffff;
-      }
-
-      /* Flash message animations */
+      /* Flash message animation */
       .alert-auto-hide {
         animation: fadeOutAlert 2.5s forwards !important;
         animation-delay: 2s !important;
@@ -319,36 +202,10 @@
       @keyframes fadeOutAlert {
         0% { opacity: 1; transform: translateY(0); }
         70% { opacity: 1; transform: translateY(0); }
-        100% { opacity: 0; transform: translateY(-20px); max-height: 0; padding: 0; margin: 0; }
-      }
-
-      /* Loading button state */
-      .btn-loading {
-        position: relative;
-        pointer-events: none;
-        opacity: 0.7;
-      }
-
-      .btn-loading:after {
-        content: '';
-        position: absolute;
-        width: 1rem;
-        height: 1rem;
-        top: 50%;
-        left: 50%;
-        margin-left: -0.5rem;
-        margin-top: -0.5rem;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        border-top-color: transparent;
-        animation: spinner 0.6s linear infinite;
-      }
-
-      @keyframes spinner {
-        to { transform: rotate(360deg); }
+        100% { opacity: 0; transform: translateY(-20px); display: none; }
       }
       
-      /* Scrollbar styling - matches the theme */
+      /* Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -367,70 +224,35 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #0f3a5a;
       }
+      
+      /* Main content */
+      main {
+        min-height: calc(100vh - 100px);
+      }
     </style>
     
-    <!-- Allow views to add their own head content -->
     <%= yield :head %>
   </head>
 
-  <%
-    # Agency theme detection
-    agency_code =
-      if defined?(current_user) && current_user&.respond_to?(:agency) && current_user.agency
-        current_user.agency.code.to_s.downcase
-      else
-        @agency.to_s.downcase
-      end
-
-    is_vmcott = (agency_code == "vmcott") || request.path.to_s.downcase.include?("vmcott")
-    is_ptsc   = (agency_code == "ptsc")   || request.path.to_s.downcase.include?("ptsc")
-  %>
-
-  <body class="<%= 'vmcott-page' if is_vmcott %>
-               <%= 'ptsc-theme-active' if is_ptsc %>
-               <%= 'gantt-page' if content_for?(:gantt_page) %>"
-        data-turbo="false">
-
-    <div id="modal-container"></div>
-
-    <%# ============================================================ %>
-    <%# SKIP NAVIGATION FOR INVENTORY DASHBOARD - FIXES BLANK PAGE %>
-    <%# ============================================================ %>
-    <%
-      # Determine if we should skip navigation
-      skip_navigation = (
-        params[:controller] == 'screensaver' || 
-        (params[:controller] == 'home' && params[:action] == 'index' && !user_signed_in?) ||
-        params[:controller] == 'devise/sessions' ||
-        params[:controller] == 'devise/passwords' ||
-        params[:controller] == 'devise/registrations' ||
-        # Skip navigation for inventory dashboard to fix blank page issue
-        (params[:controller] == 'vmcott/inventory' && params[:action] == 'dashboard')
-      )
-    %>
-
-    <!-- Navigation for logged-in users (skip for special pages and inventory dashboard) -->
-    <% unless skip_navigation %>
-      <% if user_signed_in? %>
-        <!-- Removed position relative and z-index from navigation container -->
-        <div class="container mt-3">
-          <%= render "shared/navigation" %>
-        </div>
-      <% end %>
-
-      <!-- Flash Messages -->
-      <div id="flash-messages" class="container mt-3" data-flash-container>
-        <%= render "shared/flash" %>
+  <body>
+    <% if user_signed_in? %>
+      <div class="container">
+        <%= render "shared/navigation" %>
       </div>
     <% end %>
 
-    <!-- Main Content - Removed position relative and z-index to fix modal stacking -->
+    <!-- Flash Messages -->
+    <div id="flash-messages" class="container">
+      <%= render "shared/flash" %>
+    </div>
+
+    <!-- Main Content -->
     <main class="container">
       <%= yield %>
     </main>
 
-    <!-- Flash auto-hide script -->
     <script>
+      // Auto-hide flash messages
       (function() {
         if (window.flashHandlerInitialized) return;
         window.flashHandlerInitialized = true;
@@ -455,8 +277,5 @@
         }
       })();
     </script>
-
-    <!-- Layout Debug Info - Only shows in development -->
-    <%# <%= render 'shared/layout_debug' if Rails.env.development? %>
   </body>
 </html>

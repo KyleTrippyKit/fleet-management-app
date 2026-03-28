@@ -10,8 +10,9 @@ class ScreensaverController < ApplicationController
 
   private
 
-  def set_user
-    @current_user = current_user if user_signed_in?
+  def show
+    # ✅ FIXED: Use screensaver layout with DOCTYPE
+    render :show, layout: 'screensaver'
   end
 
   def load_role_specific_data

@@ -6,12 +6,19 @@ class PartsRequest < ApplicationRecord
   belongs_to :vendor_invoice, optional: true
   belongs_to :purchase_order, optional: true
   
-  # Timestamp fields - these should exist in your database
-  # If they don't exist, you'll need to add them via migration
+  # NEW: Approval tracking fields
+  belongs_to :approved_by, class_name: 'User', optional: true
+  belongs_to :rejected_by, class_name: 'User', optional: true
+  belongs_to :issued_by, class_name: 'User', optional: true
+  
+  # Timestamp fields
   attribute :sent_to_procurement_at, :datetime
   attribute :notified_parts_coordinator_at, :datetime
   attribute :notified_billing_at, :datetime
   attribute :parts_received_at, :datetime
+  attribute :approved_at, :datetime
+  attribute :rejected_at, :datetime
+  attribute :issued_at, :datetime
   
   # Association to VendorRfq through part's vendor_rfq_items
   has_many :vendor_rfq_items, through: :part
@@ -24,7 +31,10 @@ class PartsRequest < ApplicationRecord
 
   # Fix the enum definition - use the Rails 7+ syntax
   enum :status, {
-    pending: 'pending',
+    pending_approval: 'pending_approval',  # NEW: Changed from pending
+    approved: 'approved',
+    rejected: 'rejected',
+    issued: 'issued',
     parts_coordinator_notified: 'parts_coordinator_notified',
     billing_notified: 'billing_notified',
     rfq_sent: 'rfq_sent',
@@ -32,21 +42,123 @@ class PartsRequest < ApplicationRecord
     finance_review: 'finance_review',
     purchase_order_created: 'purchase_order_created',
     parts_ordered: 'parts_ordered',
-    parts_received: 'parts_received',
-    approved: 'approved',
-    rejected: 'rejected'
-  }
+    parts_received: 'parts_received'
+  }, default: :pending_approval
 
-  scope :needing_coordinator_action, -> { where(status: [:pending, :parts_coordinator_notified]) }
+  # Scopes
+  scope :needing_approval, -> { where(status: :pending_approval) }
+  scope :approved_requests, -> { where(status: :approved) }
+  scope :rejected_requests, -> { where(status: :rejected) }
+  scope :issued_requests, -> { where(status: :issued) }
+  scope :needing_coordinator_action, -> { where(status: [:pending_approval, :parts_coordinator_notified]) }
   scope :needing_billing_action, -> { where(status: :billing_notified) }
   scope :needing_finance_action, -> { where(status: :finance_review) }
   scope :custom_parts, -> { where(part_id: nil) }
   scope :inventory_parts, -> { where.not(part_id: nil) }
   scope :for_job, ->(job_id) { where(inspection_job_id: job_id) }
   
+  # =====================================================
+  # APPROVAL METHODS
+  # =====================================================
+  
+  def approve!(user)
+    update!(
+      status: :approved,
+      approved_by: user,
+      approved_at: Time.current
+    )
+    
+    # Notify mechanic
+    if inspection_job&.assigned_mechanic
+      Notification.create!(
+        user: inspection_job.assigned_mechanic,
+        title: "Parts Request Approved",
+        message: "Your request for #{quantity}x #{part_name} has been approved.",
+        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+        notification_type: 'success',
+        notifiable: self
+      )
+    end
+    
+    # Also notify inventory manager if parts need to be issued
+    if part.present? && part.current_stock >= quantity
+      notify_inventory_manager
+    end
+  end
+  
+  def reject!(user, reason)
+    update!(
+      status: :rejected,
+      rejected_by: user,
+      rejected_at: Time.current,
+      rejection_reason: reason
+    )
+    
+    # Notify mechanic
+    if inspection_job&.assigned_mechanic
+      Notification.create!(
+        user: inspection_job.assigned_mechanic,
+        title: "Parts Request Rejected",
+        message: "Your request for #{quantity}x #{part_name} was rejected: #{reason}",
+        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+        notification_type: 'danger',
+        notifiable: self
+      )
+    end
+  end
+  
+  def issue!(user)
+    update!(
+      status: :issued,
+      issued_by: user,
+      issued_at: Time.current
+    )
+    
+    # Update part stock if inventory part
+    if inventory? && part.present?
+      part.update!(current_stock: part.current_stock - quantity)
+    end
+    
+    # Notify mechanic
+    if inspection_job&.assigned_mechanic
+      Notification.create!(
+        user: inspection_job.assigned_mechanic,
+        title: "Parts Issued",
+        message: "#{quantity}x #{part_name} has been issued for job ##{inspection_job_id}.",
+        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+        notification_type: 'info',
+        notifiable: self
+      )
+    end
+  end
+  
+  def notify_inventory_manager
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    Notification.create!(
+      title: "Parts Ready to Issue",
+      message: "Part #{part_name} x#{quantity} is in stock and ready for issue to job ##{inspection_job_id}.",
+      link: "/vmcott/inventory_manager/parts_requests/#{id}",
+      user_id: inventory_manager_ids,
+      notification_type: 'info',
+      notifiable: self
+    )
+  end
+
   # Status helper methods
-  def pending?
-    status == 'pending'
+  def pending_approval?
+    status == 'pending_approval'
+  end
+  
+  def approved?
+    status == 'approved'
+  end
+  
+  def rejected?
+    status == 'rejected'
+  end
+  
+  def issued?
+    status == 'issued'
   end
   
   def parts_coordinator_notified?
@@ -170,8 +282,14 @@ class PartsRequest < ApplicationRecord
   # Helper method to get status display for UI
   def status_display
     case status
-    when 'pending'
-      'Pending Review'
+    when 'pending_approval'
+      'Pending Approval'
+    when 'approved'
+      'Approved'
+    when 'rejected'
+      'Rejected'
+    when 'issued'
+      'Issued to Mechanic'
     when 'parts_coordinator_notified'
       'With Coordinator'
     when 'billing_notified'
@@ -188,10 +306,6 @@ class PartsRequest < ApplicationRecord
       'Ordered'
     when 'parts_received'
       'Received'
-    when 'approved'
-      'Approved'
-    when 'rejected'
-      'Rejected'
     else
       status.to_s.humanize
     end
@@ -200,8 +314,14 @@ class PartsRequest < ApplicationRecord
   # Helper method to get status badge class
   def status_badge_class
     case status
-    when 'pending'
+    when 'pending_approval'
       'warning'
+    when 'approved'
+      'success'
+    when 'rejected'
+      'danger'
+    when 'issued'
+      'info'
     when 'parts_coordinator_notified', 'billing_notified'
       'info'
     when 'rfq_sent', 'quotations_received'
@@ -210,10 +330,8 @@ class PartsRequest < ApplicationRecord
       'dark'
     when 'purchase_order_created', 'parts_ordered'
       'secondary'
-    when 'parts_received', 'approved'
+    when 'parts_received'
       'success'
-    when 'rejected'
-      'danger'
     else
       'light'
     end

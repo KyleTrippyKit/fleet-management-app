@@ -27,6 +27,11 @@ gem "devise", "~> 4.9"
 gem "kaminari"
 gem "activerecord-import"
 
+# Error tracking
+gem 'sentry-ruby'
+gem 'sentry-rails'
+gem 'sentry-sidekiq'
+
 group :development, :test do
   gem "debug", platforms: %i[mri windows], require: "debug/prelude"
   gem 'dotenv-rails', groups: [:development, :test]
@@ -34,6 +39,7 @@ end
 
 group :development do
   gem "web-console"
+  gem 'bullet'
 end
 
 gem 'bootstrap', '~> 5.3'
@@ -44,38 +50,31 @@ gem 'groupdate'
 gem "image_processing", "~> 1.2"
 gem 'vips'  # Faster than ImageMagick
 gem "activestorage", "~> 8.1"
-gem 'bullet', group: :development
-# For PDF export (optional)
-# gem 'prawn'
-# gem 'prawn-table'
 
-# Or for HTML to PDF
+# For PDF export
 gem 'wicked_pdf'
 gem 'wkhtmltopdf-binary'  # Binary for PDF generation
 
 gem 'faker'
 gem "aws-sdk-s3", require: false
+
 # JavaScript compressor
 gem 'terser', '~> 1.2'
 
-gem 'caxlsx'
-
-# Replace old axlsx with modern caxlsx
+# Excel export
 gem 'caxlsx'
 gem 'caxlsx_rails'
 
 gem 'cocoon'
 gem "pundit", "~> 2.5"
 gem 'sidekiq'
-gem 'dotenv-rails', groups: [:development, :test]
-gem 'axlsx'
-gem 'axlsx_rails'
-gem "ransack"
+gem 'sidekiq-cron', '~> 1.12'
+gem 'ransack'
 gem "csv"
 gem "redis", "~> 5.0"  # Required for Action Cable in production
 gem "whenever", require: false
-gem "importmap-rails"
 gem 'letter_opener'
+
 # Testing gems
 group :test do
   gem "minitest"
@@ -85,4 +84,5 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
   gem "webdrivers"
+  gem 'twilio-ruby'
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_27_175256) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -219,6 +219,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["vehicle_id"], name: "index_damage_reports_on_vehicle_id"
   end
 
+  create_table "dead_letter_queues", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error"
+    t.bigint "event_id"
+    t.string "event_type"
+    t.text "payload"
+    t.boolean "resolved", default: false
+    t.datetime "resolved_at"
+    t.datetime "updated_at", null: false
+    t.index ["event_id"], name: "index_dead_letter_queues_on_event_id"
+    t.index ["resolved", "created_at"], name: "index_dead_letter_queues_on_resolved_and_created_at"
+  end
+
   create_table "drivers", force: :cascade do |t|
     t.bigint "agency_id", null: false
     t.string "contact_number"
@@ -241,6 +254,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["driver_id", "vehicle_id"], name: "index_drivers_vehicles_on_driver_id_and_vehicle_id", unique: true
     t.index ["driver_id"], name: "index_drivers_vehicles_on_driver_id"
     t.index ["vehicle_id"], name: "index_drivers_vehicles_on_vehicle_id"
+  end
+
+  create_table "event_outboxes", force: :cascade do |t|
+    t.bigint "aggregate_id", null: false
+    t.string "aggregate_type", null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.string "event_type", null: false
+    t.string "external_id"
+    t.string "idempotency_key"
+    t.jsonb "payload", null: false
+    t.datetime "processed_at"
+    t.datetime "processing_started_at"
+    t.integer "retry_count", default: 0
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.index ["external_id"], name: "index_event_outboxes_on_external_id", unique: true, where: "(external_id IS NOT NULL)"
+    t.index ["idempotency_key"], name: "index_event_outboxes_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["status", "created_at"], name: "index_event_outboxes_on_status_and_created_at"
   end
 
   create_table "fare_rules", force: :cascade do |t|
@@ -275,10 +307,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.bigint "job_id"
     t.string "priority", default: "normal"
     t.string "severity"
+    t.string "status", default: "pending"
     t.datetime "updated_at", null: false
+    t.bigint "work_order_id"
     t.index ["inspection_id", "blocking"], name: "index_findings_on_inspection_id_and_blocking"
     t.index ["job_id"], name: "index_findings_on_job_id"
     t.index ["priority"], name: "index_findings_on_priority"
+    t.index ["status"], name: "index_findings_on_status"
+    t.index ["work_order_id"], name: "index_findings_on_work_order_id"
   end
 
   create_table "inspection_job_parts", force: :cascade do |t|
@@ -301,6 +337,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   create_table "inspection_jobs", force: :cascade do |t|
     t.decimal "actual_labor_cost", precision: 10, scale: 2
     t.decimal "actual_parts_cost", precision: 10, scale: 2
+    t.jsonb "additional_findings", default: []
     t.datetime "assigned_at"
     t.bigint "assigned_mechanic_id"
     t.datetime "blocked_at"
@@ -323,6 +360,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.boolean "parts_approved", default: false
     t.datetime "paused_at"
     t.text "paused_reason"
+    t.bigint "pre_check_by_id"
+    t.datetime "pre_check_completed_at"
+    t.text "pre_check_notes"
     t.string "priority"
     t.integer "quantity_used", default: 0
     t.string "recommendation_source", default: "inspector"
@@ -338,6 +378,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.string "verification_status", default: "pending"
     t.datetime "verified_at"
     t.integer "verified_by_mechanic_id"
+    t.bigint "work_order_id"
     t.index ["assigned_mechanic_id"], name: "index_inspection_jobs_on_assigned_mechanic_id"
     t.index ["created_by_id"], name: "index_inspection_jobs_on_created_by_id"
     t.index ["inspection_id"], name: "index_inspection_jobs_on_inspection_id"
@@ -349,6 +390,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["updated_by_id"], name: "index_inspection_jobs_on_updated_by_id"
     t.index ["verification_status"], name: "index_inspection_jobs_on_verification_status"
     t.index ["verified_by_mechanic_id"], name: "index_inspection_jobs_on_verified_by_mechanic_id"
+    t.index ["work_order_id"], name: "index_inspection_jobs_on_work_order_id"
+    t.check_constraint "status::text = ANY (ARRAY['pending_supervisor_review'::character varying, 'approved'::character varying, 'assigned'::character varying, 'pre_check_in_progress'::character varying, 'pre_check_completed'::character varying, 'pending_approval'::character varying, 'in_progress'::character varying, 'blocked'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])", name: "job_status_check_v2"
   end
 
   create_table "inspections", force: :cascade do |t|
@@ -409,6 +452,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.datetime "updated_at", null: false
     t.bigint "updated_by_id"
     t.bigint "vehicle_id", null: false
+    t.bigint "work_order_id"
     t.string "workflow_type", default: "work_before_payment"
     t.index ["client_type"], name: "index_inspections_on_client_type"
     t.index ["created_by_id"], name: "index_inspections_on_created_by_id"
@@ -424,6 +468,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["supervisor_id"], name: "index_inspections_on_supervisor_id"
     t.index ["updated_by_id"], name: "index_inspections_on_updated_by_id"
     t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
+    t.index ["work_order_id"], name: "index_inspections_on_work_order_id"
   end
 
   create_table "internal_pos", force: :cascade do |t|
@@ -489,6 +534,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.datetime "disputed_at"
     t.integer "disputed_by_id"
     t.date "due_date", null: false
+    t.string "idempotency_key"
     t.integer "inspection_id"
     t.date "invoice_date", null: false
     t.string "invoice_number", null: false
@@ -519,11 +565,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.datetime "updated_at", null: false
     t.bigint "vehicle_id", null: false
     t.string "vendor", null: false
+    t.bigint "work_order_id"
     t.index ["account_id"], name: "index_invoices_on_account_id"
     t.index ["aging_bucket"], name: "index_invoices_on_aging_bucket"
     t.index ["aging_category"], name: "index_invoices_on_aging_category"
     t.index ["category"], name: "index_invoices_on_category"
     t.index ["days_overdue"], name: "index_invoices_on_days_overdue"
+    t.index ["idempotency_key"], name: "index_invoices_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["inspection_id"], name: "index_invoices_on_inspection_id"
     t.index ["invoice_number"], name: "index_invoices_on_invoice_number", unique: true
     t.index ["maintenance_id"], name: "index_invoices_on_maintenance_id"
@@ -539,6 +587,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["sync_status"], name: "index_invoices_on_sync_status"
     t.index ["vehicle_id"], name: "index_invoices_on_vehicle_id"
     t.index ["vendor"], name: "index_invoices_on_vendor"
+    t.index ["work_order_id"], name: "index_invoices_on_work_order_id"
   end
 
   create_table "job_dependencies", force: :cascade do |t|
@@ -548,6 +597,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.bigint "job_id", null: false
     t.datetime "updated_at", null: false
     t.index ["job_id", "depends_on_job_id"], name: "index_job_dependencies_on_job_id_and_depends_on_job_id", unique: true
+  end
+
+  create_table "job_task_dependencies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "dependency_type", default: "required"
+    t.bigint "depends_on_task_id", null: false
+    t.bigint "job_task_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["depends_on_task_id"], name: "index_job_task_dependencies_on_depends_on_task_id"
+    t.index ["job_task_id", "depends_on_task_id"], name: "idx_unique_task_dependency", unique: true
+    t.index ["job_task_id"], name: "index_job_task_dependencies_on_job_task_id"
+  end
+
+  create_table "job_tasks", force: :cascade do |t|
+    t.decimal "actual_cost", precision: 10, scale: 2
+    t.decimal "actual_hours", precision: 5, scale: 2
+    t.bigint "assigned_mechanic_id"
+    t.datetime "blocked_at"
+    t.text "blocked_reason"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.decimal "estimated_cost", precision: 10, scale: 2
+    t.decimal "estimated_hours", precision: 5, scale: 2
+    t.bigint "finding_id"
+    t.string "idempotency_key"
+    t.bigint "inspection_job_id", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.datetime "started_at"
+    t.string "status", default: "pending"
+    t.datetime "updated_at", null: false
+    t.index ["assigned_mechanic_id"], name: "idx_job_tasks_on_assigned_mechanic"
+    t.index ["assigned_mechanic_id"], name: "index_job_tasks_on_assigned_mechanic_id"
+    t.index ["finding_id"], name: "index_job_tasks_on_finding_id"
+    t.index ["idempotency_key"], name: "index_job_tasks_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["inspection_job_id", "position"], name: "index_job_tasks_on_inspection_job_id_and_position"
+    t.index ["inspection_job_id"], name: "index_job_tasks_on_inspection_job_id"
+    t.index ["status"], name: "index_job_tasks_on_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'in_progress'::character varying, 'blocked'::character varying, 'completed'::character varying, 'skipped'::character varying]::text[])", name: "job_task_status_check"
   end
 
   create_table "job_template_parts", force: :cascade do |t|
@@ -759,6 +849,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.string "name"
     t.string "part_number"
     t.decimal "price", precision: 10, scale: 2
+    t.integer "quantity_reserved", default: 0
     t.integer "reorder_point", default: 10
     t.decimal "sale_price", precision: 10, scale: 2
     t.decimal "standard_markup_percentage", precision: 5, scale: 2, default: "30.0"
@@ -770,6 +861,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["is_consumable"], name: "index_parts_on_is_consumable"
     t.index ["part_number"], name: "index_parts_on_part_number", unique: true
     t.index ["supplier_id"], name: "index_parts_on_supplier_id"
+    t.check_constraint "quantity_reserved >= 0", name: "quantity_reserved_positive"
   end
 
   create_table "parts_request_items", force: :cascade do |t|
@@ -785,11 +877,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
 
   create_table "parts_requests", force: :cascade do |t|
     t.datetime "approved_at"
+    t.bigint "approved_by_id"
     t.datetime "created_at", null: false
     t.string "custom_part_name"
     t.boolean "in_stock", default: false
     t.bigint "inspection_id", null: false
     t.bigint "inspection_job_id"
+    t.datetime "issued_at"
+    t.bigint "issued_by_id"
     t.datetime "notified_billing_at"
     t.datetime "notified_parts_coordinator_at"
     t.bigint "part_id"
@@ -799,6 +894,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.bigint "purchase_order_id"
     t.integer "quantity", default: 1, null: false
     t.datetime "rejected_at"
+    t.bigint "rejected_by_id"
     t.text "rejection_reason"
     t.datetime "sent_to_billing_at"
     t.string "status", default: "pending"
@@ -806,10 +902,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.bigint "vendor_invoice_id"
     t.index ["inspection_id", "part_id"], name: "index_parts_requests_on_inspection_id_and_part_id", unique: true
     t.index ["inspection_id"], name: "index_parts_requests_on_inspection_id"
+    t.index ["inspection_job_id", "status"], name: "index_parts_requests_on_inspection_job_id_and_status"
     t.index ["inspection_job_id"], name: "index_parts_requests_on_inspection_job_id"
     t.index ["part_id"], name: "index_parts_requests_on_part_id"
     t.index ["purchase_order_id"], name: "index_parts_requests_on_purchase_order_id"
     t.index ["status", "created_at"], name: "index_parts_requests_on_status_and_created_at"
+    t.index ["status"], name: "index_parts_requests_on_status"
     t.index ["vendor_invoice_id"], name: "index_parts_requests_on_vendor_invoice_id"
   end
 
@@ -906,13 +1004,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   create_table "payments", force: :cascade do |t|
     t.decimal "amount"
     t.datetime "created_at", null: false
+    t.string "idempotency_key"
     t.bigint "inspection_id", null: false
     t.datetime "paid_at"
     t.string "payment_method"
     t.string "status"
     t.string "transaction_id"
     t.datetime "updated_at", null: false
+    t.bigint "work_order_id"
+    t.index ["idempotency_key"], name: "index_payments_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["inspection_id"], name: "index_payments_on_inspection_id"
+    t.index ["work_order_id"], name: "index_payments_on_work_order_id"
   end
 
   create_table "permissions", force: :cascade do |t|
@@ -1191,6 +1293,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.datetime "converted_at"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
+    t.string "idempotency_key"
     t.bigint "inspection_id"
     t.text "notes"
     t.integer "original_quotation_id"
@@ -1208,14 +1311,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.bigint "vehicle_id"
     t.string "vendor", null: false
     t.integer "version_number", default: 1
+    t.bigint "work_order_id"
     t.string "workflow_type"
     t.index ["agency_id"], name: "index_quotations_on_agency_id"
     t.index ["created_by_id"], name: "index_quotations_on_created_by_id"
+    t.index ["idempotency_key"], name: "index_quotations_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["inspection_id"], name: "index_quotations_on_inspection_id"
     t.index ["quote_number"], name: "index_quotations_on_quote_number", unique: true
     t.index ["rfq_id"], name: "index_quotations_on_rfq_id"
     t.index ["updated_by_id"], name: "index_quotations_on_updated_by_id"
     t.index ["vehicle_id"], name: "index_quotations_on_vehicle_id"
+    t.index ["work_order_id"], name: "index_quotations_on_work_order_id"
   end
 
   create_table "reception_logs", force: :cascade do |t|
@@ -1709,6 +1815,65 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
     t.index ["vehicle_id"], name: "index_vendor_rfqs_on_vehicle_id"
   end
 
+  create_table "work_orders", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.bigint "customer_id"
+    t.text "customer_notes"
+    t.string "customer_type"
+    t.string "idempotency_key"
+    t.datetime "inspected_at"
+    t.text "internal_notes"
+    t.integer "lock_version", default: 0, null: false
+    t.jsonb "metadata", default: {}
+    t.decimal "paid_amount", precision: 10, scale: 2, default: "0.0"
+    t.string "payment_status", default: "pending"
+    t.datetime "picked_up_at"
+    t.string "pickup_code"
+    t.datetime "ready_for_pickup_at"
+    t.datetime "received_at", null: false
+    t.datetime "started_at"
+    t.string "status", default: "received", null: false
+    t.decimal "total_amount", precision: 10, scale: 2, default: "0.0"
+    t.datetime "updated_at", null: false
+    t.bigint "vehicle_id", null: false
+    t.string "work_order_number", null: false
+    t.index ["customer_type", "customer_id"], name: "index_work_orders_on_customer"
+    t.index ["idempotency_key"], name: "index_work_orders_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["status"], name: "index_work_orders_on_status"
+    t.index ["vehicle_id", "status"], name: "index_work_orders_on_vehicle_id_and_status"
+    t.index ["vehicle_id"], name: "index_work_orders_on_vehicle_id"
+    t.index ["work_order_number"], name: "index_work_orders_on_work_order_number", unique: true
+    t.check_constraint "status::text = ANY (ARRAY['received'::character varying, 'inspected'::character varying, 'awaiting_approval'::character varying, 'approved'::character varying, 'in_progress'::character varying, 'on_hold'::character varying, 'ready_for_pickup'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])", name: "work_order_status_check"
+  end
+
+  create_table "work_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "duration_hours", precision: 5, scale: 2
+    t.datetime "ended_at"
+    t.string "idempotency_key"
+    t.bigint "job_task_id", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.bigint "mechanic_id", null: false
+    t.text "notes"
+    t.string "session_type", default: "work"
+    t.datetime "started_at", null: false
+    t.boolean "system_generated", default: false
+    t.datetime "updated_at", null: false
+    t.bigint "updated_by_id"
+    t.index ["idempotency_key"], name: "index_work_sessions_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
+    t.index ["job_task_id", "started_at"], name: "index_work_sessions_on_job_task_id_and_started_at"
+    t.index ["job_task_id"], name: "index_work_sessions_on_job_task_id"
+    t.index ["mechanic_id", "started_at"], name: "index_work_sessions_on_mechanic_id_and_started_at"
+    t.index ["mechanic_id"], name: "index_one_active_session_per_mechanic", unique: true, where: "(ended_at IS NULL)"
+    t.index ["mechanic_id"], name: "index_work_sessions_on_mechanic_id"
+    t.index ["updated_by_id"], name: "index_work_sessions_on_updated_by_id"
+    t.check_constraint "duration_hours >= 0::numeric", name: "positive_duration_check"
+    t.check_constraint "ended_at IS NULL OR ended_at >= started_at", name: "valid_time_range_check"
+    t.check_constraint "session_type::text = ANY (ARRAY['work'::character varying, 'break'::character varying, 'waiting'::character varying, 'blocked'::character varying]::text[])", name: "work_session_type_check"
+  end
+
   create_table "z_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1727,12 +1892,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "clients", "agencies"
   add_foreign_key "damage_reports", "drivers"
   add_foreign_key "damage_reports", "vehicles"
+  add_foreign_key "dead_letter_queues", "event_outboxes", column: "event_id"
   add_foreign_key "drivers_vehicles", "drivers"
   add_foreign_key "drivers_vehicles", "vehicles"
   add_foreign_key "findings", "inspection_jobs"
   add_foreign_key "findings", "inspection_jobs", column: "job_id"
   add_foreign_key "findings", "inspections"
   add_foreign_key "findings", "users", column: "created_by_id"
+  add_foreign_key "findings", "work_orders"
   add_foreign_key "inspection_job_parts", "inspection_jobs"
   add_foreign_key "inspection_job_parts", "parts"
   add_foreign_key "inspection_jobs", "inspections"
@@ -1740,6 +1907,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "inspection_jobs", "users", column: "assigned_mechanic_id"
   add_foreign_key "inspection_jobs", "users", column: "created_by_id"
   add_foreign_key "inspection_jobs", "users", column: "updated_by_id"
+  add_foreign_key "inspection_jobs", "work_orders"
   add_foreign_key "inspections", "purchase_orders"
   add_foreign_key "inspections", "users", column: "created_by_id"
   add_foreign_key "inspections", "users", column: "final_inspector_id"
@@ -1747,14 +1915,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "inspections", "users", column: "supervisor_id"
   add_foreign_key "inspections", "users", column: "updated_by_id"
   add_foreign_key "inspections", "vehicles"
+  add_foreign_key "inspections", "work_orders"
   add_foreign_key "inventory_transactions", "agencies"
   add_foreign_key "inventory_transactions", "users", name: "inventory_transactions_user_id_fkey"
   add_foreign_key "inventory_transactions", "vendor_invoices"
   add_foreign_key "invoices", "maintenances"
   add_foreign_key "invoices", "suppliers"
   add_foreign_key "invoices", "vehicles"
+  add_foreign_key "invoices", "work_orders"
   add_foreign_key "job_dependencies", "inspection_jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "inspection_jobs", column: "job_id"
+  add_foreign_key "job_task_dependencies", "job_tasks"
+  add_foreign_key "job_task_dependencies", "job_tasks", column: "depends_on_task_id"
+  add_foreign_key "job_tasks", "findings"
+  add_foreign_key "job_tasks", "inspection_jobs"
+  add_foreign_key "job_tasks", "users", column: "assigned_mechanic_id"
   add_foreign_key "job_template_parts", "job_templates"
   add_foreign_key "job_template_parts", "parts"
   add_foreign_key "job_template_vehicle_applications", "job_templates"
@@ -1784,6 +1959,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "parts_requests", "inspections"
   add_foreign_key "parts_requests", "parts"
   add_foreign_key "parts_requests", "purchase_orders"
+  add_foreign_key "parts_requests", "users", column: "approved_by_id"
+  add_foreign_key "parts_requests", "users", column: "issued_by_id"
+  add_foreign_key "parts_requests", "users", column: "rejected_by_id"
   add_foreign_key "parts_requests", "vendor_invoices"
   add_foreign_key "payment_audits", "purchase_orders"
   add_foreign_key "payment_audits", "users"
@@ -1791,6 +1969,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "payment_histories", "transactions", column: "payment_transaction_id"
   add_foreign_key "payment_histories", "users"
   add_foreign_key "payments", "inspections"
+  add_foreign_key "payments", "work_orders"
   add_foreign_key "pos_transactions", "agencies"
   add_foreign_key "pos_transactions", "cashier_sessions"
   add_foreign_key "pos_transactions", "invoices"
@@ -1828,6 +2007,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "quotations", "users", column: "created_by_id"
   add_foreign_key "quotations", "users", column: "updated_by_id"
   add_foreign_key "quotations", "vehicles"
+  add_foreign_key "quotations", "work_orders"
   add_foreign_key "reception_logs", "purchase_orders"
   add_foreign_key "reception_logs", "users", column: "inspector_id"
   add_foreign_key "reception_logs", "vehicle_condition_reports", column: "condition_report_id"
@@ -1869,4 +2049,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_154954) do
   add_foreign_key "vendor_rfqs", "users", column: "created_by_id"
   add_foreign_key "vendor_rfqs", "vehicles"
   add_foreign_key "vendor_rfqs", "vendor_quotations", column: "awarded_vendor_quotation_id"
+  add_foreign_key "work_orders", "vehicles"
+  add_foreign_key "work_sessions", "job_tasks"
+  add_foreign_key "work_sessions", "users", column: "mechanic_id"
+  add_foreign_key "work_sessions", "users", column: "updated_by_id"
 end

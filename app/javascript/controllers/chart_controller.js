@@ -1,6 +1,9 @@
 // app/javascript/controllers/chart_controller.js
 import { Controller } from "@hotwired/stimulus"
 
+// Check if Chart.js is available globally
+const Chart = typeof window !== 'undefined' ? window.Chart : null
+
 export default class extends Controller {
   static values = { usageData: Array }
   chart = null
@@ -9,58 +12,76 @@ export default class extends Controller {
     console.log("🎯 CHART CONTROLLER CONNECTED!")
     
     // Wait for Chart.js to load
-    if (!window.Chart) {
+    if (!Chart && !window.Chart) {
       console.error("❌ Chart.js not loaded, waiting...")
-      // Try again in a moment
-      setTimeout(() => this.renderChart(), 500)
+      // Wait for Chart.js to load
+      const checkInterval = setInterval(() => {
+        if (window.Chart) {
+          clearInterval(checkInterval)
+          this.initChart()
+        }
+      }, 200)
+      setTimeout(() => clearInterval(checkInterval), 5000)
       return
     }
     
+    this.initChart()
+  }
+  
+  initChart() {
+    console.log("📊 Initializing chart...")
+    
     // Listen for theme changes
-    this.setupThemeListeners();
+    this.setupThemeListeners()
     
     // Render initial chart
     this.renderChart()
   }
 
   setupThemeListeners() {
-    // Listen for theme changes from theme controller
-    document.addEventListener('theme:changed', (event) => {
-      console.log('🎨 Chart: Theme changed to', event.detail.theme);
-      this.updateChartTheme(event.detail.theme);
-    });
+    // Bind methods to this instance
+    this.handleThemeChanged = this.handleThemeChanged.bind(this)
+    this.handleThemeCleared = this.handleThemeCleared.bind(this)
     
-    // Listen for theme cleared event
-    document.addEventListener('theme:cleared', () => {
-      console.log('🎨 Chart: Theme cleared, resetting to default');
-      this.updateChartTheme(null);
-    });
+    // Listen for theme changes from theme controller
+    document.addEventListener('theme:changed', this.handleThemeChanged)
+    document.addEventListener('theme:cleared', this.handleThemeCleared)
     
     // Check for existing theme on load
     setTimeout(() => {
-      const currentTheme = this.getCurrentTheme();
+      const currentTheme = this.getCurrentTheme()
       if (currentTheme) {
-        this.updateChartTheme(currentTheme);
+        this.updateChartTheme(currentTheme)
       }
-    }, 100);
+    }, 100)
+  }
+
+  handleThemeChanged(event) {
+    console.log('🎨 Chart: Theme changed to', event.detail.theme)
+    this.updateChartTheme(event.detail.theme)
+  }
+
+  handleThemeCleared() {
+    console.log('🎨 Chart: Theme cleared, resetting to default')
+    this.updateChartTheme(null)
   }
 
   getCurrentTheme() {
     // Check body classes for theme
-    const body = document.body;
+    const body = document.body
     for (let i = 1; i <= 11; i++) {
       if (body.classList.contains(`theme-${i}`)) {
-        return i;
+        return i
       }
     }
     
     // Check data attribute
-    const themeAttr = document.body.getAttribute('data-theme');
+    const themeAttr = document.body.getAttribute('data-theme')
     if (themeAttr) {
-      return parseInt(themeAttr);
+      return parseInt(themeAttr)
     }
     
-    return null;
+    return null
   }
 
   getThemeColors(themeNumber) {
@@ -143,50 +164,67 @@ export default class extends Controller {
         textColor: '#f8f9fa',
         backgroundColor: 'rgba(28, 28, 28, 0.8)'
       }
-    };
+    }
     
     // Default theme (Modern Light)
-    return themes[themeNumber] || themes[1];
+    return themes[themeNumber] || themes[1]
   }
 
   updateChartTheme(themeNumber) {
     if (!this.chart) {
-      console.log('🎨 Chart: No chart to update, will apply theme on next render');
-      return;
+      console.log('🎨 Chart: No chart to update, will apply theme on next render')
+      return
     }
     
-    const themeColors = this.getThemeColors(themeNumber);
+    const themeColors = this.getThemeColors(themeNumber)
     
     // Update chart datasets
-    this.chart.data.datasets[0].backgroundColor = themeColors.backgroundColors[0];
-    this.chart.data.datasets[0].borderColor = themeColors.borderColors[0];
-    this.chart.data.datasets[1].backgroundColor = themeColors.backgroundColors[1];
-    this.chart.data.datasets[1].borderColor = themeColors.borderColors[1];
-    
-    // Update chart options
-    this.chart.options.scales.y.grid.color = themeColors.gridColor;
-    this.chart.options.scales.y.ticks.color = themeColors.textColor;
-    this.chart.options.scales.y.title.color = themeColors.textColor;
-    this.chart.options.scales.x.ticks.color = themeColors.textColor;
-    
-    // Update plugin colors
-    this.chart.options.plugins.title.color = themeColors.textColor;
-    this.chart.options.plugins.legend.labels.color = themeColors.textColor;
-    this.chart.options.plugins.tooltip.backgroundColor = themeNumber === 2 ? 
-      'rgba(30, 30, 30, 0.9)' : 'rgba(0, 0, 0, 0.8)';
-    
-    // Update canvas background if needed
-    if (themeColors.backgroundColor !== 'transparent') {
-      const canvas = this.element.querySelector("canvas");
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = themeColors.backgroundColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (this.chart.data && this.chart.data.datasets) {
+      if (this.chart.data.datasets[0]) {
+        this.chart.data.datasets[0].backgroundColor = themeColors.backgroundColors[0]
+        this.chart.data.datasets[0].borderColor = themeColors.borderColors[0]
+      }
+      if (this.chart.data.datasets[1]) {
+        this.chart.data.datasets[1].backgroundColor = themeColors.backgroundColors[1]
+        this.chart.data.datasets[1].borderColor = themeColors.borderColors[1]
       }
     }
     
-    this.chart.update('none');
-    console.log('🎨 Chart: Theme updated to', themeNumber);
+    // Update chart options
+    if (this.chart.options) {
+      if (this.chart.options.scales?.y) {
+        if (this.chart.options.scales.y.grid) this.chart.options.scales.y.grid.color = themeColors.gridColor
+        if (this.chart.options.scales.y.ticks) this.chart.options.scales.y.ticks.color = themeColors.textColor
+        if (this.chart.options.scales.y.title) this.chart.options.scales.y.title.color = themeColors.textColor
+      }
+      if (this.chart.options.scales?.x?.ticks) {
+        this.chart.options.scales.x.ticks.color = themeColors.textColor
+      }
+      if (this.chart.options.plugins) {
+        if (this.chart.options.plugins.title) this.chart.options.plugins.title.color = themeColors.textColor
+        if (this.chart.options.plugins.legend?.labels) {
+          this.chart.options.plugins.legend.labels.color = themeColors.textColor
+        }
+        if (this.chart.options.plugins.tooltip) {
+          this.chart.options.plugins.tooltip.backgroundColor = themeNumber === 2 ? 
+            'rgba(30, 30, 30, 0.9)' : 'rgba(0, 0, 0, 0.8)'
+        }
+      }
+    }
+    
+    // Update canvas background if needed
+    if (themeColors.backgroundColor !== 'transparent') {
+      const canvas = this.element.querySelector("canvas")
+      if (canvas) {
+        const ctx = canvas.getContext("2d")
+        const rect = canvas.getBoundingClientRect()
+        ctx.fillStyle = themeColors.backgroundColor
+        ctx.fillRect(0, 0, rect.width, rect.height)
+      }
+    }
+    
+    this.chart.update('none')
+    console.log('🎨 Chart: Theme updated to', themeNumber)
   }
 
   renderChart() {
@@ -215,8 +253,10 @@ export default class extends Controller {
     
     // Set canvas dimensions
     const container = canvas.parentElement
-    canvas.width = container.offsetWidth
-    canvas.height = container.offsetHeight
+    if (container) {
+      canvas.width = container.offsetWidth
+      canvas.height = container.offsetHeight
+    }
     
     const ctx = canvas.getContext("2d")
     if (!ctx) {
@@ -225,8 +265,8 @@ export default class extends Controller {
     }
     
     // Get current theme for initial colors
-    const currentTheme = this.getCurrentTheme();
-    const themeColors = this.getThemeColors(currentTheme);
+    const currentTheme = this.getCurrentTheme()
+    const themeColors = this.getThemeColors(currentTheme)
     
     // Create clean labels
     const labels = data.map(item => {
@@ -264,7 +304,12 @@ export default class extends Controller {
     }
 
     try {
-      this.chart = new Chart(ctx, {
+      const ChartLib = window.Chart || Chart
+      if (!ChartLib) {
+        throw new Error("Chart.js not loaded")
+      }
+      
+      this.chart = new ChartLib(ctx, {
         type: "bar",
         data: {
           labels: labels,
@@ -442,8 +487,8 @@ export default class extends Controller {
 
   disconnect() {
     // Remove event listeners
-    document.removeEventListener('theme:changed', this.updateChartTheme);
-    document.removeEventListener('theme:cleared', this.updateChartTheme);
+    document.removeEventListener('theme:changed', this.handleThemeChanged)
+    document.removeEventListener('theme:cleared', this.handleThemeCleared)
     
     // Destroy chart
     if (this.chart) {

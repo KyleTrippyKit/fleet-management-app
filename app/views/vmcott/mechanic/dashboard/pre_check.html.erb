@@ -1,0 +1,164 @@
+<%# app/views/vmcott/mechanic/dashboard/pre_check.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <h1 class="h2"><i class="bi bi-search me-2"></i>Pre-Work Inspection</h1>
+      <p class="text-muted">Job #<%= @job.id %> - <%= @job.description %></p>
+      <p class="text-info"><i class="bi bi-info-circle me-1"></i> Inspect thoroughly before starting repairs</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <%= form_with url: submit_pre_check_vmcott_mechanic_job_path(@job), method: :post, local: true do |f| %>
+        
+        <!-- Original Job Description -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Original Job Description</h5>
+          </div>
+          <div class="card-body">
+            <p><%= @job.description %></p>
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <strong>Priority:</strong> <span class="badge bg-<%= @job.priority == 'high' ? 'danger' : 'info' %>"><%= @job.priority&.humanize || 'Normal' %></span>
+              </div>
+              <div class="col-md-6">
+                <strong>Est. Hours:</strong> <%= @job.estimated_hours || 'TBD' %> hrs
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pre-Check Notes -->
+        <div class="card mb-4">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-pencil me-2"></i>Pre-Check Notes</h5>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label fw-bold">What did you find during inspection?</label>
+              <%= text_area_tag :notes, nil, 
+                    class: "form-control", 
+                    rows: 4,
+                    placeholder: "Describe your findings, observations, and any issues discovered...",
+                    required: true %>
+              <div class="form-text">Be specific about what you found during the pre-work inspection.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Additional Findings -->
+        <div class="card mb-4">
+          <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Additional Findings (If Any)</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">Add any additional issues discovered during pre-check that require approval.</p>
+            
+            <div id="additional-findings-container">
+              <div class="finding-item card mb-3 border-danger">
+                <div class="card-body">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Description</label>
+                      <input type="text" name="additional_findings[][description]" class="form-control" placeholder="e.g., Brake caliper leaking">
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Severity</label>
+                      <select name="additional_findings[][severity]" class="form-select">
+                        <option value="minor">Minor</option>
+                        <option value="normal">Normal</option>
+                        <option value="major">Major</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label">Est. Hours</label>
+                      <input type="number" name="additional_findings[][estimated_hours]" class="form-control" step="0.5" value="1.0">
+                    </div>
+                    <div class="col-md-1">
+                      <label class="form-label">&nbsp;</label>
+                      <button type="button" class="btn btn-danger btn-sm w-100 remove-finding" style="display: none;">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <button type="button" class="btn btn-sm btn-outline-danger mt-2" id="add-finding-btn">
+              <i class="bi bi-plus-circle me-1"></i> Add Additional Finding
+            </button>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <%= link_to "Cancel", vmcott_mechanic_job_path(@job), class: "btn btn-outline-secondary" %>
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-circle me-2"></i>Submit Pre-Check Findings
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.getElementById('additional-findings-container');
+  const addBtn = document.getElementById('add-finding-btn');
+  
+  function updateRemoveButtons() {
+    const items = container.querySelectorAll('.finding-item');
+    items.forEach((item, index) => {
+      const removeBtn = item.querySelector('.remove-finding');
+      if (items.length > 1) {
+        removeBtn.style.display = 'block';
+        removeBtn.onclick = () => item.remove();
+      } else {
+        removeBtn.style.display = 'none';
+      }
+    });
+  }
+  
+  addBtn.addEventListener('click', function() {
+    const newItem = document.createElement('div');
+    newItem.className = 'finding-item card mb-3 border-danger';
+    newItem.innerHTML = `
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Description</label>
+            <input type="text" name="additional_findings[][description]" class="form-control" placeholder="e.g., Brake caliper leaking">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Severity</label>
+            <select name="additional_findings[][severity]" class="form-select">
+              <option value="minor">Minor</option>
+              <option value="normal">Normal</option>
+              <option value="major">Major</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Est. Hours</label>
+            <input type="number" name="additional_findings[][estimated_hours]" class="form-control" step="0.5" value="1.0">
+          </div>
+          <div class="col-md-1">
+            <label class="form-label">&nbsp;</label>
+            <button type="button" class="btn btn-danger btn-sm w-100 remove-finding">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(newItem);
+    updateRemoveButtons();
+  });
+  
+  updateRemoveButtons();
+});
+</script>

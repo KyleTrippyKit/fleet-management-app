@@ -6,8 +6,13 @@
 # - finance → finance_accounting (kept as finance for compatibility)
 # - inspector kept as inspector
 # - mechanic kept as mechanic
+# ADDED: API v1 routes for tasks and work_orders
+# ADDED: Mechanic task management routes
+# ADDED: Workshop supervisor management routes with pre-check review and parts request review
+# ADDED: Admin event dashboard routes
 
 Rails.application.routes.draw do
+  get "/stimulus-test", to: "stimulus_test#index"
 
   # Mount Action Cable
   mount ActionCable.server => '/cable'
@@ -16,6 +21,32 @@ Rails.application.routes.draw do
   get "stock_levels/update_batch"
 
   get "test_simple", to: "test#simple"
+
+  # ========================
+  # API Routes
+  # ========================
+  namespace :api do
+    namespace :v1 do
+      resources :tasks, only: [:show] do
+        member do
+          post :start
+          post :pause
+          post :resume
+          post :complete
+          post :block
+        end
+      end
+      
+      resources :work_orders, only: [:show, :update] do
+        member do
+          post :transition
+          post :add_inspection
+          post :add_finding
+          post :resolve_finding
+        end
+      end
+    end
+  end
 
   # ========================
   # Authentication - Devise
@@ -250,7 +281,7 @@ Rails.application.routes.draw do
       post "send_rfq/:id", to: redirect("/vmcott/procurement/send_rfq/%{id}")
     end
 
-    # 5. MECHANIC (KEPT AS IS)
+    # 5. MECHANIC (UPDATED with Task Management)
     namespace :mechanic do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "job/:id", to: "dashboard#show_job", as: :job
@@ -258,6 +289,19 @@ Rails.application.routes.draw do
       post "job/:id/start", to: "dashboard#start_job", as: :start_job
       post "job/:id/progress", to: "dashboard#update_progress", as: :update_progress
       post "job/:id/request_qc", to: "dashboard#request_qc", as: :request_qc
+      
+      # ========================
+      # TASK MANAGEMENT ROUTES
+      # ========================
+      get 'tasks', to: 'dashboard#tasks', as: :tasks
+      get 'tasks/:id', to: 'dashboard#task_show', as: :task
+      post 'tasks/:id/start', to: 'dashboard#task_start', as: :start_task
+      post 'tasks/:id/pause', to: 'dashboard#task_pause', as: :pause_task
+      post 'tasks/:id/resume', to: 'dashboard#task_resume', as: :resume_task
+      post 'tasks/:id/complete', to: 'dashboard#task_complete', as: :complete_task
+      post 'tasks/:id/block', to: 'dashboard#task_block', as: :block_task
+      post 'tasks/:id/assign', to: 'dashboard#task_assign', as: :assign_task
+      post 'tasks/:id/add_finding', to: 'dashboard#task_add_finding', as: :add_finding_task
       
       # Parts request routes
       post "job/:id/request_part", to: "dashboard#request_part", as: :request_part
@@ -348,9 +392,50 @@ Rails.application.routes.draw do
       post "create_invoice/:inspection_id", to: redirect("/vmcott/finance/create_invoice/%{inspection_id}")
     end
 
-    # 7. WORKSHOP SUPERVISOR - Keep as is
+    # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, and parts request review)
     namespace :workshop_supervisor do
-      get "dashboard", to: "dashboard#index", as: :dashboard
+      get 'dashboard', to: 'dashboard#index', as: :dashboard
+      get 'tasks', to: 'dashboard#tasks', as: :tasks
+      get 'tasks/:id', to: 'dashboard#task_show', as: :task
+      post 'tasks/:id/approve', to: 'dashboard#task_approve', as: :approve_task
+      post 'tasks/:id/reject', to: 'dashboard#task_reject', as: :reject_task
+      post 'tasks/:id/unblock', to: 'dashboard#task_unblock', as: :unblock_task
+      post 'tasks/:id/assign_mechanic', to: 'dashboard#task_assign_mechanic', as: :assign_mechanic_task
+      
+      get 'work_orders', to: 'dashboard#work_orders', as: :work_orders
+      get 'work_orders/:id', to: 'dashboard#work_order_show', as: :work_order
+      post 'work_orders/:id/approve', to: 'dashboard#work_order_approve', as: :approve_work_order
+      post 'work_orders/:id/hold', to: 'dashboard#work_order_hold', as: :hold_work_order
+      
+      get 'findings', to: 'dashboard#findings', as: :findings
+      get 'findings/:id', to: 'dashboard#finding_show', as: :finding
+      post 'findings/:id/approve', to: 'dashboard#finding_approve', as: :approve_finding
+      post 'findings/:id/reject', to: 'dashboard#finding_reject', as: :reject_finding
+      
+      get 'mechanics', to: 'dashboard#mechanics', as: :mechanics
+      get 'reports', to: 'dashboard#reports', as: :reports
+      
+      # Pre-check review routes
+      get 'jobs/:id/review_pre_check', to: 'dashboard#review_pre_check', as: :review_pre_check
+      post 'jobs/:id/approve_pre_check', to: 'dashboard#approve_pre_check', as: :approve_pre_check
+      post 'jobs/:id/reject_pre_check', to: 'dashboard#reject_pre_check', as: :reject_pre_check
+      
+      # Parts request routes
+      get 'parts_requests/:id/review', to: 'dashboard#review_parts_request', as: :review_parts_request
+      post 'parts_requests/:id/approve', to: 'dashboard#approve_parts_request', as: :approve_parts_request
+      post 'parts_requests/:id/reject', to: 'dashboard#reject_parts_request', as: :reject_parts_request
+      
+      # Inspection review routes for workshop supervisor
+      resources :inspections, only: [] do
+        member do
+          get :review
+          patch :update_jobs
+          post :approve
+          post :reject
+        end
+      end
+      
+      # Legacy routes (keeping for backward compatibility)
       resources :jobs, only: [:index, :show] do
         member do
           post :assign
@@ -1289,7 +1374,7 @@ Rails.application.routes.draw do
   get "ptsc-dashboard/vehicle_locations", to: "ptsc_dashboard#vehicle_locations", as: :ptsc_vehicle_locations
 
   # ========================
-  # ADMIN NAMESPACE - User Management
+  # ADMIN NAMESPACE - User Management & Event Dashboard
   # ========================
   namespace :admin do
     resources :users do
@@ -1304,6 +1389,10 @@ Rails.application.routes.draw do
         post :bulk_update
       end
     end
+    
+    # Event Dashboard for monitoring dead letter queue and failed events
+    get 'event_dashboard', to: 'event_dashboard#index', as: :event_dashboard
+    post 'event_dashboard/:id/retry', to: 'event_dashboard#retry_failed', as: :retry_failed
   end
 
   get "vendors", to: "suppliers#index", as: :vendors
@@ -1316,4 +1405,6 @@ Rails.application.routes.draw do
   # Debug helpers
   get "test/cashier_session", to: "pos_transactions#cashier_session", as: :test_cashier_session
   get "test/new_transaction", to: "pos_transactions#new",             as: :test_new_transaction
+
+  get '/stimulus-test', to: 'stimulus_test#index'
 end

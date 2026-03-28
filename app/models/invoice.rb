@@ -25,6 +25,7 @@ class Invoice < ApplicationRecord
   belongs_to :reviewed_by, class_name: "User", optional: true
   belongs_to :paid_by,     class_name: "User", optional: true
   belongs_to :disputed_by, class_name: "User", optional: true
+  belongs_to :work_order, optional: true
 
   # ✅ ADDED: Payable association (matches payable_id column)
   has_one :payable, dependent: :nullify
