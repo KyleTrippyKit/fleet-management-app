@@ -17,6 +17,7 @@ class User < ApplicationRecord
   has_many :quotations, foreign_key: :created_by_id
   has_many :created_purchase_orders, class_name: "PurchaseOrder", foreign_key: :created_by_id
   has_many :approved_purchase_orders, class_name: "PurchaseOrder", foreign_key: :approved_by_id
+  has_many :audit_logs, foreign_key: :user_id, dependent: :nullify
 
   # ========================
   # ROLE (Rails 8 safe, simple)
@@ -248,14 +249,36 @@ class User < ApplicationRecord
   end
 
   # ========================
-  # SYSTEM USER METHOD
+  # SYSTEM USER METHOD - FIXED FOR AUDIT LOGS
   # ========================
   def self.system_user
-    find_by(email: "system@example.com") ||
-      where(role: ROLE_ADMIN).first ||
-      where.not(role: ROLE_DRIVER).first ||
-      first ||
-      new(name: "System", email: "system@example.com", role: ROLE_ADMIN)
+    # First try to find a system user by email
+    system_user = find_by(email: "system@activeplus.com")
+    return system_user if system_user
+
+    # If no system user, try to find an admin user
+    admin_user = where(role: ROLE_ADMIN).first
+    return admin_user if admin_user
+
+    # If no admin, try to find any user that's not a driver
+    any_user = where.not(role: ROLE_DRIVER).first
+    return any_user if any_user
+
+    # Create a system user as last resort
+    # Note: This will only create the user if it doesn't exist
+    begin
+      create!(
+        email: "system@activeplus.com",
+        password: SecureRandom.hex(16),
+        name: "System User",
+        role: ROLE_ADMIN,
+        agency: Agency.first || Agency.create!(name: "System Agency", code: "SYSTEM"),
+        is_active: true
+      )
+    rescue => e
+      Rails.logger.error "Failed to create system user: #{e.message}"
+      nil
+    end
   end
 
   # ========================
@@ -878,16 +901,19 @@ class User < ApplicationRecord
 
   # Audit trail methods
   def create_audit_log(action, resource, details = {})
-    return unless defined?(AuditLog)
+    return unless defined?(AuditLog) && AuditLog.table_exists?
 
     AuditLog.create(
-      user: self,
+      user_id: id,
+      record_type: resource.class.name,
+      record_id: resource.id,
       action: action.to_s,
-      resource: resource,
-      details: details,
+      audit_changes: details,
       ip_address: Current.ip_address,
-      user_agent: Current.user_agent
+      note: "#{action} performed on #{resource.class.name} ##{resource.id}"
     )
+  rescue => e
+    Rails.logger.error "Failed to create audit log: #{e.message}"
   end
 
   # ========================

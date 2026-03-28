@@ -36,9 +36,13 @@
             <div class="flex-1">
               <h3 class="font-semibold text-gray-800"><%= task.name %></h3>
               <p class="text-sm text-gray-600 mt-1">
-                <%= task.inspection_job.work_order.vehicle.license_plate %>
+                <% if task.inspection_job&.work_order&.vehicle %>
+                  <%= task.inspection_job.work_order.vehicle.license_plate %>
+                <% else %>
+                  <span class="text-gray-400">No vehicle assigned</span>
+                <% end %>
               </p>
-              <p class="text-sm text-gray-500 mt-1"><%= truncate(task.description, length: 80) %></p>
+              <p class="text-sm text-gray-500 mt-1"><%= truncate(task.description, length: 80) if task.description %></p>
             </div>
             <span class="text-xs px-2 py-1 rounded 
               <%= case task.status
@@ -90,11 +94,15 @@
             </span>
           </div>
           <p class="text-sm text-gray-600 mt-1">
-            <%= task.inspection_job.work_order.vehicle.license_plate %>
+            <% if task.inspection_job&.work_order&.vehicle %>
+              <%= task.inspection_job.work_order.vehicle.license_plate %>
+            <% else %>
+              <span class="text-gray-400">No vehicle assigned</span>
+            <% end %>
           </p>
-          <p class="text-sm text-gray-500 mt-1"><%= truncate(task.description, length: 80) %></p>
+          <p class="text-sm text-gray-500 mt-1"><%= truncate(task.description, length: 80) if task.description %></p>
           <div class="mt-2 flex justify-between text-sm">
-            <span>Est: <%= task.estimated_hours %> hrs</span>
+            <span>Est: <%= task.estimated_hours ? "#{task.estimated_hours} hrs" : "Not set" %></span>
             <%= button_to "Take Task", assign_vmcott_mechanic_task_path(task), method: :post, class: "bg-blue-600 text-white px-4 py-1 rounded-lg text-sm font-medium" %>
           </div>
         </div>

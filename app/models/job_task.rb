@@ -44,7 +44,7 @@ class JobTask < ApplicationRecord
     STATUS_TRANSITIONS[status]&.include?(new_status) || false
   end
   
-  def transition_to!(new_status, user = nil)
+  def transition_to!(new_status, user = nil, ip_address = nil)
     raise "Invalid transition from #{status} to #{new_status}" unless can_transition_to?(new_status)
     
     transaction do
@@ -62,39 +62,70 @@ class JobTask < ApplicationRecord
         update!(blocked_at: Time.current)
       end
       
-      # Create audit log
-      AuditLog.create!(
-        user: user,
-        action: "job_task_status_change",
-        auditable: self,
-        details: { 
+      # Create audit log with correct column names
+      if defined?(AuditLog) && AuditLog.table_exists?
+        audit_log_data = { 
           from: old_status, 
           to: new_status,
           task_name: name,
           job_id: inspection_job_id
         }
-      )
+        
+        # Try to create audit log with polymorphic association if it exists
+        if AuditLog.column_names.include?('auditable_type') && AuditLog.column_names.include?('auditable_id')
+          AuditLog.create!(
+            user_id: user&.id,
+            auditable_type: 'JobTask',
+            auditable_id: id,
+            action: 'job_task_status_change',
+            audit_changes: audit_log_data.to_json,
+            ip_address: ip_address,
+            note: "Task status changed from #{old_status} to #{new_status}"
+          )
+        elsif AuditLog.column_names.include?('record_type') && AuditLog.column_names.include?('record_id')
+          # Use record_type/record_id if that's what the table has
+          AuditLog.create!(
+            user_id: user&.id,
+            record_type: 'JobTask',
+            record_id: id,
+            action: 'job_task_status_change',
+            audit_changes: audit_log_data.to_json,
+            ip_address: ip_address,
+            note: "Task status changed from #{old_status} to #{new_status}"
+          )
+        else
+          # Fallback to basic creation without polymorphic association
+          Rails.logger.warn("AuditLog table doesn't have expected polymorphic columns")
+          AuditLog.create!(
+            user_id: user&.id,
+            action: 'job_task_status_change',
+            audit_changes: audit_log_data.to_json,
+            ip_address: ip_address,
+            note: "Task status changed from #{old_status} to #{new_status}"
+          )
+        end
+      end
     end
   rescue => e
     Rails.logger.error("Failed to transition task #{id}: #{e.message}")
     raise
   end
   
-  def start!(user = nil)
-    transition_to!('in_progress', user)
+  def start!(user = nil, ip_address = nil)
+    transition_to!('in_progress', user, ip_address)
   end
   
-  def complete!(user = nil)
-    transition_to!('completed', user)
+  def complete!(user = nil, ip_address = nil)
+    transition_to!('completed', user, ip_address)
   end
   
-  def block!(reason, user = nil)
-    transition_to!('blocked', user)
+  def block!(reason, user = nil, ip_address = nil)
+    transition_to!('blocked', user, ip_address)
     update!(blocked_reason: reason)
   end
   
-  def skip!(user = nil)
-    transition_to!('skipped', user)
+  def skip!(user = nil, ip_address = nil)
+    transition_to!('skipped', user, ip_address)
   end
   
   def dependencies_met?

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_27_175256) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -161,6 +161,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_175256) do
     t.index ["status", "severity"], name: "index_alerts_on_status_and_severity"
     t.index ["vehicle_id", "created_at"], name: "index_alerts_on_vehicle_id_and_created_at"
     t.index ["vehicle_id"], name: "index_alerts_on_vehicle_id"
+  end
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action"
+    t.jsonb "audit_changes"
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.text "note"
+    t.bigint "record_id"
+    t.string "record_type"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.index ["record_type", "record_id"], name: "index_audit_logs_on_record"
+    t.index ["user_id"], name: "index_audit_logs_on_user_id"
   end
 
   create_table "cashier_sessions", force: :cascade do |t|
@@ -1886,6 +1900,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_175256) do
   add_foreign_key "alerts", "agencies"
   add_foreign_key "alerts", "drivers"
   add_foreign_key "alerts", "vehicles"
+  add_foreign_key "audit_logs", "users"
   add_foreign_key "cashier_sessions", "agencies"
   add_foreign_key "cashier_sessions", "users"
   add_foreign_key "cashier_sessions", "users", column: "closed_by_id"

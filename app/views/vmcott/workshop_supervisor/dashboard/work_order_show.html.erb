@@ -1,0 +1,238 @@
+<div class="min-h-screen bg-gray-100 pb-24">
+  <div class="bg-white shadow p-4">
+    <div class="flex justify-between items-center">
+      <div>
+        <%= link_to "← Back to Work Orders", vmcott_workshop_supervisor_work_orders_path, class: "text-blue-600 hover:underline text-sm" %>
+        <h1 class="text-xl font-bold mt-2">Work Order #<%= @work_order.work_order_number || @work_order.id %></h1>
+      </div>
+      <span class="text-xs px-3 py-1 rounded-full 
+        <%= case @work_order.status
+            when 'pending' then 'bg-yellow-100 text-yellow-800'
+            when 'in_progress' then 'bg-blue-100 text-blue-800'
+            when 'completed' then 'bg-green-100 text-green-800'
+            else 'bg-gray-100 text-gray-800'
+            end %>">
+        <%= @work_order.status.upcase %>
+      </span>
+    </div>
+  </div>
+
+  <div class="p-4">
+    <!-- Work Order Details -->
+    <div class="bg-white rounded-xl shadow p-4 mb-4">
+      <h2 class="font-semibold text-lg mb-3">Work Order Details</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <p class="text-sm text-gray-500">Vehicle</p>
+          <p class="mt-1">
+            <% if @work_order.vehicle %>
+              <%= @work_order.vehicle.license_plate %> - <%= @work_order.vehicle.make %> <%= @work_order.vehicle.model %>
+            <% else %>
+              <span class="text-gray-400">No vehicle assigned</span>
+            <% end %>
+          </p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Customer</p>
+          <p class="mt-1"><%= @work_order.customer&.name || 'N/A' %></p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Created</p>
+          <p class="mt-1"><%= @work_order.created_at.strftime("%b %d, %Y %H:%M") %></p>
+        </div>
+        <% if @work_order.completed_at %>
+          <div>
+            <p class="text-sm text-gray-500">Completed</p>
+            <p class="mt-1"><%= @work_order.completed_at.strftime("%b %d, %Y %H:%M") %></p>
+          </div>
+        <% end %>
+        <!-- Notes section removed because it doesn't exist in the model -->
+      </div>
+    </div>
+
+    <!-- Inspections -->
+    <% if @inspections.present? && @inspections.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Inspections (<%= @inspections.count %>)</h2>
+        <div class="space-y-2">
+          <% @inspections.each do |inspection| %>
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <div>
+                <span class="font-medium">Inspection #<%= inspection.id %></span>
+                <span class="text-xs text-gray-500 ml-2"><%= inspection.status %></span>
+              </div>
+              <%= link_to "View", vmcott_inspector_inspection_path(inspection), class: "text-blue-600 text-sm" %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Jobs -->
+    <% if @jobs.present? && @jobs.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Jobs (<%= @jobs.count %>)</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job Description</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+               </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <% @jobs.each do |job| %>
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2">
+                    <div class="text-sm font-medium text-gray-900"><%= job.description %></div>
+                  </td>
+                  <td class="px-4 py-2">
+                    <span class="text-xs px-2 py-1 rounded-full 
+                      <%= case job.status
+                          when 'pending' then 'bg-yellow-100 text-yellow-800'
+                          when 'approved' then 'bg-green-100 text-green-800'
+                          when 'in_progress' then 'bg-blue-100 text-blue-800'
+                          when 'blocked' then 'bg-red-100 text-red-800'
+                          when 'completed' then 'bg-gray-100 text-gray-800'
+                          else 'bg-gray-100 text-gray-800'
+                          end %>">
+                      <%= job.status.upcase %>
+                    </span>
+                  </td>
+                  <td class="px-4 py-2 text-sm text-gray-500">
+                    <%= job.assigned_mechanic&.name || 'Unassigned' %>
+                  </td>
+                  <td class="px-4 py-2">
+                    <%= link_to "View", vmcott_workshop_supervisor_job_path(job), class: "text-blue-600 text-sm" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Tasks -->
+    <% if @tasks.present? && @tasks.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Tasks (<%= @tasks.count %>)</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+               <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Task Name</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+               </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <% @tasks.each do |task| %>
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2 text-sm text-gray-900"><%= task.name %></td>
+                  <td class="px-4 py-2">
+                    <span class="text-xs px-2 py-1 rounded-full 
+                      <%= case task.status
+                          when 'pending' then 'bg-yellow-100 text-yellow-800'
+                          when 'approved' then 'bg-green-100 text-green-800'
+                          when 'in_progress' then 'bg-blue-100 text-blue-800'
+                          when 'blocked' then 'bg-red-100 text-red-800'
+                          when 'completed' then 'bg-gray-100 text-gray-800'
+                          else 'bg-gray-100 text-gray-800'
+                          end %>">
+                      <%= task.status.upcase %>
+                    </span>
+                  </td>
+                  <td class="px-4 py-2 text-sm text-gray-500">
+                    <%= task.assigned_mechanic&.name || 'Unassigned' %>
+                  </td>
+                  <td class="px-4 py-2">
+                    <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "text-blue-600 text-sm" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Findings -->
+    <% if @findings.present? && @findings.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Findings (<%= @findings.count %>)</h2>
+        <div class="space-y-2">
+          <% @findings.each do |finding| %>
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <div>
+                <span class="font-medium"><%= finding.description %></span>
+                <span class="text-xs text-gray-500 ml-2"><%= finding.status %></span>
+              </div>
+              <div class="flex gap-2">
+                <% if finding.status == 'pending' %>
+                  <%= button_to "Approve", approve_workshop_supervisor_finding_path(finding), method: :post, class: "text-green-600 text-sm" %>
+                  <%= button_to "Reject", reject_workshop_supervisor_finding_path(finding), method: :post, class: "text-red-600 text-sm" %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Timeline -->
+        <% if @timeline.present? && @timeline.any? %>
+        <div class="bg-white rounded-xl shadow p-4">
+            <h2 class="font-semibold text-lg mb-3">Timeline</h2>
+            <div class="space-y-2">
+            <% @timeline.each do |event| %>
+                <div class="flex items-start gap-3 p-2 border-l-4 border-blue-500">
+                <div class="text-xs text-gray-500">
+                    <% if event.is_a?(Hash) %>
+                    <%= event['created_at'] ? Time.parse(event['created_at']).strftime("%b %d, %H:%M") : 'Unknown' %>
+                    <% else %>
+                    <%= event.created_at.strftime("%b %d, %H:%M") %>
+                    <% end %>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-medium">
+                    <% if event.is_a?(Hash) %>
+                        <%= event['event_type'] ? event['event_type'].humanize : 'Event' %>
+                    <% else %>
+                        <%= event.event_type.humanize %>
+                    <% end %>
+                    </div>
+                    <div class="text-xs text-gray-500">
+                    <% if event.is_a?(Hash) %>
+                        <%= event['description'] || 'No description' %>
+                    <% else %>
+                        <%= event.description %>
+                    <% end %>
+                    </div>
+                </div>
+                </div>
+            <% end %>
+            </div>
+        </div>
+        <% end %>
+
+    <!-- Actions -->
+    <div class="bg-white rounded-xl shadow p-4 mt-4">
+      <h2 class="font-semibold text-lg mb-3">Actions</h2>
+      <div class="flex flex-wrap gap-3">
+        <% if @work_order.status == 'pending' %>
+          <%= button_to "Approve Work Order", approve_work_order_workshop_supervisor_path(@work_order), method: :post, class: "bg-green-500 text-white px-4 py-2 rounded-lg" %>
+        <% end %>
+        
+        <% if @work_order.status == 'in_progress' %>
+          <%= button_to "Hold Work Order", hold_work_order_workshop_supervisor_path(@work_order), method: :post, class: "bg-yellow-500 text-white px-4 py-2 rounded-lg", data: { confirm: "Place this work order on hold?" } %>
+        <% end %>
+        
+        <%= link_to "View Gantt Chart", gantt_path(work_order_id: @work_order.id), class: "bg-blue-500 text-white px-4 py-2 rounded-lg" %>
+      </div>
+    </div>
+  </div>
+</div>

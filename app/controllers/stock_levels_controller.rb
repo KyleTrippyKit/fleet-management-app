@@ -116,21 +116,24 @@ class StockLevelsController < ApplicationController
   end
   
   def create_stock_adjustment_log(part, user)
+    return unless defined?(AuditLog) && AuditLog.table_exists?
+    
     AuditLog.create!(
-      user: user,
+      user_id: user.id,
+      record_type: 'Part',
+      record_id: part.id,
       action: 'stock_level_adjustment',
-      resource: part,
-      details: {
+      audit_changes: {
         part_name: part.name,
         part_id: part.id,
-        old_values: part.previous_changes,
+        old_values: part.previous_changes.transform_values(&:first),
         new_values: {
           current_stock: part.current_stock,
           minimum_stock: part.minimum_stock,
           reorder_point: part.reorder_point
         }
       },
-      ip_address: request.remote_ip
+      ip_address: request.remote_ip,
+      note: "Stock levels updated for #{part.name}"
     )
   end
-end

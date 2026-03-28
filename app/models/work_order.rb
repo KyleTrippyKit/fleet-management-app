@@ -77,12 +77,18 @@ class WorkOrder < ApplicationRecord
         release_all_part_reservations
       end
       
-      AuditLog.create!(
-        user: user,
-        action: "work_order_status_change",
-        auditable: self,
-        details: { from: old_status, to: new_status }
-      )
+      # Create audit log with correct column names
+      if defined?(AuditLog) && AuditLog.table_exists?
+        AuditLog.create!(
+          user_id: user&.id,
+          record_type: 'WorkOrder',
+          record_id: id,
+          action: 'work_order_status_change',
+          audit_changes: { from: old_status, to: new_status },
+          ip_address: request&.remote_ip,
+          note: "Work order status changed from #{old_status} to #{new_status}"
+        )
+      end
     end
   end
   

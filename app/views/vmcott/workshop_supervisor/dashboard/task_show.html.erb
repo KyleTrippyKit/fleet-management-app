@@ -3,7 +3,7 @@
   <div class="bg-white shadow p-4">
     <div class="flex justify-between items-center">
       <div>
-        <%= link_to "← Back to Tasks", workshop_supervisor_tasks_path, class: "text-blue-600 hover:underline text-sm" %>
+        <%= link_to "← Back to Tasks", vmcott_workshop_supervisor_tasks_path, class: "text-blue-600 hover:underline text-sm" %>
         <h1 class="text-xl font-bold mt-2"><%= @task.name %></h1>
       </div>
       <span class="text-xs px-3 py-1 rounded-full 
@@ -27,46 +27,54 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <p class="text-sm text-gray-500">Description</p>
-          <p class="mt-1"><%= @task.description %></p>
+          <p class="mt-1"><%= @task.description || "No description provided" %></p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Job</p>
-          <p class="mt-1"><%= @inspection_job.description %></p>
+          <p class="mt-1"><%= @inspection_job&.description || "Not available" %></p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Vehicle</p>
-          <p class="mt-1"><%= @work_order.vehicle.license_plate %> - <%= @work_order.vehicle.make %> <%= @work_order.vehicle.model %></p>
+          <p class="mt-1">
+            <% if @work_order && @work_order.vehicle %>
+              <%= @work_order.vehicle.license_plate %> - <%= @work_order.vehicle.make %> <%= @work_order.vehicle.model %>
+            <% else %>
+              <span class="text-gray-400">No vehicle assigned</span>
+            <% end %>
+          </p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Work Order</p>
-          <p class="mt-1"><%= link_to @work_order.work_order_number, workshop_supervisor_work_order_path(@work_order), class: "text-blue-600 hover:underline" %></p>
+          <p class="mt-1">
+            <% if @work_order %>
+              <%= link_to @work_order.work_order_number || "WO-#{@work_order.id}", vmcott_workshop_supervisor_work_order_path(@work_order), class: "text-blue-600 hover:underline" %>
+            <% else %>
+              <span class="text-gray-400">No work order</span>
+            <% end %>
+          </p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Estimated Hours</p>
-          <p class="mt-1"><%= @task.estimated_hours %> hrs</p>
+          <p class="mt-1"><%= @task.estimated_hours ? "#{@task.estimated_hours} hrs" : "Not set" %></p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Actual Hours</p>
-          <p class="mt-1"><%= @task.actual_hours || '-' %> hrs</p>
+          <p class="mt-1"><%= @task.actual_hours ? "#{@task.actual_hours} hrs" : "-" %></p>
         </div>
         <div>
           <p class="text-sm text-gray-500">Assigned Mechanic</p>
           <p class="mt-1">
             <%= @task.assigned_mechanic&.name || 'Unassigned' %>
-            <% if @task.status == 'approved' %>
-              <%= button_to "Assign", assign_mechanic_workshop_supervisor_task_path(@task), method: :post, class: "text-xs bg-blue-500 text-white px-2 py-1 rounded ml-2 inline-block", data: { confirm: "Assign to yourself?" } %>
+            <% if @task.status == 'approved' && @task.assigned_mechanic.nil? %>
+              <%= button_to "Assign", vmcott_workshop_supervisor_assign_mechanic_task_path(@task), method: :post, class: "text-xs bg-blue-500 text-white px-2 py-1 rounded ml-2 inline-block", data: { confirm: "Assign to yourself?" } %>
             <% end %>
           </p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Priority</p>
-          <p class="mt-1"><%= @task.priority || 'normal' %></p>
         </div>
       </div>
     </div>
 
     <!-- Dependencies -->
-    <% if @dependencies.any? %>
+    <% if @dependencies.present? && @dependencies.any? %>
       <div class="bg-white rounded-xl shadow p-4 mb-4">
         <h2 class="font-semibold text-lg mb-3">Dependencies</h2>
         <div class="space-y-2">
@@ -76,7 +84,7 @@
                 <span class="font-medium"><%= dep.name %></span>
                 <span class="text-xs text-gray-500 ml-2"><%= dep.status %></span>
               </div>
-              <%= link_to "View", workshop_supervisor_task_path(dep), class: "text-blue-600 text-sm" %>
+              <%= link_to "View", vmcott_workshop_supervisor_task_path(dep), class: "text-blue-600 text-sm" %>
             </div>
           <% end %>
         </div>
@@ -84,16 +92,16 @@
     <% end %>
 
     <!-- Work Sessions -->
-    <% if @work_sessions.any? %>
+    <% if @work_sessions.present? && @work_sessions.any? %>
       <div class="bg-white rounded-xl shadow p-4 mb-4">
         <h2 class="font-semibold text-lg mb-3">Work Sessions</h2>
         <div class="space-y-2">
           <% @work_sessions.each do |session| %>
             <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
               <div>
-                <span class="font-medium"><%= session.mechanic.name %></span>
+                <span class="font-medium"><%= session.mechanic&.name || 'Unknown' %></span>
                 <span class="text-xs text-gray-500 ml-2">
-                  <%= session.started_at.strftime("%m/%d %H:%M") %> - 
+                  <%= session.started_at&.strftime("%m/%d %H:%M") || 'Unknown' %> - 
                   <%= session.ended_at ? session.ended_at.strftime("%H:%M") : "In Progress" %>
                 </span>
               </div>
@@ -109,16 +117,16 @@
       <h2 class="font-semibold text-lg mb-3">Actions</h2>
       <div class="flex flex-wrap gap-3">
         <% if @task.status == 'pending' %>
-          <%= button_to "Approve Task", approve_workshop_supervisor_task_path(@task), method: :post, class: "bg-green-500 text-white px-4 py-2 rounded-lg" %>
-          <%= button_to "Reject Task", reject_workshop_supervisor_task_path(@task), method: :post, class: "bg-red-500 text-white px-4 py-2 rounded-lg", data: { confirm: "Reject this task?" } %>
+          <%= button_to "Approve Task", vmcott_workshop_supervisor_approve_task_path(@task), method: :post, class: "bg-green-500 text-white px-4 py-2 rounded-lg" %>
+          <%= button_to "Reject Task", vmcott_workshop_supervisor_reject_task_path(@task), method: :post, class: "bg-red-500 text-white px-4 py-2 rounded-lg", data: { confirm: "Reject this task?" } %>
         <% end %>
         
         <% if @task.status == 'blocked' %>
-          <%= button_to "Unblock Task", unblock_workshop_supervisor_task_path(@task), method: :post, class: "bg-blue-500 text-white px-4 py-2 rounded-lg" %>
+          <%= button_to "Unblock Task", vmcott_workshop_supervisor_unblock_task_path(@task), method: :post, class: "bg-blue-500 text-white px-4 py-2 rounded-lg" %>
         <% end %>
         
         <% if @task.assigned_mechanic.nil? && @task.status == 'approved' %>
-          <%= button_to "Assign to Me", assign_mechanic_workshop_supervisor_task_path(@task), method: :post, class: "bg-purple-500 text-white px-4 py-2 rounded-lg" %>
+          <%= button_to "Assign to Me", vmcott_workshop_supervisor_assign_mechanic_task_path(@task), method: :post, class: "bg-purple-500 text-white px-4 py-2 rounded-lg" %>
         <% end %>
       </div>
     </div>

@@ -5,7 +5,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   
   # Disable caching
   before_action :disable_caching
-  before_action :disable_turbo_cache  # ADD THIS LINE
+  before_action :disable_turbo_cache
 
   def index
     # ========================================
@@ -14,7 +14,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @pending_tasks = JobTask
       .where(status: 'pending')
       .includes(inspection_job: { inspection: :vehicle })
-      .order(priority: :desc, created_at: :asc)
+      .order(created_at: :asc)
       .limit(50)
     
     # ========================================
@@ -144,11 +144,11 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:notice] = "✅ Pre-check approved. Job is ready for work."
     end
     
-    redirect_to workshop_supervisor_dashboard_path
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   rescue => e
     Rails.logger.error "Error approving pre-check: #{e.message}"
     flash[:alert] = "Error approving pre-check: #{e.message}"
-    redirect_to review_pre_check_workshop_supervisor_job_path(@job)
+    redirect_to vmcott_workshop_supervisor_review_pre_check_path(@job)
   end
   
   def reject_pre_check
@@ -174,7 +174,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "❌ Pre-check findings rejected. Job returned to mechanic."
     end
     
-    redirect_to workshop_supervisor_dashboard_path
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   end
 
   # =====================================================
@@ -197,11 +197,11 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @parts_request.approve!(current_user)
     
     flash[:notice] = "✅ Parts request approved. Inventory manager will issue the parts."
-    redirect_to workshop_supervisor_dashboard_path
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   rescue => e
     Rails.logger.error "Error approving parts request: #{e.message}"
     flash[:alert] = "Error approving parts request: #{e.message}"
-    redirect_to review_parts_request_workshop_supervisor_path(@parts_request)
+    redirect_to vmcott_workshop_supervisor_review_parts_request_path(@parts_request)
   end
   
   def reject_parts_request
@@ -211,11 +211,11 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @parts_request.reject!(current_user, reason)
     
     flash[:alert] = "❌ Parts request rejected: #{reason}"
-    redirect_to workshop_supervisor_dashboard_path
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   rescue => e
     Rails.logger.error "Error rejecting parts request: #{e.message}"
     flash[:alert] = "Error rejecting parts request: #{e.message}"
-    redirect_to review_parts_request_workshop_supervisor_path(@parts_request)
+    redirect_to vmcott_workshop_supervisor_review_parts_request_path(@parts_request)
   end
 
   # =====================================================
@@ -226,7 +226,8 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @tasks = JobTask
       .includes(inspection_job: { inspection: :vehicle })
       .order(created_at: :desc)
-      .paginate(page: params[:page], per_page: 20)
+      .page(params[:page])
+      .per(20)
     
     @status_filter = params[:status]
     @tasks = @tasks.where(status: @status_filter) if @status_filter.present?
@@ -236,17 +237,27 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @task = JobTask.find(params[:id])
     @work_sessions = @task.work_sessions.order(started_at: :desc)
     @dependencies = @task.depends_on
-    @dependent_tasks = @task.dependent_jobs
+    
+    # Safe navigation to handle nil inspection_job
     @inspection_job = @task.inspection_job
-    @work_order = @inspection_job.work_order
+    @work_order = @inspection_job&.work_order if @inspection_job.present?
     @mechanic = @task.assigned_mechanic
+    
+    # Add debug logging if needed
+    unless @inspection_job
+      Rails.logger.warn "Task #{@task.id} has no inspection_job associated"
+    end
+    
+    unless @work_order
+      Rails.logger.warn "Task #{@task.id} has no work_order (inspection_job_id: #{@inspection_job&.id})"
+    end
   end
 
   def task_approve
     @task = JobTask.find(params[:id])
     
     if @task.status == 'pending'
-      @task.transition_to!('approved', current_user)
+      @task.transition_to!('approved', current_user, request.remote_ip)
       
       if @task.assigned_mechanic
         Notification.create!(
@@ -264,7 +275,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Task cannot be approved in its current state."
     end
     
-    redirect_to workshop_supervisor_task_path(@task)
+    redirect_to vmcott_workshop_supervisor_task_path(@task)
   end
 
   def task_reject
@@ -272,7 +283,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     reason = params[:reason] || "Task rejected by supervisor"
     
     if @task.status == 'pending'
-      @task.transition_to!('skipped', current_user)
+      @task.transition_to!('skipped', current_user, request.remote_ip)
       @task.update!(blocked_reason: reason)
       
       Notification.create!(
@@ -289,7 +300,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Task cannot be rejected."
     end
     
-    redirect_to workshop_supervisor_task_path(@task)
+    redirect_to vmcott_workshop_supervisor_task_path(@task)
   end
 
   def task_unblock
@@ -308,7 +319,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Task is not blocked."
     end
     
-    redirect_to workshop_supervisor_task_path(@task)
+    redirect_to vmcott_workshop_supervisor_task_path(@task)
   end
 
   def task_assign_mechanic
@@ -337,14 +348,15 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Could not assign task."
     end
     
-    redirect_to workshop_supervisor_task_path(@task)
+    redirect_to vmcott_workshop_supervisor_task_path(@task)
   end
 
   def work_orders
     @work_orders = WorkOrder
       .includes(:vehicle, :customer)
       .order(created_at: :desc)
-      .paginate(page: params[:page], per_page: 20)
+      .page(params[:page])
+      .per(20)
     
     @status_filter = params[:status]
     @work_orders = @work_orders.where(status: @status_filter) if @status_filter.present?
@@ -369,7 +381,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = service.errors.join(", ")
     end
     
-    redirect_to workshop_supervisor_work_order_path(@work_order)
+    redirect_to vmcott_workshop_supervisor_work_order_path(@work_order)
   end
 
   def work_order_hold
@@ -384,7 +396,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = service.errors.join(", ")
     end
     
-    redirect_to workshop_supervisor_work_order_path(@work_order)
+    redirect_to vmcott_workshop_supervisor_work_order_path(@work_order)
   end
 
   def findings
@@ -440,7 +452,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Finding cannot be approved."
     end
     
-    redirect_to workshop_supervisor_finding_path(@finding)
+    redirect_to vmcott_workshop_supervisor_finding_path(@finding)
   end
 
   def finding_reject
@@ -460,11 +472,17 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       flash[:alert] = "Finding cannot be rejected."
     end
     
-    redirect_to workshop_supervisor_finding_path(@finding)
+    redirect_to vmcott_workshop_supervisor_finding_path(@finding)
   end
 
   def mechanics
-    @mechanics = User.where(role: 'mechanic').active
+    # Use active scope if it exists, otherwise use where
+    @mechanics = if User.respond_to?(:active)
+      User.where(role: 'mechanic').active
+    else
+      User.where(role: 'mechanic')
+    end
+    
     @task_counts = JobTask.group(:assigned_mechanic_id).count
     @pre_check_counts = InspectionJob.where(status: 'pre_check_completed').group(:assigned_mechanic_id).count
     @completed_today = JobTask.where(status: 'completed')
@@ -539,7 +557,6 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
-  # ADD THIS METHOD
   def disable_turbo_cache
     response.headers["Turbo-Visit-Control"] = "reload"
     response.headers["Turbo-Cache-Control"] = "no-cache"

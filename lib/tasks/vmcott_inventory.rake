@@ -152,15 +152,21 @@ namespace :vmcott do
     logs << log_entry
     File.write(log_file, JSON.pretty_generate(logs))
     
-    # Also log to database if you have an AuditLog model
-    if defined?(AuditLog)
-      AuditLog.create!(
-        action: 'inventory_check',
-        user_id: User.system_user&.id,
-        details: log_entry,
-        ip_address: 'system',
-        user_agent: 'LowStockCheckJob'
-      )
+    # Also log to database if AuditLog exists
+    if defined?(AuditLog) && AuditLog.table_exists?
+      begin
+        AuditLog.create!(
+          user_id: nil,  # System action, no user
+          record_type: 'System',
+          record_id: nil,
+          action: 'inventory_check',
+          audit_changes: log_entry,
+          ip_address: 'system',
+          note: "Daily VMCOTT inventory check completed"
+        )
+      rescue => e
+        Rails.logger.error "Failed to create audit log: #{e.message}"
+      end
     end
   end
   

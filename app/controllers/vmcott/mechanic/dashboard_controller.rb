@@ -805,21 +805,25 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     render :tasks
   end
 
-  def task_show
-    @task = JobTask.find(params[:id])
-    
-    unless @task.assigned_mechanic_id == current_user.id
-      redirect_to vmcott_mechanic_tasks_path, alert: "Access denied - this task is not assigned to you"
-      return
+    def task_show
+      @task = JobTask.find(params[:id])
+      
+      unless @task.assigned_mechanic_id == current_user.id
+        redirect_to vmcott_mechanic_tasks_path, alert: "Access denied - this task is not assigned to you"
+        return
+      end
+      
+      @work_sessions = @task.work_sessions.order(started_at: :desc)
+      @active_session = @task.active_work_session
+      @dependencies = @task.depends_on
+      @inspection_job = @task.inspection_job
+      
+      # Safe navigation for work_order and vehicle
+      @work_order = @inspection_job&.work_order if @inspection_job.present?
+      
+      # Safe navigation for dependent tasks if needed
+      @dependent_tasks = []  # If you need this, you can calculate it or remove it
     end
-    
-    @work_sessions = @task.work_sessions.order(started_at: :desc)
-    @active_session = @task.active_work_session
-    @dependencies = @task.depends_on
-    @dependent_tasks = @task.dependent_jobs
-    @inspection_job = @task.inspection_job
-    @work_order = @inspection_job.work_order
-  end
 
   def task_start
     @task = JobTask.find(params[:id])

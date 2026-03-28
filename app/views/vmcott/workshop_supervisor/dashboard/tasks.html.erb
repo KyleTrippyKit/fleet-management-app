@@ -1,57 +1,100 @@
-<%# app/views/vmcott/workshop_supervisor/dashboard/tasks.html.erb %>
-<div class="min-h-screen bg-gray-100">
+<div class="min-h-screen bg-gray-100 pb-24">
   <div class="bg-white shadow p-4">
     <div class="flex justify-between items-center">
       <h1 class="text-xl font-bold">All Tasks</h1>
       <div class="flex gap-2">
-        <%= link_to "All", workshop_supervisor_tasks_path, class: "px-3 py-1 rounded #{params[:status].blank? ? 'bg-blue-500 text-white' : 'bg-gray-200'}" %>
-        <%= link_to "Pending", workshop_supervisor_tasks_path(status: 'pending'), class: "px-3 py-1 rounded #{params[:status] == 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-200'}" %>
-        <%= link_to "Blocked", workshop_supervisor_tasks_path(status: 'blocked'), class: "px-3 py-1 rounded #{params[:status] == 'blocked' ? 'bg-red-500 text-white' : 'bg-gray-200'}" %>
-        <%= link_to "Completed", workshop_supervisor_tasks_path(status: 'completed'), class: "px-3 py-1 rounded #{params[:status] == 'completed' ? 'bg-green-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "All", vmcott_workshop_supervisor_tasks_path, class: "px-3 py-1 rounded #{params[:status].blank? ? 'bg-blue-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Pending", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "px-3 py-1 rounded #{params[:status] == 'pending' ? 'bg-yellow-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Blocked", vmcott_workshop_supervisor_tasks_path(status: 'blocked'), class: "px-3 py-1 rounded #{params[:status] == 'blocked' ? 'bg-red-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Completed", vmcott_workshop_supervisor_tasks_path(status: 'completed'), class: "px-3 py-1 rounded #{params[:status] == 'completed' ? 'bg-green-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "Approved", vmcott_workshop_supervisor_tasks_path(status: 'approved'), class: "px-3 py-1 rounded #{params[:status] == 'approved' ? 'bg-blue-500 text-white' : 'bg-gray-200'}" %>
+        <%= link_to "In Progress", vmcott_workshop_supervisor_tasks_path(status: 'in_progress'), class: "px-3 py-1 rounded #{params[:status] == 'in_progress' ? 'bg-indigo-500 text-white' : 'bg-gray-200'}" %>
       </div>
     </div>
   </div>
 
   <div class="p-4">
-    <% if @tasks.any? %>
-      <% @tasks.each do |task| %>
-        <div class="bg-white rounded-xl shadow p-4 mb-3">
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <h3 class="font-semibold text-gray-800"><%= task.name %></h3>
-              <p class="text-sm text-gray-600 mt-1">
-                <%= task.inspection_job.work_order.vehicle.license_plate %>
-              </p>
-              <div class="flex flex-wrap gap-2 mt-2 text-xs text-gray-500">
-                <span>Job: <%= task.inspection_job.description.truncate(30) %></span>
-                <span>Est: <%= task.estimated_hours %> hrs</span>
-                <span>Mechanic: <%= task.assigned_mechanic&.name || 'Unassigned' %></span>
-              </div>
-            </div>
-            <div class="text-right">
-              <span class="text-xs px-2 py-1 rounded 
-                <%= case task.status
-                    when 'pending' then 'bg-yellow-100 text-yellow-800'
-                    when 'blocked' then 'bg-red-100 text-red-800'
-                    when 'completed' then 'bg-green-100 text-green-800'
-                    else 'bg-gray-100 text-gray-800'
-                    end %>">
-                <%= task.status.upcase %>
-              </span>
-              <div class="mt-2">
-                <%= link_to "View", workshop_supervisor_task_path(task), class: "text-blue-600 text-sm hover:underline" %>
-              </div>
-            </div>
-          </div>
+    <% if @tasks.present? && @tasks.any? %>
+      <div class="bg-white rounded-xl shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Hours</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <% @tasks.each do |task| %>
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">
+                    <%= link_to task.name, vmcott_workshop_supervisor_task_path(task), class: "text-blue-600 hover:underline" %>
+                  </div>
+                  <div class="text-xs text-gray-500"><%= truncate(task.description, length: 50) if task.description %></div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    <%= case task.status
+                        when 'pending' then 'bg-yellow-100 text-yellow-800'
+                        when 'approved' then 'bg-green-100 text-green-800'
+                        when 'in_progress' then 'bg-blue-100 text-blue-800'
+                        when 'blocked' then 'bg-red-100 text-red-800'
+                        when 'completed' then 'bg-gray-100 text-gray-800'
+                        else 'bg-gray-100 text-gray-800'
+                        end %>">
+                    <%= task.status.upcase %>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <% if task.inspection_job&.inspection&.vehicle %>
+                    <%= task.inspection_job.inspection.vehicle.license_plate %>
+                  <% else %>
+                    <span class="text-gray-400">N/A</span>
+                  <% end %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <%= task.assigned_mechanic&.name || 'Unassigned' %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <%= task.estimated_hours ? "#{task.estimated_hours} hrs" : '-' %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <%= task.created_at.strftime("%b %d, %Y") %>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "text-blue-600 hover:text-blue-900 mr-3" %>
+                  <% if task.status == 'pending' %>
+                    <%= button_to "Approve", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "text-green-600 hover:text-green-900 text-sm inline-block mr-3", form_class: "inline-block" %>
+                    <%= button_to "Reject", vmcott_workshop_supervisor_reject_task_path(task), method: :post, class: "text-red-600 hover:text-red-900 text-sm inline-block", data: { confirm: "Reject this task?" }, form_class: "inline-block" %>
+                  <% end %>
+                  <% if task.status == 'blocked' %>
+                    <%= button_to "Unblock", vmcott_workshop_supervisor_unblock_task_path(task), method: :post, class: "text-blue-600 hover:text-blue-900 text-sm inline-block", form_class: "inline-block" %>
+                  <% end %>
+                  <% if task.status == 'approved' && task.assigned_mechanic.nil? %>
+                    <%= button_to "Assign", vmcott_workshop_supervisor_assign_mechanic_task_path(task), method: :post, class: "text-purple-600 hover:text-purple-900 text-sm inline-block", form_class: "inline-block" %>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination -->
+      <% if @tasks.respond_to?(:total_pages) && @tasks.total_pages > 1 %>
+        <div class="mt-4 flex justify-center gap-2">
+          <%= paginate @tasks, theme: 'twitter-bootstrap-4', param_name: :page %>
         </div>
       <% end %>
       
-      <div class="mt-4">
-        <%= will_paginate @tasks %>
-      </div>
     <% else %>
-      <div class="bg-white rounded-xl p-8 text-center text-gray-500">
-        No tasks found
+      <div class="bg-white rounded-xl shadow p-8 text-center">
+        <p class="text-gray-500">No tasks found.</p>
       </div>
     <% end %>
   </div>
