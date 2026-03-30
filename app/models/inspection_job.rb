@@ -24,7 +24,7 @@ class InspectionJob < ApplicationRecord
 
   PRIORITIES = ['low', 'normal', 'high', 'critical'].freeze
 
-  # Status workflow - ENHANCED with pre-check and approval stages
+  # Status workflow - ENHANCED with pre-check, approval stages, and QC
   enum :status, {
     pending_supervisor_review: 'pending_supervisor_review',
     pending_mechanic_review: 'pending_mechanic_review',
@@ -40,7 +40,12 @@ class InspectionJob < ApplicationRecord
     paused: 'paused',
     blocked: 'blocked',
     rework_needed: 'rework_needed',
-    completed: 'completed'
+    completed: 'completed',
+    # QC Statuses
+    qc_pending: 'qc_pending',                # NEW: Ready for QC inspection
+    qc_in_progress: 'qc_in_progress',        # NEW: Currently in QC
+    qc_passed: 'qc_passed',                  # NEW: Passed QC inspection
+    qc_failed: 'qc_failed'                   # NEW: Failed QC, needs rework
   }, default: :pending_supervisor_review
 
   # Add new fields
@@ -66,6 +71,13 @@ class InspectionJob < ApplicationRecord
   attribute :pre_check_completed_at, :datetime
   attribute :additional_findings, :jsonb, default: []
   attribute :pre_check_started_at, :datetime
+  
+  # NEW: QC fields
+  attribute :qc_submitted_at, :datetime
+  attribute :qc_completed_at, :datetime
+  attribute :qc_notes, :text
+  attribute :qc_inspector_id, :integer
+  attribute :qc_failure_reason, :text
 
   validates :description, presence: true
   validates :priority, inclusion: { in: PRIORITIES }, allow_nil: true
@@ -84,6 +96,12 @@ class InspectionJob < ApplicationRecord
   scope :needs_pre_check, -> { where(status: :assigned) }
   scope :pre_check_in_progress, -> { where(status: :pre_check_in_progress) }
   scope :needs_approval, -> { where(status: :pre_check_completed) }
+  
+  # NEW: QC Scopes
+  scope :pending_qc, -> { where(status: :qc_pending) }
+  scope :in_qc, -> { where(status: :qc_in_progress) }
+  scope :qc_passed, -> { where(status: :qc_passed) }
+  scope :qc_failed, -> { where(status: :qc_failed) }
   
   # NEW: Scopes for work order integration
   scope :by_work_order, ->(work_order_id) { where(work_order_id: work_order_id) }
@@ -236,6 +254,162 @@ class InspectionJob < ApplicationRecord
 
   def can_complete?
     status == 'in_progress'
+  end
+  
+  # =====================================================
+  # QC METHODS
+  # =====================================================
+  
+  def can_send_to_qc?
+    # A job can be sent to QC if:
+    # 1. It's completed
+    # 2. Not already in QC or QC passed/failed
+    # 3. All tasks are completed (if using work order integration)
+    # 4. All parts usage is recorded
+    # 5. All required documentation is present
+    
+    return false unless completed?
+    return false if ['qc_pending', 'qc_in_progress', 'qc_passed'].include?(status)
+    
+    # Check if all tasks are completed
+    return false unless all_tasks_completed?
+    
+    # Check if parts usage is properly recorded
+    return false unless parts_usage_recorded?
+    
+    # Check if QC hasn't already been submitted
+    return false if qc_submitted_at.present? && status == 'completed'
+    
+    true
+  end
+  
+  def parts_usage_recorded?
+    # Verify that all parts have been recorded as used
+    inspection_job_parts.each do |job_part|
+      return false unless job_part.quantity_used.present? || job_part.quantity == 0
+    end
+    true
+  end
+  
+  def submit_to_qc!(inspector_id = nil)
+    update!(
+      status: :qc_pending,
+      qc_submitted_at: Time.current,
+      qc_inspector_id: inspector_id
+    )
+    
+    # Notify QC inspector
+    if inspector_id.present?
+      Notification.create!(
+        user_id: inspector_id,
+        title: "QC Submission",
+        message: "Job ##{id} has been submitted for QC inspection.",
+        link: "/vmcott/qc/jobs/#{id}",
+        notification_type: 'info',
+        notifiable: self
+      )
+    end
+    
+    # Notify supervisor
+    if inspection.supervisor
+      Notification.create!(
+        user: inspection.supervisor,
+        title: "Job Submitted to QC",
+        message: "Job ##{id} has been submitted for QC inspection.",
+        link: "/vmcott/workshop_supervisor/jobs/#{id}",
+        notification_type: 'info',
+        notifiable: self
+      )
+    end
+  end
+  
+  def start_qc_inspection!(inspector_id)
+    update!(
+      status: :qc_in_progress,
+      qc_inspector_id: inspector_id
+    )
+  end
+  
+  def pass_qc!(notes = nil)
+    update!(
+      status: :qc_passed,
+      qc_completed_at: Time.current,
+      qc_notes: notes
+    )
+    
+    # Notify relevant parties
+    Notification.create!(
+      user: assigned_mechanic,
+      title: "QC Passed",
+      message: "Job ##{id} has passed QC inspection.",
+      link: "/vmcott/mechanic/jobs/#{id}",
+      notification_type: 'success',
+      notifiable: self
+    )
+    
+    if inspection.supervisor
+      Notification.create!(
+        user: inspection.supervisor,
+        title: "QC Passed",
+        message: "Job ##{id} has passed QC inspection.",
+        link: "/vmcott/workshop_supervisor/jobs/#{id}",
+        notification_type: 'success',
+        notifiable: self
+      )
+    end
+  end
+  
+  def fail_qc!(reason, notes = nil)
+    update!(
+      status: :qc_failed,
+      qc_completed_at: Time.current,
+      qc_failure_reason: reason,
+      qc_notes: notes
+    )
+    
+    # Notify mechanic about rework needed
+    Notification.create!(
+      user: assigned_mechanic,
+      title: "QC Failed",
+      message: "Job ##{id} failed QC: #{reason}",
+      link: "/vmcott/mechanic/jobs/#{id}",
+      notification_type: 'error',
+      notifiable: self
+    )
+    
+    if inspection.supervisor
+      Notification.create!(
+        user: inspection.supervisor,
+        title: "QC Failed",
+        message: "Job ##{id} failed QC: #{reason}",
+        link: "/vmcott/workshop_supervisor/jobs/#{id}",
+        notification_type: 'error',
+        notifiable: self
+      )
+    end
+  end
+  
+  def requeue_for_rework!
+    update!(
+      status: :rework_needed,
+      rework_reason: qc_failure_reason.presence || "Failed QC inspection",
+      rework_requested_at: Time.current,
+      qc_submitted_at: nil,
+      qc_completed_at: nil,
+      qc_inspector_id: nil
+    )
+  end
+  
+  def qc_completed?
+    ['qc_passed', 'qc_failed'].include?(status)
+  end
+  
+  def qc_passed?
+    status == 'qc_passed'
+  end
+  
+  def qc_failed?
+    status == 'qc_failed'
   end
 
   def start!

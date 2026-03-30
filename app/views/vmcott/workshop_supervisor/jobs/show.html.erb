@@ -1,199 +1,940 @@
-<div class="min-h-screen bg-gray-100 pb-24">
-  <div class="bg-white shadow p-4">
-    <div class="flex justify-between items-center">
-      <div>
-        <%= link_to "← Back to Jobs", vmcott_workshop_supervisor_jobs_path, class: "text-blue-600 hover:underline text-sm" %>
-        <h1 class="text-xl font-bold mt-2">Job #<%= @job.id %>: <%= @job.description %></h1>
+<%# app/views/vmcott/workshop_supervisor/jobs/show.html.erb %>
+<div class="container-fluid px-4 py-5">
+
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <%= link_to vmcott_workshop_supervisor_jobs_path, class: "text-decoration-none mb-2 d-inline-block" do %>
+            <i class="bi bi-arrow-left me-1"></i> Back to Jobs
+          <% end %>
+          <h1 class="h2 mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-wrench me-2 text-primary"></i>
+            Job #<%= @job.id %>: <%= @job.description.truncate(50) %>
+          </h1>
+          <p class="text-muted mb-0">Workshop Supervisor - Job Management & Oversight</p>
+        </div>
+        <div class="text-end">
+          <div class="bg-white rounded-3 px-3 py-2 shadow-sm">
+            <i class="bi bi-calendar3 me-2 text-primary"></i>
+            <%= Time.current.strftime("%A, %B %d, %Y") %>
+          </div>
+        </div>
       </div>
-      <span class="text-xs px-3 py-1 rounded-full 
-        <%= case @job.status
-            when 'pending' then 'bg-yellow-100 text-yellow-800'
-            when 'approved' then 'bg-green-100 text-green-800'
-            when 'in_progress' then 'bg-blue-100 text-blue-800'
-            when 'blocked' then 'bg-red-100 text-red-800'
-            when 'completed' then 'bg-gray-100 text-gray-800'
-            else 'bg-gray-100 text-gray-800'
-            end %>">
-        <%= @job.status.upcase %>
-      </span>
     </div>
   </div>
 
-  <div class="p-4">
-    <!-- Job Details -->
-    <div class="bg-white rounded-xl shadow p-4 mb-4">
-      <h2 class="font-semibold text-lg mb-3">Job Details</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <p class="text-sm text-gray-500">Description</p>
-          <p class="mt-1"><%= @job.description || "No description provided" %></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Vehicle</p>
-          <p class="mt-1">
-            <% if @vehicle %>
-              <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %>
-            <% else %>
-              <span class="text-gray-400">No vehicle assigned</span>
-            <% end %>
-          </p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Assigned Mechanic</p>
-          <p class="mt-1">
-            <% if @mechanic %>
-              <%= @mechanic.name %>
-            <% else %>
-              <span class="text-gray-400">Not assigned</span>
-            <% end %>
-          </p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Estimated Hours</p>
-          <p class="mt-1"><%= @job.estimated_hours ? "#{@job.estimated_hours} hrs" : "Not set" %></p>
-        </div>
-        <div>
-          <p class="text-sm text-gray-500">Created</p>
-          <p class="mt-1"><%= @job.created_at.strftime("%b %d, %Y %H:%M") %></p>
-        </div>
-        <% if @job.completed_at %>
-          <div>
-            <p class="text-sm text-gray-500">Completed</p>
-            <p class="mt-1"><%= @job.completed_at.strftime("%b %d, %Y %H:%M") %></p>
-          </div>
-        <% end %>
+  <!-- Flash Messages -->
+  <% if flash[:success] %>
+    <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+        <div><%= flash[:success] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
       </div>
     </div>
+  <% end %>
 
-    <!-- Tasks -->
-    <% if @tasks.present? && @tasks.any? %>
-      <div class="bg-white rounded-xl shadow p-4 mb-4">
-        <h2 class="font-semibold text-lg mb-3">Tasks (<%= @tasks.count %>)</h2>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Task Name</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Est. Hours</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200">
-              <% @tasks.each do |task| %>
-                <tr class="hover:bg-gray-50">
-                  <td class="px-4 py-2">
-                    <%= link_to task.name, vmcott_workshop_supervisor_task_path(task), class: "text-blue-600 hover:underline" %>
-                  </td>
-                  <td class="px-4 py-2">
-                    <span class="text-xs px-2 py-1 rounded-full 
-                      <%= case task.status
-                          when 'pending' then 'bg-yellow-100 text-yellow-800'
-                          when 'approved' then 'bg-green-100 text-green-800'
-                          when 'in_progress' then 'bg-blue-100 text-blue-800'
-                          when 'blocked' then 'bg-red-100 text-red-800'
-                          when 'completed' then 'bg-gray-100 text-gray-800'
-                          else 'bg-gray-100 text-gray-800'
-                          end %>">
-                      <%= task.status.upcase %>
-                    </span>
-                  </td>
-                  <td class="px-4 py-2"><%= task.estimated_hours ? "#{task.estimated_hours} hrs" : '-' %></td>
-                  <td class="px-4 py-2">
-                    <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "text-blue-600 text-sm" %>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
+  <% if flash[:notice] %>
+    <div class="alert alert-info alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+        <div><%= flash[:notice] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
       </div>
-    <% end %>
+    </div>
+  <% end %>
 
-    <!-- Work Sessions -->
-    <% if @work_sessions.present? && @work_sessions.any? %>
-      <div class="bg-white rounded-xl shadow p-4 mb-4">
-        <h2 class="font-semibold text-lg mb-3">Work Sessions</h2>
-        <div class="space-y-2">
-          <% @work_sessions.each do |session| %>
-            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <div>
-                <span class="font-medium"><%= session.mechanic&.name || 'Unknown' %></span>
-                <span class="text-xs text-gray-500 ml-2">
-                  <%= session.started_at&.strftime("%m/%d %H:%M") || 'Unknown' %> - 
-                  <%= session.ended_at ? session.ended_at.strftime("%H:%M") : "In Progress" %>
+  <% if flash[:alert] %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+        <div><%= flash[:alert] %></div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- Job Status Banner -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="rounded-3 p-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div class="text-white">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <span class="badge bg-white text-dark px-3 py-2 rounded-pill fs-6">
+                <i class="bi bi-hash me-1"></i> Job #<%= @job.id %>
+              </span>
+              <span class="badge <%= case @job.status
+                  when 'pending_approval' then 'bg-warning'
+                  when 'approved' then 'bg-info'
+                  when 'assigned' then 'bg-primary'
+                  when 'in_progress' then 'bg-success'
+                  when 'blocked' then 'bg-danger'
+                  when 'qc_pending' then 'bg-purple'
+                  when 'qc_passed' then 'bg-success'
+                  when 'qc_failed' then 'bg-danger'
+                  when 'completed' then 'bg-secondary'
+                  else 'bg-secondary'
+                  end %> px-3 py-2 rounded-pill fs-6">
+                <i class="bi <%= case @job.status
+                  when 'pending_approval' then 'bi-hourglass-split'
+                  when 'approved' then 'bi-check-circle'
+                  when 'assigned' then 'bi-person-check'
+                  when 'in_progress' then 'bi-play-circle'
+                  when 'blocked' then 'bi-x-circle'
+                  when 'qc_pending' then 'bi-clipboard-check'
+                  when 'qc_passed' then 'bi-check2-circle'
+                  when 'qc_failed' then 'bi-exclamation-triangle'
+                  when 'completed' then 'bi-check-all'
+                  else 'bi-question-circle'
+                  end %> me-1"></i>
+                <%= @job.status.humanize.upcase %>
+              </span>
+              <% if @job.priority.present? && @job.priority != 'normal' %>
+                <span class="badge <%= @job.priority == 'critical' ? 'bg-danger' : 'bg-warning' %> px-3 py-2 rounded-pill fs-6">
+                  <i class="bi bi-flag-fill me-1"></i>
+                  <%= @job.priority.upcase %> PRIORITY
                 </span>
-              </div>
-              <span class="text-xs"><%= session.duration_hours ? "#{session.duration_hours} hrs" : '-' %></span>
+              <% end %>
             </div>
+            <p class="mt-2 mb-0 opacity-75">
+              <i class="bi bi-info-circle me-1"></i> 
+              Created <%= time_ago_in_words(@job.created_at) %> ago
+              <% if @job.completed_at %>
+                • Completed <%= time_ago_in_words(@job.completed_at) %> ago
+              <% end %>
+            </p>
+          </div>
+          <% if @job.status.in?(['pending_approval', 'approved']) %>
+            <button onclick="openEditModal()" class="btn btn-light btn-sm rounded-pill px-4">
+              <i class="bi bi-pencil me-1"></i> Edit Job
+            </button>
           <% end %>
         </div>
       </div>
-    <% end %>
+    </div>
+  </div>
 
-    <!-- Parts Requests -->
-    <% if @parts_requests.present? && @parts_requests.any? %>
-      <div class="bg-white rounded-xl shadow p-4 mb-4">
-        <h2 class="font-semibold text-lg mb-3">Parts Requests</h2>
-        <div class="space-y-2">
-          <% @parts_requests.each do |request| %>
-            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <div>
-                <span class="font-medium"><%= request.part&.name || request.custom_part_name %></span>
-                <span class="text-xs text-gray-500 ml-2">x<%= request.quantity %></span>
+  <div class="row g-4">
+    <!-- LEFT COLUMN - Main Details -->
+    <div class="col-lg-8">
+      
+      <!-- Job Details Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-info-circle me-2 text-primary"></i>
+            Job Details
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="row g-4">
+            <div class="col-md-6">
+              <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle bg-light p-2">
+                  <i class="bi bi-card-text text-primary"></i>
+                </div>
+                <div>
+                  <div class="small text-muted mb-1">Description</div>
+                  <div class="fw-medium"><%= @job.description || "No description provided" %></div>
+                </div>
               </div>
-              <span class="text-xs px-2 py-1 rounded-full 
-                <%= case request.status
-                    when 'pending_approval' then 'bg-yellow-100 text-yellow-800'
-                    when 'approved' then 'bg-green-100 text-green-800'
-                    when 'rejected' then 'bg-red-100 text-red-800'
-                    else 'bg-gray-100 text-gray-800'
-                    end %>">
-                <%= request.status.humanize %>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle bg-light p-2">
+                  <i class="bi bi-truck text-primary"></i>
+                </div>
+                <div>
+                  <div class="small text-muted mb-1">Vehicle</div>
+                  <div class="fw-medium">
+                    <% if @vehicle %>
+                      <%= @vehicle.license_plate %> - <%= @vehicle.make %> <%= @vehicle.model %>
+                      <br><small class="text-muted"><%= @vehicle.year_of_manufacture %> • <%= @vehicle.color %></small>
+                    <% else %>
+                      <span class="text-muted">No vehicle assigned</span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle bg-light p-2">
+                  <i class="bi bi-person-gear text-primary"></i>
+                </div>
+                <div>
+                  <div class="small text-muted mb-1">Assigned Mechanic</div>
+                  <div class="fw-medium">
+                    <% if @mechanic %>
+                      <%= @mechanic.name %>
+                      <% if @job.assigned_at %>
+                        <span class="text-muted small d-block">
+                          <i class="bi bi-clock me-1"></i> Assigned <%= time_ago_in_words(@job.assigned_at) %> ago
+                        </span>
+                      <% end %>
+                    <% else %>
+                      <span class="text-muted">Not assigned</span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle bg-light p-2">
+                  <i class="bi bi-hourglass-split text-primary"></i>
+                </div>
+                <div>
+                  <div class="small text-muted mb-1">Time Tracking</div>
+                  <div class="fw-medium">
+                    <%= @job.estimated_hours ? "#{@job.estimated_hours} hrs estimated" : "No estimate" %>
+                    <% 
+                      actual_hours = @job.job_tasks.flat_map(&:work_sessions).sum(&:duration_hours).to_f.round(1)
+                    %>
+                    <% if actual_hours > 0 %>
+                      <span class="text-muted d-block">
+                        <i class="bi bi-stopwatch me-1"></i> <%= actual_hours %> hrs actual
+                        <% if @job.estimated_hours.present? %>
+                          <% variance = actual_hours - @job.estimated_hours %>
+                          <span class="<%= variance > 0 ? 'text-danger' : 'text-success' %> ms-1">
+                            (<%= variance > 0 ? '+' : '' %><%= variance.round(1) %> hrs)
+                          </span>
+                        <% end %>
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <% if @job.estimated_hours.present? && @job.estimated_hours > 0 %>
+              <div class="col-12">
+                <div class="small text-muted mb-2">Progress</div>
+                <% 
+                  actual_hours = @job.job_tasks.flat_map(&:work_sessions).sum(&:duration_hours).to_f
+                  progress_percent = [(actual_hours / @job.estimated_hours * 100).round, 100].min
+                %>
+                <div class="progress" style="height: 8px;">
+                  <div class="progress-bar bg-primary" style="width: <%= progress_percent %>%"></div>
+                </div>
+                <div class="small text-muted mt-2">
+                  <i class="bi bi-graph-up me-1"></i> <%= progress_percent %>% complete (<%= actual_hours.round(1) %> of <%= @job.estimated_hours %> hrs)
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tasks Section -->
+      <% if @tasks.present? && @tasks.any? %>
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+                <i class="bi bi-list-check me-2 text-primary"></i>
+                Tasks (<%= @tasks.count %>)
+              </h5>
+              <span class="badge bg-light text-dark px-3 py-2">
+                <i class="bi bi-check2-circle me-1"></i> 
+                <%= @tasks.count { |t| t.status == 'completed' } %> completed
               </span>
             </div>
-          <% end %>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                  <tr>
+                    <th class="border-0 py-3">Task Name</th>
+                    <th class="border-0 py-3">Status</th>
+                    <th class="border-0 py-3">Est. Hours</th>
+                    <th class="border-0 py-3">Assigned To</th>
+                    <th class="border-0 py-3 text-end">Actions</th>
+                   </thead>
+                <tbody>
+                  <% @tasks.each do |task| %>
+                    <tr>
+                      <td class="fw-semibold">
+                        <%= link_to task.name, vmcott_workshop_supervisor_task_path(task), class: "text-decoration-none text-primary" %>
+                      </td>
+                      <td>
+                        <span class="badge <%= case task.status
+                          when 'pending' then 'bg-warning'
+                          when 'approved' then 'bg-info'
+                          when 'in_progress' then 'bg-primary'
+                          when 'blocked' then 'bg-danger'
+                          when 'completed' then 'bg-success'
+                          else 'bg-secondary'
+                          end %> px-3 py-2">
+                          <%= task.status.humanize %>
+                        </span>
+                      </td>
+                      <td><%= task.estimated_hours ? "#{task.estimated_hours} hrs" : '-' %></td>
+                      <td><%= task.assigned_mechanic&.name || 'Unassigned' %></td>
+                      <td class="text-end">
+                        <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "btn btn-sm btn-outline-primary rounded-pill" %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
-    <% end %>
+      <% end %>
 
-    <!-- Actions -->
-    <div class="bg-white rounded-xl shadow p-4">
-      <h2 class="font-semibold text-lg mb-3">Actions</h2>
-      <div class="flex flex-wrap gap-3">
-        <% if @job.status == 'pending_approval' %>
-          <%= button_to "Approve Job", approve_workshop_supervisor_job_path(@job), method: :post, class: "bg-green-500 text-white px-4 py-2 rounded-lg" %>
-          <%= button_to "Reject Job", reject_workshop_supervisor_job_path(@job), method: :post, class: "bg-red-500 text-white px-4 py-2 rounded-lg", data: { confirm: "Reject this job?" } %>
-        <% end %>
-        
-        <% if @job.assigned_mechanic.nil? && @job.status == 'approved' %>
-          <div class="flex gap-2">
-            <select id="mechanic-select" class="border rounded-lg px-3 py-2">
+      <!-- Work Sessions Section -->
+      <% all_work_sessions = @job.job_tasks.flat_map(&:work_sessions) %>
+      <% if all_work_sessions.present? && all_work_sessions.any? %>
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-clock-history me-2 text-primary"></i>
+              Work Sessions (<%= all_work_sessions.sum(&:duration_hours).round(1) %> hrs total)
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="space-y-2">
+              <% all_work_sessions.each do |session| %>
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded-3">
+                  <div>
+                    <i class="bi bi-person-circle me-2 text-muted"></i>
+                    <strong><%= session.mechanic&.name || 'Unknown' %></strong>
+                    <span class="text-muted ms-2 small">
+                      <i class="bi bi-calendar3 me-1"></i>
+                      <%= session.started_at&.strftime("%b %d, %H:%M") || 'Unknown' %> - 
+                      <%= session.ended_at ? session.ended_at.strftime("%H:%M") : "In Progress" %>
+                    </span>
+                  </div>
+                  <span class="badge bg-secondary px-3 py-2">
+                    <i class="bi bi-stopwatch me-1"></i> <%= session.duration_hours ? "#{session.duration_hours} hrs" : '-' %>
+                  </span>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+    </div>
+
+    <!-- RIGHT COLUMN - Actions & Updates -->
+    <div class="col-lg-4">
+      
+      <!-- Quick Actions Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-lightning-charge me-2 text-primary"></i>
+            Quick Actions
+          </h5>
+        </div>
+        <div class="card-body">
+          
+          <!-- PHASE 1: JOB INTAKE & APPROVAL -->
+          <% if @job.status == 'pending_approval' %>
+            <div class="alert alert-warning border-0 rounded-3 mb-3">
+              <i class="bi bi-hourglass-split me-2"></i>
+              <strong>Awaiting Review</strong>
+              <div class="small mt-1">This job needs your approval before work can begin</div>
+            </div>
+            <div class="d-grid gap-2">
+              <%= button_to approve_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-success rounded-pill py-2",
+                    form: { data: { turbo_confirm: "Approve this job?" } } do %>
+                <i class="bi bi-check-circle me-2"></i>Approve Job
+              <% end %>
+              <button onclick="openRejectModal()" class="btn btn-outline-danger rounded-pill py-2">
+                <i class="bi bi-x-circle me-2"></i>Reject Job
+              </button>
+              <button onclick="openEditModal()" class="btn btn-outline-primary rounded-pill py-2">
+                <i class="bi bi-pencil me-2"></i>Edit Job Details
+              </button>
+            </div>
+          
+          <!-- PHASE 2: ASSIGNMENT -->
+          <% elsif @job.status == 'approved' && @job.assigned_mechanic.nil? %>
+            <div class="alert alert-info border-0 rounded-3 mb-3">
+              <i class="bi bi-person-plus me-2"></i>
+              <strong>Ready for Assignment</strong>
+              <div class="small mt-1">Select a mechanic to work on this job</div>
+            </div>
+            <select id="mechanic-select" class="form-select rounded-pill mb-2">
               <option value="">Select Mechanic</option>
-              <% User.where(role: 'mechanic').each do |mechanic| %>
+              <% User.where(role: 'mechanic', is_active: true).each do |mechanic| %>
                 <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
               <% end %>
             </select>
-            <button onclick="assignJob()" class="bg-purple-500 text-white px-4 py-2 rounded-lg">Assign Mechanic</button>
+            <button onclick="assignJob()" class="btn btn-primary rounded-pill py-2 w-100">
+              <i class="bi bi-person-check me-2"></i>Assign Mechanic
+            </button>
+          
+          <!-- PHASE 3: WORK IN PROGRESS -->
+          <% elsif @job.status == 'in_progress' %>
+            <div class="alert alert-success border-0 rounded-3 mb-3">
+              <i class="bi bi-play-circle me-2"></i>
+              <strong>Work in Progress</strong>
+              <div class="small mt-1">Job is currently being worked on</div>
+            </div>
+            <div class="d-grid gap-2">
+              <%= button_to block_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-danger rounded-pill py-2",
+                    form: { data: { turbo_confirm: "Block this job? Reason needed." } } do %>
+                <i class="bi bi-ban me-2"></i>Block Job
+              <% end %>
+              <button onclick="openReassignModal()" class="btn btn-warning rounded-pill py-2">
+                <i class="bi bi-arrow-repeat me-2"></i>Reassign Mechanic
+              </button>
+              <button onclick="openRequestUpdateModal()" class="btn btn-info rounded-pill py-2 text-white">
+                <i class="bi bi-chat-dots me-2"></i>Request Update
+              </button>
+              <% if @job.job_tasks.where.not(status: 'completed').empty? %>
+                <%= button_to send_to_qc_vmcott_workshop_supervisor_job_path(@job), 
+                      method: :post, 
+                      class: "btn btn-purple rounded-pill py-2 text-white",
+                      form: { data: { turbo_confirm: "Send this job to Quality Control?" } } do %>
+                  <i class="bi bi-clipboard-check me-2"></i>Send to QC
+                <% end %>
+              <% end %>
+            </div>
+          
+          <!-- PHASE 4: BLOCKED JOBS -->
+          <% elsif @job.status == 'blocked' %>
+            <div class="alert alert-danger border-0 rounded-3 mb-3">
+              <i class="bi bi-x-circle me-2"></i>
+              <strong>Job is Blocked</strong>
+              <div class="small mt-1"><%= @job.blocked_reason || "No reason provided" %></div>
+            </div>
+            <div class="d-grid gap-2">
+              <%= button_to unblock_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-success rounded-pill py-2",
+                    form: { data: { turbo_confirm: "Unblock this job?" } } do %>
+                <i class="bi bi-play-circle me-2"></i>Unblock Job
+              <% end %>
+              <button onclick="openReassignModal()" class="btn btn-warning rounded-pill py-2">
+                <i class="bi bi-arrow-repeat me-2"></i>Reassign Mechanic
+              </button>
+            </div>
+          
+          <!-- PHASE 5: QUALITY CONTROL -->
+          <% elsif @job.status == 'qc_pending' %>
+            <div class="alert alert-purple border-0 rounded-3 mb-3">
+              <i class="bi bi-clipboard-check me-2"></i>
+              <strong>Quality Control Required</strong>
+              <div class="small mt-1">Job completed, waiting for QC inspection</div>
+            </div>
+            <div class="d-grid gap-2">
+              <%= button_to pass_qc_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-success rounded-pill py-2",
+                    form: { data: { turbo_confirm: "Pass QC for this job?" } } do %>
+                <i class="bi bi-check2-circle me-2"></i>Pass QC
+              <% end %>
+              <button onclick="openQCFailModal()" class="btn btn-danger rounded-pill py-2">
+                <i class="bi bi-x-octagon me-2"></i>Fail QC
+              </button>
+              <%= link_to review_qc_vmcott_workshop_supervisor_job_path(@job), 
+                    class: "btn btn-outline-info rounded-pill py-2" do %>
+                <i class="bi bi-eye me-2"></i>View QC Details
+              <% end %>
+            </div>
+          
+          <!-- PHASE 6: COMPLETION -->
+          <% elsif @job.status == 'qc_passed' %>
+            <div class="alert alert-success border-0 rounded-3 mb-3">
+              <i class="bi bi-check2-circle me-2"></i>
+              <strong>Ready for Completion</strong>
+              <div class="small mt-1">Job has passed QC, ready to close</div>
+            </div>
+            <div class="d-grid gap-2">
+              <%= button_to close_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-success rounded-pill py-2",
+                    form: { data: { turbo_confirm: "Close this job? This will mark it as completed." } } do %>
+                <i class="bi bi-check-all me-2"></i>Close Job
+              <% end %>
+            </div>
+          
+          <!-- PHASE 7: COMPLETED -->
+          <% elsif @job.status == 'completed' %>
+            <div class="alert alert-secondary border-0 rounded-3 mb-3">
+              <i class="bi bi-check-all me-2"></i>
+              <strong>Job Completed</strong>
+              <div class="small mt-1">This job has been closed</div>
+            </div>
+            <div class="d-grid gap-2">
+              <button class="btn btn-secondary rounded-pill py-2" disabled>
+                <i class="bi bi-lock me-2"></i>Job Closed
+              </button>
+            </div>
+          
+          <!-- DEFAULT STATE -->
+          <% else %>
+            <div class="alert alert-secondary border-0 rounded-3 mb-3">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Job Status: <%= @job.status.humanize %></strong>
+              <div class="small mt-1">No immediate actions available</div>
+            </div>
+            <div class="d-grid gap-2">
+              <button onclick="openNoteModal()" class="btn btn-outline-primary rounded-pill py-2">
+                <i class="bi bi-pencil-square me-2"></i>Add Note
+              </button>
+            </div>
+          <% end %>
+          
+          <!-- ALWAYS AVAILABLE: Reassign if mechanic assigned (except completed states) -->
+          <% if @job.assigned_mechanic.present? && !@job.status.in?(['completed', 'qc_passed', 'qc_pending', 'pending_approval']) && @job.status != 'blocked' %>
+            <hr class="my-3">
+            <div class="d-grid gap-2">
+              <button onclick="openReassignModal()" class="btn btn-outline-warning rounded-pill py-2">
+                <i class="bi bi-arrow-repeat me-2"></i>Reassign Mechanic
+              </button>
+            </div>
+          <% end %>
+          
+          <!-- ALWAYS AVAILABLE: Add Note -->
+          <hr class="my-3">
+          <div class="d-grid gap-2">
+            <button onclick="openNoteModal()" class="btn btn-outline-primary rounded-pill py-2">
+              <i class="bi bi-pencil-square me-2"></i>Add Supervisor Note
+            </button>
           </div>
-        <% end %>
+          
+        </div>
+      </div>
+
+      <!-- Supervisor Notes Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-chat-left-text me-2 text-primary"></i>
+            Supervisor Notes
+          </h5>
+        </div>
+        <div class="card-body">
+          <% if @job.notes.present? %>
+            <div class="p-3 bg-light rounded-3">
+              <%= simple_format(@job.notes, class: "mb-0") %>
+            </div>
+          <% else %>
+            <p class="text-muted text-center py-3 mb-0">
+              <i class="bi bi-chat-square-text fs-4 d-block mb-2"></i>
+              No notes added yet
+            </p>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Parts Requests Card -->
+      <% if @parts_requests.present? && @parts_requests.any? %>
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-box-seam me-2 text-primary"></i>
+              Parts Requests (<%= @parts_requests.count %>)
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="space-y-2">
+              <% @parts_requests.each do |request| %>
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                      <%= request.part&.name || request.custom_part_name %>
+                      <span class="badge bg-secondary ms-2">x<%= request.quantity %></span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                      <i class="bi bi-calendar3 me-1"></i> Requested <%= time_ago_in_words(request.created_at) %> ago
+                    </div>
+                  </div>
+                  <div>
+                    <span class="badge <%= case request.status
+                      when 'pending_approval' then 'bg-warning'
+                      when 'approved' then 'bg-success'
+                      when 'rejected' then 'bg-danger'
+                      else 'bg-secondary'
+                      end %> px-3 py-2 me-2">
+                      <%= request.status.humanize %>
+                    </span>
+                    <% if request.status == 'pending_approval' %>
+                      <div class="btn-group-vertical gap-1">
+                        <%= button_to "Approve", approve_parts_request_vmcott_workshop_supervisor_path(request), 
+                              method: :post, class: "btn btn-sm btn-success rounded-pill" %>
+                        <%= button_to "Reject", reject_parts_request_vmcott_workshop_supervisor_path(request), 
+                              method: :post, class: "btn btn-sm btn-danger rounded-pill" %>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Findings Card -->
+      <% if @findings.present? && @findings.any? %>
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-exclamation-triangle me-2 text-warning"></i>
+              Findings & Issues
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="space-y-2">
+              <% @findings.each do |finding| %>
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">
+                      <%= finding.description.truncate(60) %>
+                      <% if finding.blocking %>
+                        <span class="badge bg-danger ms-2">BLOCKING</span>
+                      <% end %>
+                    </div>
+                    <div class="small text-muted mt-1">
+                      <i class="bi bi-flag me-1"></i> 
+                      <span class="<%= finding.severity == 'critical' ? 'text-danger' : 'text-warning' %>">
+                        <%= finding.severity&.humanize || 'Normal' %>
+                      </span>
+                    </div>
+                  </div>
+                  <% if finding.status == 'pending' %>
+                    <div class="btn-group-vertical gap-1">
+                      <%= button_to "Approve", approve_finding_vmcott_workshop_supervisor_path(finding), 
+                            method: :post, class: "btn btn-sm btn-success rounded-pill" %>
+                      <%= button_to "Reject", reject_finding_vmcott_workshop_supervisor_path(finding), 
+                            method: :post, class: "btn btn-sm btn-danger rounded-pill" %>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <!-- Useful Links -->
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-link-45deg me-2 text-primary"></i>
+            Useful Links
+          </h5>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-column gap-2">
+            <%= link_to report_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+              <i class="bi bi-graph-up me-2"></i>View Report
+            <% end %>
+            <%= link_to history_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+              <i class="bi bi-clock-history me-2"></i>View History
+            <% end %>
+            <%= link_to print_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+              <i class="bi bi-printer me-2"></i>Print Job Sheet
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Edit Job Modal -->
+<div id="editModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-pencil-square me-2 text-primary"></i>
+          Edit Job
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Description</label>
+            <%= f.text_area :description, value: @job.description, class: "form-control", rows: 3 %>
+          </div>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Estimated Hours</label>
+              <%= f.number_field :estimated_hours, value: @job.estimated_hours, step: 0.5, class: "form-control" %>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label fw-semibold">Priority</label>
+              <%= f.select :priority, [['Normal', 'normal'], ['High', 'high'], ['Critical', 'critical']], 
+                    selected: @job.priority, class: "form-select" %>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Supervisor Notes</label>
+            <%= f.text_area :notes, value: @job.notes, class: "form-control", rows: 2 %>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Save Changes", class: "btn btn-primary rounded-pill px-4" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Reject Job Modal -->
+<div id="rejectModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold text-danger">
+          <i class="bi bi-exclamation-octagon me-2"></i>
+          Reject Job
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: reject_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Rejection Reason</label>
+            <%= f.text_area :rejection_reason, class: "form-control", rows: 3, required: true, placeholder: "Please provide a reason for rejection..." %>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Reject Job", class: "btn btn-danger rounded-pill px-4" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Reassign Modal -->
+<div id="reassignModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold text-warning">
+          <i class="bi bi-arrow-repeat me-2"></i>
+          Reassign Mechanic
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Select New Mechanic</label>
+          <select id="reassign-mechanic-select" class="form-select">
+            <option value="">Select Mechanic</option>
+            <% User.where(role: 'mechanic', is_active: true).where.not(id: @job.assigned_mechanic_id).each do |mechanic| %>
+              <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Reason for Reassignment</label>
+          <textarea id="reassign-reason" class="form-control" rows="2" placeholder="Why is this job being reassigned?"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+        <button onclick="reassignJob()" class="btn btn-warning rounded-pill px-4">
+          <i class="bi bi-check-circle me-2"></i>Confirm Reassign
+        </button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Request Update Modal -->
+<div id="requestUpdateModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold text-info">
+          <i class="bi bi-chat-dots me-2"></i>
+          Request Update from Mechanic
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: request_update_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Message to Mechanic</label>
+            <%= f.text_area :message, class: "form-control", rows: 3, placeholder: "What update do you need? (e.g., progress, challenges, timeline)" %>
+            <div class="form-text">This will send a notification to the assigned mechanic</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Send Request", class: "btn btn-info rounded-pill px-4 text-white" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- QC Fail Modal -->
+<div id="qcFailModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold text-danger">
+          <i class="bi bi-x-octagon me-2"></i>
+          QC Fail - Rework Required
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: fail_qc_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Rework Instructions</label>
+            <%= f.text_area :rework_instructions, class: "form-control", rows: 3, required: true, placeholder: "What needs to be fixed? Provide clear instructions..." %>
+            <div class="form-text">These instructions will be sent to the mechanic</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Fail & Send for Rework", class: "btn btn-danger rounded-pill px-4" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<!-- Add Note Modal -->
+<div id="noteModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content rounded-4">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-pencil-square me-2 text-primary"></i>
+          Add Supervisor Note
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Note</label>
+            <%= f.text_area :notes, class: "form-control", rows: 3, required: true, placeholder: "Add your supervisor notes here..." %>
+            <div class="form-text">Note will be appended to existing notes</div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Add Note", class: "btn btn-primary rounded-pill px-4" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Custom Colors */
+  .bg-purple {
+    background-color: #8b5cf6 !important;
+  }
+  .alert-purple {
+    background-color: #ede9fe;
+    color: #5b21b6;
+    border-color: #c4b5fd;
+  }
+  .btn-purple {
+    background-color: #8b5cf6;
+    border-color: #8b5cf6;
+  }
+  .btn-purple:hover {
+    background-color: #7c3aed;
+    border-color: #7c3aed;
+  }
+  
+  /* Card Styling */
+  .card {
+    border-radius: 16px !important;
+    overflow: hidden;
+  }
+  
+  .card-header {
+    background: white !important;
+  }
+  
+  /* Progress Bar */
+  .progress {
+    background-color: #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .progress-bar {
+    border-radius: 8px;
+    transition: width 0.3s ease;
+  }
+  
+  /* Table Styling */
+  .table > :not(caption) > * > * {
+    padding: 0.75rem 0.75rem;
+  }
+  
+  .bg-light th {
+    background-color: #f8fafc !important;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #475569;
+  }
+  
+  /* Modal Styling */
+  .modal-content {
+    border: none;
+  }
+  
+  /* Hover Effects */
+  .btn-outline-secondary:hover {
+    background-color: #f8fafc;
+  }
+  
+  .bg-light.rounded-3:hover {
+    background-color: #f1f5f9 !important;
+    transition: background-color 0.2s ease;
+  }
+  
+  /* Button hover animations */
+  .btn {
+    transition: all 0.2s ease;
+  }
+  
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  
+  .btn:active {
+    transform: translateY(0);
+  }
+</style>
+
 <script>
 function assignJob() {
   const mechanicId = document.getElementById('mechanic-select').value;
-  if (!mechanicId) {
-    alert('Please select a mechanic');
-    return;
+  if (!mechanicId) { 
+    alert('Please select a mechanic'); 
+    return; 
   }
   
   const form = document.createElement('form');
   form.method = 'POST';
-  // Use direct URL instead of helper
-  form.action = '/vmcott/workshop_supervisor/jobs/<%= @job.id %>/assign';
+  form.action = '<%= assign_vmcott_workshop_supervisor_job_path(@job) %>';
   
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const csrfInput = document.createElement('input');
@@ -211,4 +952,77 @@ function assignJob() {
   document.body.appendChild(form);
   form.submit();
 }
+
+function reassignJob() {
+  const mechanicId = document.getElementById('reassign-mechanic-select').value;
+  const reason = document.getElementById('reassign-reason').value;
+  if (!mechanicId) { 
+    alert('Please select a mechanic'); 
+    return; 
+  }
+  
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '<%= reassign_vmcott_workshop_supervisor_job_path(@job) %>';
+  
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'authenticity_token';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+  
+  const mechanicInput = document.createElement('input');
+  mechanicInput.type = 'hidden';
+  mechanicInput.name = 'mechanic_id';
+  mechanicInput.value = mechanicId;
+  form.appendChild(mechanicInput);
+  
+  const reasonInput = document.createElement('input');
+  reasonInput.type = 'hidden';
+  reasonInput.name = 'reason';
+  reasonInput.value = reason;
+  form.appendChild(reasonInput);
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+
+// Modal handling using Bootstrap 5
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize all modals
+  const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+  const rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+  const reassignModal = new bootstrap.Modal(document.getElementById('reassignModal'));
+  const requestUpdateModal = new bootstrap.Modal(document.getElementById('requestUpdateModal'));
+  const qcFailModal = new bootstrap.Modal(document.getElementById('qcFailModal'));
+  const noteModal = new bootstrap.Modal(document.getElementById('noteModal'));
+  
+  // Expose functions globally
+  window.openEditModal = () => editModal.show();
+  window.openRejectModal = () => rejectModal.show();
+  window.openReassignModal = () => reassignModal.show();
+  window.openRequestUpdateModal = () => requestUpdateModal.show();
+  window.openQCFailModal = () => qcFailModal.show();
+  window.openNoteModal = () => noteModal.show();
+  
+  window.closeEditModal = () => editModal.hide();
+  window.closeRejectModal = () => rejectModal.hide();
+  window.closeReassignModal = () => reassignModal.hide();
+  window.closeRequestUpdateModal = () => requestUpdateModal.hide();
+  window.closeQCFailModal = () => qcFailModal.hide();
+  window.closeNoteModal = () => noteModal.hide();
+  
+  // Auto-hide alerts after 5 seconds
+  const alerts = document.querySelectorAll('.alert');
+  alerts.forEach(alert => {
+    setTimeout(() => {
+      alert.style.transition = 'opacity 0.5s ease';
+      alert.style.opacity = '0';
+      setTimeout(() => {
+        if (alert && alert.remove) alert.remove();
+      }, 500);
+    }, 5000);
+  });
+});
 </script>

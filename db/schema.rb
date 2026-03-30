@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -467,6 +467,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
     t.bigint "updated_by_id"
     t.bigint "vehicle_id", null: false
     t.bigint "work_order_id"
+    t.text "workflow_notes"
+    t.datetime "workflow_selected_at"
+    t.integer "workflow_selected_by_id"
     t.string "workflow_type", default: "work_before_payment"
     t.index ["client_type"], name: "index_inspections_on_client_type"
     t.index ["created_by_id"], name: "index_inspections_on_created_by_id"
@@ -483,6 +486,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
     t.index ["updated_by_id"], name: "index_inspections_on_updated_by_id"
     t.index ["vehicle_id"], name: "index_inspections_on_vehicle_id"
     t.index ["work_order_id"], name: "index_inspections_on_work_order_id"
+    t.index ["workflow_selected_by_id"], name: "index_inspections_on_workflow_selected_by_id"
   end
 
   create_table "internal_pos", force: :cascade do |t|
@@ -1302,7 +1306,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
     t.datetime "accepted_at"
     t.bigint "agency_id", null: false
     t.decimal "amount", precision: 10, scale: 2, null: false
+    t.jsonb "client_approved_job_ids", default: []
+    t.jsonb "client_approved_part_ids", default: []
     t.bigint "client_id"
+    t.string "client_po_number"
+    t.datetime "client_po_uploaded_at"
     t.string "client_type"
     t.datetime "converted_at"
     t.datetime "created_at", null: false
@@ -1328,6 +1336,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_123301) do
     t.bigint "work_order_id"
     t.string "workflow_type"
     t.index ["agency_id"], name: "index_quotations_on_agency_id"
+    t.index ["client_approved_job_ids"], name: "index_quotations_on_client_approved_job_ids", using: :gin
+    t.index ["client_approved_part_ids"], name: "index_quotations_on_client_approved_part_ids", using: :gin
     t.index ["created_by_id"], name: "index_quotations_on_created_by_id"
     t.index ["idempotency_key"], name: "index_quotations_on_idempotency_key", unique: true, where: "(idempotency_key IS NOT NULL)"
     t.index ["inspection_id"], name: "index_quotations_on_inspection_id"

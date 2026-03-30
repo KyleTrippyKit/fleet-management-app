@@ -1,0 +1,418 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/review_workflow.html.erb %>
+<%# Disable Turbo caching to prevent white screen issues %>
+<meta name="turbo-cache-control" content="no-cache">
+<meta name="turbo-visit-control" content="reload">
+
+<div class="container-fluid px-4 py-4">
+  
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "text-decoration-none mb-2 d-inline-block" do %>
+            <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+          <% end %>
+          <h1 class="h2 mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-check2-circle me-2 text-primary"></i>
+            Workflow Selection Review
+          </h1>
+          <p class="text-muted mb-0">Review the selected workflow for this job</p>
+        </div>
+        <div class="text-end">
+          <div class="bg-white rounded-3 px-3 py-2 shadow-sm">
+            <i class="bi bi-calendar3 me-2 text-primary"></i>
+            <%= Time.current.strftime("%A, %B %d, %Y") %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflow Status Banner -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="rounded-3 p-4 <%= @inspection.workflow_type == 'payment_before_work' ? 'bg-warning bg-opacity-10 border-warning' : 'bg-success bg-opacity-10 border-success' %>" style="border: 1px solid;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle p-3 <%= @inspection.workflow_type == 'payment_before_work' ? 'bg-warning' : 'bg-success' %>">
+              <i class="bi <%= @inspection.workflow_type == 'payment_before_work' ? 'bi-lock-fill' : 'bi-play-circle-fill' %> fs-3 text-white"></i>
+            </div>
+            <div>
+              <h3 class="mb-1 fw-bold">
+                <%= @inspection.workflow_type == 'payment_before_work' ? 'Option A: Payment Before Work' : 'Option B: Work Before Payment' %>
+              </h3>
+              <p class="mb-0 text-muted">
+                Selected by: <%= @inspection.workflow_selected_by&.name || 'Supervisor' %> on 
+                <%= @inspection.workflow_selected_at&.strftime("%B %d, %Y at %I:%M %p") %>
+              </p>
+            </div>
+          </div>
+          <div class="text-end">
+            <span class="badge <%= @inspection.workflow_type == 'payment_before_work' ? 'bg-warning' : 'bg-success' %> px-3 py-2 fs-6">
+              <i class="bi <%= @inspection.workflow_type == 'payment_before_work' ? 'bi-hourglass-split' : 'bi-check-circle' %> me-1"></i>
+              <%= @inspection.workflow_type == 'payment_before_work' ? 'Awaiting Client Approval' : 'Ready to Start' %>
+            </span>
+            <div class="small text-muted mt-1">Status: <%= @inspection.status.humanize %></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle & Client Info Card -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+        <i class="bi bi-info-circle me-2 text-primary"></i>
+        Job Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle bg-light p-2">
+              <i class="bi bi-truck text-primary"></i>
+            </div>
+            <div>
+              <div class="small text-muted mb-1">Vehicle</div>
+              <div class="fw-medium">
+                <%= @inspection.vehicle.license_plate %>
+                <br><small class="text-muted"><%= @inspection.vehicle.make %> <%= @inspection.vehicle.model %></small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle bg-light p-2">
+              <i class="bi bi-person-badge text-primary"></i>
+            </div>
+            <div>
+              <div class="small text-muted mb-1">Client</div>
+              <div class="fw-medium">
+                <% if @inspection.client_type == 'agency' %>
+                  <span class="badge bg-primary me-2">Agency</span>
+                <% elsif @inspection.client_type == 'company' %>
+                  <span class="badge bg-info me-2">Company</span>
+                <% else %>
+                  <span class="badge bg-secondary me-2">Walk-in</span>
+                <% end %>
+                <%= @inspection.client&.name || @inspection.agency&.name || 'Customer' %>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle bg-light p-2">
+              <i class="bi bi-credit-card text-primary"></i>
+            </div>
+            <div>
+              <div class="small text-muted mb-1">Payment Terms</div>
+              <div class="fw-medium">
+                <%= @inspection.payment_terms || 'Cash on Pickup' %>
+                <% if @inspection.workflow_type == 'payment_before_work' && @inspection.payment_status != 'paid' %>
+                  <span class="badge bg-warning ms-2">Payment Required Before Work</span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cost Breakdown Card -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+        <i class="bi bi-calculator me-2 text-primary"></i>
+        Cost Breakdown
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="text-center p-3 bg-light rounded-3">
+            <div class="text-muted small mb-2">Labor Cost</div>
+            <div class="h3 fw-bold text-primary">
+              $<%= number_with_precision(@labor_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted">Rate: $<%= @inspection.labor_rate || 80 %>/hr</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-center p-3 bg-light rounded-3">
+            <div class="text-muted small mb-2">Parts Cost</div>
+            <div class="h3 fw-bold text-primary">
+              $<%= number_with_precision(@parts_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted">Markup: <%= @inspection.parts_markup_percentage || 30 %>%</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-center p-3 <%= @inspection.workflow_type == 'payment_before_work' ? 'bg-warning bg-opacity-10' : 'bg-success bg-opacity-10' %> rounded-3">
+            <div class="text-muted small mb-2">Total Cost</div>
+            <div class="h3 fw-bold text-success">
+              $<%= number_with_precision(@total_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted">Labor + Parts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supervisor Notes -->
+      <% if @inspection.workflow_notes.present? %>
+        <div class="mt-4 p-3 bg-light rounded-3">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi bi-chat-left-text text-primary mt-1"></i>
+            <div>
+              <div class="small text-muted mb-1">Supervisor Notes</div>
+              <div class="fw-medium"><%= @inspection.workflow_notes %></div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Jobs & Parts Details -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-list-check me-2 text-primary"></i>
+            Jobs to be Performed (<%= @jobs.count %>)
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="ps-3">Description</th>
+                  <th>Hours</th>
+                  <th class="pe-3 text-end">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @jobs.each do |job| %>
+                  <tr>
+                    <td class="ps-3"><%= job.description.truncate(40) %></td>
+                    <td><%= job.estimated_hours || 0 %> hrs</td>
+                    <td class="pe-3 text-end">$<%= number_with_precision(job.estimated_labor_cost || 0, precision: 2) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-box-seam me-2 text-primary"></i>
+            Parts Required (<%= @parts_requests.count %>)
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="ps-3">Part Name</th>
+                  <th>Qty</th>
+                  <th class="pe-3 text-end">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @parts_requests.each do |request| %>
+                  <tr>
+                    <td class="ps-3"><%= request.part_name %></td>
+                    <td><%= request.quantity %></td>
+                    <td class="pe-3 text-end">$<%= number_with_precision(request.total_cost || 0, precision: 2) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+        <i class="bi bi-clock-history me-2 text-primary"></i>
+        Workflow Timeline
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-badge bg-success">
+            <i class="bi bi-check-circle"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Vehicle Received</h6>
+            <p class="small text-muted"><%= @inspection.received_at&.strftime("%B %d, %Y at %I:%M %p") || 'N/A' %></p>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-badge bg-primary">
+            <i class="bi bi-search"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Inspection Completed</h6>
+            <p class="small text-muted"><%= @inspection.created_at&.strftime("%B %d, %Y at %I:%M %p") || 'N/A' %></p>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-badge bg-info">
+            <i class="bi bi-diagram-3"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Workflow Selected</h6>
+            <p class="small text-muted">
+              <%= @inspection.workflow_selected_at&.strftime("%B %d, %Y at %I:%M %p") || 'N/A' %>
+              <br><span class="badge <%= @inspection.workflow_type == 'payment_before_work' ? 'bg-warning' : 'bg-success' %> mt-1">
+                <%= @inspection.workflow_type == 'payment_before_work' ? 'Payment Before Work' : 'Work Before Payment' %>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-badge bg-secondary">
+            <i class="bi bi-envelope-paper"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Quotation Sent to Client</h6>
+            <p class="small text-muted">Pending - Procurement team will send</p>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-badge bg-secondary">
+            <i class="bi bi-check2-circle"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Client Approval</h6>
+            <p class="small text-muted">
+              <% if @inspection.workflow_type == 'payment_before_work' %>
+                Required before work starts
+              <% else %>
+                Can be provided anytime
+              <% end %>
+            </p>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-badge bg-secondary">
+            <i class="bi bi-tools"></i>
+          </div>
+          <div class="timeline-content">
+            <h6>Work Begins</h6>
+            <p class="small text-muted">
+              <% if @inspection.workflow_type == 'payment_before_work' %>
+                After client approval and payment
+              <% else %>
+                Immediately after assignment
+              <% end %>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="d-flex justify-content-between gap-3 mb-5">
+    <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-light rounded-pill px-4 py-2" do %>
+      <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+    <% end %>
+    
+    <%= link_to vmcott_workshop_supervisor_select_workflow_path(@inspection), 
+          class: "btn btn-outline-primary rounded-pill px-4 py-2" do %>
+      <i class="bi bi-pencil me-2"></i>Edit Workflow
+    <% end %>
+  </div>
+</div>
+
+<style>
+  /* Timeline Styling */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+  }
+  
+  .timeline:before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e2e8f0;
+  }
+  
+  .timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+  }
+  
+  .timeline-badge {
+    position: absolute;
+    left: -2rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    z-index: 1;
+  }
+  
+  .timeline-badge.bg-success { background: #10b981; }
+  .timeline-badge.bg-primary { background: #3b82f6; }
+  .timeline-badge.bg-info { background: #0ea5e9; }
+  .timeline-badge.bg-secondary { background: #64748b; }
+  
+  .timeline-content {
+    padding-left: 1rem;
+  }
+  
+  .timeline-content h6 {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .timeline {
+      padding-left: 1.5rem;
+    }
+    
+    .timeline-badge {
+      width: 2rem;
+      height: 2rem;
+      left: -1.5rem;
+    }
+    
+    .timeline-badge i {
+      font-size: 0.875rem;
+    }
+  }
+</style>

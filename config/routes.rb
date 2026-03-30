@@ -10,6 +10,8 @@
 # ADDED: Mechanic task management routes
 # ADDED: Workshop supervisor management routes with pre-check review and parts request review
 # ADDED: Admin event dashboard routes
+# ADDED: Job management routes for workshop supervisor
+# ADDED: Workflow selection routes for workshop supervisor
 
 Rails.application.routes.draw do
   get "/stimulus-test", to: "stimulus_test#index"
@@ -392,7 +394,7 @@ Rails.application.routes.draw do
       post "create_invoice/:inspection_id", to: redirect("/vmcott/finance/create_invoice/%{inspection_id}")
     end
 
-    # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, and parts request review)
+    # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, parts request review, and workflow selection)
     namespace :workshop_supervisor do
       get 'dashboard', to: 'dashboard#index', as: :dashboard
       get 'tasks', to: 'dashboard#tasks', as: :tasks
@@ -425,6 +427,42 @@ Rails.application.routes.draw do
       post 'parts_requests/:id/approve', to: 'dashboard#approve_parts_request', as: :approve_parts_request
       post 'parts_requests/:id/reject', to: 'dashboard#reject_parts_request', as: :reject_parts_request
       
+      # ========================
+      # WORKFLOW SELECTION ROUTES
+      # ========================
+      get 'inspections/:id/select_workflow', to: 'dashboard#select_workflow', as: :select_workflow
+      post 'inspections/:id/process_workflow_selection', to: 'dashboard#select_workflow', as: :process_workflow_selection
+      get 'inspections/:id/review_workflow', to: 'dashboard#review_workflow_selection', as: :review_workflow
+      get 'workflow_pending', to: 'dashboard#workflow_pending', as: :workflow_pending
+      get 'workflow_selections', to: 'dashboard#workflow_selections', as: :workflow_selections
+      
+      # ========================
+      # JOB MANAGEMENT ROUTES - COMBINED (NO DUPLICATES)
+      # ========================
+      resources :jobs, only: [:index, :show] do
+        member do
+          post :approve
+          post :reject
+          post :assign
+          post :reassign
+          post :block
+          post :unblock
+          post :send_to_qc
+          post :pass_qc
+          post :fail_qc
+          post :close
+          get :report
+          get :history
+          get :print
+          post :request_update
+          patch :update_job
+        end
+        collection do
+          get :overdue
+          get :stats
+        end
+      end
+
       # Inspection review routes for workshop supervisor
       resources :inspections, only: [] do
         member do
@@ -432,18 +470,6 @@ Rails.application.routes.draw do
           patch :update_jobs
           post :approve
           post :reject
-        end
-      end
-      
-      # Legacy routes (keeping for backward compatibility)
-      resources :jobs, only: [:index, :show] do
-        member do
-          post :assign
-          post :reassign
-        end
-        collection do
-          get :overdue
-          get :stats
         end
       end
     end

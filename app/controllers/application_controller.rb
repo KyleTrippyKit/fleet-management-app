@@ -369,9 +369,15 @@ class ApplicationController < ActionController::Base
   end
 
   # =====================================================
-  # DASHBOARD CACHING - FIXED
+  # DASHBOARD CACHING - FIXED with Workshop Supervisor Skip
   # =====================================================
   def cache_dashboard_data
+    # CRITICAL: Skip caching for Workshop Supervisor dashboard completely
+    if controller_path == 'vmcott/workshop_supervisor/dashboard'
+      Rails.logger.info "🚫 Skipping cache for Workshop Supervisor Dashboard - Preventing white screen"
+      return yield
+    end
+    
     return yield unless current_user.present?
     
     # Skip caching for reception_logs controller and show actions
@@ -404,6 +410,9 @@ class ApplicationController < ActionController::Base
   end
   
   def dashboard_controller?
+    # Skip caching for workshop supervisor completely
+    return false if controller_path == 'vmcott/workshop_supervisor/dashboard'
+    
     controller_path.start_with?('vmcott/') && 
     params[:action].in?(['index', 'dashboard']) &&
     !params[:controller].include?('reception_logs') # Skip reception_logs controller

@@ -1,0 +1,564 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/select_workflow.html.erb %>
+<%# Disable Turbo caching to prevent white screen issues %>
+<meta name="turbo-cache-control" content="no-cache">
+<meta name="turbo-visit-control" content="reload">
+
+<div class="container-fluid px-4 py-4">
+  
+  <!-- Page Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "text-decoration-none mb-2 d-inline-block" do %>
+            <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+          <% end %>
+          <h1 class="h2 mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-diagram-3 me-2 text-primary"></i>
+            Select Workflow Type
+          </h1>
+          <p class="text-muted mb-0">Choose how this job will be processed - this decision affects when work starts and how payment is collected</p>
+        </div>
+        <div class="text-end">
+          <div class="bg-white rounded-3 px-3 py-2 shadow-sm">
+            <i class="bi bi-calendar3 me-2 text-primary"></i>
+            <%= Time.current.strftime("%A, %B %d, %Y") %>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle & Inspection Info Card -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+        <i class="bi bi-info-circle me-2 text-primary"></i>
+        Job Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle bg-light p-2">
+              <i class="bi bi-truck text-primary"></i>
+            </div>
+            <div>
+              <div class="small text-muted mb-1">Vehicle</div>
+              <div class="fw-medium">
+                <%= @inspection.vehicle.license_plate %> - <%= @inspection.vehicle.make %> <%= @inspection.vehicle.model %>
+                <br><small class="text-muted"><%= @inspection.vehicle.year_of_manufacture %> • <%= @inspection.vehicle.color %></small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle bg-light p-2">
+              <i class="bi bi-person-badge text-primary"></i>
+            </div>
+            <div>
+              <div class="small text-muted mb-1">Client</div>
+              <div class="fw-medium">
+                <% if @inspection.client_type == 'agency' %>
+                  <span class="badge bg-primary me-2">Agency</span>
+                <% elsif @inspection.client_type == 'company' %>
+                  <span class="badge bg-info me-2">Company</span>
+                <% else %>
+                  <span class="badge bg-secondary me-2">Walk-in</span>
+                <% end %>
+                <%= @inspection.client&.name || @inspection.agency&.name || 'Customer' %>
+                <br><small class="text-muted">
+                  Payment Terms: <%= @inspection.payment_terms || 'Cash on Pickup' %>
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cost Summary Card -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-4">
+      <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+        <i class="bi bi-calculator me-2 text-primary"></i>
+        Cost Summary
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="text-center p-3 bg-light rounded-3">
+            <div class="text-muted small mb-2">Labor Cost</div>
+            <div class="h3 fw-bold text-primary">
+              $<%= number_with_precision(@labor_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted"><%= @jobs.count %> job(s)</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-center p-3 bg-light rounded-3">
+            <div class="text-muted small mb-2">Parts Cost</div>
+            <div class="h3 fw-bold text-primary">
+              $<%= number_with_precision(@parts_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted"><%= @parts_requests.count %> part(s)</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-center p-3 bg-success bg-opacity-10 rounded-3 border border-success">
+            <div class="text-muted small mb-2">Total Cost</div>
+            <div class="h3 fw-bold text-success">
+              $<%= number_with_precision(@total_cost, precision: 2) %>
+            </div>
+            <div class="small text-muted">Includes labor + parts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Jobs & Parts Details -->
+      <% if @jobs.any? || @parts_requests.any? %>
+        <div class="mt-4">
+          <div class="accordion" id="detailsAccordion">
+            <div class="accordion-item border-0">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed bg-light rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#jobDetails">
+                  <i class="bi bi-list-check me-2"></i> View Job Details (<%= @jobs.count %> jobs)
+                </button>
+              </h2>
+              <div id="jobDetails" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Job Description</th>
+                          <th>Hours</th>
+                          <th>Rate</th>
+                          <th>Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% @jobs.each do |job| %>
+                          <tr>
+                            <td><%= job.description.truncate(40) %></td>
+                            <td><%= job.estimated_hours || 0 %> hrs</td>
+                            <td>$<%= @labor_rate %>/hr</td>
+                            <td>$<%= number_with_precision(job.estimated_labor_cost || 0, precision: 2) %></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="accordion-item border-0 mt-2">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed bg-light rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#partsDetails">
+                  <i class="bi bi-box-seam me-2"></i> View Parts Details (<%= @parts_requests.count %> parts)
+                </button>
+              </h2>
+              <div id="partsDetails" class="accordion-collapse collapse">
+                <div class="accordion-body">
+                  <div class="table-responsive">
+                    <table class="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Part Name</th>
+                          <th>Qty</th>
+                          <th>Unit Cost</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% @parts_requests.each do |request| %>
+                          <tr>
+                            <td><%= request.part_name %></td>
+                            <td><%= request.quantity %></td>
+                            <td>$<%= number_with_precision(request.unit_price || 0, precision: 2) %></td>
+                            <td>$<%= number_with_precision(request.total_cost || 0, precision: 2) %></td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Workflow Selection Form -->
+  <%= form_with url: process_workflow_selection_vmcott_workshop_supervisor_inspection_path(@inspection), 
+                method: :post, 
+                local: true,
+                data: { turbo: false } do |f| %>
+    
+    <div class="row g-4 mb-4">
+      <!-- Option A: Payment Before Work -->
+      <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm rounded-4 workflow-card" data-workflow="payment_before_work">
+          <div class="card-header bg-white border-0 pt-4">
+            <div class="form-check">
+              <input type="radio" name="workflow_type" value="payment_before_work" 
+                     class="form-check-input fs-4 workflow-radio" id="optionA" required>
+              <label class="form-check-label fs-5 fw-bold" for="optionA">
+                Option A: Payment Before Work
+              </label>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="badge bg-warning text-dark mb-2 px-3 py-2">
+                <i class="bi bi-lock-fill me-1"></i> Work starts ONLY after client approval/payment
+              </div>
+              <ul class="text-muted small mt-2 ps-3">
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Client must approve before work begins</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Client can approve ALL or SELECTED jobs</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Payment/PO must be received</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Work on hold until approval</li>
+              </ul>
+            </div>
+            <div class="alert alert-warning border-0 rounded-3 mt-3">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              <strong>Recommended for:</strong> New customers, Walk-ins, High-value jobs, Unverified clients
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Option B: Work Before Payment -->
+      <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm rounded-4 workflow-card" data-workflow="work_before_payment">
+          <div class="card-header bg-white border-0 pt-4">
+            <div class="form-check">
+              <input type="radio" name="workflow_type" value="work_before_payment" 
+                     class="form-check-input fs-4 workflow-radio" id="optionB" checked>
+              <label class="form-check-label fs-5 fw-bold" for="optionB">
+                Option B: Work Before Payment
+              </label>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="badge bg-success mb-2 px-3 py-2">
+                <i class="bi bi-play-circle-fill me-1"></i> Work starts immediately
+              </div>
+              <ul class="text-muted small mt-2 ps-3">
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Work starts right away</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Quotation sent for information</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Client can approve anytime</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i> Faster turnaround time</li>
+              </ul>
+            </div>
+            <div class="alert alert-success border-0 rounded-3 mt-3">
+              <i class="bi bi-check-circle me-2"></i>
+              <strong>Recommended for:</strong> Trusted agencies, Repeat customers, Companies with payment terms
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Adjustment Section -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-header bg-white border-0 pt-4">
+        <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+          <i class="bi bi-sliders2 me-2 text-primary"></i>
+          Pricing Adjustments (Optional)
+        </h5>
+        <p class="text-muted small mb-0 mt-1">Adjust labor rates or parts markup for this job only</p>
+      </div>
+      <div class="card-body">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-stopwatch me-1"></i> Labor Rate
+            </label>
+            <div class="input-group">
+              <span class="input-group-text">$</span>
+              <input type="number" name="labor_rate" class="form-control" 
+                     value="<%= @labor_rate %>" step="5" min="0">
+              <span class="input-group-text">/hour</span>
+            </div>
+            <div class="form-text">Current standard rate: $80/hour. Adjust for special jobs.</div>
+            
+            <% if @jobs.any? %>
+              <div class="mt-2 small text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                Changing rate will update all job costs: 
+                <strong class="text-primary">
+                  $<%= number_with_precision(@labor_cost, precision: 2) %>
+                </strong>
+                →
+                <strong class="text-success" id="updated-labor-cost">
+                  $<%= number_with_precision(@labor_cost, precision: 2) %>
+                </strong>
+              </div>
+            <% end %>
+          </div>
+          
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">
+              <i class="bi bi-percent me-1"></i> Parts Markup
+            </label>
+            <div class="input-group">
+              <input type="number" name="parts_markup" class="form-control" 
+                     value="<%= @parts_markup %>" step="5" min="0" max="100">
+              <span class="input-group-text">%</span>
+            </div>
+            <div class="form-text">Standard markup: 30%. Adjust for client relationship.</div>
+            
+            <% if @parts_requests.any? %>
+              <div class="mt-2 small text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                Changing markup will update all part costs: 
+                <strong class="text-primary">
+                  $<%= number_with_precision(@parts_cost, precision: 2) %>
+                </strong>
+                →
+                <strong class="text-success" id="updated-parts-cost">
+                  $<%= number_with_precision(@parts_cost, precision: 2) %>
+                </strong>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+        <hr class="my-3">
+        
+        <div class="row">
+          <div class="col-12">
+            <div class="bg-light rounded-3 p-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <span class="fw-semibold">Updated Total Cost:</span>
+                  <div class="small text-muted">After applying adjustments</div>
+                </div>
+                <div class="h3 fw-bold text-primary mb-0" id="updated-total-cost">
+                  $<%= number_with_precision(@total_cost, precision: 2) %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supervisor Notes -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+      <div class="card-header bg-white border-0 pt-4">
+        <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+          <i class="bi bi-chat-left-text me-2 text-primary"></i>
+          Supervisor Notes (Optional)
+        </h5>
+      </div>
+      <div class="card-body">
+        <textarea name="workflow_notes" class="form-control" rows="3" 
+                  placeholder="Add any special instructions for the procurement team..."></textarea>
+        <div class="form-text mt-2">
+          <i class="bi bi-info-circle me-1"></i>
+          These notes will be visible to procurement when they create the quotation
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-end gap-3 mb-5">
+      <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, 
+            class: "btn btn-light rounded-pill px-4 py-2" %>
+      <%= submit_tag "Confirm Workflow Selection", 
+            class: "btn btn-primary rounded-pill px-4 py-2",
+            data: { confirm: "Confirm this workflow selection? This will notify procurement to create the quotation." } %>
+    </div>
+  <% end %>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // =====================================================
+  // Workflow Card Hover Effects
+  // =====================================================
+  const workflowCards = document.querySelectorAll('.workflow-card');
+  const radios = document.querySelectorAll('.workflow-radio');
+  
+  workflowCards.forEach(card => {
+    card.addEventListener('click', function() {
+      const radio = this.querySelector('.workflow-radio');
+      if (radio) {
+        radio.checked = true;
+        
+        // Visual feedback
+        workflowCards.forEach(c => c.classList.remove('border-primary', 'bg-primary', 'bg-opacity-5'));
+        this.classList.add('border-primary', 'bg-primary', 'bg-opacity-5');
+      }
+    });
+    
+    // Apply styling if radio is pre-checked
+    const radio = card.querySelector('.workflow-radio');
+    if (radio && radio.checked) {
+      card.classList.add('border-primary', 'bg-primary', 'bg-opacity-5');
+    }
+  });
+  
+  // =====================================================
+  // Real-time Cost Calculation
+  // =====================================================
+  const laborRateInput = document.querySelector('input[name="labor_rate"]');
+  const partsMarkupInput = document.querySelector('input[name="parts_markup"]');
+  const updatedLaborCostSpan = document.getElementById('updated-labor-cost');
+  const updatedPartsCostSpan = document.getElementById('updated-parts-cost');
+  const updatedTotalCostSpan = document.getElementById('updated-total-cost');
+  
+  const originalLaborCost = <%= @labor_cost %>;
+  const originalPartsCost = <%= @parts_cost %>;
+  const totalHours = <%= @jobs.sum(:estimated_hours).to_f %>;
+  const originalMarkup = <%= @parts_markup %>;
+  
+  function calculateUpdatedCosts() {
+    // Labor cost calculation
+    const newLaborRate = parseFloat(laborRateInput.value) || 0;
+    const newLaborCost = totalHours * newLaborRate;
+    const laborDiff = newLaborCost - originalLaborCost;
+    
+    // Parts cost calculation
+    const newMarkup = parseFloat(partsMarkupInput.value) || 0;
+    const partsBaseCost = originalPartsCost / (1 + originalMarkup / 100);
+    const newPartsCost = partsBaseCost * (1 + newMarkup / 100);
+    const partsDiff = newPartsCost - originalPartsCost;
+    
+    // Update display
+    updatedLaborCostSpan.textContent = `$${newLaborCost.toFixed(2)}`;
+    updatedPartsCostSpan.textContent = `$${newPartsCost.toFixed(2)}`;
+    
+    const newTotal = newLaborCost + newPartsCost;
+    updatedTotalCostSpan.textContent = `$${newTotal.toFixed(2)}`;
+    
+    // Add visual indicators for changes
+    if (laborDiff !== 0) {
+      updatedLaborCostSpan.classList.add('text-warning');
+      setTimeout(() => updatedLaborCostSpan.classList.remove('text-warning'), 500);
+    }
+    if (partsDiff !== 0) {
+      updatedPartsCostSpan.classList.add('text-warning');
+      setTimeout(() => updatedPartsCostSpan.classList.remove('text-warning'), 500);
+    }
+  }
+  
+  laborRateInput?.addEventListener('input', calculateUpdatedCosts);
+  partsMarkupInput?.addEventListener('input', calculateUpdatedCosts);
+  
+  // =====================================================
+  // Auto-hide alerts after 5 seconds
+  // =====================================================
+  const alerts = document.querySelectorAll('.alert');
+  alerts.forEach(alert => {
+    setTimeout(() => {
+      alert.style.transition = 'opacity 0.5s ease';
+      alert.style.opacity = '0';
+      setTimeout(() => {
+        if (alert && alert.remove) alert.remove();
+      }, 500);
+    }, 5000);
+  });
+  
+  // =====================================================
+  // Tooltip initialization (if Bootstrap is loaded)
+  // =====================================================
+  if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  }
+});
+</script>
+
+<style>
+  /* Workflow Card Styling */
+  .workflow-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+  
+  .workflow-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.1) !important;
+  }
+  
+  .workflow-card.border-primary {
+    border: 2px solid #0d6efd !important;
+  }
+  
+  .workflow-card.bg-primary.bg-opacity-5 {
+    background-color: rgba(13, 110, 253, 0.05) !important;
+  }
+  
+  /* Form Control Styling */
+  .form-control:focus,
+  .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  
+  /* Radio Button Styling */
+  .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
+  
+  .form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  
+  /* Accordion Styling */
+  .accordion-button:not(.collapsed) {
+    background-color: #e7f1ff;
+    color: #0d6efd;
+  }
+  
+  .accordion-button:focus {
+    box-shadow: none;
+    border-color: rgba(13, 110, 253, 0.25);
+  }
+  
+  /* Card Header Styling */
+  .card-header {
+    background: white !important;
+  }
+  
+  /* Animation for cost updates */
+  @keyframes highlight {
+    0% { color: #ffc107; transform: scale(1); }
+    50% { color: #ffc107; transform: scale(1.05); }
+    100% { color: inherit; transform: scale(1); }
+  }
+  
+  .text-warning {
+    animation: highlight 0.3s ease;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .h3 {
+      font-size: 1.5rem;
+    }
+    
+    .btn {
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    
+    .d-flex.justify-content-end {
+      flex-direction: column;
+    }
+  }
+</style>

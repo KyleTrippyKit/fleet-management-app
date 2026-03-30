@@ -1,5 +1,5 @@
 <%# app/views/vmcott/workshop_supervisor/dashboard/index.html.erb %>
-<%# Prevent Turbo from causing Stimulus to reload %>
+<%# Disable Turbo caching to prevent Stimulus from breaking on refresh %>
 <meta name="turbo-cache-control" content="no-cache">
 <meta name="turbo-visit-control" content="reload">
 
@@ -36,6 +36,82 @@
     <% end %>
   </div>
 
+  <!-- 🎯 WORKFLOW SELECTION PENDING (NEW) -->
+  <% if @workflow_pending.present? && @workflow_pending.any? %>
+    <div class="card border-0 shadow-lg mb-4" style="border-left: 4px solid #8b5cf6;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-diagram-3 me-2" style="color: #8b5cf6;"></i>
+              Workflow Selection Pending
+            </h5>
+            <p class="text-muted small mb-0">Choose workflow type for these jobs before procurement creates quotations</p>
+          </div>
+          <span class="badge px-3 py-2 rounded-pill" style="background: #ede9fe; color: #5b21b6;">
+            <i class="bi bi-hourglass-split me-1"></i> <%= @workflow_pending.count %> Jobs Waiting
+          </span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <% @workflow_pending.each do |inspection| %>
+            <div class="col-md-6 col-lg-4">
+              <div class="border rounded-3 p-3 h-100 bg-white hover-shadow" style="border-left: 4px solid #8b5cf6 !important;">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <strong class="text-primary">Inspection #<%= inspection.id %></strong>
+                    <span class="badge bg-secondary ms-2"><%= inspection.client_type&.humanize || 'Walk-in' %></span>
+                  </div>
+                  <span class="badge bg-purple text-white rounded-pill">
+                    <i class="bi bi-exclamation-triangle me-1"></i> Action Required
+                  </span>
+                </div>
+                
+                <p class="small text-muted mb-1">
+                  <i class="bi bi-truck me-1"></i> <%= inspection.vehicle.license_plate %>
+                  <br><small><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                </p>
+                
+                <div class="row small text-muted mb-2">
+                  <div class="col-6">
+                    <i class="bi bi-calculator me-1"></i> Labor: 
+                    <strong>$<%= number_with_precision(calculate_labor_cost(inspection), precision: 2) %></strong>
+                  </div>
+                  <div class="col-6">
+                    <i class="bi bi-box-seam me-1"></i> Parts: 
+                    <strong>$<%= number_with_precision(calculate_parts_cost(inspection), precision: 2) %></strong>
+                  </div>
+                </div>
+                
+                <div class="progress mb-2" style="height: 4px;">
+                  <div class="progress-bar bg-purple" style="width: 100%"></div>
+                </div>
+                
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <div class="small text-muted">
+                    <i class="bi bi-clock me-1"></i> Created <%= time_ago_in_words(inspection.created_at) %> ago
+                  </div>
+                  <%= link_to "Select Workflow", 
+                        vmcott_workshop_supervisor_select_workflow_path(inspection), 
+                        class: "btn btn-purple btn-sm rounded-pill px-3" %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        
+        <% if @workflow_pending.count > 6 %>
+          <div class="text-center mt-3">
+            <%= link_to "View All Pending Workflow Selections", 
+                  vmcott_workshop_supervisor_workflow_pending_path, 
+                  class: "btn btn-link text-decoration-none" %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <!-- 🔥 ACTION REQUIRED -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
@@ -46,8 +122,8 @@
         <% if @pending_tasks&.any? %>
           <div class="alert alert-warning mb-2">
             <div class="d-flex justify-content-between align-items-center">
-              <span><strong><%= @pending_tasks.count %> tasks</strong> need approval</span>
-              <a href="#tasks" class="btn btn-sm btn-warning" data-turbo="false">Review →</a>
+              <span><i class="bi bi-clipboard-check me-2"></i><strong><%= @pending_tasks.count %> tasks</strong> need approval</span>
+              <a href="#tasks" class="btn btn-sm btn-warning rounded-pill" data-turbo="false">Review →</a>
             </div>
           </div>
         <% end %>
@@ -55,8 +131,8 @@
         <% if @pending_findings&.any? %>
           <div class="alert alert-danger mb-2">
             <div class="d-flex justify-content-between align-items-center">
-              <span><strong><%= @pending_findings.count %> findings</strong> need review</span>
-              <a href="#findings" class="btn btn-sm btn-danger" data-turbo="false">Review →</a>
+              <span><i class="bi bi-exclamation-triangle me-2"></i><strong><%= @pending_findings.count %> findings</strong> need review</span>
+              <a href="#findings" class="btn btn-sm btn-danger rounded-pill" data-turbo="false">Review →</a>
             </div>
           </div>
         <% end %>
@@ -64,8 +140,8 @@
         <% if @pending_parts_requests&.any? %>
           <div class="alert alert-info mb-2">
             <div class="d-flex justify-content-between align-items-center">
-              <span><strong><%= @pending_parts_requests.count %> parts requests</strong> pending</span>
-              <a href="#parts" class="btn btn-sm btn-primary" data-turbo="false">Review →</a>
+              <span><i class="bi bi-box-seam me-2"></i><strong><%= @pending_parts_requests.count %> parts requests</strong> pending</span>
+              <a href="#parts" class="btn btn-sm btn-primary rounded-pill" data-turbo="false">Review →</a>
             </div>
           </div>
         <% end %>
@@ -80,7 +156,7 @@
     </div>
   </div>
 
-  <!-- TASK APPROVAL -->
+  <!-- TASK APPROVAL SECTION -->
   <div id="tasks" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
       📋 Task Approvals
@@ -93,8 +169,9 @@
               <tr>
                 <th class="ps-3">Task</th>
                 <th>Vehicle</th>
-                <th>Priority</th>
-                <th class="pe-3 text-end">Action</th>
+                <th>Assigned To</th>
+                <th>Est. Hours</th>
+                <th class="pe-3 text-end">Actions</th>
               </thead>
             <tbody>
               <% @pending_tasks.each do |task| %>
@@ -102,40 +179,42 @@
                   <td class="ps-3">
                     <strong><%= task.name %></strong><br>
                     <small class="text-muted"><%= task.description&.truncate(50) %></small>
-                   </td>
+                    </td>
                   <td>
                     <%= task.inspection_job&.inspection&.vehicle&.license_plate || 'N/A' %><br>
                     <small class="text-muted"><%= task.inspection_job&.inspection&.vehicle&.make %> <%= task.inspection_job&.inspection&.vehicle&.model %></small>
-                    </td>
+                  </td>
                   <td>
-                    <span class="badge bg-secondary">
-                      Normal
-                    </span>
-                    </td>
-                  <td class="pe-3 text-end">
+                    <%= task.assigned_mechanic&.name || 'Unassigned' %>
+                  </td>
+                  <td>
+                    <%= task.estimated_hours ? "#{task.estimated_hours} hrs" : 'Not set' %>
+                  </td>
+                  <td class="text-end pe-3">
                     <div class="btn-group btn-group-sm">
-                      <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
-                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "btn btn-success btn-sm rounded-pill ms-1", data: { turbo: false } %>
+                      <%= link_to "View Details", vmcott_workshop_supervisor_task_path(task), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Approve Task", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
                     </div>
-                    </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
           </table>
         </div>
         <div class="text-center p-3 border-top">
-          <%= link_to "View All Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
+          <%= link_to "View All Pending Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
         </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
-          No tasks pending
+          <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
+          <h6>All tasks approved</h6>
+          <p class="small mb-0">No tasks waiting for your approval</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- FINDINGS -->
+  <!-- FINDINGS SECTION -->
   <div id="findings" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
       ⚠️ Mechanic Findings (New Issues)
@@ -146,31 +225,47 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th class="ps-3">Description</th>
+                <th class="ps-3">Finding</th>
                 <th>Vehicle</th>
                 <th>Severity</th>
-                <th class="pe-3 text-end">Action</th>
+                <th>Found By</th>
+                <th>Status</th>
+                <th class="pe-3 text-end">Actions</th>
               </thead>
             <tbody>
               <% @pending_findings.each do |finding| %>
                 <tr data-turbo="false">
-                  <td class="ps-3"><%= finding.description&.truncate(60) %></td>
+                  <td class="ps-3">
+                    <strong><%= finding.description&.truncate(50) %></strong>
+                    <% if finding.blocking %>
+                      <span class="badge bg-danger ms-1">BLOCKING</span>
+                    <% end %>
+                    <br>
+                    <small class="text-muted"><%= time_ago_in_words(finding.created_at) %> ago</small>
+                  </td>
                   <td>
                     <%= finding.work_order&.vehicle&.license_plate || 'N/A' %><br>
                     <small class="text-muted"><%= finding.work_order&.vehicle&.make %> <%= finding.work_order&.vehicle&.model %></small>
-                    </td>
+                  </td>
                   <td>
                     <span class="badge <%= finding.severity == 'critical' ? 'bg-danger' : (finding.severity == 'high' ? 'bg-warning' : 'bg-secondary') %>">
+                      <i class="bi bi-flag-fill me-1"></i>
                       <%= finding.severity&.humanize || 'Normal' %>
                     </span>
-                    </td>
-                  <td class="pe-3 text-end">
+                  </td>
+                  <td>
+                    <%= finding.created_by&.name || 'Unknown' %>
+                  </td>
+                  <td>
+                    <span class="badge bg-warning">Pending Review</span>
+                  </td>
+                  <td class="text-end pe-3">
                     <div class="btn-group btn-group-sm">
-                      <%= link_to "View", vmcott_workshop_supervisor_finding_path(finding), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
-                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_finding_path(finding), method: :post, class: "btn btn-success btn-sm rounded-pill ms-1", data: { turbo: false } %>
-                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_finding_path(finding), method: :post, class: "btn btn-danger btn-sm rounded-pill ms-1", data: { confirm: "Reject this finding?", turbo: false } %>
+                      <%= link_to "View Details", vmcott_workshop_supervisor_finding_path(finding), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_finding_path(finding), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
+                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_finding_path(finding), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this finding?", turbo: false } %>
                     </div>
-                    </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
@@ -181,14 +276,15 @@
         </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
-          No findings pending
+          <i class="bi bi-shield-check fs-1 d-block mb-2 text-success"></i>
+          <h6>No pending findings</h6>
+          <p class="small mb-0">All mechanic findings have been addressed</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- PARTS REQUESTS -->
+  <!-- PARTS REQUESTS SECTION -->
   <div id="parts" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
       📦 Parts Requests
@@ -203,82 +299,283 @@
                 <th>Qty</th>
                 <th>Job</th>
                 <th>Vehicle</th>
-                <th class="pe-3 text-end">Action</th>
+                <th>Requested By</th>
+                <th>Status</th>
+                <th class="pe-3 text-end">Actions</th>
               </thead>
             <tbody>
               <% @pending_parts_requests.each do |request| %>
                 <tr data-turbo="false">
-                  <td class="ps-3"><strong><%= request.part&.name || request.custom_part_name || 'Custom Part' %></strong></td>
-                  <td><%= request.quantity %></td>
-                  <td><%= request.inspection_job&.description&.truncate(40) || 'N/A' %></td>
+                  <td class="ps-3">
+                    <strong><%= request.part&.name || request.custom_part_name || 'Custom Part' %></strong>
+                    <% if request.part&.part_number %>
+                      <br><small class="text-muted">PN: <%= request.part.part_number %></small>
+                    <% end %>
+                  </td>
+                  <td class="fw-bold"><%= request.quantity %></td>
                   <td>
-                    <%= request.inspection.vehicle.license_plate %><br>
-                    <small class="text-muted"><%= request.inspection.vehicle.make %> <%= request.inspection.vehicle.model %></small>
-                    </td>
-                  <td class="pe-3 text-end">
+                    <%= request.inspection_job&.description&.truncate(40) || 'N/A' %><br>
+                    <small class="text-muted">Job #<%= request.inspection_job&.id %></small>
+                  </td>
+                  <td>
+                    <%= request.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                    <small class="text-muted"><%= request.inspection&.vehicle&.make %> <%= request.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td>
+                    <%= request.requested_by&.name || 'Unknown' %><br>
+                    <small class="text-muted"><%= time_ago_in_words(request.created_at) %> ago</small>
+                  </td>
+                  <td>
+                    <span class="badge bg-warning">Pending Approval</span>
+                  </td>
+                  <td class="text-end pe-3">
                     <div class="btn-group btn-group-sm">
-                      <%= link_to "Review", vmcott_workshop_supervisor_review_parts_request_path(request), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
-                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), method: :post, class: "btn btn-success btn-sm rounded-pill ms-1", data: { turbo: false } %>
-                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_parts_request_path(request), method: :post, class: "btn btn-danger btn-sm rounded-pill ms-1", data: { confirm: "Reject this parts request?", turbo: false } %>
+                      <%= link_to "Review", vmcott_workshop_supervisor_review_parts_request_path(request), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
+                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_parts_request_path(request), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this parts request?", turbo: false } %>
                     </div>
-                    </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
           </table>
         </div>
+        <div class="text-center p-3 border-top">
+          <%= link_to "View All Parts Requests", vmcott_workshop_supervisor_parts_requests_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
+        </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
-          No parts requests pending
+          <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>
+          <h6>No pending parts requests</h6>
+          <p class="small mb-0">All parts have been approved or processed</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- ACTIVE JOBS -->
+  <!-- PRE-CHECK REVIEW SECTION -->
+  <% if @pre_check_completed.present? && @pre_check_completed.any? %>
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-white fw-bold border-bottom">
+        🔍 Pre-Check Review
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Job #</th>
+                <th>Description</th>
+                <th>Vehicle</th>
+                <th>Mechanic</th>
+                <th>Additional Findings</th>
+                <th class="pe-3 text-end">Actions</th>
+              </thead>
+            <tbody>
+              <% @pre_check_completed.each do |job| %>
+                <tr data-turbo="false">
+                  <td class="ps-3 fw-semibold">#<%= job.id %></td>
+                  <td><%= job.description.truncate(40) %></td>
+                  <td>
+                    <%= job.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                    <small class="text-muted"><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td><%= job.assigned_mechanic&.name || 'Unknown' %></td>
+                  <td>
+                    <% if job.has_additional_findings? %>
+                      <span class="badge bg-warning"><%= job.additional_findings.count %> findings</span>
+                    <% else %>
+                      <span class="badge bg-success">No findings</span>
+                    <% end %>
+                  </td>
+                  <td class="text-end pe-3">
+                    <%= link_to "Review Pre-Check", vmcott_workshop_supervisor_review_pre_check_path(job), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ACTIVE JOBS SECTION -->
   <div class="card shadow-sm">
     <div class="card-header bg-white fw-bold border-bottom">
-      🟢 Active Jobs
+      🟢 Active Jobs In Progress
     </div>
     <div class="card-body">
       <% if @active_jobs&.any? %>
         <div class="row g-3">
           <% @active_jobs.each do |job| %>
             <div class="col-md-4 col-sm-6">
-              <div class="border rounded-3 p-3 h-100 bg-white">
+              <div class="border rounded-3 p-3 h-100 bg-white hover-shadow">
                 <div class="d-flex justify-content-between align-items-start mb-2">
                   <strong class="text-primary">Job #<%= job.id %></strong>
-                  <span class="badge bg-success">In Progress</span>
+                  <span class="badge bg-success rounded-pill">
+                    <i class="bi bi-play-circle me-1"></i>Active
+                  </span>
                 </div>
                 <p class="small text-muted mb-1">
-                  <i class="bi bi-truck me-1"></i> <%= job.inspection.vehicle.license_plate %><br>
-                  <small><%= job.inspection.vehicle.make %> <%= job.inspection.vehicle.model %></small>
+                  <i class="bi bi-truck me-1"></i> <%= job.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                  <small><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
                 </p>
                 <p class="small mb-2"><%= job.description.truncate(60) %></p>
 
-                <div class="progress mb-2" style="height:5px;">
-                  <% done = job.job_tasks.where(status: 'completed').count %>
-                  <% total = job.job_tasks.count %>
-                  <% percent = total > 0 ? (done.to_f / total * 100).round : 0 %>
+                <!-- Progress Bar -->
+                <% done = job.job_tasks.where(status: 'completed').count %>
+                <% total = job.job_tasks.count %>
+                <% percent = total > 0 ? (done.to_f / total * 100).round : 0 %>
+                <div class="progress mb-2" style="height:6px;">
                   <div class="progress-bar bg-primary" style="width:<%= percent %>%"></div>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-muted"><%= percent %>% complete</small>
+                  <small class="text-muted"><%= percent %>% complete (<%= done %>/<%= total %> tasks)</small>
                   <%= link_to "View Details", vmcott_workshop_supervisor_job_path(job), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
                 </div>
+
+                <!-- Assigned Mechanic Info -->
+                <% if job.assigned_mechanic %>
+                  <hr class="my-2">
+                  <div class="d-flex align-items-center small text-muted">
+                    <i class="bi bi-person-gear me-1"></i>
+                    <span>Assigned to: <strong><%= job.assigned_mechanic.name %></strong></span>
+                    <% if job.started_at %>
+                      <span class="ms-2">
+                        <i class="bi bi-clock me-1"></i><%= time_ago_in_words(job.started_at) %> ago
+                      </span>
+                    <% end %>
+                  </div>
+                <% end %>
               </div>
             </div>
           <% end %>
         </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
-          No active jobs
+          <i class="bi bi-inbox fs-1 d-block mb-2 text-muted"></i>
+          <h6>No active jobs</h6>
+          <p class="small mb-0">All jobs are either pending or completed</p>
         </div>
       <% end %>
     </div>
   </div>
 
 </div>
+
+<style>
+  /* Hover effect for job cards */
+  .hover-shadow {
+    transition: all 0.2s ease;
+  }
+  
+  .hover-shadow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  }
+  
+  /* Table row hover */
+  .table tbody tr:hover {
+    background-color: #f8fafc;
+    transition: background-color 0.2s ease;
+  }
+  
+  /* Alert styling */
+  .alert {
+    border-left: 4px solid;
+  }
+  
+  .alert-warning {
+    border-left-color: #f59e0b;
+  }
+  
+  .alert-danger {
+    border-left-color: #ef4444;
+  }
+  
+  .alert-info {
+    border-left-color: #3b82f6;
+  }
+  
+  /* Badge styling */
+  .badge {
+    font-weight: 500;
+  }
+  
+  /* Button styling */
+  .btn-group .btn {
+    transition: all 0.2s ease;
+  }
+  
+  .btn-group .btn:hover {
+    transform: translateY(-1px);
+  }
+  
+  /* Progress bar */
+  .progress {
+    background-color: #e2e8f0;
+    border-radius: 8px;
+  }
+  
+  .progress-bar {
+    border-radius: 8px;
+    transition: width 0.3s ease;
+  }
+  
+  /* Purple styling for workflow section */
+  .bg-purple {
+    background-color: #8b5cf6 !important;
+  }
+  
+  .btn-purple {
+    background-color: #8b5cf6;
+    border-color: #8b5cf6;
+    color: white;
+  }
+  
+  .btn-purple:hover {
+    background-color: #7c3aed;
+    border-color: #7c3aed;
+    color: white;
+  }
+  
+  .progress-bar.bg-purple {
+    background-color: #8b5cf6 !important;
+  }
+  
+  .border-purple {
+    border-color: #8b5cf6 !important;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-hide alerts after 5 seconds (if any)
+  const alerts = document.querySelectorAll('.alert');
+  alerts.forEach(alert => {
+    setTimeout(() => {
+      alert.style.transition = 'opacity 0.5s ease';
+      alert.style.opacity = '0';
+      setTimeout(() => {
+        if (alert && alert.remove) alert.remove();
+      }, 500);
+    }, 5000);
+  });
+  
+  // Smooth scroll to sections when clicking anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function(e) {
+      const target = document.querySelector(this.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    });
+  });
+});
+</script>
