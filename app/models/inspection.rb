@@ -3,342 +3,352 @@ class Inspection < ApplicationRecord
   include Auditable
   
   belongs_to :vehicle
-  has_many :reception_logs, through: :vehicle
-  belongs_to :inspector, class_name: 'User'
-  belongs_to :supervisor, class_name: 'User', optional: true  # NEW
+  belongs_to :inspector, class_name: 'User', optional: true
+  belongs_to :supervisor, class_name: 'User', optional: true
+  belongs_to :assigned_mechanic, class_name: 'User', optional: true
+  belongs_to :work_order, optional: true
   belongs_to :purchase_order, optional: true
   belongs_to :final_inspector, class_name: 'User', optional: true
-  belongs_to :work_order, optional: true  # NEW: Link to work order
-
+  belongs_to :workflow_selected_by, class_name: "User", foreign_key: "workflow_selected_by_id", optional: true
+  
   has_many :inspection_jobs, dependent: :destroy
   has_many :parts_requests, dependent: :destroy
   has_many :quotations, dependent: :nullify
   has_many :findings, dependent: :destroy
 
-  # Status workflow - expanded with new statuses
+  # =========================
+  # SIMPLIFIED STATUS ENGINE (14-STEP WORKFLOW)
+  # =========================
   enum :status, {
-    pending_inspection: 'pending_inspection',
-    inspection_completed: 'inspection_completed',
-    pending_supervisor_review: 'pending_supervisor_review',  # NEW - after inspection
-    pending_mechanic_review: 'pending_mechanic_review',
-    parts_coordinator_review: 'parts_coordinator_review',
-    pending_procurement_quotation: 'pending_procurement_quotation',
-    awaiting_client_approval: 'awaiting_client_approval',
-    billing_review: 'billing_review',
-    awaiting_customer_approval_original: 'awaiting_customer_approval_original',
-    awaiting_customer_approval_additional: 'awaiting_customer_approval_additional',
-    approved_for_repair: 'approved_for_repair',
-    in_progress: 'in_progress',
-    paused: 'paused',
-    blocked: 'blocked',
-    rework_needed: 'rework_needed',
-    ready_for_qc: 'ready_for_qc',
-    qc_completed: 'qc_completed',
-    ready_for_pickup: 'ready_for_pickup',
-    completed: 'completed',
-    cancelled_by_agency: 'cancelled_by_agency',
-    on_hold: 'on_hold'
-  }, default: :pending_inspection, validate: true
+    received: "received",
+    inspected: "inspected",
+    diagnosed: "diagnosed",
+    jobs_created: "jobs_created",
+    parts_pending: "parts_pending",
+    parts_ready: "parts_ready",
+    awaiting_approval: "awaiting_approval",
+    approved: "approved",
+    in_progress: "in_progress",
+    qc_pending: "qc_pending",
+    additional_findings_pending: "additional_findings_pending",
+    on_hold: "on_hold",
+    ready_for_pickup: "ready_for_pickup",
+    completed: "completed",
+    cancelled: "cancelled"
+  }
 
-  # Add new fields for workflow
+  # Workflow tracking fields
   attribute :workflow_type, :string, default: 'work_before_payment'
   attribute :client_approval_status, :string, default: 'pending'
   attribute :client_selected_jobs, :jsonb, default: {}
   attribute :payment_status, :string, default: 'pending'
+  attribute :scope_locked, :boolean, default: false
+  attribute :labor_rate, :decimal, precision: 10, scale: 2
+  attribute :parts_markup_percentage, :integer, default: 30
+  attribute :diagnosis_notes, :text
+  attribute :diagnosis_completed_at, :datetime  # ✅ This column exists in DB
+  attribute :qc_passed_at, :datetime
+  attribute :qc_inspector_id, :integer
+  attribute :qc_notes, :text
+  attribute :rework_required, :boolean, default: false
+  attribute :rework_reason, :text
+  attribute :started_at, :datetime
+  attribute :completed_at, :datetime
+  attribute :ready_for_pickup_at, :datetime
   attribute :pickup_code, :string
   attribute :pickup_scheduled_at, :datetime
-  attribute :storage_fee_days, :integer, default: 0
-  attribute :client_type, :string
-  attribute :payment_terms, :string
-  attribute :rejection_reason, :text
-  attribute :hold_reason, :text
-  attribute :paused_at, :datetime
-  attribute :paused_reason, :text
-  attribute :blocked_at, :datetime
-  attribute :blocked_reason, :text
-  attribute :qc_failed_at, :datetime
-  attribute :qc_failure_reason, :text
-  attribute :rework_completed_at, :datetime
-  attribute :customer_signature, :string
-  attribute :intake_photos, :jsonb, default: []
-  attribute :final_photos, :jsonb, default: []
-  attribute :expected_pickup_date, :date
   attribute :actual_pickup_date, :datetime
   attribute :picked_up_by, :string
-  attribute :ready_for_pickup_at, :datetime
-  attribute :parts_coordinator_notified_at, :datetime
-  attribute :mechanic_notified_at, :datetime
-  attribute :billing_notified_at, :datetime
-  attribute :tax_rate, :decimal, default: 0
-  attribute :discount_percentage, :decimal, default: 0
+  attribute :cancelled_at, :datetime
+  attribute :cancellation_reason, :text
+  attribute :mileage_at_inspection, :integer
+  attribute :notes, :text
 
   validates :status, presence: true
-  validates :mileage_at_inspection, numericality: { greater_than: 0 }, allow_nil: true
+  validates :diagnosis_notes, presence: true, if: -> { diagnosed? && diagnosis_completed_at.present? }
 
-  # Scopes for new statuses
-  scope :needing_supervisor_review, -> { where(status: :pending_supervisor_review) }
-  scope :needing_mechanic_review, -> { where(status: :pending_mechanic_review) }
-  scope :needing_parts_coordinator, -> { where(status: :parts_coordinator_review) }
-  scope :needing_billing_review, -> { where(status: :billing_review) }
-  scope :needing_procurement_quotation, -> { where(status: :pending_procurement_quotation) }
-  scope :awaiting_client, -> { where(status: :awaiting_client_approval) }
-  scope :blocked_jobs, -> { where(status: :blocked) }
-  scope :paused_jobs, -> { where(status: :paused) }
-  scope :on_hold, -> { where(status: :on_hold) }
-  scope :ready_for_work, -> { where(status: :approved_for_repair).where(payment_status: 'paid') }
-  scope :needing_mechanic_notification, -> { where(status: :approved_for_repair) }
-  scope :ready_for_final_qc, -> { where(status: :ready_for_qc) }
-  scope :ready_for_pickup, -> { where(status: :ready_for_pickup) }
-  scope :overdue_pickup, -> { ready_for_pickup.where('ready_for_pickup_at < ?', 3.days.ago) }
+  # =========================
+  # WORKFLOW RULES (SAFETY GUARDS)
+  # =========================
 
-  # Parts used by mechanics
-  def parts_used_by_mechanics
-    parts_requests.where(status: ['parts_received', 'used', 'installed', 'completed'])
+  def parts_ready?
+    parts_requests.all? { |p| p.approved? && p.available? }
   end
 
-  def total_parts_used
-    parts_used_by_mechanics.sum(:quantity)
+  def can_create_quote?
+    jobs_created? && parts_ready?
   end
 
-  def parts_used_list
-    parts_used_by_mechanics.map { |pr| pr.part&.name || pr.custom_part_name }.compact.uniq
+  def quote_approved?
+    quotations.where(status: "approved").exists?
   end
 
-  def parts_used_display
-    total = total_parts_used
-    return "No parts used" if total == 0
-
-    list = parts_used_list
-    if list.size <= 3
-      "#{total} part(s): #{list.join(', ')}"
-    else
-      "#{total} part(s): #{list.first(3).join(', ')} + #{list.size - 3} more"
-    end
+  def scope_locked?
+    scope_locked || approved? || in_progress? || qc_pending? || ready_for_pickup? || completed?
   end
 
-  after_update :notify_parts_coordinator_if_needed, if: :saved_change_to_status?
-
-  # Helper methods for new workflow
-  def client_can_start_work?
-    return false unless client_approval_status == 'full_approved' || client_approval_status == 'partial_approved'
-    
-    if workflow_type == 'payment_before_work'
-      payment_status == 'paid'
-    else
-      true
-    end
+  def all_jobs_completed?
+    inspection_jobs.where(status: 'completed').count == inspection_jobs.count
   end
 
-  def needs_payment_before_work?
-    workflow_type == 'payment_before_work' && payment_status != 'paid'
+  # =========================
+  # SAFE TRANSITIONS (WITH GUARDS)
+  # =========================
+
+  def move_to_inspected!
+    return false unless received?
+    update!(status: :inspected)
+    notify_mechanics_for_diagnosis
+    true
   end
 
-  def approved_job_ids
-    return [] if client_selected_jobs.blank?
-    client_selected_jobs.map(&:to_i)
+  def move_to_diagnosed!
+    return false unless inspected?
+    update!(status: :diagnosed, diagnosis_completed_at: Time.current)
+    notify_supervisor_for_job_creation
+    true
   end
 
-  def job_approved?(job_id)
-    approved_job_ids.include?(job_id.to_s) || approved_job_ids.include?(job_id)
+  def move_to_jobs_created!
+    return false unless diagnosed?
+    update!(status: :jobs_created)
+    true
   end
 
-  def total_approved_jobs_cost
-    inspection_jobs.where(id: approved_job_ids).sum(&:estimated_total)
+  def move_to_parts_pending!
+    return false unless jobs_created?
+    update!(status: :parts_pending)
+    true
   end
 
-  def has_unapproved_work?
-    inspection_jobs.where.not(id: approved_job_ids).exists?
+  def move_to_parts_ready!
+    return false unless parts_pending? && parts_ready?
+    update!(status: :parts_ready)
+    true
   end
 
-  def total_estimated_cost
-    inspection_jobs.sum(&:estimated_total)
+  def move_to_awaiting_approval!
+    return false unless parts_ready?
+    update!(status: :awaiting_approval)
+    notify_customer_for_approval
+    true
   end
 
-  def all_parts_available?
-    parts_requests.where(status: ['pending', 'ordered']).none?
+  def move_to_approved!
+    return false unless awaiting_approval?
+    update!(status: :approved, scope_locked: true)
+    notify_mechanics_work_ready
+    true
   end
 
-  def has_jobs?
-    inspection_jobs.any?
+  def move_to_in_progress!
+    return false unless approved?
+    update!(status: :in_progress, started_at: Time.current)
+    true
   end
 
-  def has_parts?
-    parts_requests.any?
+  def move_to_qc_pending!
+    return false unless in_progress? && all_jobs_completed?
+    update!(status: :qc_pending)
+    notify_qc_inspector
+    true
   end
 
-  def parts_need_ordering?
-    parts_requests.where(in_stock: false).any?
+  def move_to_ready_for_pickup!
+    return false unless qc_pending?
+    update!(status: :ready_for_pickup, ready_for_pickup_at: Time.current, pickup_code: generate_pickup_code)
+    notify_customer_ready
+    notify_billing_for_invoice
+    true
   end
 
-  def inspection_only?
-    !has_jobs? && !has_parts?
-  end
-
-  def needs_parts_coordinator?
-    has_parts? && parts_need_ordering?
-  end
-
-  def can_go_directly_to_workshop?
-    has_jobs? && (!has_parts? || !parts_need_ordering?)
+  def move_to_completed!
+    return false unless ready_for_pickup?
+    update!(status: :completed, completed_at: Time.current)
+    notify_supervisor_completion
+    true
   end
 
   def pause!(reason)
-    update!(
-      status: :paused,
-      paused_at: Time.current,
-      paused_reason: reason
-    )
+    return false unless in_progress?
+    update!(status: :on_hold, hold_reason: reason, paused_at: Time.current)
+    true
   end
 
-  def block!(reason)
-    update!(
-      status: :blocked,
-      blocked_at: Time.current,
-      blocked_reason: reason
-    )
+  def resume!
+    return false unless on_hold?
+    update!(status: :in_progress, hold_reason: nil, paused_at: nil)
+    true
   end
 
-  def unblock!
-    update!(
-      status: :pending_mechanic_review,
-      blocked_at: nil,
-      blocked_reason: nil
-    )
+  def cancel!(reason)
+    return false if completed?
+    update!(status: :cancelled, cancellation_reason: reason, cancelled_at: Time.current)
+    true
   end
 
-  def require_rework!(reason)
-    update!(
-      status: :rework_needed,
-      qc_failed_at: Time.current,
-      qc_failure_reason: reason
+  # =========================
+  # NOTIFICATION HELPERS
+  # =========================
+
+  def notify_mechanics_for_diagnosis
+    mechanic_ids = User.where(role: 'mechanic').pluck(:id)
+    Notification.create!(
+      user_id: mechanic_ids,
+      title: "🔧 Diagnosis Required",
+      message: "Vehicle #{vehicle.license_plate} needs diagnosis",
+      link: "/vmcott/mechanic/diagnosis/#{id}",
+      notifiable: self,
+      notification_type: 'info'
     )
+  rescue => e
+    Rails.logger.error "Failed to notify mechanics: #{e.message}"
   end
 
-  def mark_ready_for_pickup!
-    update!(
-      status: :ready_for_pickup,
-      ready_for_pickup_at: Time.current,
-      pickup_code: generate_pickup_code
+  def notify_supervisor_for_job_creation
+    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+    Notification.create!(
+      user_id: supervisor_ids,
+      title: "📋 Job Creation Required",
+      message: "Diagnosis complete for #{vehicle.license_plate}",
+      link: "/vmcott/workshop_supervisor/inspections/#{id}/job_creation",
+      notifiable: self,
+      notification_type: 'info'
     )
+  rescue => e
+    Rails.logger.error "Failed to notify supervisor: #{e.message}"
   end
 
-  def record_pickup!(picked_by)
-    update!(
-      status: :completed,
-      actual_pickup_date: Time.current,
-      picked_up_by: picked_by
-    )
-    
-    if expected_pickup_date && Time.current.to_date > expected_pickup_date
-      days_late = (Time.current.to_date - expected_pickup_date).to_i
-      update!(storage_fee_days: days_late)
-      create_storage_fee_invoice(days_late)
+  def notify_customer_for_approval
+    Rails.logger.info "Notify customer for approval for inspection #{id}"
+  end
+
+  def notify_mechanics_work_ready
+    if assigned_mechanic_id.present?
+      Notification.create!(
+        user_id: assigned_mechanic_id,
+        title: "🚨 Work Ready",
+        message: "Work approved for #{vehicle.license_plate}",
+        link: "/vmcott/mechanic/jobs",
+        notifiable: self,
+        notification_type: 'success'
+      )
     end
+  rescue => e
+    Rails.logger.error "Failed to notify mechanic: #{e.message}"
   end
 
-  def total_storage_fee
-    return 0 unless storage_fee_days > 0
-    daily_rate = 50.00
-    storage_fee_days * daily_rate
+  def notify_qc_inspector
+    inspector_ids = User.where(role: 'inspector').pluck(:id)
+    Notification.create!(
+      user_id: inspector_ids,
+      title: "✅ QC Required",
+      message: "Work completed for #{vehicle.license_plate}",
+      link: "/vmcott/inspector/qc/#{id}",
+      notifiable: self,
+      notification_type: 'info'
+    )
+  rescue => e
+    Rails.logger.error "Failed to notify QC inspector: #{e.message}"
   end
 
-  def check_parts_availability!
-    if all_parts_available?
-      update(status: 'approved_for_repair')
-      notify_mechanics!
-    end
+  def notify_customer_ready
+    Rails.logger.info "Notify customer vehicle is ready for pickup"
   end
 
-  def notify_parts_coordinator!
-    update(parts_coordinator_notified_at: Time.current)
-    if defined?(PartsCoordinatorNotificationJob)
-      PartsCoordinatorNotificationJob.perform_later(id)
-    else
-      Rails.logger.info "Would notify parts coordinator for inspection #{id}"
-    end
+  def notify_billing_for_invoice
+    billing_ids = User.where(role: ['procurement', 'finance']).pluck(:id)
+    Notification.create!(
+      user_id: billing_ids,
+      title: "💰 Invoice Required",
+      message: "Vehicle #{vehicle.license_plate} passed QC",
+      link: "/vmcott/finance/invoices/new?inspection_id=#{id}",
+      notifiable: self,
+      notification_type: 'info'
+    )
+  rescue => e
+    Rails.logger.error "Failed to notify billing: #{e.message}"
   end
 
-  def notify_mechanics!
-    update(mechanic_notified_at: Time.current)
-    if defined?(MechanicNotificationJob)
-      MechanicNotificationJob.perform_later(id)
-    else
-      Rails.logger.info "Would notify mechanics for inspection #{id}"
-    end
+  def notify_supervisor_completion
+    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+    Notification.create!(
+      user_id: supervisor_ids,
+      title: "✅ Vehicle Completed",
+      message: "#{vehicle.license_plate} has been completed",
+      link: "/vmcott/workshop_supervisor/inspections/#{id}",
+      notifiable: self,
+      notification_type: 'success'
+    )
+  rescue => e
+    Rails.logger.error "Failed to notify supervisor: #{e.message}"
   end
 
-  def notify_billing_team!
-    update(billing_notified_at: Time.current)
-    if defined?(BillingNotificationJob)
-      BillingNotificationJob.perform_later(id)
-    else
-      Rails.logger.info "Would notify billing team for inspection #{id}"
-    end
+  # =========================
+  # COST CALCULATION
+  # =========================
+
+  def total_labor_cost
+    inspection_jobs.sum(:estimated_labor_cost).to_f
   end
 
-  def notify_receptionist_for_pickup!
-    Rails.logger.info "Would notify receptionist that vehicle #{vehicle.license_plate} is ready for pickup"
+  def total_parts_cost
+    parts_requests.where(status: 'approved').sum(:customer_price).to_f
+  end
+
+  def total_estimated_cost
+    total_labor_cost + total_parts_cost
   end
 
   def latest_quotation
     quotations.order(created_at: :desc).first
   end
 
-  def customer_approved?
-    quotations.exists?(status: ['approved', 'partially_approved'])
+  # =========================
+  # HELPER METHODS
+  # =========================
+
+  def can_transition_to?(new_status)
+    workflow_transitions = {
+      received: [:inspected, :cancelled],
+      inspected: [:diagnosed, :cancelled],
+      diagnosed: [:jobs_created, :cancelled],
+      jobs_created: [:parts_pending, :cancelled],
+      parts_pending: [:parts_ready, :cancelled],
+      parts_ready: [:awaiting_approval, :cancelled],
+      awaiting_approval: [:approved, :cancelled],
+      approved: [:in_progress, :cancelled],
+      in_progress: [:qc_pending, :additional_findings_pending, :on_hold, :cancelled],
+      additional_findings_pending: [:in_progress, :cancelled],
+      qc_pending: [:ready_for_pickup, :cancelled],
+      ready_for_pickup: [:completed, :on_hold, :cancelled],
+      on_hold: [:in_progress, :cancelled],
+      completed: [],
+      cancelled: []
+    }
+    workflow_transitions[status.to_sym]&.include?(new_status.to_sym) || false
   end
 
-  def customer_approval_pending?
-    quotations.exists?(status: ['sent', 'pending_approval'])
-  end
-
-  def pending_quotation
-    quotations.where(status: ['sent', 'pending_approval']).order(created_at: :desc).first
-  end
-
-  # =====================================================
-  # NEW METHODS FOR WORK ORDER INTEGRATION
-  # =====================================================
-  
-  def update_work_order_status!
-    return unless work_order
-    
-    if status == 'completed' && work_order.received?
-      work_order.transition_to!('inspected')
+  def transition_to!(new_status, reason = nil)
+    unless can_transition_to?(new_status)
+      raise "Invalid transition from #{status} to #{new_status}"
     end
+    
+    send("move_to_#{new_status}!".to_sym)
+  end
+
+  def timeline_events
+    events = []
+    events << { date: created_at, title: "Vehicle Received", description: "Work order created" }
+    events << { date: started_at, title: "Work Started", description: "Repair work began" } if started_at
+    events << { date: ready_for_pickup_at, title: "Ready for Pickup", description: "Vehicle ready" } if ready_for_pickup_at
+    events << { date: completed_at, title: "Completed", description: "Vehicle picked up" } if completed_at
+    events.sort_by { |e| e[:date] || Time.current }
   end
 
   private
 
   def generate_pickup_code
     "PK-#{id}-#{SecureRandom.hex(4).upcase}"
-  end
-
-  def create_storage_fee_invoice(days)
-    return unless days > 0
-    
-    daily_rate = 50.00
-    storage_fee = days * daily_rate
-    
-    if defined?(Invoice)
-      Invoice.create!(
-        inspection_id: self.id,
-        vehicle: vehicle,
-        amount: storage_fee,
-        due_date: Time.current.to_date,
-        status: 'pending',
-        invoice_number: "STRG-#{self.id}-#{Time.current.strftime('%Y%m%d')}",
-        invoice_date: Date.current,
-        vendor: vehicle&.agency&.name || 'VMCOTT'
-      )
-    else
-      Rails.logger.info "Would create storage fee invoice for #{storage_fee}"
-    end
-  end
-
-  def notify_parts_coordinator_if_needed
-    if status == 'parts_coordinator_review' && parts_requests.any?
-      notify_parts_coordinator!
-    end
   end
 end

@@ -1,0 +1,135 @@
+<%# app/views/vmcott/workshop_supervisor/inspections/show.html.erb %>
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h3>Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></h3>
+          <%= workflow_status_badge(@inspection.status) %>
+        </div>
+        <div class="card-body">
+          <!-- Workflow Steps -->
+          <div class="workflow-steps mb-4">
+            <h5>Workflow Progress</h5>
+            <div class="progress">
+              <% step_percentage = case @inspection.status
+              when 'completed' then 100
+              when 'ready_for_pickup' then 90
+              when 'in_progress' then 70
+              when 'ready_for_work' then 60
+              when 'approved' then 50
+              when 'awaiting_approval' then 40
+              when 'pending_supervisor_review' then 30
+              when 'pending_mechanic_review' then 20
+              when 'inspection_in_progress' then 10
+              else 0
+              end %>
+              <div class="progress-bar" role="progressbar" style="width: <%= step_percentage %>%">
+                <%= step_percentage %>% Complete
+              </div>
+            </div>
+          </div>
+          
+          <!-- Status Actions -->
+          <div class="status-actions mb-4">
+            <h5>Available Actions</h5>
+            <div class="btn-group">
+              <% if @inspection.can_transition_to?('inspection_in_progress') %>
+                <%= link_to "Start Inspection", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'inspection_in_progress'), method: :patch, class: "btn btn-primary" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('pending_mechanic_review') %>
+                <%= link_to "Complete Inspection", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'pending_mechanic_review'), method: :patch, class: "btn btn-primary" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('pending_supervisor_review') %>
+                <%= link_to "Send to Supervisor", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'pending_supervisor_review'), method: :patch, class: "btn btn-info" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('awaiting_approval') %>
+                <%= link_to "Create Jobs & Send to Approval", vmcott_workshop_supervisor_select_workflow_path(@inspection), class: "btn btn-warning" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('ready_for_work') && @inspection.ready_for_execution? %>
+                <%= link_to "Mark Ready for Work", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'ready_for_work'), method: :patch, class: "btn btn-success" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('in_progress') %>
+                <%= link_to "Start Work", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'in_progress'), method: :patch, class: "btn btn-success" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('ready_for_pickup') %>
+                <%= link_to "Pass QC", vmcott_workshop_supervisor_inspection_qc_path(@inspection), class: "btn btn-success" %>
+              <% end %>
+              
+              <% if @inspection.rework_required %>
+                <%= link_to "Approve Rework", approve_rework_vmcott_workshop_supervisor_inspection_path(@inspection), method: :patch, class: "btn btn-warning" %>
+              <% end %>
+              
+              <% if @inspection.can_transition_to?('cancelled') %>
+                <%= link_to "Cancel", update_status_vmcott_workshop_supervisor_inspection_path(@inspection, status: 'cancelled'), method: :patch, class: "btn btn-danger", data: { confirm: "Are you sure?" } %>
+              <% end %>
+            </div>
+          </div>
+          
+          <!-- Jobs Section -->
+          <div class="jobs-section mb-4">
+            <h5>Jobs (<%= @inspection.inspection_jobs.count %>)</h5>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Description</th>
+                    <th>Est. Hours</th>
+                    <th>Labor Cost</th>
+                    <th>Assigned Mechanic</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% @inspection.inspection_jobs.each do |job| %>
+                    <tr>
+                      <td><%= job.description %></td>
+                      <td><%= job.estimated_hours %></td>
+                      <td>$<%= job.estimated_labor_cost %></td>
+                      <td><%= job.assigned_mechanic&.name || "Unassigned" %></td>
+                      <td><%= job.status %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Parts Requests Section -->
+          <div class="parts-section">
+            <h5>Parts Requests (<%= @inspection.parts_requests.count %>)</h5>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Part</th>
+                    <th>Quantity</th>
+                    <th>Status</th>
+                    <th>Approved By</th>
+                   </tr>
+                </thead>
+                <tbody>
+                  <% @inspection.parts_requests.each do |request| %>
+                    <tr>
+                      <td><%= request.part&.name || request.custom_part_name %></td>
+                      <td><%= request.quantity %></td>
+                      <td><%= request.status %></td>
+                      <td><%= request.approved_by&.name || "Pending" %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

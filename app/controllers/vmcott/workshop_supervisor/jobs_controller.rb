@@ -2,7 +2,7 @@
 class Vmcott::WorkshopSupervisor::JobsController < ApplicationController
   before_action :authenticate_user!
   before_action :require_supervisor
-  before_action :set_inspection, only: [:review, :update_jobs, :approve, :reject]
+  before_action :set_inspection, only: [:update_jobs, :approve, :reject]
   
   def index
     @jobs = InspectionJob
@@ -34,7 +34,7 @@ class Vmcott::WorkshopSupervisor::JobsController < ApplicationController
       :inspector,
       inspection_jobs: []
     ).find(params[:inspection_id])
-    
+
     @pending_approval = @inspection.inspection_jobs.where(status: 'pending_supervisor_review')
     @mechanics = User.where(role: 'mechanic').active
   end
@@ -71,8 +71,8 @@ class Vmcott::WorkshopSupervisor::JobsController < ApplicationController
       @inspection.inspection_jobs.where(id: params[:remove_job_ids]).destroy_all
     end
     
-    redirect_to vmcott_workshop_supervisor_review_inspection_path(@inspection), 
-                notice: "Jobs updated successfully"
+    redirect_to review_vmcott_workshop_supervisor_inspection_path(@inspection),
+            notice: "Jobs updated successfully"
   end
   
   def approve

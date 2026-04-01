@@ -1,0 +1,262 @@
+<%# app/views/vmcott/workshop_supervisor/job_creation.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">Review Job Recommendations</h1>
+          <% if @inspection.present? %>
+            <p class="text-muted">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
+            <p class="text-muted">Inspector: <%= @inspection.inspector&.name || 'Unknown' %></p>
+          <% else %>
+            <p class="text-danger">Inspection not found</p>
+          <% end %>
+        </div>
+        <%= link_to "Back to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary" %>
+      </div>
+    </div>
+  </div>
+  
+  <% if @inspection.present? %>
+    <div class="row">
+      <div class="col-lg-10 mx-auto">
+        <%= form_with url: vmcott_workshop_supervisor_create_jobs_path(@inspection), 
+                      method: :post, 
+                      local: true,
+                      data: { turbo: false } do |f| %>
+          
+          <!-- Inspector's Recommendations Section -->
+          <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0">Inspector's Findings & Recommendations</h5>
+            </div>
+            <div class="card-body">
+              <div class="alert alert-info mb-3">
+                <strong>Inspector's Notes:</strong>
+                <p class="mb-0 mt-2"><%= @inspection.notes || 'No notes provided' %></p>
+              </div>
+              
+              <!-- Mechanic Diagnosis Findings -->
+              <% if @findings.present? && @findings.any? %>
+                <h6 class="fw-bold mt-3">Mechanic Diagnosis Findings</h6>
+                <div class="list-group mb-3">
+                  <% @findings.each do |finding| %>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between">
+                        <strong><%= finding.description %></strong>
+                        <span class="badge bg-<%= finding.severity == 'critical' ? 'danger' : (finding.severity == 'high' ? 'warning' : 'secondary') %>">
+                          <%= finding.severity&.humanize || 'Normal' %>
+                        </span>
+                      </div>
+                      <small class="text-muted">
+                        Root Cause: <%= finding.metadata&.[]('root_cause') || 'Not specified' %><br>
+                        Est. Hours: <%= finding.metadata&.[]('estimated_hours') || 'TBD' %>
+                      </small>
+                      <div class="mt-2">
+                        <div class="form-check">
+                          <input type="checkbox" 
+                                 name="job_findings[<%= finding.id %>][include]" 
+                                 value="true" 
+                                 class="form-check-input"
+                                 id="include_finding_<%= finding.id %>"
+                                 checked>
+                          <label class="form-check-label small" for="include_finding_<%= finding.id %>">
+                            Include in job creation
+                          </label>
+                        </div>
+                        <input type="hidden" name="job_findings[<%= finding.id %>][description]" value="<%= finding.description %>">
+                        <input type="hidden" name="job_findings[<%= finding.id %>][severity]" value="<%= finding.severity %>">
+                        <input type="hidden" name="job_findings[<%= finding.id %>][estimated_hours]" value="<%= finding.metadata&.[]('estimated_hours') || 1 %>">
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+          <!-- Custom Jobs Section -->
+          <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+              <h5 class="mb-0">Create Jobs</h5>
+            </div>
+            <div class="card-body">
+              <div id="jobs-container">
+                <div class="job-item mb-3">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold">Job Description *</label>
+                      <input type="text" 
+                             name="jobs[][description]" 
+                             class="form-control" 
+                             placeholder="e.g., Replace brake pads, Engine diagnostic..."
+                             required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small fw-bold">Est. Hours</label>
+                      <input type="number" 
+                             name="jobs[][estimated_hours]" 
+                             class="form-control" 
+                             placeholder="Hours"
+                             step="0.5">
+                    </div>
+                    <div class="col-md-2">
+                      <label class="form-label small fw-bold">Priority</label>
+                      <select name="jobs[][priority]" class="form-select">
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div class="col-md-1">
+                      <label class="form-label small">&nbsp;</label>
+                      <button type="button" class="btn btn-danger btn-sm remove-job-btn w-100" style="display: none;">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-job-btn">
+                <i class="bi bi-plus-circle"></i> Add Another Job
+              </button>
+            </div>
+          </div>
+          
+          <!-- Assign Mechanic Section -->
+          <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+              <h5 class="mb-0">Assign Mechanics</h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Default Mechanic for All Jobs</label>
+                  <select name="assigned_mechanic_id" class="form-select" id="default-mechanic">
+                    <option value="">Select Mechanic</option>
+                    <% @mechanics.each do |mechanic| %>
+                      <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                    <% end %>
+                  </select>
+                  <small class="text-muted">You can assign specific mechanics per job below</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="d-flex justify-content-between">
+            <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary px-4" %>
+            <button type="submit" class="btn btn-success btn-lg px-5">
+              <i class="bi bi-check-circle me-2"></i>Create Jobs & Request Parts
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body text-center py-5">
+            <i class="bi bi-exclamation-triangle fs-1 text-danger mb-3 d-block"></i>
+            <h4>Inspection Not Found</h4>
+            <p class="text-muted">The inspection you're looking for doesn't exist or has been removed.</p>
+            <%= link_to "Return to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-primary rounded-pill mt-3" %>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.getElementById('jobs-container');
+  const addBtn = document.getElementById('add-job-btn');
+  const defaultMechanicSelect = document.getElementById('default-mechanic');
+  
+  function updateRemoveButtons() {
+    const items = container.querySelectorAll('.job-item');
+    items.forEach((item, index) => {
+      const removeBtn = item.querySelector('.remove-job-btn');
+      const mechanicSelect = item.querySelector('.job-mechanic-select');
+      
+      if (items.length > 1) {
+        removeBtn.style.display = 'block';
+        removeBtn.onclick = () => item.remove();
+      } else {
+        removeBtn.style.display = 'none';
+      }
+      
+      // Add mechanic select to each job if not present
+      if (!mechanicSelect && items.length > 0) {
+        const mechanicCol = item.querySelector('.col-md-2:last-child');
+        if (mechanicCol) {
+          const selectHtml = `
+            <div class="mt-2">
+              <label class="form-label small">Assign Mechanic</label>
+              <select name="jobs[][mechanic_id]" class="form-select job-mechanic-select">
+                <option value="">Default</option>
+                <% @mechanics.each do |mechanic| %>
+                  <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                <% end %>
+              </select>
+            </div>
+          `;
+          mechanicCol.insertAdjacentHTML('beforeend', selectHtml);
+        }
+      }
+    });
+  }
+  
+  if (addBtn) {
+    addBtn.addEventListener('click', function() {
+      const newItem = document.createElement('div');
+      newItem.className = 'job-item mb-3';
+      newItem.innerHTML = `
+        <div class="row">
+          <div class="col-md-6">
+            <label class="form-label small fw-bold">Job Description *</label>
+            <input type="text" name="jobs[][description]" class="form-control" placeholder="e.g., Replace brake pads, Engine diagnostic..." required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Est. Hours</label>
+            <input type="number" name="jobs[][estimated_hours]" class="form-control" placeholder="Hours" step="0.5">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Priority</label>
+            <select name="jobs[][priority]" class="form-select">
+              <option value="low">Low</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="col-md-1">
+            <label class="form-label small">&nbsp;</label>
+            <button type="button" class="btn btn-danger btn-sm remove-job-btn w-100">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="row mt-2">
+          <div class="col-md-12">
+            <label class="form-label small">Assign Mechanic (Optional)</label>
+            <select name="jobs[][mechanic_id]" class="form-select job-mechanic-select">
+              <option value="">Use Default</option>
+              <% @mechanics.each do |mechanic| %>
+                <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+              <% end %>
+            </select>
+          </div>
+        </div>
+      `;
+      container.appendChild(newItem);
+      updateRemoveButtons();
+    });
+  }
+  
+  updateRemoveButtons();
+});
+</script>

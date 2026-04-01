@@ -1,0 +1,48 @@
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <h3>Quality Control - Inspection #<%= @inspection.id %></h3>
+    </div>
+    <div class="card-body">
+      <h5>Jobs to Review</h5>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Mechanic</th>
+            <th>Status</th>
+            <th>QC Decision</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @jobs.each do |job| %>
+            <tr>
+              <td><%= job.description %></td>
+              <td><%= job.assigned_mechanic&.name %></td>
+              <td><%= job.status %></td>
+              <td>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="<%= job.id %>" id="job_<%= job.id %>">
+                  <label class="form-check-label" for="job_<%= job.id %>">
+                    Pass
+                  </label>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      
+      <div class="mt-4">
+        <%= form_with url: pass_qc_vmcott_workshop_supervisor_inspection_path(@inspection), local: true do |f| %>
+          <div class="mb-3">
+            <%= f.label :qc_notes, "QC Notes" %>
+            <%= f.text_area :qc_notes, class: "form-control", rows: 3 %>
+          </div>
+          <%= f.submit "Pass QC", class: "btn btn-success" %>
+          <%= link_to "Fail QC", "#", class: "btn btn-danger", data: { toggle: "modal", target: "#failQCModal" } %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,61 @@
+<%# app/views/vmcott/mechanic/diagnosis/index.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">🔧 Diagnosis Queue</h1>
+          <p class="text-muted">Vehicles that need diagnostic review</p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-outline-secondary rounded-pill" %>
+      </div>
+    </div>
+  </div>
+
+  <% if @pending_diagnosis.any? %>
+    <div class="row g-4">
+      <% @pending_diagnosis.each do |inspection| %>
+        <div class="col-md-6 col-lg-4">
+          <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h5 class="card-title mb-0 fw-bold">
+                    <%= inspection.vehicle.license_plate %>
+                  </h5>
+                  <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                </div>
+                <span class="badge bg-warning">Pending Diagnosis</span>
+              </div>
+              
+              <div class="mb-3">
+                <div class="small text-muted mb-1">Inspector Notes:</div>
+                <p class="small mb-0 text-truncate"><%= inspection.notes&.truncate(100) || 'No notes' %></p>
+              </div>
+              
+              <div class="row small text-muted mb-3">
+                <div class="col-6">
+                  <i class="bi bi-speedometer2 me-1"></i> <%= number_with_delimiter(inspection.mileage_at_inspection) %> km
+                </div>
+                <div class="col-6">
+                  <i class="bi bi-calendar me-1"></i> <%= time_ago_in_words(inspection.created_at) %> ago
+                </div>
+              </div>
+              
+              <div class="mt-3">
+                <%= link_to "Perform Diagnosis", vmcott_mechanic_diagnosis_show_path(inspection), class: "btn btn-primary w-100 rounded-pill" %>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="text-center py-5">
+      <i class="bi bi-check-circle fs-1 text-success mb-3 d-block"></i>
+      <h4>No Vehicles Pending Diagnosis</h4>
+      <p class="text-muted">All inspections are up to date</p>
+      <%= link_to "Return to Dashboard", vmcott_mechanic_dashboard_path, class: "btn btn-outline-primary rounded-pill mt-3" %>
+    </div>
+  <% end %>
+</div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_01_045002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -308,6 +308,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
   end
 
   create_table "findings", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.integer "approved_by_id"
     t.boolean "blocking", default: false
     t.boolean "client_approved", default: false
     t.datetime "client_approved_at"
@@ -319,6 +321,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.bigint "inspection_job_id"
     t.boolean "job_created", default: false
     t.bigint "job_id"
+    t.jsonb "metadata"
+    t.text "notes"
     t.string "priority", default: "normal"
     t.string "severity"
     t.string "status", default: "pending"
@@ -410,9 +414,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
 
   create_table "inspections", force: :cascade do |t|
     t.datetime "actual_pickup_date"
+    t.boolean "additional_work_approved", default: false
+    t.integer "assigned_mechanic_id"
     t.datetime "billing_notified_at"
     t.datetime "blocked_at"
     t.text "blocked_reason"
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
     t.string "client_approval_status", default: "pending"
     t.jsonb "client_selected_jobs", default: {}
     t.string "client_type"
@@ -420,11 +428,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
     t.string "customer_signature"
+    t.datetime "diagnosis_completed_at"
     t.decimal "discount_percentage", precision: 5, scale: 2, default: "0.0"
     t.datetime "final_inspection_completed_at"
     t.text "final_inspection_notes"
     t.bigint "final_inspector_id"
+    t.datetime "final_invoice_generated_at"
+    t.string "final_invoice_number"
     t.jsonb "final_photos", default: []
+    t.boolean "has_additional_findings", default: false
     t.text "hold_reason"
     t.bigint "inspector_id", null: false
     t.jsonb "intake_photos", default: []
@@ -454,11 +466,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.text "qc_failure_reason"
     t.integer "qc_inspector_id"
     t.text "qc_notes"
+    t.datetime "qc_passed_at"
     t.datetime "ready_for_pickup_at"
     t.datetime "received_at"
     t.text "rejection_reason"
     t.datetime "rework_completed_at"
-    t.string "status", default: "pending_inspection"
+    t.text "rework_reason"
+    t.boolean "rework_required", default: false
+    t.boolean "scope_locked", default: false
+    t.datetime "started_at"
+    t.string "status", default: "received"
     t.integer "storage_fee_days", default: 0
     t.bigint "supervisor_id"
     t.decimal "tax_rate", precision: 5, scale: 2, default: "0.0"
@@ -473,13 +490,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.string "workflow_type", default: "work_before_payment"
     t.index ["client_type"], name: "index_inspections_on_client_type"
     t.index ["created_by_id"], name: "index_inspections_on_created_by_id"
+    t.index ["diagnosis_completed_at"], name: "index_inspections_on_diagnosis_completed_at"
     t.index ["final_inspector_id"], name: "index_inspections_on_final_inspector_id"
+    t.index ["final_invoice_generated_at"], name: "index_inspections_on_final_invoice_generated_at"
+    t.index ["has_additional_findings"], name: "index_inspections_on_has_additional_findings"
     t.index ["inspector_id"], name: "index_inspections_on_inspector_id"
     t.index ["metadata"], name: "index_inspections_on_metadata", using: :gin
     t.index ["paid_at"], name: "index_inspections_on_paid_at"
     t.index ["picked_up_by"], name: "index_inspections_on_picked_up_by"
     t.index ["pickup_code"], name: "index_inspections_on_pickup_code", unique: true
     t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
+    t.index ["qc_passed_at"], name: "index_inspections_on_qc_passed_at"
     t.index ["received_at"], name: "index_inspections_on_received_at"
     t.index ["status", "created_at"], name: "index_inspections_on_status_and_created_at"
     t.index ["supervisor_id"], name: "index_inspections_on_supervisor_id"
@@ -844,6 +865,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.text "message"
     t.bigint "notifiable_id"
     t.string "notifiable_type"
+    t.string "notification_type"
     t.boolean "read", default: false
     t.string "title"
     t.datetime "updated_at", null: false
@@ -898,6 +920,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.bigint "approved_by_id"
     t.datetime "created_at", null: false
     t.string "custom_part_name"
+    t.decimal "customer_price", precision: 10, scale: 2
     t.boolean "in_stock", default: false
     t.bigint "inspection_id", null: false
     t.bigint "inspection_job_id"
@@ -905,6 +928,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.bigint "issued_by_id"
     t.datetime "notified_billing_at"
     t.datetime "notified_parts_coordinator_at"
+    t.datetime "ordered_at"
     t.bigint "part_id"
     t.datetime "parts_received_at"
     t.datetime "processed_at"
@@ -914,8 +938,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
     t.datetime "rejected_at"
     t.bigint "rejected_by_id"
     t.text "rejection_reason"
+    t.integer "requested_by_id"
     t.datetime "sent_to_billing_at"
     t.string "status", default: "pending"
+    t.decimal "total_price", precision: 10, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "vendor_invoice_id"
     t.index ["inspection_id", "part_id"], name: "index_parts_requests_on_inspection_id_and_part_id", unique: true
@@ -1934,6 +1961,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_30_152716) do
   add_foreign_key "inspection_jobs", "users", column: "updated_by_id"
   add_foreign_key "inspection_jobs", "work_orders"
   add_foreign_key "inspections", "purchase_orders"
+  add_foreign_key "inspections", "users", column: "assigned_mechanic_id"
   add_foreign_key "inspections", "users", column: "created_by_id"
   add_foreign_key "inspections", "users", column: "final_inspector_id"
   add_foreign_key "inspections", "users", column: "inspector_id"

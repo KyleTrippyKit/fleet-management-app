@@ -1,0 +1,406 @@
+<%# app/views/vmcott/mechanic/dashboard/task_show.html.erb %>
+<div class="min-h-screen bg-gray-100 pb-24">
+  <!-- Header -->
+  <div class="bg-white shadow p-4 sticky top-0 z-10">
+    <div class="flex justify-between items-center">
+      <div>
+        <%= link_to vmcott_mechanic_tasks_path, class: "text-blue-600 hover:underline text-sm" do %>
+          ← Back to Tasks
+        <% end %>
+        <h1 class="text-xl font-bold mt-1"><%= @task.name %></h1>
+        <p class="text-sm text-gray-500">Task #<%= @task.id %></p>
+      </div>
+      <span class="text-xs px-3 py-1 rounded-full 
+        <%= case @task.status
+            when 'in_progress' then 'bg-green-100 text-green-800'
+            when 'paused' then 'bg-yellow-100 text-yellow-800'
+            when 'blocked' then 'bg-red-100 text-red-800'
+            when 'completed' then 'bg-gray-100 text-gray-800'
+            else 'bg-blue-100 text-blue-800'
+            end %>">
+        <%= @task.status.upcase %>
+      </span>
+    </div>
+  </div>
+
+  <div class="p-4 max-w-4xl mx-auto">
+    
+    <!-- Task Details Card -->
+    <div class="bg-white rounded-xl shadow p-4 mb-4">
+      <h2 class="font-semibold text-lg mb-3">Task Details</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <p class="text-sm text-gray-500">Description</p>
+          <p class="mt-1"><%= @task.description || "No description provided" %></p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Vehicle</p>
+          <p class="mt-1">
+            <% if @inspection_job&.inspection&.vehicle %>
+              <%= @inspection_job.inspection.vehicle.license_plate %> - 
+              <%= @inspection_job.inspection.vehicle.make %> <%= @inspection_job.inspection.vehicle.model %>
+            <% else %>
+              <span class="text-gray-400">No vehicle assigned</span>
+            <% end %>
+          </p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Estimated Hours / Actual Hours</p>
+          <p class="mt-1">
+            <%= @task.estimated_hours ? "#{@task.estimated_hours} hrs" : "Not set" %>
+            <% if @task.actual_hours.present? %>
+              <span class="text-gray-500">/ <%= @task.actual_hours %> hrs actual</span>
+              <% if @task.estimated_hours.present? %>
+                <% variance = @task.actual_hours - @task.estimated_hours %>
+                <% if variance > 0 %>
+                  <span class="text-red-500 text-sm ml-2">(+<%= variance.round(1) %> hrs over)</span>
+                <% elsif variance < 0 %>
+                  <span class="text-green-500 text-sm ml-2">(<%= variance.round(1) %> hrs under)</span>
+                <% end %>
+              <% end %>
+            <% end %>
+          </p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-500">Priority</p>
+          <p class="mt-1">
+            <span class="badge <%= @task.priority == 'critical' ? 'bg-red-500' : (@task.priority == 'high' ? 'bg-orange-500' : 'bg-blue-500') %> text-white px-2 py-1 rounded-full text-xs">
+              <%= @task.priority&.upcase || 'Normal' %>
+            </span>
+          </p>
+        </div>
+      </div>
+      
+      <!-- Progress Bar -->
+      <% if @task.estimated_hours.present? && @task.estimated_hours > 0 %>
+        <% progress_percent = @task.progress_percentage %>
+        <div class="mt-4">
+          <p class="text-sm text-gray-500 mb-1">Progress</p>
+          <div class="w-full bg-gray-200 rounded-full h-2">
+            <div class="bg-blue-600 h-2 rounded-full" style="width: <%= progress_percent %>%"></div>
+          </div>
+          <p class="text-xs text-gray-500 mt-1"><%= progress_percent %>% complete</p>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Dependencies Card -->
+    <% if @dependencies.present? && @dependencies.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Dependencies</h2>
+        <div class="space-y-2">
+          <% @dependencies.each do |dep| %>
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <div>
+                <span class="font-medium"><%= dep.name %></span>
+                <span class="text-xs text-gray-500 ml-2">#<%= dep.id %></span>
+              </div>
+              <span class="text-xs px-2 py-1 rounded-full 
+                <%= dep.status == 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800' %>">
+                <%= dep.status.humanize %>
+              </span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Work Sessions Card -->
+    <% if @work_sessions.present? && @work_sessions.any? %>
+      <div class="bg-white rounded-xl shadow p-4 mb-4">
+        <h2 class="font-semibold text-lg mb-3">Work Sessions (<%= @work_sessions.sum(&:duration_hours).round(1) %> hrs total)</h2>
+        <div class="space-y-2">
+          <% @work_sessions.each do |session| %>
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <div>
+                <span class="font-medium"><%= session.mechanic&.name || 'Unknown' %></span>
+                <span class="text-xs text-gray-500 ml-2">
+                  <%= session.started_at&.strftime("%m/%d %H:%M") || 'Unknown' %> - 
+                  <%= session.ended_at ? session.ended_at.strftime("%H:%M") : "In Progress" %>
+                </span>
+                <% if session.notes.present? %>
+                  <p class="text-xs text-gray-400 mt-1"><%= session.notes.truncate(50) %></p>
+                <% end %>
+              </div>
+              <span class="text-xs"><%= session.duration_hours ? "#{session.duration_hours} hrs" : '-' %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Active Session Card -->
+    <% if @active_session.present? %>
+      <div class="bg-green-50 border border-green-200 rounded-xl shadow p-4 mb-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="font-semibold text-green-800">🟢 Active Session</h2>
+            <p class="text-sm text-green-600 mt-1">Started at <%= @active_session.started_at.strftime("%I:%M %p") %></p>
+          </div>
+          <div class="flex gap-2">
+            <%= button_to "End Session", end_session_vmcott_mechanic_work_session_path(@active_session), 
+                  method: :post, class: "bg-orange-500 text-white px-3 py-2 rounded-lg text-sm" %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Action Buttons Card -->
+    <div class="bg-white rounded-xl shadow p-4">
+      <h2 class="font-semibold text-lg mb-3">Actions</h2>
+      <div class="grid grid-cols-2 gap-3">
+        
+        <% if @task.status == 'approved' %>
+          <%= button_to "▶️ Start Task", start_vmcott_mechanic_task_path(@task), 
+                method: :post, class: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" %>
+        <% end %>
+        
+        <% if @task.status == 'in_progress' %>
+          <%= button_to "⏸️ Pause Task", pause_vmcott_mechanic_task_path(@task), 
+                method: :post, class: "bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600" %>
+          <%= button_to "✅ Complete Task", complete_vmcott_mechanic_task_path(@task), 
+                method: :post, class: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" %>
+          <button onclick="openBlockModal()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+            🚫 Block Task
+          </button>
+        <% end %>
+        
+        <% if @task.status == 'paused' %>
+          <%= button_to "▶️ Resume Task", resume_vmcott_mechanic_task_path(@task), 
+                method: :post, class: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" %>
+        <% end %>
+        
+        <% if @task.status == 'blocked' %>
+          <%= button_to "🔓 Unblock Task", unblock_vmcott_mechanic_task_path(@task), 
+                method: :post, class: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" %>
+        <% end %>
+        
+        <!-- Add Note Button -->
+        <button onclick="openNoteModal()" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+          📝 Add Note
+        </button>
+        
+        <!-- Add Finding Button -->
+        <button onclick="openFindingModal()" class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600">
+          ⚠️ Report Finding
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Block Modal -->
+<div id="blockModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-20">
+  <div class="bg-white rounded-xl w-full max-w-md mx-4">
+    <div class="p-4 border-b">
+      <h3 class="text-lg font-bold">Block Task</h3>
+    </div>
+    <div class="p-4">
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">Reason for blocking</label>
+        <textarea id="block-reason" rows="3" class="w-full border rounded-lg p-2" placeholder="Why is this task blocked?"></textarea>
+      </div>
+    </div>
+    <div class="p-4 border-t flex gap-2">
+      <button onclick="closeBlockModal()" class="flex-1 bg-gray-200 py-2 rounded-lg">Cancel</button>
+      <button onclick="submitBlock()" class="flex-1 bg-red-500 text-white py-2 rounded-lg">Block Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Modal -->
+<div id="noteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-20">
+  <div class="bg-white rounded-xl w-full max-w-md mx-4">
+    <div class="p-4 border-b">
+      <h3 class="text-lg font-bold">Add Note</h3>
+    </div>
+    <div class="p-4">
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">Note</label>
+        <textarea id="note-content" rows="3" class="w-full border rounded-lg p-2" placeholder="Add your note here..."></textarea>
+      </div>
+    </div>
+    <div class="p-4 border-t flex gap-2">
+      <button onclick="closeNoteModal()" class="flex-1 bg-gray-200 py-2 rounded-lg">Cancel</button>
+      <button onclick="submitNote()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg">Add Note</button>
+    </div>
+  </div>
+</div>
+
+<!-- Finding Modal -->
+<div id="findingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-20">
+  <div class="bg-white rounded-xl w-full max-w-md mx-4">
+    <div class="p-4 border-b">
+      <h3 class="text-lg font-bold">Report Finding</h3>
+    </div>
+    <div class="p-4">
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">Description *</label>
+        <textarea id="finding-description" rows="2" class="w-full border rounded-lg p-2" placeholder="Describe the issue..."></textarea>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">Severity</label>
+        <select id="finding-severity" class="w-full border rounded-lg p-2">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="flex items-center mb-4">
+        <input type="checkbox" id="finding-blocking" class="form-check-input">
+        <label for="finding-blocking" class="ml-2 text-sm">Blocking (stops work)</label>
+      </div>
+    </div>
+    <div class="p-4 border-t flex gap-2">
+      <button onclick="closeFindingModal()" class="flex-1 bg-gray-200 py-2 rounded-lg">Cancel</button>
+      <button onclick="submitFinding()" class="flex-1 bg-purple-500 text-white py-2 rounded-lg">Report Finding</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openBlockModal() {
+  document.getElementById('blockModal').classList.remove('hidden');
+  document.getElementById('blockModal').classList.add('flex');
+}
+
+function closeBlockModal() {
+  document.getElementById('blockModal').classList.add('hidden');
+  document.getElementById('blockModal').classList.remove('flex');
+  document.getElementById('block-reason').value = '';
+}
+
+function submitBlock() {
+  const reason = document.getElementById('block-reason').value;
+  if (!reason.trim()) {
+    alert('Please provide a reason for blocking');
+    return;
+  }
+  
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/vmcott/mechanic/tasks/<%= @task.id %>/block';
+  
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'authenticity_token';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+  
+  const reasonInput = document.createElement('input');
+  reasonInput.type = 'hidden';
+  reasonInput.name = 'reason';
+  reasonInput.value = reason;
+  form.appendChild(reasonInput);
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function openNoteModal() {
+  document.getElementById('noteModal').classList.remove('hidden');
+  document.getElementById('noteModal').classList.add('flex');
+}
+
+function closeNoteModal() {
+  document.getElementById('noteModal').classList.add('hidden');
+  document.getElementById('noteModal').classList.remove('flex');
+  document.getElementById('note-content').value = '';
+}
+
+function submitNote() {
+  const note = document.getElementById('note-content').value;
+  if (!note.trim()) {
+    alert('Please enter a note');
+    return;
+  }
+  
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/vmcott/mechanic/tasks/<%= @task.id %>/add_note';
+  
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'authenticity_token';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+  
+  const noteInput = document.createElement('input');
+  noteInput.type = 'hidden';
+  noteInput.name = 'note';
+  noteInput.value = note;
+  form.appendChild(noteInput);
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function openFindingModal() {
+  document.getElementById('findingModal').classList.remove('hidden');
+  document.getElementById('findingModal').classList.add('flex');
+}
+
+function closeFindingModal() {
+  document.getElementById('findingModal').classList.add('hidden');
+  document.getElementById('findingModal').classList.remove('flex');
+  document.getElementById('finding-description').value = '';
+  document.getElementById('finding-severity').value = 'normal';
+  document.getElementById('finding-blocking').checked = false;
+}
+
+function submitFinding() {
+  const description = document.getElementById('finding-description').value;
+  if (!description.trim()) {
+    alert('Please describe the finding');
+    return;
+  }
+  
+  const severity = document.getElementById('finding-severity').value;
+  const blocking = document.getElementById('finding-blocking').checked;
+  
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/vmcott/mechanic/tasks/<%= @task.id %>/add_finding';
+  
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'authenticity_token';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+  
+  const descInput = document.createElement('input');
+  descInput.type = 'hidden';
+  descInput.name = 'description';
+  descInput.value = description;
+  form.appendChild(descInput);
+  
+  const severityInput = document.createElement('input');
+  severityInput.type = 'hidden';
+  severityInput.name = 'severity';
+  severityInput.value = severity;
+  form.appendChild(severityInput);
+  
+  const blockingInput = document.createElement('input');
+  blockingInput.type = 'hidden';
+  blockingInput.name = 'blocking';
+  blockingInput.value = blocking;
+  form.appendChild(blockingInput);
+  
+  document.body.appendChild(form);
+  form.submit();
+}
+</script>
+
+<style>
+.animate-pulse {
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+</style>

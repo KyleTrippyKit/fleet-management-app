@@ -106,6 +106,7 @@ class InspectionJob < ApplicationRecord
   # NEW: Scopes for work order integration
   scope :by_work_order, ->(work_order_id) { where(work_order_id: work_order_id) }
   scope :with_active_tasks, -> { joins(:job_tasks).where(job_tasks: { status: ['in_progress', 'pending', 'approved'] }).distinct }
+  scope :approved, -> { where(status: ['approved', 'approved_for_work']) }
 
   def estimated_total
     estimated_labor_cost.to_f

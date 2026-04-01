@@ -230,6 +230,161 @@
         </div>
       </div>
 
+      <!-- ===================================================== -->
+      <!-- PHASE 5: PARTS REQUESTS (Large & Prominent) -->
+      <!-- ===================================================== -->
+      <% if @parts_requests.present? && @parts_requests.any? %>
+        <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #f59e0b;">
+          <div class="card-header bg-white border-0 pt-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+                  <i class="bi bi-box-seam me-2 text-warning"></i>
+                  Parts Requests (<%= @parts_requests.count %>)
+                </h5>
+                <p class="text-muted small mt-1 mb-0">Parts needed for this job - review and approve</p>
+              </div>
+              <span class="badge bg-warning px-3 py-2">
+                <i class="bi bi-clock me-1"></i> <%= @parts_requests.count { |r| r.status == 'requested' } %> pending
+              </span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                  <tr>
+                    <th class="border-0 py-3">Part / Custom Part</th>
+                    <th class="border-0 py-3">Quantity</th>
+                    <th class="border-0 py-3">Requested By</th>
+                    <th class="border-0 py-3">Requested Date</th>
+                    <th class="border-0 py-3 text-center">Status</th>
+                    <th class="border-0 py-3 text-center">Actions</th>
+                  </thead>
+                <tbody>
+                  <% @parts_requests.each do |request| %>
+                    <tr id="parts-request-<%= request.id %>">
+                      <td class="fw-semibold">
+                        <%= request.part&.name || request.custom_part_name %>
+                        <% if request.custom? %>
+                          <span class="badge bg-secondary ms-1">Custom</span>
+                        <% end %>
+                        <% if request.part&.part_number %>
+                          <br><small class="text-muted">PN: <%= request.part.part_number %></small>
+                        <% end %>
+                       </td>
+                      <td class="fw-bold"><%= request.quantity %></td>
+                      <td>
+                        <% requester = request.requested_by || request.inspection_job&.assigned_mechanic %>
+                        <%= requester&.name || 'Unknown' %>
+                        <br><small class="text-muted"><%= request.created_at.strftime("%b %d, %Y") %></small>
+                      </td>
+                      <td><%= time_ago_in_words(request.created_at) %> ago</td>
+                      <td class="text-center">
+                        <span class="badge <%= case request.status
+                          when 'requested' then 'bg-warning'
+                          when 'approved' then 'bg-success'
+                          when 'rejected' then 'bg-danger'
+                          when 'needs_order' then 'bg-info'
+                          when 'ordered' then 'bg-primary'
+                          when 'received' then 'bg-success'
+                          when 'issued' then 'bg-secondary'
+                          else 'bg-secondary'
+                          end %> px-3 py-2">
+                          <%= request.status_display %>
+                        </span>
+                      </td>
+                      <td class="text-center">
+                        <% if request.status == 'requested' %>
+                          <div class="btn-group btn-group-sm">
+                            <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), 
+                                  method: :post, 
+                                  class: "btn btn-success rounded-pill px-3",
+                                  form: { data: { turbo_confirm: "Approve this parts request? It will be sent to inventory manager." } } %>
+                            <button type="button" 
+                                    class="btn btn-danger rounded-pill px-3 ms-1"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#rejectPartsModal<%= request.id %>">
+                              Reject
+                            </button>
+                          </div>
+                          
+                          <!-- Rejection Modal for this Parts Request -->
+                          <div class="modal fade" id="rejectPartsModal<%= request.id %>" tabindex="-1">
+                            <div class="modal-dialog">
+                              <div class="modal-content rounded-4">
+                                <div class="modal-header border-0">
+                                  <h5 class="modal-title fw-bold text-danger">
+                                    <i class="bi bi-exclamation-octagon me-2"></i>
+                                    Reject Parts Request
+                                  </h5>
+                                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <%= form_with url: vmcott_workshop_supervisor_reject_parts_request_path(request), 
+                                              method: :post, 
+                                              local: true do |f| %>
+                                  <div class="modal-body">
+                                    <div class="mb-3">
+                                      <label class="form-label fw-semibold">Rejection Reason</label>
+                                      <%= f.text_area :rejection_reason, 
+                                            class: "form-control", 
+                                            rows: 3, 
+                                            required: true, 
+                                            placeholder: "Why is this parts request being rejected?" %>
+                                      <div class="form-text mt-2">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        This reason will be shown to the mechanic who requested the part.
+                                      </div>
+                                    </div>
+                                    <div class="alert alert-light border rounded-3">
+                                      <div class="small text-muted mb-1">Parts Request Details:</div>
+                                      <div class="fw-semibold"><%= request.part&.name || request.custom_part_name %></div>
+                                      <div>Quantity: <strong><%= request.quantity %></strong></div>
+                                      <div>Requested by: <strong><%= requester&.name || 'Unknown' %></strong></div>
+                                    </div>
+                                  </div>
+                                  <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                                    <%= f.submit "Reject Request", class: "btn btn-danger rounded-pill px-4" %>
+                                  </div>
+                                <% end %>
+                              </div>
+                            </div>
+                          </div>
+                        <% elsif request.status == 'needs_order' %>
+                          <span class="badge bg-info">Waiting for Inventory Manager</span>
+                        <% elsif request.status == 'ordered' %>
+                          <span class="badge bg-primary">Ordered</span>
+                        <% elsif request.status == 'received' %>
+                          <span class="badge bg-success">Received</span>
+                        <% elsif request.status == 'issued' %>
+                          <span class="badge bg-secondary">Issued</span>
+                        <% else %>
+                          <span class="badge bg-secondary">Processed</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+            
+            <% pending_count = @parts_requests.count { |r| r.status == 'requested' } %>
+            <% if pending_count > 0 %>
+              <div class="mt-3 p-3 bg-warning bg-opacity-10 rounded-3">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-info-circle me-2 text-warning"></i>
+                  <div>
+                    <strong><%= pending_count %> parts request(s) pending approval</strong>
+                    <br><small class="text-muted">Click Approve to send to inventory manager, or Reject to return to mechanic with reason</small>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
       <!-- Tasks Section -->
       <% if @tasks.present? && @tasks.any? %>
         <div class="card border-0 shadow-sm rounded-4 mb-4">
@@ -255,7 +410,7 @@
                     <th class="border-0 py-3">Est. Hours</th>
                     <th class="border-0 py-3">Assigned To</th>
                     <th class="border-0 py-3 text-end">Actions</th>
-                   </thead>
+                  </thead>
                 <tbody>
                   <% @tasks.each do |task| %>
                     <tr>
@@ -395,12 +550,25 @@
               <button onclick="openRequestUpdateModal()" class="btn btn-info rounded-pill py-2 text-white">
                 <i class="bi bi-chat-dots me-2"></i>Request Update
               </button>
+              
+              <!-- QC Button with Parts Check -->
+              <% pending_parts = @parts_requests.present? && @parts_requests.any? { |r| r.status == 'requested' } %>
               <% if @job.job_tasks.where.not(status: 'completed').empty? %>
-                <%= button_to send_to_qc_vmcott_workshop_supervisor_job_path(@job), 
-                      method: :post, 
-                      class: "btn btn-purple rounded-pill py-2 text-white",
-                      form: { data: { turbo_confirm: "Send this job to Quality Control?" } } do %>
-                  <i class="bi bi-clipboard-check me-2"></i>Send to QC
+                <% if pending_parts %>
+                  <div class="alert alert-warning border-0 rounded-3 mb-2">
+                    <i class="bi bi-box-seam me-2"></i>
+                    <small>Cannot send to QC until all parts requests are approved or rejected.</small>
+                  </div>
+                  <button class="btn btn-secondary rounded-pill py-2 w-100" disabled>
+                    <i class="bi bi-clipboard-check me-2"></i>Send to QC (Pending Parts)
+                  </button>
+                <% else %>
+                  <%= button_to send_to_qc_vmcott_workshop_supervisor_job_path(@job), 
+                        method: :post, 
+                        class: "btn btn-purple rounded-pill py-2 text-white w-100",
+                        form: { data: { turbo_confirm: "Send this job to Quality Control?" } } do %>
+                    <i class="bi bi-clipboard-check me-2"></i>Send to QC
+                  <% end %>
                 <% end %>
               <% end %>
             </div>
@@ -532,53 +700,6 @@
           <% end %>
         </div>
       </div>
-
-      <!-- Parts Requests Card -->
-      <% if @parts_requests.present? && @parts_requests.any? %>
-        <div class="card border-0 shadow-sm rounded-4 mb-4">
-          <div class="card-header bg-white border-0 pt-4">
-            <h5 class="mb-0 fw-bold" style="color: #1e293b;">
-              <i class="bi bi-box-seam me-2 text-primary"></i>
-              Parts Requests (<%= @parts_requests.count %>)
-            </h5>
-          </div>
-          <div class="card-body">
-            <div class="space-y-2">
-              <% @parts_requests.each do |request| %>
-                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded-3">
-                  <div class="flex-grow-1">
-                    <div class="fw-semibold">
-                      <%= request.part&.name || request.custom_part_name %>
-                      <span class="badge bg-secondary ms-2">x<%= request.quantity %></span>
-                    </div>
-                    <div class="small text-muted mt-1">
-                      <i class="bi bi-calendar3 me-1"></i> Requested <%= time_ago_in_words(request.created_at) %> ago
-                    </div>
-                  </div>
-                  <div>
-                    <span class="badge <%= case request.status
-                      when 'pending_approval' then 'bg-warning'
-                      when 'approved' then 'bg-success'
-                      when 'rejected' then 'bg-danger'
-                      else 'bg-secondary'
-                      end %> px-3 py-2 me-2">
-                      <%= request.status.humanize %>
-                    </span>
-                    <% if request.status == 'pending_approval' %>
-                      <div class="btn-group-vertical gap-1">
-                        <%= button_to "Approve", approve_parts_request_vmcott_workshop_supervisor_path(request), 
-                              method: :post, class: "btn btn-sm btn-success rounded-pill" %>
-                        <%= button_to "Reject", reject_parts_request_vmcott_workshop_supervisor_path(request), 
-                              method: :post, class: "btn btn-sm btn-danger rounded-pill" %>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          </div>
-        </div>
-      <% end %>
 
       <!-- Findings Card -->
       <% if @findings.present? && @findings.any? %>
@@ -935,6 +1056,7 @@ function assignJob() {
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = '<%= assign_vmcott_workshop_supervisor_job_path(@job) %>';
+  form.style.display = 'none';
   
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const csrfInput = document.createElement('input');
@@ -950,6 +1072,7 @@ function assignJob() {
   form.appendChild(mechanicInput);
   
   document.body.appendChild(form);
+  console.log('Submitting assign job form to:', form.action);
   form.submit();
 }
 
@@ -964,6 +1087,7 @@ function reassignJob() {
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = '<%= reassign_vmcott_workshop_supervisor_job_path(@job) %>';
+  form.style.display = 'none';
   
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   const csrfInput = document.createElement('input');
@@ -985,6 +1109,27 @@ function reassignJob() {
   form.appendChild(reasonInput);
   
   document.body.appendChild(form);
+  console.log('Submitting reassign job form to:', form.action);
+  form.submit();
+}
+
+// Add this function to test the send_to_qc button
+function testSendToQC() {
+  console.log('Send to QC button clicked');
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '<%= send_to_qc_vmcott_workshop_supervisor_job_path(@job) %>';
+  form.style.display = 'none';
+  
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+  const csrfInput = document.createElement('input');
+  csrfInput.type = 'hidden';
+  csrfInput.name = 'authenticity_token';
+  csrfInput.value = csrfToken;
+  form.appendChild(csrfInput);
+  
+  document.body.appendChild(form);
+  console.log('Submitting send to QC form to:', form.action);
   form.submit();
 }
 
@@ -1012,6 +1157,45 @@ document.addEventListener('DOMContentLoaded', function() {
   window.closeRequestUpdateModal = () => requestUpdateModal.hide();
   window.closeQCFailModal = () => qcFailModal.hide();
   window.closeNoteModal = () => noteModal.hide();
+  
+  // Log all buttons to debug
+  console.log('=== Quick Action Buttons Debug ===');
+  
+  // Check if assign button exists
+  const assignBtn = document.querySelector('button[onclick="assignJob()"]');
+  if (assignBtn) {
+    console.log('Assign button found');
+    assignBtn.addEventListener('click', function(e) {
+      console.log('Assign button clicked');
+    });
+  } else {
+    console.log('Assign button NOT found');
+  }
+  
+  // Check if reassign button exists
+  const reassignBtn = document.querySelector('button[onclick="openReassignModal()"]');
+  if (reassignBtn) {
+    console.log('Reassign button found');
+  }
+  
+  // Check if send to QC button exists
+  const qcBtn = document.querySelector('button[type="submit"][class*="btn-purple"]');
+  if (qcBtn) {
+    console.log('Send to QC button found');
+    qcBtn.addEventListener('click', function(e) {
+      console.log('Send to QC button clicked');
+      // You can uncomment this to test
+      // testSendToQC();
+    });
+  } else {
+    console.log('Send to QC button NOT found');
+  }
+  
+  // Log the job ID and status
+  console.log('Job ID:', '<%= @job.id %>');
+  console.log('Job Status:', '<%= @job.status %>');
+  console.log('Parts Requests:', <%= @parts_requests&.count || 0 %>);
+  console.log('Pending Parts:', <%= @parts_requests&.count { |r| r.status == 'requested' } || 0 %>);
   
   // Auto-hide alerts after 5 seconds
   const alerts = document.querySelectorAll('.alert');

@@ -1,0 +1,242 @@
+<%# app/views/vmcott/mechanic/diagnosis/show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <!-- Flash Messages -->
+      <% if flash[:alert] %>
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+            <div><%= flash[:alert] %></div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+          </div>
+        </div>
+      <% end %>
+      
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h3 class="mb-0">Diagnosis: <%= @inspection.vehicle.license_plate %></h3>
+              <p class="text-muted small mb-0"><%= @inspection.vehicle.make %> <%= @inspection.vehicle.model %> (<%= @inspection.vehicle.year_of_manufacture %>)</p>
+            </div>
+            <%= link_to "← Back", vmcott_mechanic_diagnosis_path, class: "btn btn-outline-secondary rounded-pill" %>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Inspector's Findings -->
+          <div class="alert alert-info mb-4 rounded-3">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-clipboard2-check fs-4 me-3"></i>
+              <div class="flex-grow-1">
+                <strong class="d-block mb-2">Inspector's Findings:</strong>
+                <p class="mb-2"><%= @inspection.notes.presence || 'No notes provided' %></p>
+                <hr class="my-2">
+                <div class="row small text-muted">
+                  <div class="col-4">
+                    <i class="bi bi-speedometer2 me-1"></i>
+                    <%= number_with_delimiter(@inspection.mileage_at_inspection) %> km
+                  </div>
+                  <div class="col-4">
+                    <i class="bi bi-person me-1"></i>
+                    <%= @inspection.inspector&.name || 'Unknown' %>
+                  </div>
+                  <div class="col-4">
+                    <i class="bi bi-calendar me-1"></i>
+                    <%= @inspection.created_at.strftime('%b %d, %Y') %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <%= form_with url: vmcott_mechanic_create_diagnosis_path(@inspection), 
+                        method: :post, 
+                        local: true, 
+                        data: { turbo: false },
+                        html: { class: "diagnosis-form" } do |f| %>
+            
+            <!-- Diagnosis Notes -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">
+                <i class="bi bi-pencil-square me-1 text-danger"></i>
+                Diagnosis Notes <span class="text-danger">*</span>
+              </label>
+              <textarea name="diagnosis_notes" 
+                        class="form-control rounded-3" 
+                        rows="6" 
+                        required 
+                        placeholder="Describe your diagnostic findings, root cause analysis, and recommended repairs...&#10;&#10;Example:&#10;1. Performed engine diagnostic scan - found code P0301 (cylinder 1 misfire)&#10;2. Removed spark plug - found excessive carbon buildup&#10;3. Compression test - cylinder 1 at 80 psi (should be 120-150)&#10;4. Recommend: Cylinder head rebuild and new spark plugs"></textarea>
+              <div class="form-text mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Please provide detailed diagnosis notes. This will help the supervisor create accurate job tickets.
+              </div>
+            </div>
+
+            <!-- Dynamic Findings -->
+            <div class="mb-4">
+              <label class="form-label fw-bold">
+                <i class="bi bi-list-check me-1"></i>
+                Additional Findings (Optional)
+              </label>
+              <div id="findings-list" class="mb-3">
+                <!-- Findings will be added here dynamically -->
+              </div>
+              <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" id="add-finding-btn">
+                <i class="bi bi-plus-circle me-1"></i> Add Finding
+              </button>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex justify-content-between">
+              <%= link_to "Cancel", vmcott_mechanic_diagnosis_path, class: "btn btn-outline-secondary rounded-pill px-4" %>
+              <button type="submit" class="btn btn-primary rounded-pill px-5" id="submit-btn">
+                <i class="bi bi-check-circle me-2"></i>Submit Diagnosis
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let findingIndex = 0;
+
+  // Add finding functionality
+  const addFindingBtn = document.getElementById('add-finding-btn');
+  if (addFindingBtn) {
+    addFindingBtn.addEventListener('click', function() {
+      const findingsList = document.getElementById('findings-list');
+      if (!findingsList) return;
+      
+      const findingDiv = document.createElement('div');
+      findingDiv.className = 'border rounded-3 p-3 mb-3 bg-light';
+      findingDiv.setAttribute('data-finding-index', findingIndex);
+      
+      const descriptionName = `findings[${findingIndex}][description]`;
+      const severityName = `findings[${findingIndex}][severity]`;
+      const hoursName = `findings[${findingIndex}][estimated_hours]`;
+      const rootCauseName = `findings[${findingIndex}][root_cause]`;
+      const complexityName = `findings[${findingIndex}][complexity]`;
+      const partsName = `findings[${findingIndex}][suggested_parts]`;
+      const blockingName = `findings[${findingIndex}][blocking]`;
+      const blockingId = `blocking_${findingIndex}`;
+      
+      findingDiv.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <strong class="text-primary">Finding #${findingIndex + 1}</strong>
+          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill remove-finding">
+            <i class="bi bi-trash me-1"></i> Remove
+          </button>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Description *</label>
+          <input type="text" name="${descriptionName}" class="form-control" required placeholder="e.g., Brake pads worn to 2mm, Engine misfire at idle...">
+        </div>
+        <div class="row g-2">
+          <div class="col-md-4 mb-2">
+            <label class="form-label small">Severity</label>
+            <select name="${severityName}" class="form-select form-select-sm">
+              <option value="low">Low</option>
+              <option value="normal" selected>Normal</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label small">Estimated Hours</label>
+            <input type="number" name="${hoursName}" class="form-control form-control-sm" step="0.5" placeholder="Hours">
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label small">Complexity</label>
+            <select name="${complexityName}" class="form-select form-select-sm">
+              <option value="simple">Simple</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="complex">Complex</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Root Cause</label>
+          <input type="text" name="${rootCauseName}" class="form-control" placeholder="What caused this issue? (e.g., Worn components, Lack of maintenance)">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">Suggested Parts</label>
+          <input type="text" name="${partsName}" class="form-control" placeholder="e.g., Brake pads x2, Rotors x2, Oil filter x1">
+        </div>
+        <div class="form-check mt-2">
+          <input type="checkbox" name="${blockingName}" value="true" class="form-check-input" id="${blockingId}">
+          <label class="form-check-label small" for="${blockingId}">
+            <i class="bi bi-exclamation-octagon me-1"></i>
+            Blocking - Work cannot proceed without this fix
+          </label>
+        </div>
+      `;
+      
+      findingsList.appendChild(findingDiv);
+      
+      // Add remove functionality
+      const removeBtn = findingDiv.querySelector('.remove-finding');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function() {
+          findingDiv.remove();
+        });
+      }
+      
+      findingIndex++;
+    });
+  }
+  
+  // Form validation before submit
+  const form = document.querySelector('.diagnosis-form');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      const diagnosisNotes = document.querySelector('textarea[name="diagnosis_notes"]');
+      if (diagnosisNotes && !diagnosisNotes.value.trim()) {
+        e.preventDefault();
+        alert('Please enter diagnosis notes before submitting.');
+        diagnosisNotes.focus();
+        return false;
+      }
+      return true;
+    });
+  }
+});
+</script>
+
+<style>
+  .bg-light {
+    background-color: #f8f9fa !important;
+  }
+  .rounded-4 {
+    border-radius: 1rem !important;
+  }
+  .rounded-pill {
+    border-radius: 50rem !important;
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  .alert {
+    border-left: 4px solid;
+  }
+  .alert-danger {
+    border-left-color: #dc3545;
+  }
+  .alert-info {
+    border-left-color: #0dcaf0;
+  }
+  .btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
+  .btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+  }
+</style>

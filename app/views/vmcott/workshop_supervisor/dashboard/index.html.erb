@@ -8,8 +8,17 @@
   <!-- HEADER -->
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <div>
-      <h2 class="fw-bold mb-0" style="color:#1e293b;">Supervisor Dashboard</h2>
-      <small class="text-muted">Approve, assign, and monitor workshop activity</small>
+      <h2 class="fw-bold mb-0" style="color:#1e293b;">Workshop Supervisor Dashboard</h2>
+      <small class="text-muted">Complete 14-Step Workflow Management</small>
+      <div class="mt-2">
+        <span class="badge bg-info me-1">Phase 4: Job Creation</span>
+        <span class="badge bg-warning me-1">Phase 5: Parts</span>
+        <span class="badge bg-success me-1">Phase 6: Quote</span>
+        <span class="badge bg-secondary me-1">Phase 7: Approval</span>
+        <span class="badge bg-primary me-1">Phase 8: Active</span>
+        <span class="badge bg-danger me-1">Phase 9: Findings</span>
+        <span class="badge bg-info me-1">Phase 10: QC</span>
+      </div>
     </div>
     <div class="text-muted small bg-white px-3 py-2 rounded shadow-sm">
       <i class="bi bi-calendar3 me-1"></i>
@@ -17,18 +26,21 @@
     </div>
   </div>
 
-  <!-- QUICK STATS -->
+  <!-- QUICK STATS - Enhanced for 14 phases -->
   <div class="row g-3 mb-4">
     <% stats = [
-      ["Pending Approvals", @pending_tasks&.count || 0, "#f59e0b"],
-      ["Findings", @pending_findings&.count || 0, "#f97316"],
+      ["Job Creation", @pending_job_creation&.count || 0, "#8b5cf6"],
       ["Parts Requests", @pending_parts_requests&.count || 0, "#3b82f6"],
-      ["Active Jobs", @active_jobs&.count || 0, "#10b981"]
+      ["Quotations", @pending_quotation&.count || 0, "#10b981"],
+      ["Awaiting Approval", @awaiting_approval&.count || 0, "#f59e0b"],
+      ["Active Jobs", @active_jobs&.count || 0, "#0ea5e9"],
+      ["Findings", @pending_findings&.count || 0, "#ef4444"],
+      ["QC Pending", @qc_pending&.count || 0, "#06b6d4"]
     ] %>
 
     <% stats.each do |label, count, color| %>
-      <div class="col-md-3 col-sm-6">
-        <div class="p-3 rounded-3 shadow-sm bg-white text-center border">
+      <div class="col-md-3 col-sm-6 col-lg-2">
+        <div class="p-3 rounded-3 shadow-sm bg-white text-center border h-100">
           <h4 class="fw-bold mb-1" style="color:<%= color %>;"><%= count %></h4>
           <small class="text-muted"><%= label %></small>
         </div>
@@ -36,164 +48,115 @@
     <% end %>
   </div>
 
-  <!-- 🎯 WORKFLOW SELECTION PENDING (NEW) -->
-  <% if @workflow_pending.present? && @workflow_pending.any? %>
+  <!-- ===================================================== -->
+  <!-- PHASE 4: JOB CREATION FROM DIAGNOSIS -->
+  <!-- ===================================================== -->
+  <% if @pending_job_creation.present? && @pending_job_creation.any? %>
     <div class="card border-0 shadow-lg mb-4" style="border-left: 4px solid #8b5cf6;">
       <div class="card-header bg-white border-0 pt-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
           <div>
             <h5 class="mb-1 fw-bold" style="color: #1e293b;">
               <i class="bi bi-diagram-3 me-2" style="color: #8b5cf6;"></i>
-              Workflow Selection Pending
+              Phase 4: Job Creation (Diagnosis Complete)
             </h5>
-            <p class="text-muted small mb-0">Choose workflow type for these jobs before procurement creates quotations</p>
+            <p class="text-muted small mb-0">Diagnosis completed - create jobs and assign mechanics</p>
           </div>
           <span class="badge px-3 py-2 rounded-pill" style="background: #ede9fe; color: #5b21b6;">
-            <i class="bi bi-hourglass-split me-1"></i> <%= @workflow_pending.count %> Jobs Waiting
+            <i class="bi bi-hourglass-split me-1"></i> <%= @pending_job_creation.count %> Waiting
           </span>
         </div>
       </div>
-      <div class="card-body">
-        <div class="row g-3">
-          <% @workflow_pending.each do |inspection| %>
-            <div class="col-md-6 col-lg-4">
-              <div class="border rounded-3 p-3 h-100 bg-white hover-shadow" style="border-left: 4px solid #8b5cf6 !important;">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <strong class="text-primary">Inspection #<%= inspection.id %></strong>
-                    <span class="badge bg-secondary ms-2"><%= inspection.client_type&.humanize || 'Walk-in' %></span>
-                  </div>
-                  <span class="badge bg-purple text-white rounded-pill">
-                    <i class="bi bi-exclamation-triangle me-1"></i> Action Required
-                  </span>
-                </div>
-                
-                <p class="small text-muted mb-1">
-                  <i class="bi bi-truck me-1"></i> <%= inspection.vehicle.license_plate %>
-                  <br><small><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
-                </p>
-                
-                <div class="row small text-muted mb-2">
-                  <div class="col-6">
-                    <i class="bi bi-calculator me-1"></i> Labor: 
-                    <strong>$<%= number_with_precision(calculate_labor_cost(inspection), precision: 2) %></strong>
-                  </div>
-                  <div class="col-6">
-                    <i class="bi bi-box-seam me-1"></i> Parts: 
-                    <strong>$<%= number_with_precision(calculate_parts_cost(inspection), precision: 2) %></strong>
-                  </div>
-                </div>
-                
-                <div class="progress mb-2" style="height: 4px;">
-                  <div class="progress-bar bg-purple" style="width: 100%"></div>
-                </div>
-                
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                  <div class="small text-muted">
-                    <i class="bi bi-clock me-1"></i> Created <%= time_ago_in_words(inspection.created_at) %> ago
-                  </div>
-                  <%= link_to "Select Workflow", 
-                        vmcott_workshop_supervisor_select_workflow_path(inspection), 
-                        class: "btn btn-purple btn-sm rounded-pill px-3" %>
-                </div>
-              </div>
-            </div>
-          <% end %>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Vehicle</th>
+                <th>Diagnosis Notes</th>
+                <th>Findings</th>
+                <th>Diagnosed By</th>
+                <th>Completed</th>
+                <th class="text-center">Actions</th>
+              </thead>
+            <tbody>
+              <% @pending_job_creation.each do |inspection| %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= inspection.vehicle.license_plate %></strong><br>
+                    <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                   </td>
+                  <td><%= truncate(inspection.diagnosis_notes.to_s, length: 60) || 'No notes' %></td>
+                  <td><%= inspection.findings.where(finding_type: 'mechanic_diagnosis').count %> findings</td>
+                  <td><%= inspection.assigned_mechanic&.name || 'Not assigned' %></td>
+                  <td><%= inspection.diagnosis_completed_at&.strftime('%b %d, %Y') || 'N/A' %></td>
+                  <td class="text-center">
+                    <%= link_to "Create Jobs",
+                      vmcott_workshop_supervisor_job_creation_path(inspection),
+                      class: "btn btn-purple btn-sm rounded-pill px-3",
+                      data: { turbo: false } %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
         </div>
-        
-        <% if @workflow_pending.count > 6 %>
-          <div class="text-center mt-3">
-            <%= link_to "View All Pending Workflow Selections", 
-                  vmcott_workshop_supervisor_workflow_pending_path, 
-                  class: "btn btn-link text-decoration-none" %>
-          </div>
-        <% end %>
       </div>
     </div>
   <% end %>
 
-  <!-- 🔥 ACTION REQUIRED -->
-  <div class="card shadow-sm mb-4">
+  <!-- ===================================================== -->
+  <!-- PHASE 5: PARTS REQUESTS (Pending Approval) -->
+  <!-- ===================================================== -->
+  <div id="parts" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
-      🔥 Action Required
+      <i class="bi bi-box-seam me-2 text-primary"></i>
+      Phase 5: Parts Requests (Pending Approval)
     </div>
     <div class="card-body p-0">
-      <div class="p-3">
-        <% if @pending_tasks&.any? %>
-          <div class="alert alert-warning mb-2">
-            <div class="d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-clipboard-check me-2"></i><strong><%= @pending_tasks.count %> tasks</strong> need approval</span>
-              <a href="#tasks" class="btn btn-sm btn-warning rounded-pill" data-turbo="false">Review →</a>
-            </div>
-          </div>
-        <% end %>
-
-        <% if @pending_findings&.any? %>
-          <div class="alert alert-danger mb-2">
-            <div class="d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-exclamation-triangle me-2"></i><strong><%= @pending_findings.count %> findings</strong> need review</span>
-              <a href="#findings" class="btn btn-sm btn-danger rounded-pill" data-turbo="false">Review →</a>
-            </div>
-          </div>
-        <% end %>
-
-        <% if @pending_parts_requests&.any? %>
-          <div class="alert alert-info mb-2">
-            <div class="d-flex justify-content-between align-items-center">
-              <span><i class="bi bi-box-seam me-2"></i><strong><%= @pending_parts_requests.count %> parts requests</strong> pending</span>
-              <a href="#parts" class="btn btn-sm btn-primary rounded-pill" data-turbo="false">Review →</a>
-            </div>
-          </div>
-        <% end %>
-
-        <% if @pending_tasks.empty? && @pending_findings.empty? && @pending_parts_requests.empty? %>
-          <div class="text-center text-muted py-3">
-            <i class="bi bi-check-circle-fill text-success me-2"></i>
-            Nothing urgent right now
-          </div>
-        <% end %>
-      </div>
-    </div>
-  </div>
-
-  <!-- TASK APPROVAL SECTION -->
-  <div id="tasks" class="card shadow-sm mb-4">
-    <div class="card-header bg-white fw-bold border-bottom">
-      📋 Task Approvals
-    </div>
-    <div class="card-body p-0">
-      <% if @pending_tasks&.any? %>
+      <% if @pending_parts_requests&.any? %>
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th class="ps-3">Task</th>
+                <th class="ps-3">Part</th>
+                <th>Qty</th>
+                <th>Job</th>
                 <th>Vehicle</th>
-                <th>Assigned To</th>
-                <th>Est. Hours</th>
+                <th>Requested By</th>
+                <th>Status</th>
                 <th class="pe-3 text-end">Actions</th>
-              </thead>
+              </tr>
+            </thead>
             <tbody>
-              <% @pending_tasks.each do |task| %>
+              <% @pending_parts_requests.each do |request| %>
                 <tr data-turbo="false">
                   <td class="ps-3">
-                    <strong><%= task.name %></strong><br>
-                    <small class="text-muted"><%= task.description&.truncate(50) %></small>
-                    </td>
+                    <strong><%= request.part&.name || request.custom_part_name || 'Custom Part' %></strong>
+                    <% if request.part&.part_number %>
+                      <br><small class="text-muted">PN: <%= request.part.part_number %></small>
+                    <% end %>
+                  </td>
+                  <td class="fw-bold"><%= request.quantity %></td>
                   <td>
-                    <%= task.inspection_job&.inspection&.vehicle&.license_plate || 'N/A' %><br>
-                    <small class="text-muted"><%= task.inspection_job&.inspection&.vehicle&.make %> <%= task.inspection_job&.inspection&.vehicle&.model %></small>
+                    <%= request.inspection_job&.description&.truncate(40) || 'N/A' %><br>
+                    <small class="text-muted">Job #<%= request.inspection_job&.id %></small>
                   </td>
                   <td>
-                    <%= task.assigned_mechanic&.name || 'Unassigned' %>
+                    <%= request.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                    <small class="text-muted"><%= request.inspection&.vehicle&.make %> <%= request.inspection&.vehicle&.model %></small>
                   </td>
                   <td>
-                    <%= task.estimated_hours ? "#{task.estimated_hours} hrs" : 'Not set' %>
+                    <% requester = request.requested_by || request.inspection_job&.assigned_mechanic || request.inspection&.inspector %>
+                    <%= requester&.name || 'Mechanic' %><br>
+                    <small class="text-muted"><%= time_ago_in_words(request.created_at) %> ago</small>
                   </td>
+                  <td><span class="badge bg-warning">Pending Approval</span></td>
                   <td class="text-end pe-3">
                     <div class="btn-group btn-group-sm">
-                      <%= link_to "View Details", vmcott_workshop_supervisor_task_path(task), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
-                      <%= button_to "Approve Task", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
+                      <%= link_to "Review", vmcott_workshop_supervisor_review_parts_request_path(request), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
+                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_parts_request_path(request), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this parts request?", turbo: false } %>
                     </div>
                   </td>
                 </tr>
@@ -202,22 +165,196 @@
           </table>
         </div>
         <div class="text-center p-3 border-top">
-          <%= link_to "View All Pending Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
+          <small class="text-muted">Showing <%= @pending_parts_requests.count %> pending parts requests</small>
         </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
-          <h6>All tasks approved</h6>
-          <p class="small mb-0">No tasks waiting for your approval</p>
+          <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>
+          <h6>No pending parts requests</h6>
+          <p class="small mb-0">All parts have been approved or processed</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- FINDINGS SECTION -->
+  <!-- ===================================================== -->
+  <!-- PHASE 6: QUOTATION CREATION -->
+  <!-- ===================================================== -->
+  <% if @pending_quotation.present? && @pending_quotation.any? %>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-receipt me-2 text-success"></i>
+            Phase 6: Quotation Creation
+          </h5>
+          <span class="badge bg-success"><%= @pending_quotation.count %> Ready</span>
+        </div>
+        <p class="text-muted small mt-1 mb-0">Parts approved - create final quotation for client</p>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Vehicle</th>
+                <th>Jobs</th>
+                <th>Parts Cost</th>
+                <th>Labor Cost</th>
+                <th>Total</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @pending_quotation.each do |inspection| %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= inspection.vehicle.license_plate %></strong><br>
+                    <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                  </td>
+                  <td><%= inspection.inspection_jobs.count %> jobs</td>
+                  <td>$<%= number_with_precision(calculate_parts_cost(inspection), precision: 2) %></td>
+                  <td>$<%= number_with_precision(calculate_labor_cost(inspection), precision: 2) %></td>
+                  <td class="fw-bold text-success">$<%= number_with_precision(calculate_labor_cost(inspection) + calculate_parts_cost(inspection), precision: 2) %></td>
+                  <td class="text-center">
+                    <%= link_to "Create Quotation", vmcott_workshop_supervisor_quotation_creation_path(inspection), class: "btn btn-success btn-sm rounded-pill px-3" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ===================================================== -->
+  <!-- PHASE 7: AWAITING CUSTOMER APPROVAL -->
+  <!-- ===================================================== -->
+  <% if @awaiting_approval.present? && @awaiting_approval.any? %>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #f59e0b;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-hourglass-split me-2 text-warning"></i>
+            Phase 7: Awaiting Customer Approval
+          </h5>
+          <span class="badge bg-warning"><%= @awaiting_approval.count %> Pending</span>
+        </div>
+        <p class="text-muted small mt-1 mb-0">Quotations sent - waiting for client approval</p>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Vehicle</th>
+                <th>Quotation #</th>
+                <th>Total Amount</th>
+                <th>Workflow Type</th>
+                <th>Sent Date</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @awaiting_approval.each do |inspection| %>
+                <% quote = inspection.latest_quotation %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= inspection.vehicle.license_plate %></strong><br>
+                    <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                  </td>
+                  <td><%= quote&.quote_number || 'N/A' %></td>
+                  <td class="fw-bold">$<%= number_with_precision(quote&.amount || inspection.total_estimated_cost, precision: 2) %></td>
+                  <td>
+                    <span class="badge bg-<%= inspection.workflow_type == 'payment_before_work' ? 'danger' : 'success' %>">
+                      <%= inspection.workflow_type&.humanize || 'Not Selected' %>
+                    </span>
+                  </td>
+                  <td><%= inspection.workflow_selected_at&.strftime('%b %d, %Y') || 'N/A' %></td>
+                  <td class="text-center">
+                    <span class="badge bg-warning">Awaiting Client</span>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ===================================================== -->
+  <!-- PHASE 8: ACTIVE JOBS IN PROGRESS -->
+  <!-- ===================================================== -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-bold border-bottom">
+      <i class="bi bi-tools me-2 text-primary"></i>
+      Phase 8: Active Jobs In Progress
+    </div>
+    <div class="card-body">
+      <% if @active_jobs&.any? %>
+        <div class="row g-3">
+          <% @active_jobs.each do |job| %>
+            <div class="col-md-4 col-sm-6">
+              <div class="border rounded-3 p-3 h-100 bg-white hover-shadow">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <strong class="text-primary">Job #<%= job.id %></strong>
+                  <span class="badge bg-success rounded-pill">
+                    <i class="bi bi-play-circle me-1"></i>Active
+                  </span>
+                </div>
+                <p class="small text-muted mb-1">
+                  <i class="bi bi-truck me-1"></i> <%= job.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                  <small><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                </p>
+                <p class="small mb-2"><%= job.description.truncate(60) %></p>
+
+                <% done = job.job_tasks.where(status: 'completed').count %>
+                <% total = job.job_tasks.count %>
+                <% percent = total > 0 ? (done.to_f / total * 100).round : 0 %>
+                <div class="progress mb-2" style="height:6px;">
+                  <div class="progress-bar bg-primary" style="width:<%= percent %>%"></div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted"><%= percent %>% complete (<%= done %>/<%= total %> tasks)</small>
+                  <%= link_to "View Details", vmcott_workshop_supervisor_job_path(job), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
+                </div>
+
+                <% if job.assigned_mechanic %>
+                  <hr class="my-2">
+                  <div class="d-flex align-items-center small text-muted">
+                    <i class="bi bi-person-gear me-1"></i>
+                    <span>Assigned to: <strong><%= job.assigned_mechanic.name %></strong></span>
+                    <% if job.started_at %>
+                      <span class="ms-2">
+                        <i class="bi bi-clock me-1"></i><%= time_ago_in_words(job.started_at) %> ago
+                      </span>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-inbox fs-1 d-block mb-2 text-muted"></i>
+          <h6>No active jobs</h6>
+          <p class="small mb-0">All jobs are either pending or completed</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- ===================================================== -->
+  <!-- PHASE 9: ADDITIONAL FINDINGS (Pending Review) -->
+  <!-- ===================================================== -->
   <div id="findings" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
-      ⚠️ Mechanic Findings (New Issues)
+      <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+      Phase 9: Additional Findings (New Issues)
     </div>
     <div class="card-body p-0">
       <% if @pending_findings&.any? %>
@@ -231,7 +368,8 @@
                 <th>Found By</th>
                 <th>Status</th>
                 <th class="pe-3 text-end">Actions</th>
-              </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @pending_findings.each do |finding| %>
                 <tr data-turbo="false">
@@ -253,12 +391,8 @@
                       <%= finding.severity&.humanize || 'Normal' %>
                     </span>
                   </td>
-                  <td>
-                    <%= finding.created_by&.name || 'Unknown' %>
-                  </td>
-                  <td>
-                    <span class="badge bg-warning">Pending Review</span>
-                  </td>
+                  <td><%= finding.created_by&.name || 'Unknown' %></td>
+                  <td><span class="badge bg-warning">Pending Review</span></td>
                   <td class="text-end pe-3">
                     <div class="btn-group btn-group-sm">
                       <%= link_to "View Details", vmcott_workshop_supervisor_finding_path(finding), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
@@ -284,112 +418,45 @@
     </div>
   </div>
 
-  <!-- PARTS REQUESTS SECTION -->
-  <div id="parts" class="card shadow-sm mb-4">
-    <div class="card-header bg-white fw-bold border-bottom">
-      📦 Parts Requests
-    </div>
-    <div class="card-body p-0">
-      <% if @pending_parts_requests&.any? %>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th class="ps-3">Part</th>
-                <th>Qty</th>
-                <th>Job</th>
-                <th>Vehicle</th>
-                <th>Requested By</th>
-                <th>Status</th>
-                <th class="pe-3 text-end">Actions</th>
-              </thead>
-            <tbody>
-              <% @pending_parts_requests.each do |request| %>
-                <tr data-turbo="false">
-                  <td class="ps-3">
-                    <strong><%= request.part&.name || request.custom_part_name || 'Custom Part' %></strong>
-                    <% if request.part&.part_number %>
-                      <br><small class="text-muted">PN: <%= request.part.part_number %></small>
-                    <% end %>
-                  </td>
-                  <td class="fw-bold"><%= request.quantity %></td>
-                  <td>
-                    <%= request.inspection_job&.description&.truncate(40) || 'N/A' %><br>
-                    <small class="text-muted">Job #<%= request.inspection_job&.id %></small>
-                  </td>
-                  <td>
-                    <%= request.inspection&.vehicle&.license_plate || 'N/A' %><br>
-                    <small class="text-muted"><%= request.inspection&.vehicle&.make %> <%= request.inspection&.vehicle&.model %></small>
-                  </td>
-                  <td>
-                    <%= request.requested_by&.name || 'Unknown' %><br>
-                    <small class="text-muted"><%= time_ago_in_words(request.created_at) %> ago</small>
-                  </td>
-                  <td>
-                    <span class="badge bg-warning">Pending Approval</span>
-                  </td>
-                  <td class="text-end pe-3">
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to "Review", vmcott_workshop_supervisor_review_parts_request_path(request), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
-                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
-                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_parts_request_path(request), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this parts request?", turbo: false } %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
+  <!-- ===================================================== -->
+  <!-- PHASE 10: QUALITY CONTROL PENDING -->
+  <!-- ===================================================== -->
+  <% if @qc_pending.present? && @qc_pending.any? %>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #06b6d4;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-check2-square me-2 text-info"></i>
+            Phase 10: Quality Control Pending
+          </h5>
+          <span class="badge bg-info"><%= @qc_pending.count %> Ready</span>
         </div>
-        <div class="text-center p-3 border-top">
-          <%= link_to "View All Parts Requests", vmcott_workshop_supervisor_parts_requests_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
-        </div>
-      <% else %>
-        <div class="text-center text-muted py-5">
-          <i class="bi bi-box-seam fs-1 d-block mb-2 text-muted"></i>
-          <h6>No pending parts requests</h6>
-          <p class="small mb-0">All parts have been approved or processed</p>
-        </div>
-      <% end %>
-    </div>
-  </div>
-
-  <!-- PRE-CHECK REVIEW SECTION -->
-  <% if @pre_check_completed.present? && @pre_check_completed.any? %>
-    <div class="card shadow-sm mb-4">
-      <div class="card-header bg-white fw-bold border-bottom">
-        🔍 Pre-Check Review
+        <p class="text-muted small mt-1 mb-0">Work completed - ready for QC inspection</p>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+            <thead class="bg-light">
               <tr>
-                <th class="ps-3">Job #</th>
-                <th>Description</th>
-                <th>Vehicle</th>
+                <th class="ps-3">Vehicle</th>
+                <th>Completed Jobs</th>
                 <th>Mechanic</th>
-                <th>Additional Findings</th>
-                <th class="pe-3 text-end">Actions</th>
-              </thead>
+                <th>Completed Date</th>
+                <th class="text-center">Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              <% @pre_check_completed.each do |job| %>
+              <% @qc_pending.each do |inspection| %>
                 <tr data-turbo="false">
-                  <td class="ps-3 fw-semibold">#<%= job.id %></td>
-                  <td><%= job.description.truncate(40) %></td>
-                  <td>
-                    <%= job.inspection&.vehicle&.license_plate || 'N/A' %><br>
-                    <small class="text-muted"><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                  <td class="ps-3">
+                    <strong><%= inspection.vehicle.license_plate %></strong><br>
+                    <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
                   </td>
-                  <td><%= job.assigned_mechanic&.name || 'Unknown' %></td>
-                  <td>
-                    <% if job.has_additional_findings? %>
-                      <span class="badge bg-warning"><%= job.additional_findings.count %> findings</span>
-                    <% else %>
-                      <span class="badge bg-success">No findings</span>
-                    <% end %>
-                  </td>
-                  <td class="text-end pe-3">
-                    <%= link_to "Review Pre-Check", vmcott_workshop_supervisor_review_pre_check_path(job), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
+                  <td><%= inspection.inspection_jobs.where(status: 'completed').count %> / <%= inspection.inspection_jobs.count %> jobs</td>
+                  <td><%= inspection.inspection_jobs.map(&:assigned_mechanic).compact.map(&:name).join(', ') || 'Various' %></td>
+                  <td><%= inspection.updated_at.strftime('%b %d, %Y') %></td>
+                  <td class="text-center">
+                    <%= link_to "View QC", vmcott_workshop_supervisor_inspection_qc_path(inspection), class: "btn btn-info btn-sm rounded-pill px-3" %>
                   </td>
                 </tr>
               <% end %>
@@ -400,64 +467,59 @@
     </div>
   <% end %>
 
-  <!-- ACTIVE JOBS SECTION -->
-  <div class="card shadow-sm">
+  <!-- ===================================================== -->
+  <!-- PHASE 11-14: TASK APPROVALS & WORK ORDERS -->
+  <!-- ===================================================== -->
+  <div id="tasks" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
-      🟢 Active Jobs In Progress
+      <i class="bi bi-clipboard-check me-2 text-secondary"></i>
+      Phase 11-14: Task Approvals & Work Orders
     </div>
-    <div class="card-body">
-      <% if @active_jobs&.any? %>
-        <div class="row g-3">
-          <% @active_jobs.each do |job| %>
-            <div class="col-md-4 col-sm-6">
-              <div class="border rounded-3 p-3 h-100 bg-white hover-shadow">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <strong class="text-primary">Job #<%= job.id %></strong>
-                  <span class="badge bg-success rounded-pill">
-                    <i class="bi bi-play-circle me-1"></i>Active
-                  </span>
-                </div>
-                <p class="small text-muted mb-1">
-                  <i class="bi bi-truck me-1"></i> <%= job.inspection&.vehicle&.license_plate || 'N/A' %><br>
-                  <small><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
-                </p>
-                <p class="small mb-2"><%= job.description.truncate(60) %></p>
-
-                <!-- Progress Bar -->
-                <% done = job.job_tasks.where(status: 'completed').count %>
-                <% total = job.job_tasks.count %>
-                <% percent = total > 0 ? (done.to_f / total * 100).round : 0 %>
-                <div class="progress mb-2" style="height:6px;">
-                  <div class="progress-bar bg-primary" style="width:<%= percent %>%"></div>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-muted"><%= percent %>% complete (<%= done %>/<%= total %> tasks)</small>
-                  <%= link_to "View Details", vmcott_workshop_supervisor_job_path(job), class: "btn btn-outline-primary btn-sm rounded-pill", data: { turbo: false } %>
-                </div>
-
-                <!-- Assigned Mechanic Info -->
-                <% if job.assigned_mechanic %>
-                  <hr class="my-2">
-                  <div class="d-flex align-items-center small text-muted">
-                    <i class="bi bi-person-gear me-1"></i>
-                    <span>Assigned to: <strong><%= job.assigned_mechanic.name %></strong></span>
-                    <% if job.started_at %>
-                      <span class="ms-2">
-                        <i class="bi bi-clock me-1"></i><%= time_ago_in_words(job.started_at) %> ago
-                      </span>
-                    <% end %>
-                  </div>
-                <% end %>
-              </div>
-            </div>
-          <% end %>
+    <div class="card-body p-0">
+      <% if @pending_tasks&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Task</th>
+                <th>Vehicle</th>
+                <th>Assigned To</th>
+                <th>Est. Hours</th>
+                <th class="pe-3 text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @pending_tasks.each do |task| %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= task.name %></strong><br>
+                    <small class="text-muted"><%= task.description&.truncate(50) %></small>
+                  </td>
+                  <td>
+                    <%= task.inspection_job&.inspection&.vehicle&.license_plate || 'N/A' %><br>
+                    <small class="text-muted"><%= task.inspection_job&.inspection&.vehicle&.make %> <%= task.inspection_job&.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td><%= task.assigned_mechanic&.name || 'Unassigned' %></td>
+                  <td><%= task.estimated_hours ? "#{task.estimated_hours} hrs" : 'Not set' %></td>
+                  <td class="text-end pe-3">
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "View Details", vmcott_workshop_supervisor_task_path(task), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Approve Task", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-center p-3 border-top">
+          <%= link_to "View All Pending Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
         </div>
       <% else %>
         <div class="text-center text-muted py-5">
-          <i class="bi bi-inbox fs-1 d-block mb-2 text-muted"></i>
-          <h6>No active jobs</h6>
-          <p class="small mb-0">All jobs are either pending or completed</p>
+          <i class="bi bi-check-circle fs-1 d-block mb-2 text-success"></i>
+          <h6>All tasks approved</h6>
+          <p class="small mb-0">No tasks waiting for your approval</p>
         </div>
       <% end %>
     </div>

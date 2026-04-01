@@ -1,0 +1,214 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/finding_show.html.erb %>
+<div class="container-fluid py-4">
+  <div class="row mb-4">
+    <div class="col">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h1 class="h2">
+            <i class="bi bi-exclamation-triangle me-2 text-danger"></i>
+            Finding Details
+          </h1>
+          <p class="text-muted">Review and approve mechanic findings</p>
+        </div>
+        <%= link_to "← Back to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill", data: { turbo: false } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <span class="badge bg-<%= @finding.severity == 'critical' ? 'danger' : (@finding.severity == 'high' ? 'warning' : 'secondary') %> mb-2">
+                <i class="bi bi-flag-fill me-1"></i>
+                <%= @finding.severity&.humanize || 'Normal' %> Severity
+              </span>
+              <% if @finding.blocking %>
+                <span class="badge bg-danger ms-2">
+                  <i class="bi bi-lock-fill me-1"></i> BLOCKING
+                </span>
+              <% end %>
+            </div>
+            <span class="badge bg-<%= @finding.status_badge_class %>">
+              <%= @finding.status&.humanize || 'Pending' %>
+            </span>
+          </div>
+          <h3 class="mt-3 mb-0"><%= @finding.description %></h3>
+        </div>
+        
+        <div class="card-body">
+          <!-- Finding Details -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="border rounded-3 p-3 bg-light">
+                <small class="text-muted text-uppercase d-block mb-2">Finding Information</small>
+                <div class="mb-2">
+                  <strong>Type:</strong> 
+                  <span class="badge bg-secondary ms-2"><%= @finding.finding_type&.humanize %></span>
+                </div>
+                <div class="mb-2">
+                  <strong>Priority:</strong> 
+                  <span class="badge bg-<%= @finding.priority == 'high' ? 'warning' : 'secondary' %> ms-2">
+                    <%= @finding.priority&.humanize || 'Normal' %>
+                  </span>
+                </div>
+                <div class="mb-2">
+                  <strong>Reported By:</strong> 
+                  <%= @finding.created_by&.name || 'Unknown' %>
+                </div>
+                <div class="mb-2">
+                  <strong>Reported On:</strong> 
+                  <%= @finding.created_at.strftime('%B %d, %Y at %I:%M %p') %>
+                </div>
+                <% if @finding.approved_at %>
+                  <div class="mb-2">
+                    <strong>Approved/Rejected By:</strong> 
+                    <%= @finding.approved_by&.name || 'Unknown' %>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Approved/Rejected On:</strong> 
+                    <%= @finding.approved_at.strftime('%B %d, %Y at %I:%M %p') %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="border rounded-3 p-3 bg-light">
+                <small class="text-muted text-uppercase d-block mb-2">Related Information</small>
+                <div class="mb-2">
+                  <strong>Vehicle:</strong> 
+                  <%= @finding.work_order&.vehicle&.license_plate || 'N/A' %>
+                  <br>
+                  <small class="text-muted">
+                    <%= @finding.work_order&.vehicle&.make %> <%= @finding.work_order&.vehicle&.model %>
+                  </small>
+                </div>
+                <div class="mb-2">
+                  <strong>Work Order:</strong> 
+                  <%= link_to @finding.work_order&.work_order_number || 'N/A', vmcott_workshop_supervisor_work_order_path(@finding.work_order), class: "text-decoration-none" if @finding.work_order %>
+                </div>
+                <div class="mb-2">
+                  <strong>Inspection Job:</strong> 
+                  <%= link_to "Job ##{@finding.inspection_job&.id}", vmcott_workshop_supervisor_job_path(@finding.inspection_job), class: "text-decoration-none" if @finding.inspection_job %>
+                </div>
+                <div class="mb-2">
+                  <strong>Inspection:</strong> 
+                  <%= link_to "Inspection ##{@finding.inspection&.id}", vmcott_workshop_supervisor_inspection_path(@finding.inspection), class: "text-decoration-none" if @finding.inspection %>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Additional Notes -->
+          <% if @finding.notes.present? %>
+            <div class="mb-4">
+              <h6 class="fw-bold">Additional Notes</h6>
+              <div class="border rounded-3 p-3 bg-light">
+                <%= simple_format(@finding.notes) %>
+              </div>
+            </div>
+          <% end %>
+          
+          <!-- Metadata (if any) -->
+          <% if @finding.metadata.present? && @finding.metadata.is_a?(Hash) %>
+            <div class="mb-4">
+              <h6 class="fw-bold">Additional Details</h6>
+              <div class="border rounded-3 p-3 bg-light">
+                <dl class="row mb-0">
+                  <% @finding.metadata.each do |key, value| %>
+                    <dt class="col-sm-4"><%= key.to_s.humanize %></dt>
+                    <dd class="col-sm-8"><%= value %></dd>
+                  <% end %>
+                </dl>
+              </div>
+            </div>
+          <% end %>
+          
+          <!-- Action Buttons (if still pending) -->
+          <% if @finding.status == 'pending' %>
+            <div class="border-top pt-4 mt-4">
+              <h6 class="fw-bold mb-3">Take Action</h6>
+              
+              <div class="row g-3">
+                <!-- Approve with Task Creation Option -->
+                <div class="col-md-6">
+                  <div class="card border-0 bg-success bg-opacity-10 h-100">
+                    <div class="card-body">
+                      <h6 class="fw-bold text-success mb-3">
+                        <i class="bi bi-check-circle-fill me-2"></i>Approve Finding
+                      </h6>
+                      <p class="small text-muted mb-3">
+                        Approving this finding will mark it as resolved. You can optionally create a task for this finding.
+                      </p>
+                      <div class="d-flex gap-2">
+                        <%= button_to "Approve Only", vmcott_workshop_supervisor_approve_finding_path(@finding), method: :post, class: "btn btn-success", data: { turbo: false } %>
+                        <%= button_to "Approve & Create Task", vmcott_workshop_supervisor_approve_finding_path(@finding, create_task: true), method: :post, class: "btn btn-outline-success", data: { turbo: false } %>
+                      </div>
+                      <% if params[:create_task] %>
+                        <div class="mt-3">
+                          <label class="form-label small">Estimated Hours</label>
+                          <input type="number" name="estimated_hours" class="form-control form-control-sm" step="0.5" placeholder="Hours">
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Reject Option -->
+                <div class="col-md-6">
+                  <div class="card border-0 bg-danger bg-opacity-10 h-100">
+                    <div class="card-body">
+                      <h6 class="fw-bold text-danger mb-3">
+                        <i class="bi bi-x-circle-fill me-2"></i>Reject Finding
+                      </h6>
+                      <p class="small text-muted mb-3">
+                        Rejecting this finding means you disagree with the mechanic's assessment. Please provide a reason.
+                      </p>
+                      <div class="mb-2">
+                        <label class="form-label small">Rejection Reason</label>
+                        <textarea name="reason" class="form-control form-control-sm" rows="2" placeholder="Why is this finding being rejected?"></textarea>
+                      </div>
+                      <%= button_to "Reject Finding", vmcott_workshop_supervisor_reject_finding_path(@finding), method: :post, class: "btn btn-danger", data: { confirm: "Are you sure you want to reject this finding?", turbo: false } %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+          
+          <!-- Show approval/rejection info if already processed -->
+          <% if @finding.status == 'approved' %>
+            <div class="alert alert-success mt-4">
+              <i class="bi bi-check-circle-fill me-2"></i>
+              <strong>Finding Approved</strong><br>
+              This finding was approved by <%= @finding.approved_by&.name || 'Unknown' %> on <%= @finding.approved_at&.strftime('%B %d, %Y at %I:%M %p') %>
+            </div>
+          <% elsif @finding.status == 'rejected' %>
+            <div class="alert alert-danger mt-4">
+              <i class="bi bi-x-circle-fill me-2"></i>
+              <strong>Finding Rejected</strong><br>
+              This finding was rejected by <%= @finding.approved_by&.name || 'Unknown' %> on <%= @finding.approved_at&.strftime('%B %d, %Y at %I:%M %p') %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+      <!-- Back Button -->
+      <div class="text-center">
+        <%= link_to "← Back to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill px-4" %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.bg-opacity-10 {
+  --bs-bg-opacity: 0.1;
+}
+.rounded-4 {
+  border-radius: 1rem !important;
+}
+</style>

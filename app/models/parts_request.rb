@@ -1,184 +1,48 @@
 # app/models/parts_request.rb
 class PartsRequest < ApplicationRecord
   belongs_to :inspection
-  belongs_to :inspection_job, optional: true  # Link to the specific job
-  belongs_to :part, optional: true  # Make part optional for custom parts
-  belongs_to :vendor_invoice, optional: true
-  belongs_to :purchase_order, optional: true
-  
-  # NEW: Approval tracking fields
+  belongs_to :inspection_job, optional: true
+  belongs_to :part, optional: true
+  belongs_to :requested_by, class_name: 'User', optional: true
   belongs_to :approved_by, class_name: 'User', optional: true
   belongs_to :rejected_by, class_name: 'User', optional: true
   belongs_to :issued_by, class_name: 'User', optional: true
-  
-  # Timestamp fields
-  attribute :sent_to_procurement_at, :datetime
-  attribute :notified_parts_coordinator_at, :datetime
-  attribute :notified_billing_at, :datetime
-  attribute :parts_received_at, :datetime
-  attribute :approved_at, :datetime
-  attribute :rejected_at, :datetime
-  attribute :issued_at, :datetime
-  
-  # Association to VendorRfq through part's vendor_rfq_items
-  has_many :vendor_rfq_items, through: :part
-  has_many :rfqs, through: :vendor_rfq_items, source: :vendor_rfq
+  belongs_to :purchase_order, optional: true
+  belongs_to :vendor_invoice, optional: true
 
-  validates :quantity, presence: true, numericality: { greater_than: 0 }
-  
-  # If it's a custom part, we need a name
-  validates :custom_part_name, presence: true, if: -> { part_id.nil? }
-
-  # Fix the enum definition - use the Rails 7+ syntax
+  # Simplified status enum
   enum :status, {
-    pending_approval: 'pending_approval',  # NEW: Changed from pending
+    requested: 'requested',
     approved: 'approved',
     rejected: 'rejected',
-    issued: 'issued',
-    parts_coordinator_notified: 'parts_coordinator_notified',
-    billing_notified: 'billing_notified',
-    rfq_sent: 'rfq_sent',
-    quotations_received: 'quotations_received',
-    finance_review: 'finance_review',
-    purchase_order_created: 'purchase_order_created',
-    parts_ordered: 'parts_ordered',
-    parts_received: 'parts_received'
-  }, default: :pending_approval
+    needs_order: 'needs_order',
+    ordered: 'ordered',
+    received: 'received',
+    issued: 'issued'
+  }, default: :requested
+
+  validates :quantity, presence: true, numericality: { greater_than: 0 }
+  validates :custom_part_name, presence: true, if: -> { part_id.nil? }
 
   # Scopes
-  scope :needing_approval, -> { where(status: :pending_approval) }
+  scope :pending_approval, -> { where(status: :requested) }
   scope :approved_requests, -> { where(status: :approved) }
   scope :rejected_requests, -> { where(status: :rejected) }
+  scope :needing_order, -> { where(status: :needs_order) }
+  scope :ordered_requests, -> { where(status: :ordered) }
+  scope :received_requests, -> { where(status: :received) }
   scope :issued_requests, -> { where(status: :issued) }
-  scope :needing_coordinator_action, -> { where(status: [:pending_approval, :parts_coordinator_notified]) }
-  scope :needing_billing_action, -> { where(status: :billing_notified) }
-  scope :needing_finance_action, -> { where(status: :finance_review) }
   scope :custom_parts, -> { where(part_id: nil) }
   scope :inventory_parts, -> { where.not(part_id: nil) }
-  scope :for_job, ->(job_id) { where(inspection_job_id: job_id) }
-  
-  # =====================================================
-  # APPROVAL METHODS
-  # =====================================================
-  
-  def approve!(user)
-    update!(
-      status: :approved,
-      approved_by: user,
-      approved_at: Time.current
-    )
-    
-    # Notify mechanic
-    if inspection_job&.assigned_mechanic
-      Notification.create!(
-        user: inspection_job.assigned_mechanic,
-        title: "Parts Request Approved",
-        message: "Your request for #{quantity}x #{part_name} has been approved.",
-        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
-        notification_type: 'success',
-        notifiable: self
-      )
-    end
-    
-    # Also notify inventory manager if parts need to be issued
-    if part.present? && part.current_stock >= quantity
-      notify_inventory_manager
-    end
-  end
-  
-  def reject!(user, reason)
-    update!(
-      status: :rejected,
-      rejected_by: user,
-      rejected_at: Time.current,
-      rejection_reason: reason
-    )
-    
-    # Notify mechanic
-    if inspection_job&.assigned_mechanic
-      Notification.create!(
-        user: inspection_job.assigned_mechanic,
-        title: "Parts Request Rejected",
-        message: "Your request for #{quantity}x #{part_name} was rejected: #{reason}",
-        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
-        notification_type: 'danger',
-        notifiable: self
-      )
-    end
-  end
-  
-  def issue!(user)
-    update!(
-      status: :issued,
-      issued_by: user,
-      issued_at: Time.current
-    )
-    
-    # Update part stock if inventory part
-    if inventory? && part.present?
-      part.update!(current_stock: part.current_stock - quantity)
-    end
-    
-    # Notify mechanic
-    if inspection_job&.assigned_mechanic
-      Notification.create!(
-        user: inspection_job.assigned_mechanic,
-        title: "Parts Issued",
-        message: "#{quantity}x #{part_name} has been issued for job ##{inspection_job_id}.",
-        link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
-        notification_type: 'info',
-        notifiable: self
-      )
-    end
-  end
-  
-  def notify_inventory_manager
-    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
-    Notification.create!(
-      title: "Parts Ready to Issue",
-      message: "Part #{part_name} x#{quantity} is in stock and ready for issue to job ##{inspection_job_id}.",
-      link: "/vmcott/inventory_manager/parts_requests/#{id}",
-      user_id: inventory_manager_ids,
-      notification_type: 'info',
-      notifiable: self
-    )
-  end
 
-  # Status helper methods
-  def pending_approval?
-    status == 'pending_approval'
-  end
-  
-  def approved?
-    status == 'approved'
-  end
-  
-  def rejected?
-    status == 'rejected'
-  end
-  
-  def issued?
-    status == 'issued'
-  end
-  
-  def parts_coordinator_notified?
-    status == 'parts_coordinator_notified'
-  end
-  
-  def billing_notified?
-    status == 'billing_notified'
-  end
-  
-  def parts_ordered?
-    status == 'parts_ordered'
-  end
-  
-  def parts_received?
-    status == 'parts_received'
-  end
+  # =====================================================
+  # HELPER METHODS
+  # =====================================================
 
-  def part_name
-    part&.name || custom_part_name || "Unknown Part"
+  def available?
+    return false if custom?
+    return false unless part.present?
+    part.current_stock >= quantity
   end
 
   def custom?
@@ -190,150 +54,346 @@ class PartsRequest < ApplicationRecord
   end
 
   def in_stock?
-    return false if custom?  # Custom parts are never in stock
+    return false if custom?
     return false unless part.present?
     part.current_stock >= quantity
   end
 
-  def notify_coordinator!
-    update(status: :parts_coordinator_notified, notified_parts_coordinator_at: Time.current)
-    PartsCoordinatorNotificationJob.perform_later(id) if defined?(PartsCoordinatorNotificationJob)
+  def part_name
+    part&.name || custom_part_name || "Unknown Part"
   end
 
-  def notify_billing!
-    update(status: :billing_notified, notified_billing_at: Time.current)
-    BillingNotificationJob.perform_later(id) if defined?(BillingNotificationJob)
-  end
-
-  def create_rfq
-    rfq = VendorRfq.create!(
-      processing_agency_id: inspection.vehicle.agency_id,
-      status: 'draft',
-      notes: "Parts needed for inspection ##{inspection.id}: #{part_name}"
-    )
-    
-    rfq.vendor_rfq_items.create!(
-      part: part,
-      custom_part_name: custom_part_name,
-      quantity: quantity,
-      description: part_name
-    )
-    
-    rfq
-  end
-
-  def mark_parts_received!(invoice)
-    update!(
-      status: :parts_received,
-      parts_received_at: Time.current,
-      vendor_invoice: invoice
-    )
-    
-    # Update stock only for inventory parts
-    if inventory?
-      part.update!(current_stock: part.current_stock + quantity)
-    end
-    
-    inspection.check_parts_availability! if inspection.respond_to?(:check_parts_availability!)
-  end
-  
-  # Helper method to get the most recent RFQ for this parts request
-  def latest_rfq
-    return nil unless part.present?
-    return nil unless rfqs.any?
-    
-    rfqs.order(created_at: :desc).first
-  rescue => e
-    Rails.logger.error "Error in latest_rfq: #{e.message}"
-    nil
-  end
-  
-  # Helper method to check if there are any RFQs
-  def has_rfqs?
-    return false unless part.present?
-    rfqs.exists?
-  rescue => e
-    Rails.logger.error "Error in has_rfqs?: #{e.message}"
-    false
-  end
-  
-  # Helper method to get RFQ number if available
-  def rfq_number
-    latest_rfq&.rfq_number
-  end
-  
-  # Helper method to get the part number (for inventory parts)
-  def part_number
-    part&.part_number
-  end
-  
-  # Helper method to get the part's current stock
-  def current_stock
-    return 0 if custom? || part.nil?
-    part.current_stock
-  end
-  
-  # Helper method to get the shortfall quantity
   def shortfall_quantity
     return quantity if custom? || part.nil?
     [quantity - part.current_stock, 0].max
   end
-  
-  # Helper method to get status display for UI
-  def status_display
-    case status
-    when 'pending_approval'
-      'Pending Approval'
-    when 'approved'
-      'Approved'
-    when 'rejected'
-      'Rejected'
-    when 'issued'
-      'Issued to Mechanic'
-    when 'parts_coordinator_notified'
-      'With Coordinator'
-    when 'billing_notified'
-      'With Billing'
-    when 'rfq_sent'
-      'RFQ Sent'
-    when 'quotations_received'
-      'Quotes Received'
-    when 'finance_review'
-      'Finance Review'
-    when 'purchase_order_created'
-      'PO Created'
-    when 'parts_ordered'
-      'Ordered'
-    when 'parts_received'
-      'Received'
+
+  # =====================================================
+  # APPROVAL METHODS
+  # =====================================================
+
+  def approve!(user)
+    update!(
+      status: :approved,
+      approved_by: user,
+      approved_at: Time.current
+    )
+    
+    # Notify mechanic who requested the part
+    if inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: inspection_job.assigned_mechanic,
+          title: "Parts Request Approved",
+          message: "Your request for #{quantity}x #{part_name} has been approved by #{user.name}.",
+          link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+          notification_type: 'success',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify mechanic: #{e.message}"
+      end
+    end
+    
+    # Notify the requester if different from assigned mechanic
+    if requested_by.present? && requested_by != inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: requested_by,
+          title: "Parts Request Approved",
+          message: "Your parts request for #{quantity}x #{part_name} has been approved by #{user.name}.",
+          link: "/vmcott/mechanic/dashboard",
+          notification_type: 'success',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify requester: #{e.message}"
+      end
+    end
+    
+    # Check inventory - if in stock, notify inventory manager to issue
+    if in_stock?
+      notify_inventory_manager
     else
-      status.to_s.humanize
+      # Update status to needs_order and notify inventory manager to handle procurement
+      update!(status: :needs_order)
+      notify_inventory_manager_for_procurement
     end
   end
-  
-  # Helper method to get status badge class
+
+  def reject!(user, reason)
+    update!(
+      status: :rejected,
+      rejected_by: user,
+      rejected_at: Time.current,
+      rejection_reason: reason
+    )
+    
+    # Notify mechanic who requested the part
+    if inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: inspection_job.assigned_mechanic,
+          title: "Parts Request Rejected",
+          message: "Your request for #{quantity}x #{part_name} was rejected by #{user.name}. Reason: #{reason}",
+          link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+          notification_type: 'danger',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify mechanic: #{e.message}"
+      end
+    end
+    
+    # Notify the requester if different from assigned mechanic
+    if requested_by.present? && requested_by != inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: requested_by,
+          title: "Parts Request Rejected",
+          message: "Your parts request for #{quantity}x #{part_name} was rejected. Reason: #{reason}",
+          link: "/vmcott/mechanic/dashboard",
+          notification_type: 'danger',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify requester: #{e.message}"
+      end
+    end
+  end
+
+  def issue!(user)
+    update!(
+      status: :issued,
+      issued_by: user,
+      issued_at: Time.current
+    )
+    
+    # Update part stock
+    if inventory? && part.present?
+      part.update!(current_stock: part.current_stock - quantity)
+    end
+    
+    # Notify mechanic
+    if inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: inspection_job.assigned_mechanic,
+          title: "Parts Issued",
+          message: "#{quantity}x #{part_name} has been issued for job ##{inspection_job_id} by #{user.name}.",
+          link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+          notification_type: 'info',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify mechanic: #{e.message}"
+      end
+    end
+  end
+
+  def mark_ordered!(user, po_id = nil)
+    update!(
+      status: :ordered,
+      purchase_order_id: po_id,
+      ordered_at: Time.current
+    )
+    
+    # Notify procurement that order was placed
+    procurement_users = User.where(role: 'procurement')
+    if procurement_users.any?
+      begin
+        notification_data = {
+          user_id: procurement_users.pluck(:id),
+          title: "Parts Ordered",
+          message: "#{quantity}x #{part_name} has been ordered via PO ##{po_id}.",
+          notification_type: 'info',
+          notifiable: self
+        }
+        notification_data[:link] = "/vmcott/procurement/purchase_orders/#{po_id}" if po_id
+        Notification.create!(notification_data)
+      rescue => e
+        Rails.logger.error "Failed to notify procurement: #{e.message}"
+      end
+    end
+    
+    # Notify inventory manager
+    notify_inventory_manager_order_placed(po_id)
+  end
+
+  def mark_received!(user, invoice = nil)
+    update!(
+      status: :received,
+      parts_received_at: Time.current,
+      vendor_invoice: invoice
+    )
+    
+    # Update stock for inventory parts
+    if inventory? && part.present?
+      part.update!(current_stock: part.current_stock + quantity)
+    end
+    
+    # Notify mechanic
+    if inspection_job&.assigned_mechanic
+      begin
+        Notification.create!(
+          user: inspection_job.assigned_mechanic,
+          title: "Parts Received",
+          message: "#{quantity}x #{part_name} has been received and is ready for use.",
+          link: "/vmcott/mechanic/jobs/#{inspection_job_id}",
+          notification_type: 'success',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify mechanic: #{e.message}"
+      end
+    end
+    
+    # Notify inventory manager that parts are now in stock
+    notify_inventory_manager_parts_received
+    
+    # Check if all parts are now available
+    inspection.check_parts_availability! if inspection.respond_to?(:check_parts_availability!)
+  end
+
+  # =====================================================
+  # NOTIFICATION METHODS
+  # =====================================================
+
+  def notify_inventory_manager
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    
+    if inventory_manager_ids.any?
+      begin
+        Notification.create!(
+          user_id: inventory_manager_ids,
+          title: "Parts Ready to Issue",
+          message: "Part #{part_name} x#{quantity} is in stock and ready for issue to job ##{inspection_job_id}.",
+          link: "/vmcott/inventory_manager/parts_requests/#{id}",
+          notification_type: 'info',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify inventory managers: #{e.message}"
+      end
+    else
+      Rails.logger.warn "No inventory managers found. Cannot send notification for parts request ##{id}"
+    end
+  end
+
+  def notify_inventory_manager_for_procurement
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    
+    if inventory_manager_ids.any?
+      begin
+        Notification.create!(
+          user_id: inventory_manager_ids,
+          title: "Parts Need Ordering",
+          message: "Part #{part_name} x#{quantity} is not in stock. Please create a purchase order to procure these parts.",
+          link: "/vmcott/inventory_manager/parts_requests/#{id}",
+          notification_type: 'warning',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify inventory managers for procurement: #{e.message}"
+      end
+    else
+      Rails.logger.warn "No inventory managers found. Cannot send procurement notification for parts request ##{id}"
+    end
+  end
+
+  def notify_inventory_manager_order_placed(po_id)
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    
+    if inventory_manager_ids.any?
+      begin
+        Notification.create!(
+          user_id: inventory_manager_ids,
+          title: "Parts Order Placed",
+          message: "PO ##{po_id} has been created for #{quantity}x #{part_name}. Awaiting receipt.",
+          link: "/vmcott/inventory_manager/purchase_orders/#{po_id}",
+          notification_type: 'info',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify inventory managers: #{e.message}"
+      end
+    end
+  end
+
+  def notify_inventory_manager_parts_received
+    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
+    
+    if inventory_manager_ids.any?
+      begin
+        Notification.create!(
+          user_id: inventory_manager_ids,
+          title: "Parts Received",
+          message: "#{quantity}x #{part_name} has been received and added to inventory. Ready for issue.",
+          link: "/vmcott/inventory_manager/parts_requests/#{id}",
+          notification_type: 'success',
+          notifiable: self
+        )
+      rescue => e
+        Rails.logger.error "Failed to notify inventory managers: #{e.message}"
+      end
+    end
+  end
+
+  # =====================================================
+  # STATUS HELPERS
+  # =====================================================
+
+  def requested?
+    status == 'requested'
+  end
+
+  def approved?
+    status == 'approved'
+  end
+
+  def rejected?
+    status == 'rejected'
+  end
+
+  def needs_order?
+    status == 'needs_order'
+  end
+
+  def ordered?
+    status == 'ordered'
+  end
+
+  def received?
+    status == 'received'
+  end
+
+  def issued?
+    status == 'issued'
+  end
+
+  def status_display
+    case status
+    when 'requested' then 'Pending Approval'
+    when 'approved' then 'Approved'
+    when 'rejected' then 'Rejected'
+    when 'needs_order' then 'Needs Order - Awaiting PO Creation'
+    when 'ordered' then 'Ordered - Awaiting Delivery'
+    when 'received' then 'Received - Ready for Issue'
+    when 'issued' then 'Issued to Mechanic'
+    else status.to_s.humanize
+    end
+  end
+
   def status_badge_class
     case status
-    when 'pending_approval'
-      'warning'
-    when 'approved'
-      'success'
-    when 'rejected'
-      'danger'
-    when 'issued'
-      'info'
-    when 'parts_coordinator_notified', 'billing_notified'
-      'info'
-    when 'rfq_sent', 'quotations_received'
-      'primary'
-    when 'finance_review'
-      'dark'
-    when 'purchase_order_created', 'parts_ordered'
-      'secondary'
-    when 'parts_received'
-      'success'
-    else
-      'light'
+    when 'requested' then 'warning'
+    when 'approved' then 'success'
+    when 'rejected' then 'danger'
+    when 'needs_order' then 'danger'
+    when 'ordered' then 'primary'
+    when 'received' then 'success'
+    when 'issued' then 'info'
+    else 'secondary'
     end
   end
 end

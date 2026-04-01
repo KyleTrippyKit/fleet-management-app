@@ -2,25 +2,81 @@
 module WorkflowHelper
   def workflow_status_badge(status)
     badges = {
+      # Intake Phase
+      'draft' => 'bg-secondary',
       'pending_inspection' => 'bg-secondary',
+      
+      # Inspection Phase
+      'inspection_in_progress' => 'bg-info',
       'pending_mechanic_review' => 'bg-info',
-      'pending_parts_coordinator' => 'bg-primary',
+      
+      # Job Creation Phase
       'pending_supervisor_review' => 'bg-warning',
-      'pending_procurement_quotation' => 'bg-info',
-      'awaiting_client_approval' => 'bg-warning',
-      'approved_for_repair' => 'bg-success',
+      
+      # Quotation Phase
+      'awaiting_approval' => 'bg-warning',
+      'approved' => 'bg-primary',
+      
+      # Parts + Job Bundled Phase
+      'ready_for_work' => 'bg-success',
       'in_progress' => 'bg-primary',
-      'paused' => 'bg-warning',
-      'blocked' => 'bg-danger',
-      'rework_needed' => 'bg-danger',
-      'ready_for_qc' => 'bg-info',
+      
+      # Quality Control Phase
       'ready_for_pickup' => 'bg-success',
       'completed' => 'bg-success',
-      'closed' => 'bg-secondary',
-      'on_hold' => 'bg-dark'
+      'on_hold' => 'bg-danger',
+      'cancelled' => 'bg-secondary'
     }
     
-    content_tag(:span, status.humanize, class: "badge #{badges[status]}")
+    content_tag(:span, status.humanize, class: "badge #{badges[status] || 'bg-secondary'}")
+  end
+  
+  def workflow_step_indicator(current_status, step_name, step_status)
+    step_index = {
+      'draft' => 1,
+      'pending_inspection' => 2,
+      'inspection_in_progress' => 3,
+      'pending_mechanic_review' => 4,
+      'pending_supervisor_review' => 5,
+      'awaiting_approval' => 6,
+      'approved' => 7,
+      'ready_for_work' => 8,
+      'in_progress' => 9,
+      'ready_for_pickup' => 10,
+      'completed' => 11,
+      'on_hold' => 12,
+      'cancelled' => 13
+    }
+    
+    current_step = step_index[current_status] || 0
+    step_number = step_index[step_status] || 0
+    
+    if step_number < current_step
+      'completed'
+    elsif step_number == current_step
+      'current'
+    else
+      'pending'
+    end
+  end
+  
+  def workflow_progress_percentage(status)
+    percentages = {
+      'draft' => 0,
+      'pending_inspection' => 5,
+      'inspection_in_progress' => 10,
+      'pending_mechanic_review' => 20,
+      'pending_supervisor_review' => 30,
+      'awaiting_approval' => 40,
+      'approved' => 50,
+      'ready_for_work' => 60,
+      'in_progress' => 70,
+      'ready_for_pickup' => 90,
+      'completed' => 100,
+      'on_hold' => 50,
+      'cancelled' => 0
+    }
+    percentages[status] || 0
   end
   
   def workflow_type_label(type)
@@ -46,77 +102,128 @@ module WorkflowHelper
   
   def job_status_badge(status)
     badges = {
-      'pending_mechanic_review' => 'bg-secondary',
-      'pending_parts_review' => 'bg-info',
-      'pending_mechanic_work' => 'bg-info',
+      'pending' => 'bg-secondary',
+      'pending_approval' => 'bg-warning',
+      'approved' => 'bg-primary',
+      'assigned' => 'bg-info',
       'in_progress' => 'bg-primary',
-      'paused' => 'bg-warning',
       'blocked' => 'bg-danger',
       'rework_needed' => 'bg-danger',
+      'pending_qc' => 'bg-info',
+      'approved_qc' => 'bg-success',
       'completed' => 'bg-success'
     }
     
-    content_tag(:span, status.humanize, class: "badge #{badges[status]}")
+    content_tag(:span, status.humanize, class: "badge #{badges[status] || 'bg-secondary'}")
+  end
+  
+  def parts_request_status_badge(status)
+    badges = {
+      'pending_approval' => 'bg-warning',
+      'approved' => 'bg-success',
+      'rejected' => 'bg-danger',
+      'issued' => 'bg-info',
+      'parts_received' => 'bg-success',
+      'needs_order' => 'bg-danger',
+      'ordered' => 'bg-primary'
+    }
+    
+    content_tag(:span, status.humanize, class: "badge #{badges[status] || 'bg-secondary'}")
   end
   
   def can_start_job?(job)
-    job.can_start? && job.inspection.client_can_start_work?
+    job.status == 'approved' && job.inspection.ready_for_execution?
   end
   
   def can_pause_job?(job)
-    job.can_pause?
+    job.status == 'in_progress'
   end
   
   def can_complete_job?(job)
-    job.can_complete? && job.inspection.job_approved?(job.id)
+    job.status == 'in_progress' && job.work_completed?
   end
   
   def show_approval_checkboxes?(inspection)
-    inspection.awaiting_client_approval? || inspection.awaiting_client_approval_original? || inspection.awaiting_client_approval_additional?
+    inspection.status == 'awaiting_approval'
   end
   
   def progress_percentage(inspection)
-    total_jobs = inspection.inspection_jobs.count
-    return 0 if total_jobs == 0
-    
-    completed_jobs = inspection.inspection_jobs.where(status: 'completed').count
-    ((completed_jobs.to_f / total_jobs) * 100).round
+    workflow_progress_percentage(inspection.status)
   end
   
   def timeline_events(inspection)
     events = []
     
     events << {
-      date: inspection.received_at,
-      title: "Vehicle Received",
-      description: "Vehicle received at VMCOTT",
-      icon: "bi-box-arrow-in-right",
-      status: "completed"
+      date: inspection.created_at,
+      title: "Inspection Created",
+      description: "Inspection record created",
+      icon: "bi-file-earmark-plus",
+      status: inspection.status != 'draft' ? "completed" : "current"
     }
     
-    if inspection.no_work_needed?
+    if inspection.status != 'draft'
       events << {
-        date: inspection.completed_at,
-        title: "Inspection Complete",
-        description: "No work required",
-        icon: "bi-check-circle",
-        status: "completed"
+        date: inspection.updated_at,
+        title: "Pending Inspection",
+        description: "Ready for inspection",
+        icon: "bi-clock",
+        status: inspection.status != 'pending_inspection' ? "completed" : "current"
       }
-      return events
     end
     
-    if inspection.created_at.present?
+    if inspection.status != 'pending_inspection'
       events << {
-        date: inspection.created_at,
+        date: inspection.started_at || inspection.updated_at,
         title: "Inspection Started",
         description: "Technical inspection in progress",
         icon: "bi-search",
-        status: inspection.status != 'pending_inspection' ? "completed" : "in_progress"
+        status: inspection.status != 'inspection_in_progress' ? "completed" : "current"
       }
     end
     
-    if inspection.inspection_jobs.any?
-      completed_jobs = inspection.inspection_jobs.where.not(completed_at: nil).count
+    if inspection.status != 'inspection_in_progress' && inspection.status != 'pending_mechanic_review'
+      events << {
+        date: inspection.updated_at,
+        title: "Mechanic Review",
+        description: "Mechanic reviewing findings",
+        icon: "bi-wrench",
+        status: inspection.status != 'pending_mechanic_review' ? "completed" : "current"
+      }
+    end
+    
+    if inspection.status != 'pending_mechanic_review' && inspection.status != 'pending_supervisor_review'
+      events << {
+        date: inspection.updated_at,
+        title: "Supervisor Review",
+        description: "Supervisor reviewing jobs",
+        icon: "bi-clipboard-check",
+        status: inspection.status != 'pending_supervisor_review' ? "completed" : "current"
+      }
+    end
+    
+    if inspection.status != 'pending_supervisor_review' && inspection.status != 'awaiting_approval'
+      events << {
+        date: inspection.updated_at,
+        title: "Jobs Created",
+        description: "Jobs created for repair work",
+        icon: "bi-list-check",
+        status: inspection.status != 'awaiting_approval' ? "completed" : "current"
+      }
+    end
+    
+    if inspection.status != 'awaiting_approval' && inspection.status != 'approved'
+      events << {
+        date: inspection.updated_at,
+        title: "Customer Approval",
+        description: "Customer approved the work",
+        icon: "bi-check-circle",
+        status: inspection.status != 'approved' ? "completed" : "current"
+      }
+    end
+    
+    if inspection.inspection_jobs.any? && inspection.status != 'approved'
+      completed_jobs = inspection.inspection_jobs.where(status: 'completed').count
       total_jobs = inspection.inspection_jobs.count
       
       events << {
@@ -124,7 +231,7 @@ module WorkflowHelper
         title: "Repair Work",
         description: "#{completed_jobs} of #{total_jobs} repair jobs completed",
         icon: "bi-tools",
-        status: completed_jobs == total_jobs ? "completed" : "in_progress"
+        status: completed_jobs == total_jobs ? "completed" : "current"
       }
     end
     
@@ -144,7 +251,7 @@ module WorkflowHelper
         title: "Ready for Pickup",
         description: "Your vehicle is ready for pickup",
         icon: "bi-truck",
-        status: inspection.status == 'completed' ? "completed" : "in_progress"
+        status: inspection.status == 'completed' ? "completed" : "current"
       }
     end
     
@@ -159,5 +266,24 @@ module WorkflowHelper
     end
     
     events.sort_by { |t| t[:date] || Time.current }
+  end
+  
+  def rework_badge(inspection)
+    return unless inspection.rework_required
+    
+    content_tag(:span, "⚠️ Rework Required: #{inspection.rework_reason}", 
+                class: "badge bg-danger")
+  end
+  
+  def qc_status_badge(inspection)
+    if inspection.qc_passed_at.present?
+      content_tag(:span, "✅ QC Passed: #{inspection.qc_passed_at.strftime('%Y-%m-%d')}", 
+                  class: "badge bg-success")
+    elsif inspection.qc_failed_at.present?
+      content_tag(:span, "❌ QC Failed: #{inspection.qc_failure_reason}", 
+                  class: "badge bg-danger")
+    else
+      content_tag(:span, "⏳ QC Pending", class: "badge bg-warning")
+    end
   end
 end

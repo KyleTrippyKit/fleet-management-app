@@ -12,6 +12,9 @@
 # ADDED: Admin event dashboard routes
 # ADDED: Job management routes for workshop supervisor
 # ADDED: Workflow selection routes for workshop supervisor
+# ADDED: Enhanced inspection management routes with QC and rework approval
+# ADDED: Mechanic diagnosis routes (Phase 3)
+# ADDED: Parts approval routes for workshop supervisor
 
 Rails.application.routes.draw do
   get "/stimulus-test", to: "stimulus_test#index"
@@ -283,7 +286,7 @@ Rails.application.routes.draw do
       post "send_rfq/:id", to: redirect("/vmcott/procurement/send_rfq/%{id}")
     end
 
-    # 5. MECHANIC (UPDATED with Task Management)
+    # 5. MECHANIC (UPDATED with Task Management and Diagnosis routes)
     namespace :mechanic do
       get "dashboard", to: "dashboard#index", as: :dashboard
       get "job/:id", to: "dashboard#show_job", as: :job
@@ -291,6 +294,13 @@ Rails.application.routes.draw do
       post "job/:id/start", to: "dashboard#start_job", as: :start_job
       post "job/:id/progress", to: "dashboard#update_progress", as: :update_progress
       post "job/:id/request_qc", to: "dashboard#request_qc", as: :request_qc
+      
+      # ========================
+      # ✅ PHASE 3: DIAGNOSIS ROUTES (NEW)
+      # ========================
+      get 'diagnosis', to: 'diagnosis#index', as: :diagnosis
+      get 'diagnosis/:id', to: 'diagnosis#show', as: :diagnosis_show
+      post 'diagnosis/:inspection_id/create', to: 'diagnosis#create', as: :create_diagnosis
       
       # ========================
       # TASK MANAGEMENT ROUTES
@@ -396,6 +406,8 @@ Rails.application.routes.draw do
 
     # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, parts request review, and workflow selection)
     namespace :workshop_supervisor do
+      get 'inspections/:id/job_creation', to: 'dashboard#job_creation', as: :job_creation
+      post 'inspections/:id/create_jobs', to: 'dashboard#create_jobs', as: :create_jobs
       get 'dashboard', to: 'dashboard#index', as: :dashboard
       get 'tasks', to: 'dashboard#tasks', as: :tasks
       get 'tasks/:id', to: 'dashboard#task_show', as: :task
@@ -422,7 +434,9 @@ Rails.application.routes.draw do
       post 'jobs/:id/approve_pre_check', to: 'dashboard#approve_pre_check', as: :approve_pre_check
       post 'jobs/:id/reject_pre_check', to: 'dashboard#reject_pre_check', as: :reject_pre_check
       
-      # Parts request routes
+      # ========================
+      # ✅ PARTS REQUEST ROUTES (NEW)
+      # ========================
       get 'parts_requests/:id/review', to: 'dashboard#review_parts_request', as: :review_parts_request
       post 'parts_requests/:id/approve', to: 'dashboard#approve_parts_request', as: :approve_parts_request
       post 'parts_requests/:id/reject', to: 'dashboard#reject_parts_request', as: :reject_parts_request
@@ -431,7 +445,7 @@ Rails.application.routes.draw do
       # WORKFLOW SELECTION ROUTES
       # ========================
       get 'inspections/:id/select_workflow', to: 'dashboard#select_workflow', as: :select_workflow
-      post 'inspections/:id/process_workflow_selection', to: 'dashboard#select_workflow', as: :process_workflow_selection
+      post 'inspections/:id/process_workflow_selection', to: 'dashboard#process_workflow_selection', as: :process_workflow_selection
       get 'inspections/:id/review_workflow', to: 'dashboard#review_workflow_selection', as: :review_workflow
       get 'workflow_pending', to: 'dashboard#workflow_pending', as: :workflow_pending
       get 'workflow_selections', to: 'dashboard#workflow_selections', as: :workflow_selections
@@ -463,9 +477,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Inspection review routes for workshop supervisor
-      resources :inspections, only: [] do
+      # ========================
+      # INSPECTION MANAGEMENT ROUTES
+      # ========================
+      resources :inspections, only: [:show] do
         member do
+          # Status management
+          patch :update_inspection_status
+          patch :approve_rework
+          
+          # Quality Control
+          get :qc
+          post :pass_qc
+          post :fail_qc
+          
+          # Existing review routes
           get :review
           patch :update_jobs
           post :approve
