@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_01_045002) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_01_174243) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -410,6 +410,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_045002) do
     t.index ["verified_by_mechanic_id"], name: "index_inspection_jobs_on_verified_by_mechanic_id"
     t.index ["work_order_id"], name: "index_inspection_jobs_on_work_order_id"
     t.check_constraint "status::text = ANY (ARRAY['pending_supervisor_review'::character varying, 'approved'::character varying, 'assigned'::character varying, 'pre_check_in_progress'::character varying, 'pre_check_completed'::character varying, 'pending_approval'::character varying, 'in_progress'::character varying, 'blocked'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])", name: "job_status_check_v2"
+  end
+
+  create_table "inspection_recommendations", force: :cascade do |t|
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.datetime "converted_at"
+    t.integer "converted_by_id"
+    t.bigint "converted_to_job_id"
+    t.datetime "created_at", null: false
+    t.text "description", null: false
+    t.decimal "estimated_hours", precision: 5, scale: 2
+    t.string "finding_type", null: false
+    t.bigint "inspection_id", null: false
+    t.jsonb "metadata", default: {}
+    t.text "notes"
+    t.string "priority", default: "normal"
+    t.datetime "rejected_at"
+    t.text "rejection_reason"
+    t.string "status", default: "pending"
+    t.bigint "suggested_by_id"
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_inspection_recommendations_on_approved_by_id"
+    t.index ["converted_to_job_id"], name: "index_inspection_recommendations_on_converted_to_job_id"
+    t.index ["inspection_id", "status"], name: "index_inspection_recommendations_on_inspection_id_and_status"
+    t.index ["inspection_id"], name: "index_inspection_recommendations_on_inspection_id"
+    t.index ["status", "priority"], name: "index_inspection_recommendations_on_status_and_priority"
+    t.index ["suggested_by_id"], name: "index_inspection_recommendations_on_suggested_by_id"
   end
 
   create_table "inspections", force: :cascade do |t|
@@ -1960,6 +1987,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_045002) do
   add_foreign_key "inspection_jobs", "users", column: "created_by_id"
   add_foreign_key "inspection_jobs", "users", column: "updated_by_id"
   add_foreign_key "inspection_jobs", "work_orders"
+  add_foreign_key "inspection_recommendations", "inspection_jobs", column: "converted_to_job_id"
+  add_foreign_key "inspection_recommendations", "inspections"
+  add_foreign_key "inspection_recommendations", "users", column: "approved_by_id"
+  add_foreign_key "inspection_recommendations", "users", column: "suggested_by_id"
   add_foreign_key "inspections", "purchase_orders"
   add_foreign_key "inspections", "users", column: "assigned_mechanic_id"
   add_foreign_key "inspections", "users", column: "created_by_id"

@@ -254,8 +254,8 @@ class ScreensaverController < ApplicationController
       @pending_inspections = Inspection.where(agency_id: @current_user.agency_id)
                                        .where(status: 'pending_inspection')
                                        .count
-      @pending_qc = Inspection.where(agency_id: @current_user.agency_id)
-                              .where(status: 'pending_qc')
+      @qc_pending = Inspection.where(agency_id: @current_user.agency_id)
+                              .where(status: 'qc_pending')
                               .count
       @inspections_today = Inspection.where(agency_id: @current_user.agency_id)
                                      .where('completed_at > ?', Time.current.beginning_of_day)
@@ -267,7 +267,7 @@ class ScreensaverController < ApplicationController
     rescue => e
       Rails.logger.error("Error loading inspector stats: #{e.message}")
       @pending_inspections = 0
-      @pending_qc = 0
+      @qc_pending = 0
       @inspections_today = 0
       @vehicles_with_issues = 0
     end

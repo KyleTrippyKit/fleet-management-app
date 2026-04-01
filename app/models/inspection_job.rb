@@ -98,7 +98,7 @@ class InspectionJob < ApplicationRecord
   scope :needs_approval, -> { where(status: :pre_check_completed) }
   
   # NEW: QC Scopes
-  scope :pending_qc, -> { where(status: :qc_pending) }
+  scope :qc_pending, -> { where(status: :qc_pending) }
   scope :in_qc, -> { where(status: :qc_in_progress) }
   scope :qc_passed, -> { where(status: :qc_passed) }
   scope :qc_failed, -> { where(status: :qc_failed) }

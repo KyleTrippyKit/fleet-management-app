@@ -42,23 +42,35 @@
             <thead class="bg-light">
               <tr>
                 <th class="border-0 py-3">#</th>
+                <th class="border-0 py-3">Inspection ID</th>
                 <th class="border-0 py-3">License Plate</th>
                 <th class="border-0 py-3">Vehicle Details</th>
                 <th class="border-0 py-3">Received</th>
                 <th class="border-0 py-3 text-end">Action</th>
                </thead>
               <tbody>
-                <% @pending_inspections.each_with_index do |log, index| %>
-                  <tr>
+                <% @pending_inspections.each_with_index do |inspection, index| %>
+                  <tr class="<%= 'table-warning' if inspection.created_at > 1.hour.ago %>">
                     <td class="text-muted">#<%= index + 1 %></td>
-                    <td class="fw-semibold"><span class="badge bg-secondary text-white px-3 py-2"><%= log.vehicle&.license_plate || "Unknown" %></span></td>
-                    <td>
-                      <div><%= log.vehicle&.make %> <%= log.vehicle&.model %></div>
-                      <small class="text-muted"><%= log.vehicle&.color %> • <%= log.vehicle&.year_of_manufacture %></small>
+                    <td class="fw-semibold">#<%= inspection.id %></td>
+                    <td class="fw-semibold">
+                      <span class="badge bg-secondary text-white px-3 py-2">
+                        <%= inspection.vehicle&.license_plate || "Unknown" %>
+                      </span>
                     </td>
-                    <td><span class="badge bg-light text-dark border px-3 py-2"><%= time_ago_in_words(log.received_at) %> ago</span></td>
+                    <td>
+                      <div><%= inspection.vehicle&.make %> <%= inspection.vehicle&.model %></div>
+                      <small class="text-muted"><%= inspection.vehicle&.color %> • <%= inspection.vehicle&.year_of_manufacture %></small>
+                    </td>
+                    <td>
+                      <span class="badge bg-light text-dark border px-3 py-2">
+                        <%= time_ago_in_words(inspection.created_at) %> ago
+                      </span>
+                      <small class="d-block text-muted"><%= inspection.created_at.strftime("%I:%M %p") %></small>
+                    </td>
                     <td class="text-end">
-                      <%= link_to "Start Inspection", vmcott_inspector_pre_inspection_path(log.vehicle_id), class: "btn btn-primary btn-sm px-4 rounded-pill" %>
+                      <%= link_to "Start Inspection", vmcott_inspector_pre_inspection_path(inspection.vehicle_id), 
+                            class: "btn btn-primary btn-sm px-4 rounded-pill" %>
                     </td>
                   </tr>
                 <% end %>
@@ -70,6 +82,28 @@
             <i class="bi bi-check-circle-fill text-success fs-1 mb-3 d-block"></i>
             <h6 class="text-muted">No vehicles waiting for inspection</h6>
             <p class="small text-muted">All vehicles have been processed</p>
+            <% if @recent_checkins&.any? %>
+              <div class="alert alert-info mt-3 text-start">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Recently checked in (last 24 hours):</strong>
+                <ul class="mt-2 mb-0">
+                  <% @recent_checkins.each do |log| %>
+                    <li>
+                      <%= log.vehicle&.license_plate %> - 
+                      <%= time_ago_in_words(log.received_at) %> ago
+                      <% if log.inspection %>
+                        <span class="badge bg-success ms-2">✓ Inspection #<%= log.inspection.id %></span>
+                      <% else %>
+                        <span class="badge bg-danger ms-2">⚠️ Missing inspection</span>
+                      <% end %>
+                    </li>
+                  <% end %>
+                </ul>
+              </div>
+            <% end %>
+            <div class="mt-3">
+              <%= link_to "Go to Security Gate", vmcott_security_gate_officer_dashboard_path, class: "btn btn-outline-primary btn-sm rounded-pill" %>
+            </div>
           </div>
         <% end %>
       </div>
@@ -180,18 +214,6 @@
             qc_pending_count = @qc_pending&.count.to_i
             approved_for_repair = Inspection.where(status: 'approved_for_repair').count.to_i
             ready_for_pickup = Inspection.where(status: 'ready_for_pickup').count.to_i
-            
-            current_step = if pending_inspections > 0
-              'inspection'
-            elsif inspections_in_progress > 0
-              'in_progress'
-            elsif qc_pending_count > 0
-              'qc'
-            elsif approved_for_repair > 0
-              'approved'
-            else
-              'pickup'
-            end
             
             avg_inspection_time = 45
             estimated_wait = (pending_inspections * avg_inspection_time) / 60

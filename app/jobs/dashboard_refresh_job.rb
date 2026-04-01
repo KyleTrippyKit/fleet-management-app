@@ -16,7 +16,7 @@ class DashboardRefreshJob < ApplicationJob
     if user.agency&.code == 'VMCOTT'
       if user.inspector?
         counts[:pending_inspections] = Inspection.where(status: 'pending_inspection').count
-        counts[:pending_qc] = Inspection.where(status: 'ready_for_qc').count
+        counts[:qc_pending] = Inspection.where(status: 'ready_for_qc').count
       end
       
       if user.inventory_manager?

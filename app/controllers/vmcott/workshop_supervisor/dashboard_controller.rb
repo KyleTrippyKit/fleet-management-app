@@ -140,6 +140,59 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   end
 
   # =====================================================
+  # 🔥 NEW: RECOMMENDATION METHODS (Phase 3.5)
+  # =====================================================
+
+  def recommendations
+    @inspection = Inspection.find(params[:inspection_id])
+    @recommendations = @inspection.inspection_recommendations.pending_review
+    @approved_recommendations = @inspection.inspection_recommendations.approved_but_not_converted
+    @mechanics = User.where(role: 'mechanic').active if User.respond_to?(:active)
+    @mechanics ||= User.where(role: 'mechanic')
+    
+    disable_all_caching
+  end
+
+  def approve_recommendation
+    @recommendation = InspectionRecommendation.find(params[:id])
+    
+    if @recommendation.approve!(current_user)
+      flash[:notice] = "Recommendation approved. You can now convert it to a job."
+    else
+      flash[:alert] = "Failed to approve recommendation."
+    end
+    
+    redirect_to vmcott_workshop_supervisor_recommendations_path(@recommendation.inspection)
+  end
+
+  def reject_recommendation
+    @recommendation = InspectionRecommendation.find(params[:id])
+    reason = params[:reason] || "Not approved at this time"
+    
+    if @recommendation.reject!(current_user, reason)
+      flash[:notice] = "Recommendation rejected."
+    else
+      flash[:alert] = "Failed to reject recommendation."
+    end
+    
+    redirect_to vmcott_workshop_supervisor_recommendations_path(@recommendation.inspection)
+  end
+
+  def convert_recommendation_to_job
+    @recommendation = InspectionRecommendation.find(params[:id])
+    
+    if @recommendation.can_convert_to_job?
+      job = @recommendation.convert_to_job!(current_user)
+      
+      flash[:notice] = "✅ Job created from recommendation: #{job.description}"
+      redirect_to vmcott_workshop_supervisor_job_path(job)
+    else
+      flash[:alert] = "Cannot convert this recommendation to a job."
+      redirect_to vmcott_workshop_supervisor_recommendations_path(@recommendation.inspection)
+    end
+  end
+
+  # =====================================================
   # WORKFLOW SELECTION METHODS
   # =====================================================
 
@@ -572,14 +625,33 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   end
 
   # =====================================================
-  # PHASE 4: JOB CREATION (From mechanic diagnosis)
+  # 🔥 UPDATED: PHASE 4 - JOB CREATION (Shows both inspector AND mechanic findings)
   # =====================================================
 
   def job_creation
     @inspection = Inspection.find(params[:id])
-    @findings = @inspection.findings.where(finding_type: 'mechanic_diagnosis')
+    
+    # Load INSPECTOR recommendations
+    @inspector_recommendations = @inspection.inspection_recommendations
+                                             .where(status: 'pending')
+                                             .order(priority: :desc, created_at: :desc)
+    
+    # Load MECHANIC diagnosis findings
+    @mechanic_findings = @inspection.findings
+                                     .where(finding_type: ['mechanic_diagnosis', 'diagnosis'])
+                                     .where(status: ['pending', 'pending_review'])
+                                     .order(created_at: :desc)
+    
+    # For backward compatibility, also set @findings to mechanic findings
+    @findings = @mechanic_findings
+    
     @mechanics = User.where(role: 'mechanic').order(:name)
     @job_templates = JobTemplate.active if defined?(JobTemplate)
+
+    # Log for debugging
+    Rails.logger.info "Job Creation - Inspection #{@inspection.id}:"
+    Rails.logger.info "  - Inspector recommendations: #{@inspector_recommendations.count}"
+    Rails.logger.info "  - Mechanic findings: #{@mechanic_findings.count}"
 
     disable_all_caching
   end
@@ -588,50 +660,86 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @inspection = Inspection.find(params[:id])
 
     ActiveRecord::Base.transaction do
-      # Create jobs from form data
-      if params[:jobs].present?
-        params[:jobs].each do |job_params|
+      created_jobs = []
+      
+      # Process inspector recommendations
+      if params[:inspector_recommendations].present?
+        params[:inspector_recommendations].each do |rec_id, rec_data|
+          next unless rec_data[:include] == 'true'
+          
+          recommendation = InspectionRecommendation.find(rec_id)
           job = @inspection.inspection_jobs.create!(
-            description: job_params[:description],
-            assigned_mechanic_id: job_params[:mechanic_id],
-            estimated_hours: job_params[:estimated_hours],
-            priority: job_params[:priority] || 'normal',
-            status: 'approved'
+            description: rec_data[:description] || recommendation.description,
+            estimated_hours: rec_data[:estimated_hours] || recommendation.estimated_hours || 1,
+            status: 'pending',
+            recommendation_source: 'inspector',
+            priority: rec_data[:priority] || recommendation.priority || 'normal'
           )
-
-          # Link findings to jobs
-          if job_params[:finding_ids].present?
-            job_params[:finding_ids].each do |finding_id|
-              Finding.find(finding_id).update!(inspection_job_id: job.id)
-            end
-          end
-
-          # Create parts requests
-          if job_params[:parts].present?
-            job_params[:parts].each do |part_params|
-              PartsRequest.create!(
-                inspection_job_id: job.id,
-                inspection_id: @inspection.id,
-                part_id: part_params[:part_id],
-                quantity: part_params[:quantity],
-                status: 'requested',
-                unit_price: part_params[:unit_price],
-                requested_by: current_user
-              )
-            end
+          created_jobs << job
+        end
+      end
+      
+      # Process mechanic findings
+      if params[:mechanic_findings].present?
+        params[:mechanic_findings].each do |finding_id, finding_data|
+          next unless finding_data[:include] == 'true'
+          
+          finding = Finding.find(finding_id)
+          job = @inspection.inspection_jobs.create!(
+            description: finding_data[:description] || finding.description,
+            estimated_hours: finding_data[:estimated_hours] || finding.metadata&.[]('estimated_hours') || 1,
+            status: 'pending',
+            recommendation_source: 'mechanic',
+            priority: finding_data[:priority] || finding.priority || 'normal'
+          )
+          created_jobs << job
+          
+          # Update finding status
+          finding.update!(status: 'converted_to_job', inspection_job_id: job.id)
+        end
+      end
+      
+      # Process custom jobs from template or manual entry
+      if params[:jobs].present?
+        params[:jobs].each do |job_data|
+          next if job_data[:description].blank?
+          
+          job = @inspection.inspection_jobs.create!(
+            description: job_data[:description],
+            estimated_hours: job_data[:estimated_hours] || 1,
+            status: 'pending',
+            priority: job_data[:priority] || 'normal',
+            recommendation_source: 'supervisor'
+          )
+          created_jobs << job
+          
+          # Assign mechanic if specified
+          if job_data[:mechanic_id].present?
+            job.update!(assigned_mechanic_id: job_data[:mechanic_id])
+          elsif params[:default_mechanic_id].present?
+            job.update!(assigned_mechanic_id: params[:default_mechanic_id])
           end
         end
       end
-
-      # Set inspection to approved so mechanic can see it
-      @inspection.update!(status: 'approved')
-
-      flash[:notice] = "✅ Jobs created and ready for mechanics."
+      
+      if created_jobs.any?
+        # Update inspection status
+        @inspection.update!(
+          status: 'jobs_created',
+          jobs_created_at: Time.current
+        )
+        
+        flash[:notice] = "✅ Successfully created #{created_jobs.count} job(s) from #{@inspector_recommendations.count} inspector recommendations and #{@mechanic_findings.count} mechanic findings."
+      else
+        flash[:alert] = "No jobs were created. Please add at least one job."
+        redirect_to vmcott_workshop_supervisor_job_creation_path(@inspection) and return
+      end
     end
-
+    
     redirect_to vmcott_workshop_supervisor_dashboard_path
   rescue => e
     Rails.logger.error "Error creating jobs: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Error creating jobs: #{e.message}"
     redirect_to vmcott_workshop_supervisor_job_creation_path(@inspection)
   end
@@ -1547,20 +1655,21 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       end
 
       @job.update!(
-        status: 'pending_qc',
+        status: 'qc_pending',
         qc_requested_at: Time.current,
         qc_requested_by: current_user
       )
 
-      qc_users = User.where(role: ['inspector', 'quality_control', 'admin'])
-      Notification.create!(
-        user: qc_users,
-        title: "Job Ready for QC",
-        message: "Job ##{@job.id} is ready for quality control review",
-        link: vmcott_workshop_supervisor_job_path(@job),
-        notification_type: 'info',
-        notifiable: @job
-      )
+      qc_users.find_each do |user|
+        Notification.create!(
+          user: user,
+          title: "Job Ready for QC",
+          message: "Job ##{@job.id} is ready for quality control review",
+          link: vmcott_workshop_supervisor_job_path(@job),
+          notification_type: 'info',
+          notifiable: @job
+        )
+      end
 
       flash[:notice] = "Job sent to Quality Control."
     else
@@ -1573,7 +1682,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   def pass_qc
     @job = InspectionJob.find(params[:id])
 
-    if @job.status == 'pending_qc'
+    if @job.status == 'qc_pending'
       # Update MechanicAssignment with QC result
       assignment = MechanicAssignment.find_by(inspection_job: @job)
       if assignment
@@ -1614,7 +1723,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @job = InspectionJob.find(params[:id])
     reason = params[:rework_instructions] || "Quality control failed"
 
-    if @job.status == 'pending_qc'
+    if @job.status == 'qc_pending'
       # Update MechanicAssignment with QC failure
       assignment = MechanicAssignment.find_by(inspection_job: @job)
       if assignment

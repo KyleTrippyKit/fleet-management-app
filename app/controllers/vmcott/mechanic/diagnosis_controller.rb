@@ -3,7 +3,8 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
   before_action :authenticate_user!
   before_action :require_mechanic
   before_action :set_inspection, only: [:show, :create]
-  
+  before_action :disable_caching
+
   def index
     @pending_diagnosis = Inspection.where(status: "inspected")
                                    .where(diagnosis_completed_at: nil)
@@ -11,10 +12,28 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
                                    .order(created_at: :asc)
                                    .page(params[:page])
                                    .per(20)
+    
+    # For the dashboard display
+    @pending_diagnosis_count = @pending_diagnosis.total_count
+    
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def show
     @inspector_findings = @inspection.findings.where(finding_type: 'inspector')
+    @inspector_recommendations = @inspection.inspection_recommendations
+    
+    # Set headers to prevent caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render layout: 'application'
   end
   
   def create
@@ -38,6 +57,7 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
             next unless finding.is_a?(Hash)
             next if finding[:description].blank?
             
+            # Create finding with proper metadata
             @inspection.findings.create!(
               description: finding[:description],
               finding_type: 'mechanic_diagnosis',
@@ -58,7 +78,8 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
         update_result = @inspection.update(
           status: 'diagnosed',
           diagnosis_notes: params[:diagnosis_notes],
-          diagnosis_completed_at: Time.current
+          diagnosis_completed_at: Time.current,
+          assigned_mechanic: current_user
         )
         
         unless update_result
@@ -77,6 +98,9 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
             notification_type: 'info'
           )
         end
+        
+        # Log success
+        Rails.logger.info "✅ Diagnosis completed for inspection ##{@inspection.id} by #{current_user.name}"
         
         flash[:notice] = "✅ Diagnosis completed successfully! Supervisor will now create jobs."
         redirect_to vmcott_mechanic_dashboard_path and return
@@ -102,7 +126,13 @@ class Vmcott::Mechanic::DiagnosisController < ApplicationController
   
   def require_mechanic
     unless current_user.role == 'mechanic' || current_user.admin?
-      redirect_to root_path, alert: "Access denied."
+      redirect_to root_path, alert: "Access denied. Mechanic privileges required."
     end
+  end
+  
+  def disable_caching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 end

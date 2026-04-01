@@ -1,4 +1,3 @@
-# app/models/inspection.rb
 class Inspection < ApplicationRecord
   include Auditable
   
@@ -15,6 +14,7 @@ class Inspection < ApplicationRecord
   has_many :parts_requests, dependent: :destroy
   has_many :quotations, dependent: :nullify
   has_many :findings, dependent: :destroy
+  has_many :inspection_recommendations, dependent: :destroy
 
   # =========================
   # SIMPLIFIED STATUS ENGINE (14-STEP WORKFLOW)
@@ -46,7 +46,7 @@ class Inspection < ApplicationRecord
   attribute :labor_rate, :decimal, precision: 10, scale: 2
   attribute :parts_markup_percentage, :integer, default: 30
   attribute :diagnosis_notes, :text
-  attribute :diagnosis_completed_at, :datetime  # ✅ This column exists in DB
+  attribute :diagnosis_completed_at, :datetime
   attribute :qc_passed_at, :datetime
   attribute :qc_inspector_id, :integer
   attribute :qc_notes, :text
@@ -89,6 +89,32 @@ class Inspection < ApplicationRecord
 
   def all_jobs_completed?
     inspection_jobs.where(status: 'completed').count == inspection_jobs.count
+  end
+
+  # =========================
+  # 🔥 NEW: PARTS USAGE METHODS (Fixes the view error)
+  # =========================
+
+  def total_parts_used
+    # Sum all quantities from parts_requests that have been used/approved
+    parts_requests.where(status: ['approved', 'received']).sum(:quantity).to_i
+  end
+
+  def parts_used_list
+    # Get list of part names used
+    parts_requests.where(status: ['approved', 'received']).map do |pr|
+      pr.part&.name || pr.custom_part_name || "Unknown Part"
+    end.uniq
+  end
+
+  def parts_used_display
+    # Format the parts used list for display
+    parts_used_list.first(3).join(', ') + (parts_used_list.size > 3 ? " + #{parts_used_list.size - 3} more" : "")
+  end
+
+  # Alternative method for backward compatibility
+  def total_parts_used_count
+    total_parts_used
   end
 
   # =========================
@@ -188,35 +214,46 @@ class Inspection < ApplicationRecord
   end
 
   # =========================
-  # NOTIFICATION HELPERS
+  # NOTIFICATION HELPERS (FIXED - Individual Notifications)
   # =========================
 
   def notify_mechanics_for_diagnosis
-    mechanic_ids = User.where(role: 'mechanic').pluck(:id)
-    Notification.create!(
-      user_id: mechanic_ids,
-      title: "🔧 Diagnosis Required",
-      message: "Vehicle #{vehicle.license_plate} needs diagnosis",
-      link: "/vmcott/mechanic/diagnosis/#{id}",
-      notifiable: self,
-      notification_type: 'info'
-    )
+    # Find all mechanics
+    mechanics = User.where(role: 'mechanic')
+    
+    # Create a notification for each mechanic individually
+    mechanics.find_each do |mechanic|
+      Notification.create!(
+        user: mechanic,
+        title: "🔧 Diagnosis Required",
+        message: "Vehicle #{vehicle.license_plate} needs diagnosis",
+        link: "/vmcott/mechanic/diagnosis/#{id}",
+        notifiable: self,
+        notification_type: 'info'
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to notify mechanics: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
   end
 
   def notify_supervisor_for_job_creation
-    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
-    Notification.create!(
-      user_id: supervisor_ids,
-      title: "📋 Job Creation Required",
-      message: "Diagnosis complete for #{vehicle.license_plate}",
-      link: "/vmcott/workshop_supervisor/inspections/#{id}/job_creation",
-      notifiable: self,
-      notification_type: 'info'
-    )
+    # Find all workshop supervisors
+    supervisors = User.where(role: 'workshop_supervisor')
+    
+    supervisors.find_each do |supervisor|
+      Notification.create!(
+        user: supervisor,
+        title: "📋 Job Creation Required",
+        message: "Diagnosis complete for #{vehicle.license_plate}",
+        link: "/vmcott/workshop_supervisor/inspections/#{id}/job_creation",
+        notifiable: self,
+        notification_type: 'info'
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to notify supervisor: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
   end
 
   def notify_customer_for_approval
@@ -225,29 +262,36 @@ class Inspection < ApplicationRecord
 
   def notify_mechanics_work_ready
     if assigned_mechanic_id.present?
-      Notification.create!(
-        user_id: assigned_mechanic_id,
-        title: "🚨 Work Ready",
-        message: "Work approved for #{vehicle.license_plate}",
-        link: "/vmcott/mechanic/jobs",
-        notifiable: self,
-        notification_type: 'success'
-      )
+      mechanic = User.find_by(id: assigned_mechanic_id)
+      if mechanic
+        Notification.create!(
+          user: mechanic,
+          title: "🚨 Work Ready",
+          message: "Work approved for #{vehicle.license_plate}",
+          link: "/vmcott/mechanic/jobs",
+          notifiable: self,
+          notification_type: 'success'
+        )
+      end
     end
   rescue => e
     Rails.logger.error "Failed to notify mechanic: #{e.message}"
   end
 
   def notify_qc_inspector
-    inspector_ids = User.where(role: 'inspector').pluck(:id)
-    Notification.create!(
-      user_id: inspector_ids,
-      title: "✅ QC Required",
-      message: "Work completed for #{vehicle.license_plate}",
-      link: "/vmcott/inspector/qc/#{id}",
-      notifiable: self,
-      notification_type: 'info'
-    )
+    # Find all inspectors
+    inspectors = User.where(role: 'inspector')
+    
+    inspectors.find_each do |inspector|
+      Notification.create!(
+        user: inspector,
+        title: "✅ QC Required",
+        message: "Work completed for #{vehicle.license_plate}",
+        link: "/vmcott/inspector/qc/#{id}",
+        notifiable: self,
+        notification_type: 'info'
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to notify QC inspector: #{e.message}"
   end
@@ -257,29 +301,36 @@ class Inspection < ApplicationRecord
   end
 
   def notify_billing_for_invoice
-    billing_ids = User.where(role: ['procurement', 'finance']).pluck(:id)
-    Notification.create!(
-      user_id: billing_ids,
-      title: "💰 Invoice Required",
-      message: "Vehicle #{vehicle.license_plate} passed QC",
-      link: "/vmcott/finance/invoices/new?inspection_id=#{id}",
-      notifiable: self,
-      notification_type: 'info'
-    )
+    # Find billing/finance users
+    billing_users = User.where(role: ['procurement', 'finance'])
+    
+    billing_users.find_each do |user|
+      Notification.create!(
+        user: user,
+        title: "💰 Invoice Required",
+        message: "Vehicle #{vehicle.license_plate} passed QC",
+        link: "/vmcott/finance/invoices/new?inspection_id=#{id}",
+        notifiable: self,
+        notification_type: 'info'
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to notify billing: #{e.message}"
   end
 
   def notify_supervisor_completion
-    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
-    Notification.create!(
-      user_id: supervisor_ids,
-      title: "✅ Vehicle Completed",
-      message: "#{vehicle.license_plate} has been completed",
-      link: "/vmcott/workshop_supervisor/inspections/#{id}",
-      notifiable: self,
-      notification_type: 'success'
-    )
+    supervisors = User.where(role: 'workshop_supervisor')
+    
+    supervisors.find_each do |supervisor|
+      Notification.create!(
+        user: supervisor,
+        title: "✅ Vehicle Completed",
+        message: "#{vehicle.license_plate} has been completed",
+        link: "/vmcott/workshop_supervisor/inspections/#{id}",
+        notifiable: self,
+        notification_type: 'success'
+      )
+    end
   rescue => e
     Rails.logger.error "Failed to notify supervisor: #{e.message}"
   end

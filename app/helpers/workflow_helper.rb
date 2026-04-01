@@ -109,7 +109,7 @@ module WorkflowHelper
       'in_progress' => 'bg-primary',
       'blocked' => 'bg-danger',
       'rework_needed' => 'bg-danger',
-      'pending_qc' => 'bg-info',
+      'qc_pending' => 'bg-info',
       'approved_qc' => 'bg-success',
       'completed' => 'bg-success'
     }

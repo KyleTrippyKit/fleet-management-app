@@ -15,6 +15,7 @@
 # ADDED: Enhanced inspection management routes with QC and rework approval
 # ADDED: Mechanic diagnosis routes (Phase 3)
 # ADDED: Parts approval routes for workshop supervisor
+# ADDED: Recommendation routes for inspector (Phase 3.5)
 
 Rails.application.routes.draw do
   get "/stimulus-test", to: "stimulus_test#index"
@@ -440,6 +441,14 @@ Rails.application.routes.draw do
       get 'parts_requests/:id/review', to: 'dashboard#review_parts_request', as: :review_parts_request
       post 'parts_requests/:id/approve', to: 'dashboard#approve_parts_request', as: :approve_parts_request
       post 'parts_requests/:id/reject', to: 'dashboard#reject_parts_request', as: :reject_parts_request
+      
+      # ========================
+      # ✅ NEW: RECOMMENDATION ROUTES (Phase 3.5)
+      # ========================
+      get 'inspections/:inspection_id/recommendations', to: 'dashboard#recommendations', as: :recommendations
+      post 'recommendations/:id/approve', to: 'dashboard#approve_recommendation', as: :approve_recommendation
+      post 'recommendations/:id/reject', to: 'dashboard#reject_recommendation', as: :reject_recommendation
+      post 'recommendations/:id/convert_to_job', to: 'dashboard#convert_recommendation_to_job', as: :convert_recommendation_to_job
       
       # ========================
       # WORKFLOW SELECTION ROUTES

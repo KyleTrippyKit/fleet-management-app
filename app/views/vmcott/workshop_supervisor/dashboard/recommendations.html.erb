@@ -1,0 +1,137 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/recommendations.html.erb %>
+<div class="container-fluid px-4 py-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h2 fw-bold">Recommendations Review</h1>
+      <p class="text-muted">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
+    </div>
+    <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill" do %>
+      <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+    <% end %>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold">
+            <i class="bi bi-hourglass-split me-2 text-warning"></i>
+            Pending Recommendations (<%= @recommendations.count %>)
+          </h5>
+        </div>
+        <div class="card-body">
+          <% if @recommendations.any? %>
+            <% @recommendations.each do |rec| %>
+              <div class="border rounded-3 p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <span class="badge <%= rec.status_badge_class %>"><%= rec.status.humanize %></span>
+                  <span class="badge bg-secondary"><%= rec.finding_type.humanize %></span>
+                </div>
+                <p class="fw-semibold mb-2"><%= rec.description %></p>
+                <div class="row small text-muted mb-3">
+                  <div class="col-md-6">
+                    <i class="bi bi-clock me-1"></i> Est. Hours: <%= rec.estimated_hours || 'Not specified' %>
+                  </div>
+                  <div class="col-md-6">
+                    <i class="bi bi-flag me-1"></i> Priority: <%= rec.priority.humanize %>
+                  </div>
+                </div>
+                <% if rec.notes.present? %>
+                  <div class="small text-muted mb-3">
+                    <i class="bi bi-chat me-1"></i> <%= rec.notes %>
+                  </div>
+                <% end %>
+                <div class="btn-group w-100">
+                  <%= button_to "Approve", vmcott_workshop_supervisor_approve_recommendation_path(rec), 
+                        method: :post, 
+                        class: "btn btn-success rounded-pill",
+                        form: { data: { turbo_confirm: "Approve this recommendation?" } } %>
+                  <button class="btn btn-danger rounded-pill ms-2" 
+                          data-bs-toggle="modal" 
+                          data-bs-target="#rejectModal<%= rec.id %>">
+                    Reject
+                  </button>
+                </div>
+                
+                <!-- Reject Modal -->
+                <div class="modal fade" id="rejectModal<%= rec.id %>" tabindex="-1">
+                  <div class="modal-dialog">
+                    <div class="modal-content rounded-4">
+                      <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold text-danger">Reject Recommendation</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <%= form_with url: vmcott_workshop_supervisor_reject_recommendation_path(rec), method: :post do |f| %>
+                        <div class="modal-body">
+                          <div class="mb-3">
+                            <label class="form-label fw-semibold">Rejection Reason</label>
+                            <%= text_area_tag :reason, nil, class: "form-control", rows: 3, required: true, placeholder: "Why is this recommendation being rejected?" %>
+                          </div>
+                        </div>
+                        <div class="modal-footer border-0">
+                          <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                          <%= f.submit "Reject", class: "btn btn-danger rounded-pill" %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="bi bi-check-circle fs-1 text-success mb-3 d-block"></i>
+              <h6>No pending recommendations</h6>
+              <p class="small text-muted">All recommendations have been reviewed</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4">
+          <h5 class="mb-0 fw-bold">
+            <i class="bi bi-check-circle me-2 text-success"></i>
+            Approved Recommendations (<%= @approved_recommendations.count %>)
+          </h5>
+          <p class="text-muted small mt-1">Convert approved recommendations to jobs</p>
+        </div>
+        <div class="card-body">
+          <% if @approved_recommendations.any? %>
+            <% @approved_recommendations.each do |rec| %>
+              <div class="border rounded-3 p-3 mb-3 bg-light">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <span class="badge bg-success">Approved</span>
+                  <span class="badge bg-secondary"><%= rec.finding_type.humanize %></span>
+                </div>
+                <p class="fw-semibold mb-2"><%= rec.description %></p>
+                <div class="row small text-muted mb-3">
+                  <div class="col-md-6">
+                    <i class="bi bi-clock me-1"></i> Est. Hours: <%= rec.estimated_hours || 'Not specified' %>
+                  </div>
+                  <div class="col-md-6">
+                    <i class="bi bi-flag me-1"></i> Priority: <%= rec.priority.humanize %>
+                  </div>
+                </div>
+                <div class="btn-group w-100">
+                  <%= button_to "Convert to Job", vmcott_workshop_supervisor_convert_recommendation_to_job_path(rec), 
+                        method: :post, 
+                        class: "btn btn-primary rounded-pill",
+                        form: { data: { turbo_confirm: "Create a job from this recommendation?" } } %>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="text-center py-5">
+              <i class="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
+              <h6>No approved recommendations</h6>
+              <p class="small text-muted">Approve recommendations to convert them to jobs</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

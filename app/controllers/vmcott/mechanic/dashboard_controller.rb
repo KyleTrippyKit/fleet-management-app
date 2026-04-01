@@ -29,6 +29,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     # ========================================
     @pending_diagnosis = Inspection
       .where(status: 'inspected')  # Use 'inspected' status
+      .where(diagnosis_completed_at: nil)
       .includes(:vehicle, :inspector)
       .order(created_at: :asc)  # Oldest first
     
@@ -94,7 +95,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     # ========================================
     # QC PENDING JOBS - Jobs that need quality check
     # ========================================
-    @pending_qc_jobs = InspectionJob.includes(inspection: { vehicle: :agency })
+    @qc_pending_jobs = InspectionJob.includes(inspection: { vehicle: :agency })
                                 .joins(:inspection)
                                 .where.not(completed_at: nil)
                                 .where(inspections: { status: ['qc_pending'] })
@@ -108,7 +109,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                         .where('completed_at >= ?', Date.current.beginning_of_day)
                                         .count
     
-    @pending_qc = @pending_qc_jobs.count
+    @qc_pending = @qc_pending_jobs.count
     @pre_check_needed = @pre_check_jobs.count
     @ready_to_work = @ready_for_work.count
     @available_jobs_count = @ready_jobs.count
@@ -119,11 +120,11 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                       .limit(10)
 
     # ========================================
-    # WORKFLOW STATUS VARIABLES
+    # WORKFLOW STATUS VARIABLES (For the progress bar)
     # ========================================
     @inspections_complete = Inspection.where(status: ['inspected', 'diagnosed', 'approved']).count
     @parts_complete = PartsRequest.where(status: ['approved', 'received']).count
-    @parts_pending = PartsRequest.where(status: ['requested']).count
+    @parts_pending = PartsRequest.where(status: ['requested', 'pending_approval']).count
     @assigned_jobs_count = @assigned_jobs.count
     
     @repairs_complete = InspectionJob.where.not(completed_at: nil)
@@ -144,22 +145,28 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @ready_to_take_jobs = @waiting_jobs
     @not_ready_jobs = []
     
+    # Log for debugging
+    Rails.logger.info "Mechanic Dashboard - Diagnosis count: #{@pending_diagnosis_count}"
+    Rails.logger.info "Mechanic Dashboard - Ready jobs: #{@ready_jobs.count}"
+    Rails.logger.info "Mechanic Dashboard - Assigned jobs: #{@assigned_jobs.count}"
+    
   rescue => e
     Rails.logger.error "Error in mechanic dashboard: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "An error occurred while loading the dashboard: #{e.message}"
     
+    # Set default values
     @assigned_jobs = []
     @ready_jobs = []
     @pre_check_jobs = []
     @ready_for_work = []
     @waiting_jobs = []
     @other_mechanics_jobs = []
-    @pending_qc_jobs = []
+    @qc_pending_jobs = []
     @pending_diagnosis = []
     @pending_diagnosis_count = 0
     @completed_today = 0
-    @pending_qc = 0
+    @qc_pending = 0
     @pre_check_needed = 0
     @ready_to_work = 0
     @available_jobs_count = 0
@@ -179,12 +186,13 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   end
 
   # =====================================================
-  # PHASE 3: DIAGNOSIS METHODS (FIXED - NO diagnosis_completed_at)
+  # PHASE 3: DIAGNOSIS METHODS
   # =====================================================
 
   def diagnosis_index
     @pending_diagnosis = Inspection
-      .where(status: 'inspected')  # Only inspections that need diagnosis
+      .where(status: 'inspected')
+      .where(diagnosis_completed_at: nil)
       .includes(:vehicle, :inspector)
       .order(created_at: :desc)
       .page(params[:page])
@@ -206,6 +214,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @vehicle = @inspection.vehicle
     @inspector_notes = @inspection.notes
     @inspector_findings = @inspection.findings.where(finding_type: 'inspector')
+    @inspector_recommendations = @inspection.inspection_recommendations
     
     disable_caching
     render :diagnosis_show
@@ -214,58 +223,86 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def diagnosis_create
     @inspection = Inspection.find(params[:inspection_id])
     
+    # Validate diagnosis notes presence
+    if params[:diagnosis_notes].blank?
+      flash[:alert] = "Diagnosis notes cannot be blank. Please add your findings and recommendations."
+      redirect_to vmcott_mechanic_diagnosis_show_path(@inspection) and return
+    end
+    
     # Check if inspection is ready for diagnosis
     unless @inspection.status == 'inspected'
       flash[:alert] = "This inspection is not ready for diagnosis"
       redirect_to vmcott_mechanic_dashboard_path and return
     end
     
-    ActiveRecord::Base.transaction do
-      # Save diagnosis notes and update status to 'diagnosed'
-      @inspection.update!(
-        status: 'diagnosed',  # Move to 'diagnosed' status
-        diagnosis_notes: params[:diagnosis_notes],
-        assigned_mechanic_id: current_user.id
-      )
-      
-      # Create findings from diagnosis if any
-      if params[:findings].present?
-        params[:findings].each do |finding|
-          @inspection.findings.create!(
-            description: finding[:description],
-            finding_type: 'mechanic_diagnosis',
-            severity: finding[:severity] || 'normal',
-            blocking: finding[:blocking] == 'true',
-            created_by: current_user,
-            metadata: {
-              root_cause: finding[:root_cause],
-              complexity: finding[:complexity],
-              estimated_hours: finding[:estimated_hours],
-              suggested_parts: finding[:suggested_parts]
-            }
+    begin
+      ActiveRecord::Base.transaction do
+        # Handle findings if present
+        if params[:findings].present?
+          findings_array = if params[:findings].is_a?(Hash)
+            params[:findings].values
+          else
+            params[:findings]
+          end
+          
+          findings_array.each do |finding|
+            next unless finding.is_a?(Hash)
+            next if finding[:description].blank?
+            
+            @inspection.findings.create!(
+              description: finding[:description],
+              finding_type: 'mechanic_diagnosis',
+              severity: finding[:severity] || 'normal',
+              blocking: finding[:blocking] == 'true',
+              created_by: current_user,
+              metadata: {
+                root_cause: finding[:root_cause],
+                complexity: finding[:complexity] || 'moderate',
+                estimated_hours: finding[:estimated_hours],
+                suggested_parts: finding[:suggested_parts]
+              }
+            )
+          end
+        end
+        
+        # Update status to 'diagnosed'
+        update_result = @inspection.update(
+          status: 'diagnosed',
+          diagnosis_notes: params[:diagnosis_notes],
+          diagnosis_completed_at: Time.current,
+          assigned_mechanic_id: current_user.id
+        )
+        
+        unless update_result
+          raise "Failed to update inspection: #{@inspection.errors.full_messages.join(', ')}"
+        end
+        
+        # Notify supervisor that diagnosis is complete
+        supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+        if supervisor_ids.any?
+          Notification.create!(
+            title: "📋 Diagnosis Complete",
+            message: "Diagnosis for #{@inspection.vehicle.license_plate} is complete. Please create jobs.",
+            link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}/job_creation",
+            user_id: supervisor_ids,
+            notifiable_type: 'Inspection',
+            notifiable_id: @inspection.id,
+            notification_type: 'info'
           )
         end
+        
+        # Log success
+        Rails.logger.info "✅ Diagnosis completed for inspection ##{@inspection.id} by #{current_user.name}"
+        
+        flash[:notice] = "✅ Diagnosis completed successfully! Supervisor will now create jobs."
+        redirect_to vmcott_mechanic_dashboard_path and return
       end
-      
-      # Notify supervisor that diagnosis is complete
-      supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
-      Notification.create!(
-        title: "📋 Diagnosis Complete",
-        message: "Diagnosis for #{@inspection.vehicle.license_plate} is complete. Please create jobs.",
-        link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}/job_creation",
-        user_id: supervisor_ids,
-        notifiable_type: 'Inspection',
-        notifiable_id: @inspection.id,
-        notification_type: 'info'
-      )
-      
-      redirect_to vmcott_mechanic_dashboard_path,
-                  notice: "✅ Diagnosis completed. Supervisor will create jobs."
+    rescue => e
+      Rails.logger.error "Error in diagnosis_create: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      flash[:alert] = "Error saving diagnosis: #{e.message}"
+      redirect_to vmcott_mechanic_diagnosis_show_path(@inspection) and return
     end
-  rescue => e
-    Rails.logger.error "Error in diagnosis_create: #{e.message}"
-    flash[:alert] = "Error saving diagnosis: #{e.message}"
-    redirect_to vmcott_mechanic_diagnosis_show_path(@inspection)
   end
 
   # =====================================================

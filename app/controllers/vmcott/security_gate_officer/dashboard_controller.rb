@@ -261,7 +261,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     render layout: 'application'
   end
   
-  # 🔥 UPDATED: submit_condition - Creates condition report FIRST, then reception log linked to it
+  # 🔥 UPDATED: submit_condition - Creates condition report, reception log, AND INSPECTION
   def submit_condition
     if params[:vehicle_id].present?
       @vehicle = Vehicle.find(params[:vehicle_id])
@@ -279,7 +279,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     
     begin
       ActiveRecord::Base.transaction do
-        # STEP 1: Create the Condition Report FIRST (this gets the ID)
+        # STEP 1: Create the Condition Report
         @condition_report = VehicleConditionReport.new(
           vehicle: @vehicle,
           security_gate_officer: current_user,
@@ -321,7 +321,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         # STEP 2: Attach photos to condition report
         attach_photos(@condition_report, params)
         
-        # STEP 3: Create Reception Log LINKED to the condition report ID
+        # STEP 3: Create Reception Log linked to condition report
         reception_log = ReceptionLog.create!(
           vehicle: @vehicle,
           user_id: current_user.id,
@@ -331,13 +331,53 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           visitor_name: params[:driver_name],
           notes: params[:notes],
           status: 'checked_in',
-          condition_report_id: @condition_report.id,  # 🔥 CRITICAL: Link to condition report
+          condition_report_id: @condition_report.id,
           condition_status: condition_data[:exterior_damage].present? && condition_data[:exterior_damage].any? ? 'damage_noted' : 'clean'
         )
         
         Rails.logger.info "✅ Created condition report ##{@condition_report.id} and linked reception log ##{reception_log.id}"
         
-        # STEP 4: Create vehicle status
+        # 🔥 STEP 4: CREATE INSPECTION RECORD - FIXED: Find an inspector properly
+        # Find an active inspector to assign to this inspection
+        inspector = User.where(role: 'inspector', is_active: true).first
+        
+        if inspector.nil?
+          Rails.logger.warn "⚠️ No active inspector found! Creating inspection without inspector assignment."
+        else
+          Rails.logger.info "✅ Found inspector: #{inspector.name} (ID: #{inspector.id})"
+        end
+        
+        inspection = Inspection.create!(
+          vehicle: @vehicle,
+          inspector: inspector,
+          status: 'received',
+          received_at: Time.current,
+          metadata: {
+            reception_log_id: reception_log.id,
+            condition_report_id: @condition_report.id,
+            created_by: current_user.name,
+            created_by_role: 'security_gate_officer',
+            check_in_notes: params[:notes],
+            driver_name: params[:driver_name],
+            mileage_at_reception: params[:odometer],
+            fuel_level_at_reception: params[:fuel_level]
+          },
+          notes: "Vehicle received by #{current_user.name} at #{Time.current.strftime('%Y-%m-%d %H:%M')}\n" +
+                 "Driver: #{params[:driver_name]}\n" +
+                 "Odometer: #{params[:odometer]} km\n" +
+                 "Fuel: #{params[:fuel_level]}%\n" +
+                 "Condition: #{condition_data[:exterior_damage].present? && condition_data[:exterior_damage].any? ? 'Damage noted - see condition report' : 'Clean arrival'}"
+        )
+        
+        Rails.logger.info "✅ Created inspection ##{inspection.id} for vehicle #{@vehicle.license_plate} with status 'received'"
+        
+        # STEP 5: Link reception log to inspection
+        if reception_log.respond_to?(:inspection=)
+          reception_log.inspection = inspection
+          reception_log.save!
+        end
+        
+        # STEP 6: Create vehicle status
         VehicleStatus.create!(
           vehicle: @vehicle,
           created_by: current_user,
@@ -346,13 +386,14 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           notes: "Vehicle received from #{params[:driver_name]}. Condition: #{condition_data[:exterior_damage].present? && condition_data[:exterior_damage].any? ? 'Damage noted' : 'Clean'}"
         )
         
-        # STEP 5: Clear session
+        # STEP 7: Clear session
         clear_check_in_session
         
-        # STEP 6: Notify inspectors
-        notify_inspectors(@vehicle, @condition_report)
+        # STEP 8: Notify inspectors with inspection details
+        notify_inspectors_with_inspection(@vehicle, @condition_report, inspection)
         
-        flash[:notice] = "Vehicle #{@vehicle.license_plate} checked in successfully. Condition Report ##{@condition_report.id} created and linked to Reception Log."
+        flash[:notice] = "✅ Vehicle #{@vehicle.license_plate} checked in successfully. " +
+                         "Inspection ##{inspection.id} created and ready for inspector review."
         redirect_to vmcott_security_gate_officer_dashboard_path
       end
     rescue => e
@@ -435,22 +476,30 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
   end
   
-  def notify_inspectors(vehicle, condition_report)
+  # 🔥 NEW: Enhanced notification with inspection details
+  def notify_inspectors_with_inspection(vehicle, condition_report, inspection)
     return unless defined?(Notification)
     
-    inspector_ids = User.where(role: 'inspector').pluck(:id)
+    inspector_ids = User.where(role: 'inspector', is_active: true).pluck(:id)
     return if inspector_ids.empty?
     
-    Notification.create!(
-      title: "Vehicle Ready for Inspection",
-      message: "#{vehicle.license_plate} received. #{condition_report.exterior_damage? ? 'Damage noted' : 'No damage'}",
-      link: vmcott_inspector_pre_inspection_path(vehicle.id),
-      user_id: inspector_ids,
-      notifiable_type: 'Vehicle',
-      notifiable_id: vehicle.id
-    )
+    damage_status = condition_report.exterior_damage? ? '⚠️ Damage noted during check-in' : '✅ Clean arrival'
+    
+    inspector_ids.each do |inspector_id|
+      Notification.create!(
+        title: "🚗 New Vehicle Ready for Inspection",
+        message: "#{vehicle.license_plate} (#{vehicle.make} #{vehicle.model}) has been checked in. #{damage_status}",
+        link: vmcott_inspector_pre_inspection_path(vehicle.id),
+        user_id: inspector_id,
+        notifiable_type: 'Inspection',
+        notifiable_id: inspection.id,
+        notification_type: 'info'
+      )
+    end
+    
+    Rails.logger.info "✅ Notified #{inspector_ids.count} inspectors about inspection ##{inspection.id}"
   rescue => e
-    Rails.logger.error "Failed to create notification: #{e.message}"
+    Rails.logger.error "Failed to create notifications: #{e.message}"
   end
   
   def clear_check_in_session

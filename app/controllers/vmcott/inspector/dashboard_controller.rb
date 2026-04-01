@@ -18,13 +18,20 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   helper_method :calculate_labor_cost, :calculate_parts_cost
 
   def index
-    # FIXED: Use correct status 'received' instead of 'pending_inspection'
+    # 🔥 FIXED: Include all pending inspections
     @pending_inspections = Inspection
       .where(status: 'received')
-      .where(inspector_id: nil)
+      .where(inspector_id: current_user.id)  # Show only assigned to current inspector
       .includes(:vehicle)
       .order(created_at: :desc)
       .limit(20)
+    
+    # 🔥 DEBUG: Log what we found
+    Rails.logger.info "=== INSPECTOR DASHBOARD ==="
+    Rails.logger.info "Found #{@pending_inspections.count} pending inspections for current user"
+    @pending_inspections.each do |insp|
+      Rails.logger.info "  - Inspection ##{insp.id}: Vehicle #{insp.vehicle&.license_plate}, Status: #{insp.status}"
+    end
     
     # FIXED: Use correct status 'inspected' for in-progress inspections
     @in_progress = Inspection
@@ -100,8 +107,26 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       redirect_to vmcott_inspector_dashboard_path and return
     end
     
-    # FIXED: Use correct status 'received' for pending inspections
-    @inspection = Inspection.find_by(vehicle: @vehicle, status: 'received')
+    # FIXED: Find inspection for this vehicle
+    @inspection = Inspection.find_by(vehicle: @vehicle, status: 'received', inspector_id: current_user.id)
+    
+    # If no inspection exists, create one
+    if @inspection.nil?
+      @inspection = Inspection.create!(
+        vehicle: @vehicle,
+        inspector: current_user,
+        status: 'received',
+        received_at: Time.current,
+        metadata: {
+          created_by: current_user.name,
+          created_by_role: 'inspector',
+          created_at: Time.current.iso8601
+        },
+        notes: "Pre-inspection started by #{current_user.name} at #{Time.current.strftime('%Y-%m-%d %H:%M')}"
+      )
+      flash[:notice] = "New inspection created for this vehicle."
+    end
+    
     @original_request = find_original_request(@vehicle)
     
     disable_caching
@@ -145,8 +170,8 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       brake_fluid_level: params[:brake_fluid_level]
     }
 
-    # FIXED: Use correct status 'received' for initial inspection
-    inspection = Inspection.find_or_initialize_by(vehicle: @vehicle, status: 'received')
+    # Find or create inspection
+    inspection = Inspection.find_or_initialize_by(vehicle: @vehicle, status: 'received', inspector_id: current_user.id)
     
     checklist_data = {
       exterior: params[:findings]&.[](:exterior) || {},
@@ -187,7 +212,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
     session[:pre_inspection_completed] = true
     
-    # FIXED: Use correct route helper - vmcott_inspector_new_inspection_path
     redirect_to vmcott_inspector_new_inspection_path(@vehicle.id)
   end
 
@@ -205,7 +229,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       redirect_to vmcott_inspector_pre_inspection_path(@vehicle.id) and return
     end
     
-    @inspection = Inspection.new(vehicle: @vehicle, inspector: current_user)
+    @inspection = Inspection.find_or_initialize_by(vehicle: @vehicle, inspector: current_user, status: 'received')
     @job_templates = JobTemplate.for_vehicle(@vehicle).active if JobTemplate.respond_to?(:for_vehicle)
     @pre_inspection_data = session[:pre_inspection_data]
     
@@ -214,6 +238,48 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   end
 
   alias_method :new_inspection, :job_recommendations
+
+  # =====================================================
+  # 🔥 NEW: CREATE RECOMMENDATIONS (Phase 3.5)
+  # =====================================================
+  def create_recommendations
+    @inspection = Inspection.find(params[:inspection_id])
+    
+    if params[:recommendations].present?
+      params[:recommendations].each do |rec|
+        @inspection.inspection_recommendations.create!(
+          description: rec[:description],
+          finding_type: rec[:finding_type],
+          priority: rec[:priority] || 'normal',
+          estimated_hours: rec[:estimated_hours],
+          suggested_by: current_user,
+          notes: rec[:notes]
+        )
+      end
+    end
+    
+    @inspection.update!(
+      status: :diagnosed,
+      diagnosis_notes: params[:diagnosis_notes],
+      diagnosis_completed_at: Time.current
+    )
+    
+    # Notify supervisor
+    supervisors = User.where(role: 'workshop_supervisor')
+    supervisors.find_each do |supervisor|
+      Notification.create!(
+        user: supervisor,
+        title: "📋 New Recommendations Ready",
+        message: "Recommendations for #{@inspection.vehicle.license_plate} are ready for review",
+        link: vmcott_workshop_supervisor_recommendations_path(@inspection),
+        notification_type: 'info',
+        notifiable: @inspection
+      )
+    end
+    
+    flash[:notice] = "✅ Recommendations created. Supervisor will review them."
+    redirect_to vmcott_inspector_dashboard_path
+  end
 
   # =====================================================
   # PHASE 2: COMPLETE INSPECTION (UPDATED FOR 14-STEP WORKFLOW)
@@ -237,15 +303,18 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       diagnostic_equipment: session[:pre_inspection_data]['diagnostic_equipment']
     }
 
-    # FIXED: Use correct status 'inspected' for completed inspection
-    @inspection = Inspection.new(
+    @inspection = Inspection.find_or_initialize_by(
       vehicle: @vehicle,
       inspector: current_user,
+      status: 'received'
+    )
+
+    @inspection.assign_attributes(
       mileage_at_inspection: session[:pre_inspection_data]['mileage'] || params[:mileage],
       notes: build_final_notes(session[:pre_inspection_data], params[:notes]),
       next_service_mileage: params[:next_service_mileage],
       next_service_date: params[:next_service_date],
-      status: :inspected,  # Phase 2 complete → moved to inspected
+      status: :inspected,
       metadata: metadata
     )
 
@@ -315,7 +384,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @inspection = Inspection.find(params[:id])
     
     if params[:qc_passed] == 'true'
-      # Pass QC - FIXED: Use correct status 'ready_for_pickup'
       @inspection.update!(
         status: :ready_for_pickup,
         final_inspector_id: current_user.id,
@@ -332,7 +400,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       failure_reason = params[:failure_reason] || "Quality control failed"
       
       begin
-        # Fail QC - FIXED: Use correct status 'in_progress' for rework
         @inspection.update!(
           notes: @inspection.notes.to_s + "\n\n" + "="*50 + 
                  "\n🔴 QC FAILED\n" +
@@ -346,7 +413,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
           qc_failed_at: Time.current
         )
         
-        # Reset incomplete jobs for rework
         @inspection.inspection_jobs.each do |job|
           unless job.completed?
             job.update!(

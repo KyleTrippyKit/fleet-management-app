@@ -7,7 +7,12 @@
           <h1 class="h2">Review Job Recommendations</h1>
           <% if @inspection.present? %>
             <p class="text-muted">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
-            <p class="text-muted">Inspector: <%= @inspection.inspector&.name || 'Unknown' %></p>
+            <p class="text-muted">
+              Inspector: <%= @inspection.inspector&.name || 'Unknown' %>
+              <% if @inspection.diagnosis_completed_at %>
+                <span class="ms-3 badge bg-success">Diagnosis Completed: <%= @inspection.diagnosis_completed_at.strftime('%b %d, %Y') %></span>
+              <% end %>
+            </p>
           <% else %>
             <p class="text-danger">Inspection not found</p>
           <% end %>
@@ -25,10 +30,13 @@
                       local: true,
                       data: { turbo: false } do |f| %>
           
-          <!-- Inspector's Recommendations Section -->
+          <!-- INSPECTOR'S RECOMMENDATIONS SECTION -->
           <div class="card mb-4">
             <div class="card-header bg-primary text-white">
-              <h5 class="mb-0">Inspector's Findings & Recommendations</h5>
+              <h5 class="mb-0">
+                <i class="bi bi-clipboard-check me-2"></i>
+                Inspector's Findings & Recommendations
+              </h5>
             </div>
             <div class="card-body">
               <div class="alert alert-info mb-3">
@@ -36,26 +44,97 @@
                 <p class="mb-0 mt-2"><%= @inspection.notes || 'No notes provided' %></p>
               </div>
               
-              <!-- Mechanic Diagnosis Findings -->
-              <% if @findings.present? && @findings.any? %>
-                <h6 class="fw-bold mt-3">Mechanic Diagnosis Findings</h6>
+              <!-- Inspector Recommendations -->
+              <% if @inspector_recommendations.present? && @inspector_recommendations.any? %>
+                <h6 class="fw-bold mt-3 text-primary">Inspector's Recommendations</h6>
                 <div class="list-group mb-3">
-                  <% @findings.each do |finding| %>
+                  <% @inspector_recommendations.each do |rec| %>
                     <div class="list-group-item">
                       <div class="d-flex justify-content-between">
-                        <strong><%= finding.description %></strong>
-                        <span class="badge bg-<%= finding.severity == 'critical' ? 'danger' : (finding.severity == 'high' ? 'warning' : 'secondary') %>">
-                          <%= finding.severity&.humanize || 'Normal' %>
+                        <strong><%= rec.description %></strong>
+                        <span class="badge bg-<%= rec.priority == 'high' ? 'warning' : (rec.priority == 'critical' ? 'danger' : 'secondary') %>">
+                          <%= rec.priority&.humanize || 'Normal' %>
                         </span>
                       </div>
                       <small class="text-muted">
-                        Root Cause: <%= finding.metadata&.[]('root_cause') || 'Not specified' %><br>
-                        Est. Hours: <%= finding.metadata&.[]('estimated_hours') || 'TBD' %>
+                        Est. Hours: <%= rec.estimated_hours || 'TBD' %>
                       </small>
                       <div class="mt-2">
                         <div class="form-check">
                           <input type="checkbox" 
-                                 name="job_findings[<%= finding.id %>][include]" 
+                                 name="inspector_recommendations[<%= rec.id %>][include]" 
+                                 value="true" 
+                                 class="form-check-input"
+                                 id="include_rec_<%= rec.id %>"
+                                 checked>
+                          <label class="form-check-label small" for="include_rec_<%= rec.id %>">
+                            Include in job creation
+                          </label>
+                        </div>
+                        <input type="hidden" name="inspector_recommendations[<%= rec.id %>][description]" value="<%= rec.description %>">
+                        <input type="hidden" name="inspector_recommendations[<%= rec.id %>][estimated_hours]" value="<%= rec.estimated_hours || 1 %>">
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% else %>
+                <div class="alert alert-secondary">
+                  <i class="bi bi-info-circle me-2"></i>
+                  No inspector recommendations found.
+                </div>
+              <% end %>
+            </div>
+          </div>
+          
+          <!-- MECHANIC DIAGNOSIS FINDINGS SECTION -->
+          <% if @mechanic_findings.present? && @mechanic_findings.any? %>
+            <div class="card mb-4 border-warning">
+              <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                  <i class="bi bi-wrench me-2"></i>
+                  Mechanic Diagnosis Findings
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-warning mb-3">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  <strong>Mechanic's Diagnosis Notes:</strong>
+                  <p class="mb-0 mt-2"><%= @inspection.diagnosis_notes || 'No diagnosis notes provided' %></p>
+                </div>
+                
+                <h6 class="fw-bold mt-3 text-warning">Diagnosis Findings (<%= @mechanic_findings.count %>)</h6>
+                <div class="list-group mb-3">
+                  <% @mechanic_findings.each do |finding| %>
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                          <div class="d-flex justify-content-between">
+                            <strong><%= finding.description %></strong>
+                            <span class="badge bg-<%= finding.priority == 'high' ? 'warning' : (finding.priority == 'critical' ? 'danger' : 'secondary') %>">
+                              <%= finding.priority&.humanize || 'Normal' %>
+                            </span>
+                          </div>
+                          <% if finding.notes.present? %>
+                            <p class="small text-muted mt-1 mb-1"><%= finding.notes %></p>
+                          <% end %>
+                          <small class="text-muted">
+                            <i class="bi bi-person me-1"></i>Found by: <%= finding.created_by&.name || 'Mechanic' %>
+                            <% if finding.metadata&.[]('estimated_hours').present? %>
+                              • <i class="bi bi-clock me-1"></i>Est. Hours: <%= finding.metadata['estimated_hours'] %>
+                            <% end %>
+                            <% if finding.metadata&.[]('root_cause').present? %>
+                              • <i class="bi bi-diagram-3 me-1"></i>Root Cause: <%= finding.metadata['root_cause'] %>
+                            <% end %>
+                            <% if finding.metadata&.[]('complexity').present? %>
+                              • <i class="bi bi-speedometer2 me-1"></i>Complexity: <%= finding.metadata['complexity'] %>
+                            <% end %>
+                          </small>
+                        </div>
+                      </div>
+                      <div class="mt-2">
+                        <div class="form-check">
+                          <input type="checkbox" 
+                                 name="mechanic_findings[<%= finding.id %>][include]" 
                                  value="true" 
                                  class="form-check-input"
                                  id="include_finding_<%= finding.id %>"
@@ -64,25 +143,39 @@
                             Include in job creation
                           </label>
                         </div>
-                        <input type="hidden" name="job_findings[<%= finding.id %>][description]" value="<%= finding.description %>">
-                        <input type="hidden" name="job_findings[<%= finding.id %>][severity]" value="<%= finding.severity %>">
-                        <input type="hidden" name="job_findings[<%= finding.id %>][estimated_hours]" value="<%= finding.metadata&.[]('estimated_hours') || 1 %>">
+                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][description]" value="<%= finding.description %>">
+                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][priority]" value="<%= finding.priority %>">
+                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][estimated_hours]" value="<%= finding.metadata&.[]('estimated_hours') || 1 %>">
                       </div>
                     </div>
                   <% end %>
                 </div>
-              <% end %>
+              </div>
             </div>
-          </div>
+          <% end %>
+          
+          <!-- NO FINDINGS MESSAGE -->
+          <% if @inspector_recommendations.blank? && @mechanic_findings.blank? %>
+            <div class="card mb-4">
+              <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">No Findings Available</h5>
+              </div>
+              <div class="card-body text-center py-5">
+                <i class="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
+                <p>No inspector recommendations or mechanic findings found for this inspection.</p>
+                <p class="small text-muted">You can still create custom jobs below.</p>
+              </div>
+            </div>
+          <% end %>
           
           <!-- Custom Jobs Section -->
           <div class="card mb-4">
             <div class="card-header bg-secondary text-white">
-              <h5 class="mb-0">Create Jobs</h5>
+              <h5 class="mb-0">Create Custom Jobs</h5>
             </div>
             <div class="card-body">
               <div id="jobs-container">
-                <div class="job-item mb-3">
+                <div class="job-item mb-3 border p-3 rounded">
                   <div class="row">
                     <div class="col-md-6">
                       <label class="form-label small fw-bold">Job Description *</label>
@@ -197,14 +290,14 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="mt-2">
               <label class="form-label small">Assign Mechanic</label>
               <select name="jobs[][mechanic_id]" class="form-select job-mechanic-select">
-                <option value="">Default</option>
+                <option value="">Use Default</option>
                 <% @mechanics.each do |mechanic| %>
                   <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
                 <% end %>
               </select>
             </div>
           `;
-          mechanicCol.insertAdjacentHTML('beforeend', selectHtml);
+          mechanicCol.insertAdjacentHTML('afterend', selectHtml);
         }
       }
     });
@@ -213,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (addBtn) {
     addBtn.addEventListener('click', function() {
       const newItem = document.createElement('div');
-      newItem.className = 'job-item mb-3';
+      newItem.className = 'job-item mb-3 border p-3 rounded';
       newItem.innerHTML = `
         <div class="row">
           <div class="col-md-6">

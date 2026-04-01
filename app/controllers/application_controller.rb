@@ -165,7 +165,7 @@ class ApplicationController < ActionController::Base
     @unread_notifications_count = 0
     @recent_notifications = []
     @pending_inspections_count = 0
-    @pending_qc_count = 0
+    @qc_pending_count = 0
     @pending_parts_count = 0
     @pending_parts_review_count = 0
     @parts_received_count = 0
@@ -184,7 +184,7 @@ class ApplicationController < ActionController::Base
     @pending_condition_reports_count = 0
     @low_stock_alert_count = 0
     @parts_to_order_count = 0
-    @pending_qc_inspections_count = 0
+    @qc_pending_inspections_count = 0
     @inspections_today_count = 0
     @assigned_jobs_count = 0
     @in_progress_count = 0
@@ -247,8 +247,8 @@ class ApplicationController < ActionController::Base
       if current_user.inspector? || current_user.admin?
         if defined?(Inspection)
           @pending_inspections_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_inspection').count rescue 0
-          @pending_qc_inspections_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
-          @pending_qc_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+          @qc_pending_inspections_count = Inspection.where(agency_id: current_user.agency_id, status: 'qc_pending').count rescue 0
+          @qc_pending_count = Inspection.where(agency_id: current_user.agency_id, status: 'qc_pending').count rescue 0
           @inspections_today_count = Inspection.where(agency_id: current_user.agency_id)
                                               .where('DATE(created_at) = ?', Date.current)
                                               .count rescue 0
@@ -278,7 +278,7 @@ class ApplicationController < ActionController::Base
           @assigned_jobs_count = InspectionJob.where(assigned_mechanic_id: current_user.id).count rescue 0
           @in_progress_count = InspectionJob.where(assigned_mechanic_id: current_user.id, status: 'in_progress').count rescue 0
         end
-        @pending_qc_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+        @qc_pending_count = Inspection.where(agency_id: current_user.agency_id, status: 'qc_pending').count rescue 0
       end
       
       # Procurement counts (was billing)
@@ -318,7 +318,7 @@ class ApplicationController < ActionController::Base
                                           .where.not(status: ['completed', 'cancelled'])
                                           .count rescue 0
         end
-        @pending_supervisor_review_count = Inspection.where(agency_id: current_user.agency_id, status: 'pending_qc').count rescue 0
+        @pending_supervisor_review_count = Inspection.where(agency_id: current_user.agency_id, status: 'qc_pending').count rescue 0
         if defined?(Vehicle)
           @at_vmcott_count = Vehicle.where(agency_id: current_user.agency_id, current_location: 'VMCOTT').count rescue 0
         end
@@ -450,7 +450,7 @@ class ApplicationController < ActionController::Base
                 :pending_inspections_count,
                 :pending_parts_count,
                 :available_jobs_count,
-                :pending_qc_count,
+                :qc_pending_count,
                 :pending_quotations_count,
                 :ready_for_pickup_count,
                 :my_assigned_jobs_count,
@@ -560,8 +560,8 @@ class ApplicationController < ActionController::Base
     @available_jobs_count || 0
   end
 
-  def pending_qc_count
-    @pending_qc_count || 0
+  def qc_pending_count
+    @qc_pending_count || 0
   end
 
   def pending_quotations_count

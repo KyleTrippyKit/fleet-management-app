@@ -1,12 +1,27 @@
 <%# app/views/vmcott/workshop_supervisor/jobs/show.html.erb %>
+<%# Disable Turbo caching and force full layout %>
+<% content_for :head do %>
+  <meta name="turbo-visit-control" content="reload">
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
+
 <div class="container-fluid px-4 py-5">
+
+  <!-- Debug Panel (Hidden by default, press Ctrl+Shift+D to show) -->
+  <div id="debug-panel" style="display: none; position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: #1e293b; color: #0f0; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; max-width: 400px; max-height: 400px; overflow: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+      <strong style="color: #fff;">🔧 Debug Console</strong>
+      <button onclick="document.getElementById('debug-panel').style.display='none'" style="background: none; border: none; color: #fff; cursor: pointer;">✕</button>
+    </div>
+    <div id="debug-output"></div>
+  </div>
 
   <!-- Page Header -->
   <div class="row mb-4">
     <div class="col-12">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <%= link_to vmcott_workshop_supervisor_jobs_path, class: "text-decoration-none mb-2 d-inline-block" do %>
+          <%= link_to vmcott_workshop_supervisor_jobs_path, class: "text-decoration-none mb-2 d-inline-block", data: { turbo: false } do %>
             <i class="bi bi-arrow-left me-1"></i> Back to Jobs
           <% end %>
           <h1 class="h2 mb-1 fw-bold" style="color: #1e293b;">
@@ -72,9 +87,6 @@
                   when 'assigned' then 'bg-primary'
                   when 'in_progress' then 'bg-success'
                   when 'blocked' then 'bg-danger'
-                  when 'qc_pending' then 'bg-purple'
-                  when 'qc_passed' then 'bg-success'
-                  when 'qc_failed' then 'bg-danger'
                   when 'completed' then 'bg-secondary'
                   else 'bg-secondary'
                   end %> px-3 py-2 rounded-pill fs-6">
@@ -84,9 +96,6 @@
                   when 'assigned' then 'bi-person-check'
                   when 'in_progress' then 'bi-play-circle'
                   when 'blocked' then 'bi-x-circle'
-                  when 'qc_pending' then 'bi-clipboard-check'
-                  when 'qc_passed' then 'bi-check2-circle'
-                  when 'qc_failed' then 'bi-exclamation-triangle'
                   when 'completed' then 'bi-check-all'
                   else 'bi-question-circle'
                   end %> me-1"></i>
@@ -231,7 +240,7 @@
       </div>
 
       <!-- ===================================================== -->
-      <!-- PHASE 5: PARTS REQUESTS (Large & Prominent) -->
+      <!-- PHASE 5: PARTS REQUESTS -->
       <!-- ===================================================== -->
       <% if @parts_requests.present? && @parts_requests.any? %>
         <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #f59e0b;">
@@ -272,7 +281,7 @@
                         <% if request.part&.part_number %>
                           <br><small class="text-muted">PN: <%= request.part.part_number %></small>
                         <% end %>
-                       </td>
+                        </td>
                       <td class="fw-bold"><%= request.quantity %></td>
                       <td>
                         <% requester = request.requested_by || request.inspection_job&.assigned_mechanic %>
@@ -300,6 +309,7 @@
                             <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), 
                                   method: :post, 
                                   class: "btn btn-success rounded-pill px-3",
+                                  data: { turbo: false },
                                   form: { data: { turbo_confirm: "Approve this parts request? It will be sent to inventory manager." } } %>
                             <button type="button" 
                                     class="btn btn-danger rounded-pill px-3 ms-1"
@@ -322,7 +332,8 @@
                                 </div>
                                 <%= form_with url: vmcott_workshop_supervisor_reject_parts_request_path(request), 
                                               method: :post, 
-                                              local: true do |f| %>
+                                              local: true,
+                                              data: { turbo: false } do |f| %>
                                   <div class="modal-body">
                                     <div class="mb-3">
                                       <label class="form-label fw-semibold">Rejection Reason</label>
@@ -415,7 +426,7 @@
                   <% @tasks.each do |task| %>
                     <tr>
                       <td class="fw-semibold">
-                        <%= link_to task.name, vmcott_workshop_supervisor_task_path(task), class: "text-decoration-none text-primary" %>
+                        <%= link_to task.name, vmcott_workshop_supervisor_task_path(task), class: "text-decoration-none text-primary", data: { turbo: false } %>
                       </td>
                       <td>
                         <span class="badge <%= case task.status
@@ -432,7 +443,7 @@
                       <td><%= task.estimated_hours ? "#{task.estimated_hours} hrs" : '-' %></td>
                       <td><%= task.assigned_mechanic&.name || 'Unassigned' %></td>
                       <td class="text-end">
-                        <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "btn btn-sm btn-outline-primary rounded-pill" %>
+                        <%= link_to "View", vmcott_workshop_supervisor_task_path(task), class: "btn btn-sm btn-outline-primary rounded-pill", data: { turbo: false } %>
                       </td>
                     </tr>
                   <% end %>
@@ -502,12 +513,15 @@
               <%= button_to approve_vmcott_workshop_supervisor_job_path(@job), 
                     method: :post, 
                     class: "btn btn-success rounded-pill py-2",
-                    form: { data: { turbo_confirm: "Approve this job?" } } do %>
+                    data: { turbo: false } do %>
                 <i class="bi bi-check-circle me-2"></i>Approve Job
               <% end %>
-              <button onclick="openRejectModal()" class="btn btn-outline-danger rounded-pill py-2">
+              <%= button_to reject_vmcott_workshop_supervisor_job_path(@job), 
+                    method: :post, 
+                    class: "btn btn-outline-danger rounded-pill py-2",
+                    data: { turbo: false } do %>
                 <i class="bi bi-x-circle me-2"></i>Reject Job
-              </button>
+              <% end %>
               <button onclick="openEditModal()" class="btn btn-outline-primary rounded-pill py-2">
                 <i class="bi bi-pencil me-2"></i>Edit Job Details
               </button>
@@ -520,15 +534,15 @@
               <strong>Ready for Assignment</strong>
               <div class="small mt-1">Select a mechanic to work on this job</div>
             </div>
-            <select id="mechanic-select" class="form-select rounded-pill mb-2">
-              <option value="">Select Mechanic</option>
-              <% User.where(role: 'mechanic', is_active: true).each do |mechanic| %>
-                <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
-              <% end %>
-            </select>
-            <button onclick="assignJob()" class="btn btn-primary rounded-pill py-2 w-100">
-              <i class="bi bi-person-check me-2"></i>Assign Mechanic
-            </button>
+            <%= form_with url: assign_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true, data: { turbo: false }, class: "w-100" do |f| %>
+              <select name="mechanic_id" class="form-select rounded-pill mb-2" required>
+                <option value="">Select Mechanic</option>
+                <% User.where(role: 'mechanic', is_active: true).each do |mechanic| %>
+                  <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                <% end %>
+              </select>
+              <%= f.submit "Assign Mechanic", class: "btn btn-primary rounded-pill py-2 w-100" %>
+            <% end %>
           
           <!-- PHASE 3: WORK IN PROGRESS -->
           <% elsif @job.status == 'in_progress' %>
@@ -541,7 +555,7 @@
               <%= button_to block_vmcott_workshop_supervisor_job_path(@job), 
                     method: :post, 
                     class: "btn btn-danger rounded-pill py-2",
-                    form: { data: { turbo_confirm: "Block this job? Reason needed." } } do %>
+                    data: { turbo: false } do %>
                 <i class="bi bi-ban me-2"></i>Block Job
               <% end %>
               <button onclick="openReassignModal()" class="btn btn-warning rounded-pill py-2">
@@ -566,7 +580,7 @@
                   <%= button_to send_to_qc_vmcott_workshop_supervisor_job_path(@job), 
                         method: :post, 
                         class: "btn btn-purple rounded-pill py-2 text-white w-100",
-                        form: { data: { turbo_confirm: "Send this job to Quality Control?" } } do %>
+                        data: { turbo: false } do %>
                     <i class="bi bi-clipboard-check me-2"></i>Send to QC
                   <% end %>
                 <% end %>
@@ -584,7 +598,7 @@
               <%= button_to unblock_vmcott_workshop_supervisor_job_path(@job), 
                     method: :post, 
                     class: "btn btn-success rounded-pill py-2",
-                    form: { data: { turbo_confirm: "Unblock this job?" } } do %>
+                    data: { turbo: false } do %>
                 <i class="bi bi-play-circle me-2"></i>Unblock Job
               <% end %>
               <button onclick="openReassignModal()" class="btn btn-warning rounded-pill py-2">
@@ -592,46 +606,7 @@
               </button>
             </div>
           
-          <!-- PHASE 5: QUALITY CONTROL -->
-          <% elsif @job.status == 'qc_pending' %>
-            <div class="alert alert-purple border-0 rounded-3 mb-3">
-              <i class="bi bi-clipboard-check me-2"></i>
-              <strong>Quality Control Required</strong>
-              <div class="small mt-1">Job completed, waiting for QC inspection</div>
-            </div>
-            <div class="d-grid gap-2">
-              <%= button_to pass_qc_vmcott_workshop_supervisor_job_path(@job), 
-                    method: :post, 
-                    class: "btn btn-success rounded-pill py-2",
-                    form: { data: { turbo_confirm: "Pass QC for this job?" } } do %>
-                <i class="bi bi-check2-circle me-2"></i>Pass QC
-              <% end %>
-              <button onclick="openQCFailModal()" class="btn btn-danger rounded-pill py-2">
-                <i class="bi bi-x-octagon me-2"></i>Fail QC
-              </button>
-              <%= link_to review_qc_vmcott_workshop_supervisor_job_path(@job), 
-                    class: "btn btn-outline-info rounded-pill py-2" do %>
-                <i class="bi bi-eye me-2"></i>View QC Details
-              <% end %>
-            </div>
-          
-          <!-- PHASE 6: COMPLETION -->
-          <% elsif @job.status == 'qc_passed' %>
-            <div class="alert alert-success border-0 rounded-3 mb-3">
-              <i class="bi bi-check2-circle me-2"></i>
-              <strong>Ready for Completion</strong>
-              <div class="small mt-1">Job has passed QC, ready to close</div>
-            </div>
-            <div class="d-grid gap-2">
-              <%= button_to close_vmcott_workshop_supervisor_job_path(@job), 
-                    method: :post, 
-                    class: "btn btn-success rounded-pill py-2",
-                    form: { data: { turbo_confirm: "Close this job? This will mark it as completed." } } do %>
-                <i class="bi bi-check-all me-2"></i>Close Job
-              <% end %>
-            </div>
-          
-          <!-- PHASE 7: COMPLETED -->
+          <!-- PHASE 5: COMPLETED -->
           <% elsif @job.status == 'completed' %>
             <div class="alert alert-secondary border-0 rounded-3 mb-3">
               <i class="bi bi-check-all me-2"></i>
@@ -659,7 +634,7 @@
           <% end %>
           
           <!-- ALWAYS AVAILABLE: Reassign if mechanic assigned (except completed states) -->
-          <% if @job.assigned_mechanic.present? && !@job.status.in?(['completed', 'qc_passed', 'qc_pending', 'pending_approval']) && @job.status != 'blocked' %>
+          <% if @job.assigned_mechanic.present? && !@job.status.in?(['completed', 'pending_approval']) && @job.status != 'blocked' %>
             <hr class="my-3">
             <div class="d-grid gap-2">
               <button onclick="openReassignModal()" class="btn btn-outline-warning rounded-pill py-2">
@@ -730,10 +705,10 @@
                   </div>
                   <% if finding.status == 'pending' %>
                     <div class="btn-group-vertical gap-1">
-                      <%= button_to "Approve", approve_finding_vmcott_workshop_supervisor_path(finding), 
-                            method: :post, class: "btn btn-sm btn-success rounded-pill" %>
-                      <%= button_to "Reject", reject_finding_vmcott_workshop_supervisor_path(finding), 
-                            method: :post, class: "btn btn-sm btn-danger rounded-pill" %>
+                      <%= button_to "Approve", vmcott_workshop_supervisor_approve_finding_path(finding), 
+                            method: :post, class: "btn btn-sm btn-success rounded-pill", data: { turbo: false } %>
+                      <%= button_to "Reject", vmcott_workshop_supervisor_reject_finding_path(finding), 
+                            method: :post, class: "btn btn-sm btn-danger rounded-pill", data: { turbo: false } %>
                     </div>
                   <% end %>
                 </div>
@@ -753,13 +728,13 @@
         </div>
         <div class="card-body">
           <div class="d-flex flex-column gap-2">
-            <%= link_to report_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+            <%= link_to "#", class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
               <i class="bi bi-graph-up me-2"></i>View Report
             <% end %>
-            <%= link_to history_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+            <%= link_to "#", class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
               <i class="bi bi-clock-history me-2"></i>View History
             <% end %>
-            <%= link_to print_vmcott_workshop_supervisor_job_path(@job), class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
+            <%= link_to "#", class: "btn btn-outline-secondary rounded-pill text-start py-2" do %>
               <i class="bi bi-printer me-2"></i>Print Job Sheet
             <% end %>
           </div>
@@ -769,6 +744,8 @@
     </div>
   </div>
 </div>
+
+<!-- All modals remain the same as in your existing file -->
 
 <!-- ==================== MODALS ==================== -->
 
@@ -783,7 +760,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true do |f| %>
+      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true, data: { turbo: false } do |f| %>
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Description</label>
@@ -825,7 +802,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: reject_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+      <%= form_with url: reject_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Rejection Reason</label>
@@ -852,27 +829,25 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Select New Mechanic</label>
-          <select id="reassign-mechanic-select" class="form-select">
-            <option value="">Select Mechanic</option>
-            <% User.where(role: 'mechanic', is_active: true).where.not(id: @job.assigned_mechanic_id).each do |mechanic| %>
-              <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
-            <% end %>
-          </select>
+      <%= form_with url: reassign_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Select New Mechanic</label>
+            <%= f.select :mechanic_id, 
+                  User.where(role: 'mechanic', is_active: true).where.not(id: @job.assigned_mechanic_id).map { |m| [m.name, m.id] },
+                  { prompt: "Select Mechanic" },
+                  { class: "form-select", required: true } %>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Reason for Reassignment</label>
+            <%= f.text_area :reason, class: "form-control", rows: 2, placeholder: "Why is this job being reassigned?" %>
+          </div>
         </div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">Reason for Reassignment</label>
-          <textarea id="reassign-reason" class="form-control" rows="2" placeholder="Why is this job being reassigned?"></textarea>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+          <%= f.submit "Confirm Reassign", class: "btn btn-warning rounded-pill px-4" %>
         </div>
-      </div>
-      <div class="modal-footer border-0">
-        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-        <button onclick="reassignJob()" class="btn btn-warning rounded-pill px-4">
-          <i class="bi bi-check-circle me-2"></i>Confirm Reassign
-        </button>
-      </div>
+      <% end %>
     </div>
   </div>
 </div>
@@ -888,7 +863,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: request_update_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+      <%= form_with url: request_update_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Message to Mechanic</label>
@@ -916,7 +891,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: fail_qc_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true do |f| %>
+      <%= form_with url: fail_qc_vmcott_workshop_supervisor_job_path(@job), method: :post, local: true, data: { turbo: false } do |f| %>
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Rework Instructions</label>
@@ -944,7 +919,7 @@
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true do |f| %>
+      <%= form_with url: update_job_vmcott_workshop_supervisor_job_path(@job), method: :patch, local: true, data: { turbo: false } do |f| %>
         <div class="modal-body">
           <div class="mb-3">
             <label class="form-label fw-semibold">Note</label>
@@ -954,7 +929,7 @@
         </div>
         <div class="modal-footer border-0">
           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-          <%= f.submit "Add Note", class: "btn btn-primary rounded-pill px-4" %>
+          <%= f.submit "Add Note", class: "btn btn-primary rounded-pill px-4", name: "add_note" %>
         </div>
       <% end %>
     </div>
@@ -1046,156 +1021,96 @@
 </style>
 
 <script>
-function assignJob() {
-  const mechanicId = document.getElementById('mechanic-select').value;
-  if (!mechanicId) { 
-    alert('Please select a mechanic'); 
-    return; 
+// Debug function to log to the debug panel
+function logToDebug(message, type = 'info') {
+  const debugOutput = document.getElementById('debug-output');
+  if (debugOutput) {
+    const colors = {
+      info: '#0f0',
+      error: '#f00',
+      warn: '#ff0',
+      success: '#0f0'
+    };
+    const time = new Date().toLocaleTimeString();
+    const color = colors[type] || '#0f0';
+    debugOutput.innerHTML += `<div style="color: ${color}; margin-bottom: 4px;">[${time}] ${message}</div>`;
+    debugOutput.scrollTop = debugOutput.scrollHeight;
   }
-  
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '<%= assign_vmcott_workshop_supervisor_job_path(@job) %>';
-  form.style.display = 'none';
-  
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'authenticity_token';
-  csrfInput.value = csrfToken;
-  form.appendChild(csrfInput);
-  
-  const mechanicInput = document.createElement('input');
-  mechanicInput.type = 'hidden';
-  mechanicInput.name = 'mechanic_id';
-  mechanicInput.value = mechanicId;
-  form.appendChild(mechanicInput);
-  
-  document.body.appendChild(form);
-  console.log('Submitting assign job form to:', form.action);
-  form.submit();
+  console.log(`[Debug] ${message}`);
 }
 
-function reassignJob() {
-  const mechanicId = document.getElementById('reassign-mechanic-select').value;
-  const reason = document.getElementById('reassign-reason').value;
-  if (!mechanicId) { 
-    alert('Please select a mechanic'); 
-    return; 
+// Toggle debug panel with Ctrl+Shift+D
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    e.preventDefault();
+    const panel = document.getElementById('debug-panel');
+    if (panel) {
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
   }
-  
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '<%= reassign_vmcott_workshop_supervisor_job_path(@job) %>';
-  form.style.display = 'none';
-  
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'authenticity_token';
-  csrfInput.value = csrfToken;
-  form.appendChild(csrfInput);
-  
-  const mechanicInput = document.createElement('input');
-  mechanicInput.type = 'hidden';
-  mechanicInput.name = 'mechanic_id';
-  mechanicInput.value = mechanicId;
-  form.appendChild(mechanicInput);
-  
-  const reasonInput = document.createElement('input');
-  reasonInput.type = 'hidden';
-  reasonInput.name = 'reason';
-  reasonInput.value = reason;
-  form.appendChild(reasonInput);
-  
-  document.body.appendChild(form);
-  console.log('Submitting reassign job form to:', form.action);
-  form.submit();
-}
+});
 
-// Add this function to test the send_to_qc button
-function testSendToQC() {
-  console.log('Send to QC button clicked');
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = '<%= send_to_qc_vmcott_workshop_supervisor_job_path(@job) %>';
-  form.style.display = 'none';
-  
-  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-  const csrfInput = document.createElement('input');
-  csrfInput.type = 'hidden';
-  csrfInput.name = 'authenticity_token';
-  csrfInput.value = csrfToken;
-  form.appendChild(csrfInput);
-  
-  document.body.appendChild(form);
-  console.log('Submitting send to QC form to:', form.action);
-  form.submit();
-}
-
-// Modal handling using Bootstrap 5
+// Log initial page load data
 document.addEventListener('DOMContentLoaded', function() {
+  logToDebug('=== Page Loaded ===');
+  logToDebug(`Job ID: <%= @job.id %>`);
+  logToDebug(`Job Status: <%= @job.status %>`);
+  logToDebug(`Parts Requests Count: <%= @parts_requests&.count || 0 %>`);
+  logToDebug(`Pending Parts: <%= @parts_requests&.count { |r| r.status == 'requested' } || 0 %>`);
+  
+  // Log all routes for debugging
+  logToDebug('=== Routes ===');
+  logToDebug(`Approve URL: <%= approve_vmcott_workshop_supervisor_job_path(@job) rescue 'Not found' %>`);
+  logToDebug(`Reject URL: <%= reject_vmcott_workshop_supervisor_job_path(@job) rescue 'Not found' %>`);
+  logToDebug(`Assign URL: <%= assign_vmcott_workshop_supervisor_job_path(@job) rescue 'Not found' %>`);
+  logToDebug(`Send to QC URL: <%= send_to_qc_vmcott_workshop_supervisor_job_path(@job) rescue 'Not found' %>`);
+  logToDebug(`Update Job URL: <%= update_job_vmcott_workshop_supervisor_job_path(@job) rescue 'Not found' %>`);
+  
+  // Log all buttons found
+  logToDebug('=== Buttons ===');
+  const buttons = document.querySelectorAll('button, input[type="submit"]');
+  buttons.forEach(btn => {
+    if (btn.textContent || btn.value) {
+      logToDebug(`Found: ${btn.textContent || btn.value} (${btn.tagName})`);
+    }
+  });
+  
   // Initialize all modals
-  const editModal = new bootstrap.Modal(document.getElementById('editModal'));
-  const rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
-  const reassignModal = new bootstrap.Modal(document.getElementById('reassignModal'));
-  const requestUpdateModal = new bootstrap.Modal(document.getElementById('requestUpdateModal'));
-  const qcFailModal = new bootstrap.Modal(document.getElementById('qcFailModal'));
-  const noteModal = new bootstrap.Modal(document.getElementById('noteModal'));
+  const editModalEl = document.getElementById('editModal');
+  const rejectModalEl = document.getElementById('rejectModal');
+  const reassignModalEl = document.getElementById('reassignModal');
+  const requestUpdateModalEl = document.getElementById('requestUpdateModal');
+  const qcFailModalEl = document.getElementById('qcFailModal');
+  const noteModalEl = document.getElementById('noteModal');
+  
+  if (editModalEl) window.editModal = new bootstrap.Modal(editModalEl);
+  if (rejectModalEl) window.rejectModal = new bootstrap.Modal(rejectModalEl);
+  if (reassignModalEl) window.reassignModal = new bootstrap.Modal(reassignModalEl);
+  if (requestUpdateModalEl) window.requestUpdateModal = new bootstrap.Modal(requestUpdateModalEl);
+  if (qcFailModalEl) window.qcFailModal = new bootstrap.Modal(qcFailModalEl);
+  if (noteModalEl) window.noteModal = new bootstrap.Modal(noteModalEl);
   
   // Expose functions globally
-  window.openEditModal = () => editModal.show();
-  window.openRejectModal = () => rejectModal.show();
-  window.openReassignModal = () => reassignModal.show();
-  window.openRequestUpdateModal = () => requestUpdateModal.show();
-  window.openQCFailModal = () => qcFailModal.show();
-  window.openNoteModal = () => noteModal.show();
+  window.openEditModal = () => { logToDebug('Opening Edit Modal'); window.editModal?.show(); };
+  window.openRejectModal = () => { logToDebug('Opening Reject Modal'); window.rejectModal?.show(); };
+  window.openReassignModal = () => { logToDebug('Opening Reassign Modal'); window.reassignModal?.show(); };
+  window.openRequestUpdateModal = () => { logToDebug('Opening Request Update Modal'); window.requestUpdateModal?.show(); };
+  window.openQCFailModal = () => { logToDebug('Opening QC Fail Modal'); window.qcFailModal?.show(); };
+  window.openNoteModal = () => { logToDebug('Opening Note Modal'); window.noteModal?.show(); };
   
-  window.closeEditModal = () => editModal.hide();
-  window.closeRejectModal = () => rejectModal.hide();
-  window.closeReassignModal = () => reassignModal.hide();
-  window.closeRequestUpdateModal = () => requestUpdateModal.hide();
-  window.closeQCFailModal = () => qcFailModal.hide();
-  window.closeNoteModal = () => noteModal.hide();
+  window.closeEditModal = () => window.editModal?.hide();
+  window.closeRejectModal = () => window.rejectModal?.hide();
+  window.closeReassignModal = () => window.reassignModal?.hide();
+  window.closeRequestUpdateModal = () => window.requestUpdateModal?.hide();
+  window.closeQCFailModal = () => window.qcFailModal?.hide();
+  window.closeNoteModal = () => window.noteModal?.hide();
   
-  // Log all buttons to debug
-  console.log('=== Quick Action Buttons Debug ===');
-  
-  // Check if assign button exists
-  const assignBtn = document.querySelector('button[onclick="assignJob()"]');
-  if (assignBtn) {
-    console.log('Assign button found');
-    assignBtn.addEventListener('click', function(e) {
-      console.log('Assign button clicked');
+  // Log form submissions
+  document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      logToDebug(`Form submitted: ${this.action}`, 'info');
     });
-  } else {
-    console.log('Assign button NOT found');
-  }
-  
-  // Check if reassign button exists
-  const reassignBtn = document.querySelector('button[onclick="openReassignModal()"]');
-  if (reassignBtn) {
-    console.log('Reassign button found');
-  }
-  
-  // Check if send to QC button exists
-  const qcBtn = document.querySelector('button[type="submit"][class*="btn-purple"]');
-  if (qcBtn) {
-    console.log('Send to QC button found');
-    qcBtn.addEventListener('click', function(e) {
-      console.log('Send to QC button clicked');
-      // You can uncomment this to test
-      // testSendToQC();
-    });
-  } else {
-    console.log('Send to QC button NOT found');
-  }
-  
-  // Log the job ID and status
-  console.log('Job ID:', '<%= @job.id %>');
-  console.log('Job Status:', '<%= @job.status %>');
-  console.log('Parts Requests:', <%= @parts_requests&.count || 0 %>);
-  console.log('Pending Parts:', <%= @parts_requests&.count { |r| r.status == 'requested' } || 0 %>);
+  });
   
   // Auto-hide alerts after 5 seconds
   const alerts = document.querySelectorAll('.alert');
@@ -1208,5 +1123,8 @@ document.addEventListener('DOMContentLoaded', function() {
       }, 500);
     }, 5000);
   });
+  
+  logToDebug('=== Debug Ready ===');
+  logToDebug('Press Ctrl+Shift+D to toggle this panel');
 });
 </script>
