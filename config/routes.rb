@@ -155,12 +155,15 @@ Rails.application.routes.draw do
       get "condition_check/:vehicle_id", to: "dashboard#condition_check", as: :condition_check
       post "submit_condition/:vehicle_id", to: "dashboard#submit_condition", as: :submit_condition
       
+      # NEW: Check-in success page with receipt
+      get "check_in", to: "dashboard#check_in_success", as: :check_in
+      
       resources :reception_logs, only: [:index, :show] do
         collection do
           get :today
         end
         member do
-          get :condition_report  # View condition report for this log
+          get :condition_report
         end
       end
     end

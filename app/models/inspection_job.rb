@@ -29,6 +29,7 @@ class InspectionJob < ApplicationRecord
     pending_supervisor_review: 'pending_supervisor_review',
     pending_mechanic_review: 'pending_mechanic_review',
     pending_parts_review: 'pending_parts_review',
+    pending_customer_approval: 'pending_customer_approval',
     approved: 'approved',
     assigned: 'assigned',                    # NEW: Assigned to mechanic but not started
     pre_check_in_progress: 'pre_check_in_progress',  # NEW: Mechanic doing pre-check

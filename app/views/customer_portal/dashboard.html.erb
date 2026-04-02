@@ -3,7 +3,7 @@
   <!-- Header with Logo and Logout -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="d-flex align-items-center gap-3">
-        <%= image_tag "/images/comp_logo.png", alt: "Active Plus", class: "rounded-3", style: "height: 50px; width: auto;" %>
+      <%= image_tag "/images/comp_logo.png", alt: "Active Plus", class: "rounded-3", style: "height: 50px; width: auto;" %>
       <div>
         <h1 class="h2 mb-0 fw-bold" style="color: #1e293b;">
           <i class="bi bi-speedometer2 me-2" style="color: #3b82f6;"></i>
@@ -76,7 +76,7 @@
             <div class="col-4">
               <div class="text-center">
                 <div class="small text-muted">Jobs Completed</div>
-                <div class="fw-bold"><%= @inspection&.inspection_jobs&.where.not(completed_at: nil)&.count || 0 %> / <%= @inspection&.inspection_jobs&.count || 0 %></div>
+                <div class="fw-bold"><%= @inspection&.inspection_jobs&.select { |j| j.completed_at.present? }&.count || 0 %> / <%= @inspection&.inspection_jobs&.count || 0 %></div>
               </div>
             </div>
             <div class="col-4">
@@ -106,7 +106,7 @@
     </div>
   </div>
 
-  <%# Quotation Approval Section - Enhanced %>
+  <%# Quotation Approval Section - Enhanced - FIXED: Added nil check for @quotation %>
   <% if @quotation.present? && @quotation.status != 'approved' && @quotation.status != 'partially_approved' && @quotation.quotation_jobs.present? %>
     <div class="card shadow-sm border-0 rounded-4 mb-4">
       <div class="card-header bg-gradient bg-warning text-dark border-0 rounded-top-4 p-4">
@@ -127,7 +127,7 @@
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead class="bg-light">
-              56
+              <tr>
                 <th style="width: 50px" class="border-0 py-3"></th>
                 <th class="border-0 py-3">Service Description</th>
                 <th class="border-0 py-3 text-end">Labor</th>
@@ -254,7 +254,7 @@
   </div>
 </div>
 
-<!-- Modal for selecting jobs - Enhanced -->
+<!-- Modal for selecting jobs - Enhanced - FIXED: Added nil check for @quotation -->
 <div class="modal fade" id="selectJobsModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -265,42 +265,51 @@
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <%= form_with url: customer_approve_quotation_path(@quotation), method: :post, local: true do |f| %>
-        <div class="modal-body p-4">
-          <% if @quotation && @quotation.quotation_jobs.present? %>
-            <div class="mb-4">
-              <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="selectAllJobsModal" style="transform: scale(1.2);">
-                <label class="form-check-label fw-bold ms-2" for="selectAllJobsModal">Select All Jobs</label>
-              </div>
-            </div>
-            <div class="list-group list-group-flush">
-              <% @quotation.quotation_jobs.each do |job| %>
-                <div class="list-group-item border-0 px-0 py-3">
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input job-checkbox-modal" 
-                           name="approved_jobs[]" value="<%= job.id %>" 
-                           id="job_modal_<%= job.id %>"
-                           style="transform: scale(1.2);">
-                    <label class="form-check-label ms-3" for="job_modal_<%= job.id %>">
-                      <div class="fw-semibold"><%= job.name || job.description %></div>
-                      <div class="small text-muted mt-1">
-                        Labor: $<%= number_with_delimiter(job.total_labor_cost || 0) %> • 
-                        Parts: $<%= number_with_delimiter(job.total_parts_cost || 0) %> • 
-                        Total: $<%= number_with_delimiter((job.total_labor_cost || 0) + (job.total_parts_cost || 0)) %>
-                      </div>
-                    </label>
-                  </div>
+      <% if @quotation.present? %>
+        <%= form_with url: customer_approve_quotation_path(@quotation), method: :post, local: true do |f| %>
+          <div class="modal-body p-4">
+            <% if @quotation.quotation_jobs.present? %>
+              <div class="mb-4">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="selectAllJobsModal" style="transform: scale(1.2);">
+                  <label class="form-check-label fw-bold ms-2" for="selectAllJobsModal">Select All Jobs</label>
                 </div>
-              <% end %>
-            </div>
-          <% else %>
-            <p class="text-muted text-center py-4">No jobs available for approval.</p>
-          <% end %>
+              </div>
+              <div class="list-group list-group-flush">
+                <% @quotation.quotation_jobs.each do |job| %>
+                  <div class="list-group-item border-0 px-0 py-3">
+                    <div class="form-check">
+                      <input type="checkbox" class="form-check-input job-checkbox-modal" 
+                             name="approved_jobs[]" value="<%= job.id %>" 
+                             id="job_modal_<%= job.id %>"
+                             style="transform: scale(1.2);">
+                      <label class="form-check-label ms-3" for="job_modal_<%= job.id %>">
+                        <div class="fw-semibold"><%= job.name || job.description %></div>
+                        <div class="small text-muted mt-1">
+                          Labor: $<%= number_with_delimiter(job.total_labor_cost || 0) %> • 
+                          Parts: $<%= number_with_delimiter(job.total_parts_cost || 0) %> • 
+                          Total: $<%= number_with_delimiter((job.total_labor_cost || 0) + (job.total_parts_cost || 0)) %>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <p class="text-muted text-center py-4">No jobs available for approval.</p>
+            <% end %>
+          </div>
+          <div class="modal-footer border-0 p-4 pt-0">
+            <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+            <%= submit_tag "Approve Selected Jobs", name: "approved_jobs_submit", class: "btn btn-success rounded-pill px-4", disabled: !@quotation.quotation_jobs.present? %>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="modal-body p-4 text-center">
+          <p class="text-muted">Quotation not available.</p>
         </div>
         <div class="modal-footer border-0 p-4 pt-0">
-          <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-          <%= submit_tag "Approve Selected Jobs", name: "approved_jobs_submit", class: "btn btn-success rounded-pill px-4", disabled: !(@quotation && @quotation.quotation_jobs.present?) %>
+          <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
         </div>
       <% end %>
     </div>
@@ -436,14 +445,14 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Approve All button
+  // Approve All button - FIXED: Added check for @quotation presence
   const approveAllBtn = document.getElementById('approveAllBtn');
-  if (approveAllBtn) {
+  if (approveAllBtn && typeof <%= @quotation.present? %> !== 'undefined') {
     approveAllBtn.addEventListener('click', function() {
       if (confirm('Approve all jobs? This will authorize work to begin.')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '<%= customer_approve_quotation_path(@quotation) if @quotation %>';
+        form.action = '<%= customer_approve_quotation_path(@quotation) if @quotation.present? %>';
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = 'approve_all';

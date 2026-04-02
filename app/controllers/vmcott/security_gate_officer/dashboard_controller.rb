@@ -261,7 +261,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     render layout: 'application'
   end
   
-  # 🔥 UPDATED: submit_condition - Creates condition report, reception log, AND INSPECTION
+  # 🔥 UPDATED: submit_condition - Creates condition report, reception log, and INSPECTION
   def submit_condition
     if params[:vehicle_id].present?
       @vehicle = Vehicle.find(params[:vehicle_id])
@@ -298,6 +298,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
           exterior_damage: Array(params[:exterior]).reject(&:blank?),
           exterior_notes: params[:exterior_notes],
           interior_issues: Array(params[:interior]).reject(&:blank?),
+          interior_notes: params[:interior_notes],
           tire_status: params[:tire_status] || 'good',
           tire_notes: params[:tire_notes],
           warning_lights: Array(params[:warnings]).reject(&:blank?),
@@ -337,8 +338,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         
         Rails.logger.info "✅ Created condition report ##{@condition_report.id} and linked reception log ##{reception_log.id}"
         
-        # 🔥 STEP 4: CREATE INSPECTION RECORD - FIXED: Find an inspector properly
-        # Find an active inspector to assign to this inspection
+        # STEP 4: CREATE INSPECTION RECORD
         inspector = User.where(role: 'inspector', is_active: true).first
         
         if inspector.nil?
@@ -392,9 +392,13 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         # STEP 8: Notify inspectors with inspection details
         notify_inspectors_with_inspection(@vehicle, @condition_report, inspection)
         
-        flash[:notice] = "✅ Vehicle #{@vehicle.license_plate} checked in successfully. " +
-                         "Inspection ##{inspection.id} created and ready for inspector review."
-        redirect_to vmcott_security_gate_officer_dashboard_path
+        # 🔥 STEP 9: Set flash message with receipt number for customer portal access
+        flash[:receipt_number] = reception_log.receipt_number
+        flash[:portal_url] = customer_login_url
+        flash[:success] = "Vehicle #{@vehicle.license_plate} checked in successfully!"
+        
+        # Redirect to the check-in success page to show receipt
+        redirect_to vmcott_security_gate_officer_check_in_path(vehicle_id: @vehicle.id)
       end
     rescue => e
       Rails.logger.error "Error in submit_condition: #{e.message}"
@@ -402,6 +406,19 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
       flash[:alert] = "An error occurred: #{e.message}"
       redirect_to vmcott_security_gate_officer_condition_check_path(@vehicle.id)
     end
+  end
+  
+  # 🔥 NEW: Check-in success page showing receipt number
+  def check_in_success
+    @vehicle = Vehicle.find(params[:vehicle_id]) if params[:vehicle_id].present?
+    @receipt_number = flash[:receipt_number]
+    @portal_url = flash[:portal_url] || customer_login_url
+    
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
+    
+    render :check_in, layout: 'application'
   end
   
   def reception_logs
@@ -476,7 +493,6 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
   end
   
-  # 🔥 NEW: Enhanced notification with inspection details
   def notify_inspectors_with_inspection(vehicle, condition_report, inspection)
     return unless defined?(Notification)
     

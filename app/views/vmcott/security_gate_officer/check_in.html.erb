@@ -1,177 +1,394 @@
 <%# app/views/vmcott/security_gate_officer/check_in.html.erb %>
 <div class="container-fluid py-4">
-  <div class="card">
-    <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">🚗 Vehicle Check-In: <%= @vehicle.license_plate %></h5>
+  
+  <!-- Success Message with Portal Access Info (shown after successful check-in) -->
+  <% if flash[:receipt_number].present? %>
+    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+      <div class="d-flex align-items-start">
+        <i class="bi bi-check-circle-fill fs-2 text-success me-3"></i>
+        <div class="flex-grow-1">
+          <h4 class="alert-heading mb-2">✅ Vehicle Checked In Successfully!</h4>
+          <p class="mb-2">Your vehicle has been received and is ready for inspection.</p>
+          
+          <div class="card bg-white mt-3">
+            <div class="card-body">
+              <h6 class="fw-bold mb-3"><i class="bi bi-key me-2"></i> Your Portal Access Credentials</h6>
+              <div class="row">
+                <div class="col-md-6 mb-2">
+                  <label class="text-muted small mb-1">Vehicle License Plate</label>
+                  <div class="bg-light p-2 rounded">
+                    <code class="fs-5"><%= @vehicle&.license_plate %></code>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <label class="text-muted small mb-1">Receipt Number (Unique ID)</label>
+                  <div class="bg-light p-2 rounded">
+                    <code class="fs-5"><%= flash[:receipt_number] %></code>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3">
+                <label class="text-muted small mb-1">Portal Login URL</label>
+                <div class="bg-light p-2 rounded">
+                  <code><%= customer_login_url %></code>
+                </div>
+              </div>
+              <hr class="my-3">
+              <div class="alert alert-info mb-0 small">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>How to track your vehicle:</strong><br>
+                1. Go to the portal URL above<br>
+                2. Enter your license plate and receipt number<br>
+                3. View inspection status, approve quotations, and track repairs
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3">
+            <button onclick="window.print()" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-printer me-1"></i> Print Receipt
+            </button>
+            <%= link_to "Go to Dashboard", vmcott_security_gate_officer_dashboard_path, class: "btn btn-primary btn-sm ms-2" %>
+            <%= link_to "Check Another Vehicle", vmcott_security_gate_officer_manual_entry_path, class: "btn btn-outline-secondary btn-sm ms-2" %>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
     </div>
-    <div class="card-body">
-      
-      <%= form_with url: submit_check_in_path, local: true do |f| %>
-        
-        <!-- Quick Stats Row -->
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <label class="form-label fw-bold">Fuel Level (%)</label>
-            <div class="input-group">
-              <input type="number" name="fuel_level" class="form-control" min="0" max="100" required>
-              <span class="input-group-text">%</span>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-bold">Odometer (km)</label>
-            <input type="number" name="odometer" class="form-control" required>
-          </div>
+  <% end %>
+
+  <!-- Check-in Form (only shown if no successful check-in yet) -->
+  <% unless flash[:receipt_number].present? %>
+    <div class="card border-0 shadow-lg">
+      <div class="card-header bg-primary text-white py-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-car-front me-2"></i>
+            Vehicle Check-In: <%= @vehicle.license_plate %>
+          </h5>
+          <span class="badge bg-light text-dark">
+            <i class="bi bi-clock me-1"></i> <%= Time.current.strftime("%I:%M %p") %>
+          </span>
         </div>
+      </div>
+      <div class="card-body">
         
-        <!-- Condition Tiles -->
-        <div class="row mb-4">
-          <div class="col-md-3">
-            <div class="card">
-              <div class="card-header bg-light">Exterior Damage</div>
-              <div class="card-body">
-                <div class="form-check">
-                  <input type="checkbox" name="exterior[]" value="scratches" class="form-check-input" id="ext_scratches">
-                  <label class="form-check-label" for="ext_scratches">Scratches</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="exterior[]" value="dents" class="form-check-input" id="ext_dents">
-                  <label class="form-check-label" for="ext_dents">Dents</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="exterior[]" value="paint" class="form-check-input" id="ext_paint">
-                  <label class="form-check-label" for="ext_paint">Paint damage</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="exterior[]" value="glass" class="form-check-input" id="ext_glass">
-                  <label class="form-check-label" for="ext_glass">Glass damage</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="exterior[]" value="none" class="form-check-input" id="ext_none">
-                  <label class="form-check-label" for="ext_none">✅ No damage</label>
-                </div>
-              </div>
-            </div>
-          </div>
+        <%= form_with url: vmcott_security_gate_officer_submit_condition_path, local: true, data: { turbo: false } do |f| %>
           
-          <div class="col-md-3">
-            <div class="card">
-              <div class="card-header bg-light">Interior</div>
-              <div class="card-body">
-                <div class="form-check">
-                  <input type="checkbox" name="interior[]" value="clean" class="form-check-input" id="int_clean">
-                  <label class="form-check-label" for="int_clean">✅ Clean</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="interior[]" value="dirty" class="form-check-input" id="int_dirty">
-                  <label class="form-check-label" for="int_dirty">Dirty</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="interior[]" value="seat_damage" class="form-check-input" id="int_seat">
-                  <label class="form-check-label" for="int_seat">Seat damage</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="interior[]" value="odor" class="form-check-input" id="int_odor">
-                  <label class="form-check-label" for="int_odor">Unusual odor</label>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="col-md-3">
-            <div class="card">
-              <div class="card-header bg-light">Tires</div>
-              <div class="card-body">
-                <div class="form-check">
-                  <input type="radio" name="tire_status" value="good" class="form-check-input" id="tire_good" checked>
-                  <label class="form-check-label" for="tire_good">✅ Good condition</label>
-                </div>
-                <div class="form-check">
-                  <input type="radio" name="tire_status" value="low_pressure" class="form-check-input" id="tire_low">
-                  <label class="form-check-label" for="tire_low">Low pressure</label>
-                </div>
-                <div class="form-check">
-                  <input type="radio" name="tire_status" value="damage" class="form-check-input" id="tire_damage">
-                  <label class="form-check-label" for="tire_damage">Visible damage</label>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="col-md-3">
-            <div class="card">
-              <div class="card-header bg-light">Warning Lights</div>
-              <div class="card-body">
-                <div class="form-check">
-                  <input type="checkbox" name="warnings[]" value="none" class="form-check-input" id="warn_none">
-                  <label class="form-check-label" for="warn_none">✅ None</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="warnings[]" value="check_engine" class="form-check-input" id="warn_engine">
-                  <label class="form-check-label" for="warn_engine">Check engine</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" name="warnings[]" value="other" class="form-check-input" id="warn_other">
-                  <label class="form-check-label" for="warn_other">Other lights</label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Notes & Photos -->
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <label class="form-label fw-bold">Notes (optional)</label>
-            <textarea name="notes" class="form-control" rows="2" placeholder="Any visible issues?"></textarea>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-bold">Photos (quick capture)</label>
-            <div class="d-flex gap-2 flex-wrap">
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('front')">📸 Front</button>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('rear')">📸 Rear</button>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('sides')">📸 Sides</button>
-              <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('dash')">📸 Dashboard</button>
-            </div>
-            <input type="file" name="photos[]" multiple accept="image/*" class="d-none" id="photo-upload">
-          </div>
-        </div>
-        
-        <!-- Driver Signature -->
-        <div class="card mb-4 bg-light">
-          <div class="card-body">
+          <!-- Vehicle Info Summary -->
+          <div class="alert alert-secondary mb-4">
             <div class="row">
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Driver Name</label>
-                <input type="text" name="driver_name" class="form-control" required>
+              <div class="col-md-4">
+                <small class="text-muted">Make & Model</small><br>
+                <strong><%= @vehicle.make %> <%= @vehicle.model %></strong>
               </div>
-              <div class="col-md-6">
-                <label class="form-label fw-bold">Date/Time</label>
-                <input type="datetime-local" name="signed_at" class="form-control" value="<%= Time.current.strftime('%Y-%m-%dT%H:%M') %>" readonly>
+              <div class="col-md-4">
+                <small class="text-muted">Year</small><br>
+                <strong><%= @vehicle.year_of_manufacture %></strong>
               </div>
-            </div>
-            
-            <div class="row mt-3">
-              <div class="col-12">
-                <label class="form-label fw-bold">Signature</label>
-                <div style="border: 1px solid #ccc; height: 100px; width: 300px;" id="signature-pad"></div>
-                <input type="hidden" name="signature_data" id="signature-data">
-                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="clearSignature()">Clear</button>
+              <div class="col-md-4">
+                <small class="text-muted">Color</small><br>
+                <strong><%= @vehicle.color %></strong>
               </div>
-            </div>
-            
-            <div class="form-check mt-3">
-              <input type="checkbox" name="terms_agreed" class="form-check-input" id="terms" required>
-              <label class="form-check-label" for="terms">
-                I confirm the vehicle condition above is accurate
-              </label>
             </div>
           </div>
-        </div>
-        
-        <div class="d-grid gap-2">
-          <button type="submit" class="btn btn-success btn-lg">✓ Complete Check-In</button>
-        </div>
-      <% end %>
+          
+          <!-- Quick Stats Row -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">
+                <i class="bi bi-fuel-pump me-1"></i> Fuel Level (%)
+              </label>
+              <div class="input-group">
+                <input type="number" name="fuel_level" class="form-control" min="0" max="100" required>
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">
+                <i class="bi bi-speedometer2 me-1"></i> Odometer (km)
+              </label>
+              <input type="number" name="odometer" class="form-control" required>
+            </div>
+          </div>
+          
+          <!-- Condition Tiles -->
+          <h6 class="fw-bold mb-3"><i class="bi bi-clipboard2-check me-2"></i> Vehicle Condition Report</h6>
+          <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+              <div class="card h-100">
+                <div class="card-header bg-light fw-bold">Exterior Damage</div>
+                <div class="card-body">
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="scratches" class="form-check-input" id="ext_scratches">
+                    <label class="form-check-label" for="ext_scratches">Scratches</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="dents" class="form-check-input" id="ext_dents">
+                    <label class="form-check-label" for="ext_dents">Dents</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="paint" class="form-check-input" id="ext_paint">
+                    <label class="form-check-label" for="ext_paint">Paint damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="glass" class="form-check-input" id="ext_glass">
+                    <label class="form-check-label" for="ext_glass">Glass damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="exterior[]" value="none" class="form-check-input" id="ext_none">
+                    <label class="form-check-label" for="ext_none">✅ No damage</label>
+                  </div>
+                  <div class="mt-2">
+                    <label class="form-label small">Additional Notes</label>
+                    <input type="text" name="exterior_notes" class="form-control form-control-sm" placeholder="e.g., Scratch on passenger door">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+              <div class="card h-100">
+                <div class="card-header bg-light fw-bold">Interior</div>
+                <div class="card-body">
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="clean" class="form-check-input" id="int_clean">
+                    <label class="form-check-label" for="int_clean">✅ Clean</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="dirty" class="form-check-input" id="int_dirty">
+                    <label class="form-check-label" for="int_dirty">Dirty</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="seat_damage" class="form-check-input" id="int_seat">
+                    <label class="form-check-label" for="int_seat">Seat damage</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="interior[]" value="odor" class="form-check-input" id="int_odor">
+                    <label class="form-check-label" for="int_odor">Unusual odor</label>
+                  </div>
+                  <div class="mt-2">
+                    <label class="form-label small">Additional Notes</label>
+                    <input type="text" name="interior_notes" class="form-control form-control-sm" placeholder="e.g., Tear in driver seat">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+              <div class="card h-100">
+                <div class="card-header bg-light fw-bold">Tires</div>
+                <div class="card-body">
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="good" class="form-check-input" id="tire_good" checked>
+                    <label class="form-check-label" for="tire_good">✅ Good condition</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="low_pressure" class="form-check-input" id="tire_low">
+                    <label class="form-check-label" for="tire_low">Low pressure</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="radio" name="tire_status" value="damage" class="form-check-input" id="tire_damage">
+                    <label class="form-check-label" for="tire_damage">Visible damage</label>
+                  </div>
+                  <div class="mt-2">
+                    <label class="form-label small">Tire Notes</label>
+                    <input type="text" name="tire_notes" class="form-control form-control-sm" placeholder="e.g., Front right low">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-3 mb-3">
+              <div class="card h-100">
+                <div class="card-header bg-light fw-bold">Warning Lights</div>
+                <div class="card-body">
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="none" class="form-check-input" id="warn_none">
+                    <label class="form-check-label" for="warn_none">✅ None</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="check_engine" class="form-check-input" id="warn_engine">
+                    <label class="form-check-label" for="warn_engine">Check engine</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="brake" class="form-check-input" id="warn_brake">
+                    <label class="form-check-label" for="warn_brake">Brake warning</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="oil" class="form-check-input" id="warn_oil">
+                    <label class="form-check-label" for="warn_oil">Oil pressure</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" name="warnings[]" value="battery" class="form-check-input" id="warn_battery">
+                    <label class="form-check-label" for="warn_battery">Battery/Alternator</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Notes & Photos -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">
+                <i class="bi bi-chat-text me-1"></i> Additional Notes
+              </label>
+              <textarea name="notes" class="form-control" rows="2" placeholder="Any other visible issues or special instructions?"></textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">
+                <i class="bi bi-camera me-1"></i> Photos (quick capture)
+              </label>
+              <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('front')">📸 Front</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('rear')">📸 Rear</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('left')">📸 Left Side</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('right')">📸 Right Side</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('dashboard')">📸 Dashboard</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="capturePhoto('damage')">📸 Damage</button>
+              </div>
+              <input type="file" name="photos[]" multiple accept="image/*" class="d-none" id="photo-upload">
+              <div id="photo-preview" class="mt-2 d-flex flex-wrap gap-2"></div>
+            </div>
+          </div>
+          
+          <!-- Driver Signature -->
+          <div class="card mb-4 bg-light">
+            <div class="card-header bg-white">
+              <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i> Driver Acknowledgment</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Driver/Agent Name</label>
+                  <input type="text" name="driver_name" class="form-control" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label fw-bold">Driver ID Number (Optional)</label>
+                  <input type="text" name="driver_id_number" class="form-control">
+                </div>
+              </div>
+              
+              <div class="row">
+                <div class="col-12">
+                  <label class="form-label fw-bold">Electronic Signature</label>
+                  <div class="signature-container" style="border: 2px solid #ccc; border-radius: 8px; background: white;">
+                    <canvas id="signature-pad" width="500" height="150" style="width: 100%; height: 150px; border-radius: 8px;"></canvas>
+                  </div>
+                  <input type="hidden" name="signature_data" id="signature-data">
+                  <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSignature()">
+                      <i class="bi bi-eraser me-1"></i> Clear Signature
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="form-check mt-3">
+                <input type="checkbox" name="terms_agreed" class="form-check-input" id="terms" required>
+                <label class="form-check-label" for="terms">
+                  I confirm that the vehicle condition above is accurate and I agree to the terms of service.
+                </label>
+              </div>
+              
+              <div class="alert alert-info mt-3 mb-0 small">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Important:</strong> By signing above, you acknowledge that VMCOTT is not responsible for pre-existing damage not noted in this report. You will receive a receipt number to track your vehicle online.
+              </div>
+            </div>
+          </div>
+          
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-success btn-lg py-2">
+              <i class="bi bi-check2-circle me-2"></i> Complete Check-In & Generate Receipt
+            </button>
+            <%= link_to "Cancel", vmcott_security_gate_officer_manual_entry_path, class: "btn btn-outline-secondary" %>
+          </div>
+        <% end %>
+      </div>
     </div>
-  </div>
+  <% end %>
 </div>
+
+<!-- Signature Pad Script -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script>
+  let signaturePad;
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('signature-pad');
+    if (canvas) {
+      signaturePad = new SignaturePad(canvas, {
+        backgroundColor: 'white',
+        penColor: 'black',
+        minWidth: 1,
+        maxWidth: 2
+      });
+    }
+  });
+  
+  function clearSignature() {
+    if (signaturePad) {
+      signaturePad.clear();
+    }
+  }
+  
+  function capturePhoto(type) {
+    const input = document.getElementById('photo-upload');
+    input.setAttribute('data-photo-type', type);
+    input.click();
+  }
+  
+  document.getElementById('photo-upload')?.addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    const previewContainer = document.getElementById('photo-preview');
+    
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = document.createElement('img');
+        img.src = event.target.result;
+        img.style.width = '80px';
+        img.style.height = '80px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = '8px';
+        img.style.border = '1px solid #ddd';
+        img.style.padding = '2px';
+        previewContainer.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+  
+  // Submit handler to capture signature
+  const form = document.querySelector('form');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      if (signaturePad && !signaturePad.isEmpty()) {
+        const signatureData = signaturePad.toDataURL();
+        document.getElementById('signature-data').value = signatureData;
+      } else if (signaturePad && signaturePad.isEmpty()) {
+        e.preventDefault();
+        alert('Please provide your signature to acknowledge the vehicle condition.');
+      }
+    });
+  }
+</script>
+
+<style>
+  .signature-container canvas {
+    touch-action: none;
+    cursor: crosshair;
+  }
+  
+  @media print {
+    .btn, .alert button, form .btn, .card-header, .d-grid {
+      display: none !important;
+    }
+    .alert-success {
+      border: 2px solid #28a745;
+      background: white;
+    }
+  }
+</style>

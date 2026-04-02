@@ -15,6 +15,7 @@ class Inspection < ApplicationRecord
   has_many :quotations, dependent: :nullify
   has_many :findings, dependent: :destroy
   has_many :inspection_recommendations, dependent: :destroy
+  has_many :jobs, dependent: :destroy
 
   # =========================
   # SIMPLIFIED STATUS ENGINE (14-STEP WORKFLOW)
@@ -65,8 +66,19 @@ class Inspection < ApplicationRecord
   attribute :notes, :text
 
   validates :status, presence: true
-  validates :diagnosis_notes, presence: true, if: -> { diagnosed? && diagnosis_completed_at.present? }
+  validate :diagnosis_requirements
 
+  def diagnosis_requirements
+    return unless diagnosed?
+
+    if diagnosis_notes.blank?
+      errors.add(:diagnosis_notes, "must be present")
+    end
+
+    if inspection_recommendations.empty?
+      errors.add(:base, "At least one recommendation is required")
+    end
+  end
   # =========================
   # WORKFLOW RULES (SAFETY GUARDS)
   # =========================
@@ -130,6 +142,7 @@ class Inspection < ApplicationRecord
 
   def move_to_diagnosed!
     return false unless inspected?
+    return false unless has_recommendations? # 🔥 NEW LINE
     update!(status: :diagnosed, diagnosis_completed_at: Time.current)
     notify_supervisor_for_job_creation
     true
@@ -359,6 +372,10 @@ class Inspection < ApplicationRecord
   # HELPER METHODS
   # =========================
 
+  def has_recommendations?
+    inspection_recommendations.exists?
+  end
+
   def can_transition_to?(new_status)
     workflow_transitions = {
       received: [:inspected, :cancelled],
@@ -378,6 +395,10 @@ class Inspection < ApplicationRecord
       cancelled: []
     }
     workflow_transitions[status.to_sym]&.include?(new_status.to_sym) || false
+  end
+
+  def all_parts_received?
+    parts_requests.where.not(status: 'received').none?
   end
 
   def transition_to!(new_status, reason = nil)

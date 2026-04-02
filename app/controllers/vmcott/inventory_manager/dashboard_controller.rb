@@ -207,13 +207,15 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     redirect_to vmcott_inventory_manager_dashboard_path
   end
 
-  # Mark purchase order as received and update inventory
+  # 🔥 UPDATED: Mark purchase order as received and update inventory with supervisor notification
   def mark_po_received
     purchase_order = PurchaseOrder.find(params[:id])
     purchase_order.update(status: 'received', received_at: Time.current)
     
     # Update all associated parts requests and inventory
     received_count = 0
+    supervisor_notified = false
+    
     purchase_order.parts_requests.each do |pr|
       update_params = { status: 'parts_received' }
       
@@ -240,7 +242,21 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         )
       end
       
-      # Check if inspection is now ready
+      # 🔥 NOTIFY WORKSHOP SUPERVISOR that parts are received
+      if pr.inspection && pr.inspection.supervisor.present?
+        supervisor_notified = true
+        Notification.create!(
+          user: pr.inspection.supervisor,
+          title: "📦 Parts Received - Ready for Quotation",
+          message: "#{pr.quantity}x #{pr.part&.name || pr.custom_part_name} has been received for #{pr.inspection.vehicle&.license_plate}. Ready to create quotation.",
+          link: vmcott_workshop_supervisor_quotation_creation_path(pr.inspection),
+          notification_type: 'success',
+          notifiable: pr
+        )
+        Rails.logger.info "Notified supervisor #{pr.inspection.supervisor.name} about parts receipt"
+      end
+      
+      # Check if all parts for this inspection are now available
       inspection = pr.inspection
       if inspection && inspection.all_parts_available?
         inspection.update(
@@ -251,8 +267,10 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       end
     end
     
-    redirect_to vmcott_inventory_manager_dashboard_path, 
-                notice: "PO marked as received. #{received_count} parts updated in inventory."
+    notice = "PO marked as received. #{received_count} parts updated in inventory."
+    notice += " Supervisor notified." if supervisor_notified
+    
+    redirect_to vmcott_inventory_manager_dashboard_path, notice: notice
   rescue => e
     Rails.logger.error "Error in mark_po_received: #{e.message}"
     flash[:alert] = "Failed to mark PO as received: #{e.message}"
@@ -289,6 +307,18 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       )
     end
     
+    # 🔥 Notify supervisor about this specific part
+    if parts_request.inspection && parts_request.inspection.supervisor.present?
+      Notification.create!(
+        user: parts_request.inspection.supervisor,
+        title: "📦 Part Received - #{parts_request.part&.name || parts_request.custom_part_name}",
+        message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} has been received for #{parts_request.inspection.vehicle&.license_plate}.",
+        link: vmcott_workshop_supervisor_quotation_creation_path(parts_request.inspection),
+        notification_type: 'info',
+        notifiable: parts_request
+      )
+    end
+    
     # Check if inspection is now ready
     inspection = parts_request.inspection
     if inspection && inspection.all_parts_available?
@@ -297,9 +327,9 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         parts_ready_at: Time.current
       )
       notify_mechanics_workshop_ready(inspection)
-      flash[:notice] = "Parts received. All parts ready! Job passed to workshop."
+      flash[:notice] = "Parts received. All parts ready! Job passed to workshop. Supervisor notified."
     else
-      flash[:notice] = "Parts marked as received."
+      flash[:notice] = "Parts marked as received. Supervisor notified."
     end
     
     redirect_to vmcott_inventory_manager_dashboard_path
@@ -392,6 +422,44 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     redirect_to vmcott_inventory_manager_dashboard_path, alert: "Failed to accept quotation: #{e.message}"
   end
 
+  # 🔥 NEW: Get low stock parts for reordering
+  def low_stock
+    @low_stock_parts = Part.where('current_stock <= reorder_point')
+                           .includes(:supplier)
+                           .order(current_stock: :asc)
+                           .page(params[:page])
+                           .per(50)
+    
+    respond_to do |format|
+      format.html { render 'vmcott/inventory_manager/low_stock' }
+      format.csv do
+        send_data generate_low_stock_csv(@low_stock_parts), 
+                  filename: "low_stock_parts_#{Date.current}.csv"
+      end
+    end
+  end
+
+  # 🔥 NEW: Generate reorder suggestions
+  def reorder_suggestions
+    @parts = []
+    
+    Part.where('current_stock <= reorder_point * 1.5').each do |part|
+      days_of_supply = calculate_days_of_supply(part)
+      avg_monthly_consumption = calculate_avg_monthly_consumption(part)
+      suggested_qty = [part.reorder_point - part.current_stock, part.minimum_stock].max
+      
+      @parts << {
+        part: part,
+        days_of_supply: days_of_supply,
+        avg_monthly_consumption: avg_monthly_consumption,
+        suggested_quantity: suggested_qty,
+        supplier: part.supplier
+      }
+    end
+    
+    render 'vmcott/inventory_manager/reorder_suggestions'
+  end
+
   private
 
   def require_inventory_manager
@@ -431,6 +499,37 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     end
   end
   
+  def calculate_days_of_supply(part)
+    recent_usage = part.parts_requests.where('created_at > ?', 30.days.ago).sum(:quantity)
+    return nil if recent_usage == 0
+    
+    daily_usage = recent_usage.to_f / 30
+    (part.current_stock / daily_usage).round(1)
+  end
+  
+  def calculate_avg_monthly_consumption(part)
+    usage = part.parts_requests.where('created_at > ?', 90.days.ago).sum(:quantity)
+    (usage / 3).round
+  end
+  
+  def generate_low_stock_csv(parts)
+    CSV.generate(headers: true) do |csv|
+      csv << ['Part Name', 'Part Number', 'Category', 'Current Stock', 'Minimum Stock', 'Reorder Point', 'Supplier', 'Status']
+      parts.each do |part|
+        csv << [
+          part.name,
+          part.part_number,
+          part.category,
+          part.current_stock,
+          part.minimum_stock,
+          part.reorder_point,
+          part.supplier&.name,
+          part.current_stock <= part.minimum_stock ? 'Critical' : 'Low'
+        ]
+      end
+    end
+  end
+  
   def notify_mechanics_workshop_ready(inspection)
     mechanic_ids = User.where(role: 'mechanic').pluck(:id)
     
@@ -441,7 +540,8 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         link: vmcott_mechanic_job_path(inspection.id),
         user_id: mechanic_ids,
         notifiable_type: 'Inspection',
-        notifiable_id: inspection.id
+        notifiable_id: inspection.id,
+        notification_type: 'success'
       )
     end
     

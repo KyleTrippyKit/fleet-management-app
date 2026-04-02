@@ -94,14 +94,40 @@ class CustomerPortalController < ApplicationController
     @total_cost = @quotation.amount || @quotation.quotation_jobs.sum(&:total_labor_cost) + @quotation.quotation_job_parts.sum(&:total_price)
   end
 
+  # 🔥 REVISED: Approve method with safe notification handling
   def approve
-    @quotation = Quotation.find(params[:id])
+    # Make sure we have a valid quotation ID
+    if params[:id].blank?
+      flash[:alert] = "Quotation ID is missing."
+      redirect_to customer_dashboard_path and return
+    end
+    
+    @quotation = Quotation.find_by(id: params[:id])
+    
+    if @quotation.nil?
+      flash[:alert] = "Quotation not found."
+      redirect_to customer_dashboard_path and return
+    end
+    
+    # Use inspection_id instead of .inspection association
+    @inspection = Inspection.find_by(id: @quotation.inspection_id)
+    
+    if @inspection.nil?
+      flash[:alert] = "Inspection not found for this quotation."
+      redirect_to customer_dashboard_path and return
+    end
     
     if params[:approve_all].present?
       # Approve all jobs
       @quotation.quotation_jobs.update_all(client_approved: true, client_approved_at: Time.current)
-      @quotation.update(status: 'approved', approved_at: Time.current)
+      # Use 'accepted' instead of 'approved' (valid Quotation status)
+      @quotation.update(status: 'accepted', accepted_at: Time.current)
+      
+      # Update ALL jobs from 'pending_approval' to 'approved'
+      updated_count = @inspection.inspection_jobs.update_all(status: 'approved')
+      
       flash[:notice] = "All jobs approved. Work will begin shortly."
+      Rails.logger.info "Customer approved all #{updated_count} jobs for inspection #{@inspection.id}"
       
     elsif params[:approved_jobs].present?
       # Approve selected jobs
@@ -109,30 +135,80 @@ class CustomerPortalController < ApplicationController
       @quotation.quotation_jobs.where(id: approved_ids).update_all(client_approved: true, client_approved_at: Time.current)
       @quotation.quotation_jobs.where.not(id: approved_ids).update_all(client_approved: false)
       
-      if approved_ids.length == @quotation.quotation_jobs.count
-        @quotation.update(status: 'approved', approved_at: Time.current)
-        flash[:notice] = "All jobs approved. Work will begin shortly."
-      else
-        @quotation.update(status: 'partially_approved', approved_at: Time.current)
-        flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining jobs will not be performed."
+      # Update only approved jobs to 'approved' status
+      approved_job_ids = @quotation.quotation_jobs.where(id: approved_ids).pluck(:inspection_job_id).compact
+      
+      if approved_job_ids.any?
+        updated_count = @inspection.inspection_jobs.where(id: approved_job_ids).update_all(status: 'approved')
+        Rails.logger.info "Customer approved #{updated_count} specific jobs for inspection #{@inspection.id}"
       end
       
+      if approved_ids.length == @quotation.quotation_jobs.count
+        @quotation.update(status: 'accepted', accepted_at: Time.current)
+        flash[:notice] = "All jobs approved. Work will begin shortly."
+      else
+        @quotation.update(status: 'partially_rejected')
+        flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining jobs will not be performed."
+      end
     else
       flash[:alert] = "Please select at least one job to approve."
       redirect_to customer_quotation_path(@quotation) and return
     end
     
-    # Notify procurement that customer approved
-    Notification.create!(
-      title: "Quotation Approved by Customer",
-      message: "Customer has approved #{@quotation.quotation_jobs.where(client_approved: true).count} out of #{@quotation.quotation_jobs.count} jobs for vehicle #{@quotation.vehicle&.license_plate}",
-      link: "/vmcott/procurement/quotations/#{@quotation.id}",
-      user_id: User.where(role: 'procurement').pluck(:id)
-    )
+    # Update inspection status if all jobs are now approved
+    if @inspection.inspection_jobs.where(status: 'approved').count > 0
+      @inspection.update(status: 'approved') if @inspection.status == 'awaiting_approval'
+    end
+    
+    # 🔥 SAFELY notify supervisor (wrap in begin/rescue)
+    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+    if supervisor_ids.any?
+      begin
+        Notification.create!(
+          title: "Quotation Approved by Customer",
+          message: "Customer has approved #{@quotation.quotation_jobs.where(client_approved: true).count} out of #{@quotation.quotation_jobs.count} jobs for vehicle #{@quotation.vehicle&.license_plate}",
+          link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}",
+          user_id: supervisor_ids,
+          notifiable_type: 'Quotation',
+          notifiable_id: @quotation.id,
+          notification_type: 'success'
+        )
+        Rails.logger.info "Notified #{supervisor_ids.count} supervisors"
+      rescue => e
+        Rails.logger.error "Failed to create supervisor notification: #{e.message}"
+      end
+    else
+      Rails.logger.warn "No workshop supervisors found to notify"
+    end
+    
+    # 🔥 SAFELY notify mechanics (wrap in begin/rescue)
+    approved_job_count = @inspection.inspection_jobs.where(status: 'approved').count
+    if approved_job_count > 0
+      mechanic_ids = User.where(role: 'mechanic').pluck(:id)
+      if mechanic_ids.any?
+        mechanic_ids.each do |mechanic_id|
+          begin
+            Notification.create!(
+              user_id: mechanic_id,
+              title: "New Work Available",
+              message: "Customer approved work for #{@inspection.vehicle&.license_plate}. #{approved_job_count} job(s) ready.",
+              link: vmcott_mechanic_dashboard_path,
+              notification_type: 'success',
+              notifiable: @inspection
+            )
+          rescue => e
+            Rails.logger.error "Failed to create notification for mechanic #{mechanic_id}: #{e.message}"
+          end
+        end
+        Rails.logger.info "Notified #{mechanic_ids.count} mechanics"
+      else
+        Rails.logger.warn "No mechanics found to notify"
+      end
+    end
     
     redirect_to customer_dashboard_path, notice: flash[:notice]
   end
-
+  
   def status
     @reception = @customer_reception
     @inspection = Inspection.find_by(vehicle: @reception&.vehicle) if @reception&.vehicle
@@ -188,7 +264,9 @@ class CustomerPortalController < ApplicationController
     @quotation = Quotation.find_by(id: params[:id])
     if @quotation.nil?
       redirect_to customer_dashboard_path, alert: "Quotation not found."
+      return false
     end
+    true
   end
 
   def authorize_quotation_access

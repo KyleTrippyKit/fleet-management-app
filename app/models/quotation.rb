@@ -28,6 +28,7 @@ class Quotation < ApplicationRecord
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :submitted_by, class_name: "User", optional: true
+  belongs_to :inspection, optional: true
 
   # purchase_orders has quotation_id (schema confirms)
   has_one :purchase_order, dependent: :nullify

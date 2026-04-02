@@ -625,38 +625,10 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   end
 
   # =====================================================
-  # 🔥 UPDATED: PHASE 4 - JOB CREATION (Shows both inspector AND mechanic findings)
+  # 🔥 UPDATED: PHASE 4 - JOB CREATION (FIXED for missing columns)
   # =====================================================
 
-  def job_creation
-    @inspection = Inspection.find(params[:id])
-    
-    # Load INSPECTOR recommendations
-    @inspector_recommendations = @inspection.inspection_recommendations
-                                             .where(status: 'pending')
-                                             .order(priority: :desc, created_at: :desc)
-    
-    # Load MECHANIC diagnosis findings
-    @mechanic_findings = @inspection.findings
-                                     .where(finding_type: ['mechanic_diagnosis', 'diagnosis'])
-                                     .where(status: ['pending', 'pending_review'])
-                                     .order(created_at: :desc)
-    
-    # For backward compatibility, also set @findings to mechanic findings
-    @findings = @mechanic_findings
-    
-    @mechanics = User.where(role: 'mechanic').order(:name)
-    @job_templates = JobTemplate.active if defined?(JobTemplate)
-
-    # Log for debugging
-    Rails.logger.info "Job Creation - Inspection #{@inspection.id}:"
-    Rails.logger.info "  - Inspector recommendations: #{@inspector_recommendations.count}"
-    Rails.logger.info "  - Mechanic findings: #{@mechanic_findings.count}"
-
-    disable_all_caching
-  end
-
-  def create_jobs
+def create_jobs
     @inspection = Inspection.find(params[:id])
 
     ActiveRecord::Base.transaction do
@@ -671,7 +643,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           job = @inspection.inspection_jobs.create!(
             description: rec_data[:description] || recommendation.description,
             estimated_hours: rec_data[:estimated_hours] || recommendation.estimated_hours || 1,
-            status: 'pending',
+            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
             recommendation_source: 'inspector',
             priority: rec_data[:priority] || recommendation.priority || 'normal'
           )
@@ -687,19 +659,16 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           finding = Finding.find(finding_id)
           job = @inspection.inspection_jobs.create!(
             description: finding_data[:description] || finding.description,
-            estimated_hours: finding_data[:estimated_hours] || finding.metadata&.[]('estimated_hours') || 1,
-            status: 'pending',
+            estimated_hours: finding_data[:estimated_hours] || 1,
+            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
             recommendation_source: 'mechanic',
-            priority: finding_data[:priority] || finding.priority || 'normal'
+            priority: finding_data[:priority] || 'normal'
           )
           created_jobs << job
-          
-          # Update finding status
-          finding.update!(status: 'converted_to_job', inspection_job_id: job.id)
         end
       end
       
-      # Process custom jobs from template or manual entry
+      # Process custom jobs
       if params[:jobs].present?
         params[:jobs].each do |job_data|
           next if job_data[:description].blank?
@@ -707,13 +676,12 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           job = @inspection.inspection_jobs.create!(
             description: job_data[:description],
             estimated_hours: job_data[:estimated_hours] || 1,
-            status: 'pending',
+            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
             priority: job_data[:priority] || 'normal',
             recommendation_source: 'supervisor'
           )
           created_jobs << job
           
-          # Assign mechanic if specified
           if job_data[:mechanic_id].present?
             job.update!(assigned_mechanic_id: job_data[:mechanic_id])
           elsif params[:default_mechanic_id].present?
@@ -723,23 +691,16 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       end
       
       if created_jobs.any?
-        # Update inspection status
-        @inspection.update!(
-          status: 'jobs_created',
-          jobs_created_at: Time.current
-        )
-        
-        flash[:notice] = "✅ Successfully created #{created_jobs.count} job(s) from #{@inspector_recommendations.count} inspector recommendations and #{@mechanic_findings.count} mechanic findings."
+        @inspection.update!(status: 'jobs_created')
+        flash[:notice] = "✅ Successfully created #{created_jobs.count} job(s). They are pending customer approval."
       else
-        flash[:alert] = "No jobs were created. Please add at least one job."
+        flash[:alert] = "No jobs were created."
         redirect_to vmcott_workshop_supervisor_job_creation_path(@inspection) and return
       end
     end
     
     redirect_to vmcott_workshop_supervisor_dashboard_path
   rescue => e
-    Rails.logger.error "Error creating jobs: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Error creating jobs: #{e.message}"
     redirect_to vmcott_workshop_supervisor_job_creation_path(@inspection)
   end
@@ -832,21 +793,9 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       # Create quotation
       @inspection.create_quotation! if @inspection.respond_to?(:create_quotation!)
       @inspection.send_quotation_to_client! if @inspection.respond_to?(:send_quotation_to_client!)
-
-      # Notify procurement
-      notify_procurement_for_quotation(@inspection)
-
-      # Notify mechanic
-      if mechanic_id.present?
-        Notification.create!(
-          user_id: mechanic_id,
-          title: "New Job Assignment",
-          message: "You have been assigned to #{@inspection.inspection_jobs.count} job(s) for #{@inspection.vehicle.license_plate}",
-          link: vmcott_mechanic_dashboard_path,
-          notification_type: 'info',
-          notifiable: @inspection
-        )
-      end
+      
+      # Update status
+      @inspection.update!(status: 'awaiting_approval')
 
       flash[:notice] = "✅ Quotation created and sent to client for approval."
     end
