@@ -85,4 +85,5 @@ group :test do
   gem "selenium-webdriver"
   gem "webdrivers"
   gem 'twilio-ruby'
+  gem "stripe"
 end

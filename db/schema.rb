@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_01_174243) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -382,6 +382,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_174243) do
     t.datetime "pre_check_completed_at"
     t.text "pre_check_notes"
     t.string "priority"
+    t.text "qc_notes"
+    t.datetime "qc_passed_at"
+    t.integer "qc_passed_by_id"
     t.integer "quantity_used", default: 0
     t.string "recommendation_source", default: "inspector"
     t.boolean "requires_approval", default: false
@@ -456,6 +459,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_01_174243) do
     t.bigint "created_by_id"
     t.string "customer_signature"
     t.datetime "diagnosis_completed_at"
+    t.text "diagnosis_notes"
     t.decimal "discount_percentage", precision: 5, scale: 2, default: "0.0"
     t.datetime "final_inspection_completed_at"
     t.text "final_inspection_notes"

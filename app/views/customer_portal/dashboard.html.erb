@@ -19,7 +19,7 @@
     </div>
   </div>
 
-  <!-- Vehicle Information Card - Enhanced -->
+  <!-- Vehicle Information Card -->
   <div class="card shadow-sm border-0 rounded-4 mb-4">
     <div class="card-body p-4">
       <div class="row align-items-center">
@@ -60,7 +60,7 @@
     </div>
   </div>
 
-  <!-- Progress Card - Enhanced -->
+  <!-- Progress Card -->
   <div class="card shadow-sm border-0 rounded-4 mb-4">
     <div class="card-body p-4">
       <div class="row align-items-center">
@@ -106,8 +106,8 @@
     </div>
   </div>
 
-  <%# Quotation Approval Section - Enhanced - FIXED: Added nil check for @quotation %>
-  <% if @quotation.present? && @quotation.status != 'approved' && @quotation.status != 'partially_approved' && @quotation.quotation_jobs.present? %>
+  <%# Quotation Approval Section %>
+  <% if @quotation.present? && @quotation.status != 'accepted' && @quotation.status != 'partially_rejected' && @quotation.quotation_jobs.present? %>
     <div class="card shadow-sm border-0 rounded-4 mb-4">
       <div class="card-header bg-gradient bg-warning text-dark border-0 rounded-top-4 p-4">
         <div class="d-flex align-items-center justify-content-between">
@@ -144,11 +144,11 @@
                              id="job_<%= job.id %>"
                              style="transform: scale(1.2);">
                     </div>
-                   </td>
-                   <td>
+                    </td>
+                    <td>
                     <div class="fw-semibold"><%= job.name || job.description %></div>
                     <small class="text-muted">Estimated: <%= job.estimated_hours %> hours</small>
-                   </td>
+                    </td>
                   <td class="text-end fw-semibold">$<%= number_with_delimiter(job.total_labor_cost || 0) %></td>
                   <td class="text-end">$<%= number_with_delimiter(job.total_parts_cost || 0) %></td>
                   <td class="text-end fw-bold text-primary">$<%= number_with_delimiter((job.total_labor_cost || 0) + (job.total_parts_cost || 0)) %></td>
@@ -161,14 +161,18 @@
                 <td class="text-end text-primary border-0 py-3">$<%= number_with_delimiter(@quotation.quotation_jobs.sum { |j| (j.total_labor_cost || 0) + (j.total_parts_cost || 0) }) %></td>
               </tr>
             </tfoot>
-          </table>
+           </table>
         </div>
         
         <div class="p-4 bg-light border-top">
           <div class="d-flex gap-3">
-            <button type="button" class="btn btn-success px-4 py-2 rounded-pill" id="approveAllBtn">
-              <i class="bi bi-check2-circle me-2"></i> Approve All Jobs
-            </button>
+            <%= button_to "Approve All Jobs", 
+                customer_approve_quotation_path(@quotation), 
+                method: :post,
+                params: { approve_all: 'true' },
+                class: "btn btn-success px-4 py-2 rounded-pill",
+                data: { confirm: "Approve all jobs? This will authorize work to begin.", turbo: false } %>
+            
             <button type="button" class="btn btn-outline-primary px-4 py-2 rounded-pill" data-bs-toggle="modal" data-bs-target="#selectJobsModal">
               <i class="bi bi-check2-square me-2"></i> Approve Selected
             </button>
@@ -182,8 +186,8 @@
     </div>
   <% end %>
 
-  <%# Already Approved Section - Enhanced %>
-  <% if @quotation.present? && (@quotation.status == 'approved' || @quotation.status == 'partially_approved') && @quotation.quotation_jobs.where(client_approved: true).any? %>
+  <%# Already Approved Section %>
+  <% if @quotation.present? && (@quotation.status == 'accepted' || @quotation.status == 'partially_rejected') && @quotation.quotation_jobs.where(client_approved: true).any? %>
     <div class="card shadow-sm border-0 rounded-4 mb-4">
       <div class="card-header bg-gradient bg-success text-white border-0 rounded-top-4 p-4">
         <div class="d-flex align-items-center">
@@ -212,7 +216,7 @@
     </div>
   <% end %>
 
-  <%# Timeline Section - Enhanced %>
+  <%# Timeline Section %>
   <div class="card shadow-sm border-0 rounded-4">
     <div class="card-header bg-gradient bg-info text-white border-0 rounded-top-4 p-4">
       <div class="d-flex align-items-center">
@@ -254,7 +258,7 @@
   </div>
 </div>
 
-<!-- Modal for selecting jobs - Enhanced - FIXED: Added nil check for @quotation -->
+<!-- Modal for selecting jobs -->
 <div class="modal fade" id="selectJobsModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -445,25 +449,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Approve All button - FIXED: Added check for @quotation presence
-  const approveAllBtn = document.getElementById('approveAllBtn');
-  if (approveAllBtn && typeof <%= @quotation.present? %> !== 'undefined') {
-    approveAllBtn.addEventListener('click', function() {
-      if (confirm('Approve all jobs? This will authorize work to begin.')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '<%= customer_approve_quotation_path(@quotation) if @quotation.present? %>';
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'approve_all';
-        input.value = 'true';
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-      }
-    });
-  }
-  
   // Select all checkbox functionality for modal
   const selectAllModal = document.getElementById('selectAllJobsModal');
   const modalCheckboxes = document.querySelectorAll('.job-checkbox-modal');

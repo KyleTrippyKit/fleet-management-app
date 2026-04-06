@@ -18,22 +18,13 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   helper_method :calculate_labor_cost, :calculate_parts_cost
 
   def index
-    # 🔥 FIXED: Include all pending inspections
     @pending_inspections = Inspection
       .where(status: 'received')
-      .where(inspector_id: current_user.id)  # Show only assigned to current inspector
+      .where(inspector_id: current_user.id)
       .includes(:vehicle)
       .order(created_at: :desc)
       .limit(20)
     
-    # 🔥 DEBUG: Log what we found
-    Rails.logger.info "=== INSPECTOR DASHBOARD ==="
-    Rails.logger.info "Found #{@pending_inspections.count} pending inspections for current user"
-    @pending_inspections.each do |insp|
-      Rails.logger.info "  - Inspection ##{insp.id}: Vehicle #{insp.vehicle&.license_plate}, Status: #{insp.status}"
-    end
-    
-    # FIXED: Use correct status 'inspected' for in-progress inspections
     @in_progress = Inspection
       .where(inspector: current_user)
       .where(status: 'inspected')
@@ -41,20 +32,29 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       .order(updated_at: :desc)
       .limit(20)
     
-    # FIXED: Use correct status 'qc_pending' for QC queue
     @qc_pending = Inspection
       .where(status: 'qc_pending')
       .includes(:vehicle, :inspection_jobs)
       .order(updated_at: :desc)
       .limit(20)
     
-    # FIXED: Use correct status 'completed' for completed inspections
     @recent_completed = Inspection
       .where(inspector: current_user)
       .where(status: ['completed'])
       .includes(:vehicle, :inspection_jobs)
       .order(created_at: :desc)
       .limit(5)
+    
+    # 🔥 Recently passed QC jobs
+    @recent_qc_passed = InspectionJob
+      .where('qc_passed_at >= ?', Time.current.beginning_of_day)
+      .includes(inspection: :vehicle)
+      .order(qc_passed_at: :desc)
+      .limit(20)
+    
+    # 🔥 QC passed count for today
+    @qc_passed_today = InspectionJob
+      .where('qc_passed_at >= ?', Time.current.beginning_of_day)
     
     disable_caching
   end
@@ -87,7 +87,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     @vehicles = Vehicle.order(:license_plate)
     @total_count = @inspections.total_count
     
-    # FIXED: Use correct status names
     @approved_count = Inspection.where(status: 'approved').count
     @completed_count = Inspection.where(status: 'completed').count
     @parts_ready_count = Inspection.where(status: 'parts_ready').count
@@ -107,10 +106,8 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       redirect_to vmcott_inspector_dashboard_path and return
     end
     
-    # FIXED: Find inspection for this vehicle
     @inspection = Inspection.find_by(vehicle: @vehicle, status: 'received', inspector_id: current_user.id)
     
-    # If no inspection exists, create one
     if @inspection.nil?
       @inspection = Inspection.create!(
         vehicle: @vehicle,
@@ -147,7 +144,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       redirect_to vmcott_inspector_pre_inspection_path(@vehicle.id) and return
     end
 
-    # Store pre-inspection data in session with all fields
     session[:pre_inspection_data] = {
       vehicle_id: @vehicle.id,
       mileage: params[:current_mileage],
@@ -170,7 +166,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       brake_fluid_level: params[:brake_fluid_level]
     }
 
-    # Find or create inspection
     inspection = Inspection.find_or_initialize_by(vehicle: @vehicle, status: 'received', inspector_id: current_user.id)
     
     checklist_data = {
@@ -205,7 +200,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       metadata: current_metadata.merge(pre_inspection: checklist_data)
     )
 
-    # Handle photo uploads if present
     if params[:photos].present?
       session[:pre_inspection_photos] = params[:photos].to_unsafe_h if params[:photos].respond_to?(:to_unsafe_h)
     end
@@ -239,9 +233,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
   alias_method :new_inspection, :job_recommendations
 
-  # =====================================================
-  # 🔥 NEW: CREATE RECOMMENDATIONS (Phase 3.5)
-  # =====================================================
   def create_recommendations
     @inspection = Inspection.find(params[:inspection_id])
     
@@ -264,7 +255,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       diagnosis_completed_at: Time.current
     )
     
-    # Notify supervisor
     supervisors = User.where(role: 'workshop_supervisor')
     supervisors.find_each do |supervisor|
       Notification.create!(
@@ -281,9 +271,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     redirect_to vmcott_inspector_dashboard_path
   end
 
-  # =====================================================
-  # PHASE 2: COMPLETE INSPECTION (UPDATED FOR 14-STEP WORKFLOW)
-  # =====================================================
   def create_inspection
     @vehicle = Vehicle.find_by(id: params[:vehicle_id])
     
@@ -323,7 +310,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
 
       @inspection.vehicle.update(mileage: session[:pre_inspection_data]['mileage']) if session[:pre_inspection_data]['mileage'].present?
 
-      # Notify mechanics for diagnosis (Phase 3)
       notify_mechanics_for_diagnosis(@inspection)
 
       session.delete(:pre_inspection_data)
@@ -359,9 +345,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     disable_caching
   end
 
-  # =====================================================
-  # PHASE 10: QUALITY CONTROL
-  # =====================================================
   def qc_inspection
     @inspection = Inspection.includes(
       :vehicle,
@@ -393,20 +376,53 @@ class Vmcott::Inspector::DashboardController < ApplicationController
         qc_passed_at: Time.current
       )
       
+      # Update individual jobs that passed QC
+      @inspection.inspection_jobs.each do |job|
+        job.update!(
+          status: 'completed',
+          qc_passed_at: Time.current,
+          qc_passed_by_id: current_user.id,
+          qc_notes: params[:final_notes]
+        )
+      end
+      
+      # 🔥 NOTIFY SUPERVISOR that QC passed (NO EMAIL TO CUSTOMER - Supervisor handles that)
+      supervisors = User.where(role: 'workshop_supervisor')
+      supervisors.each do |supervisor|
+        Notification.create!(
+          user: supervisor,
+          title: "✅ Vehicle Passed QC - Ready for Pickup",
+          message: "#{@inspection.vehicle.license_plate} (#{@inspection.vehicle.make} #{@inspection.vehicle.model}) has passed QC inspection by #{current_user.name}. Ready to notify customer.",
+          link: vmcott_workshop_supervisor_inspection_path(@inspection),
+          notification_type: 'success',
+          notifiable: @inspection
+        )
+      end
+      
+      # Also create a vehicle status update
+      VehicleStatus.create!(
+        vehicle: @inspection.vehicle,
+        created_by: current_user,
+        status: 'qc_passed',
+        current: true,
+        notes: "QC passed by #{current_user.name}. Vehicle ready for pickup."
+      )
+      
       notify_billing_team_for_invoice(@inspection)
       
-      redirect_to vmcott_inspector_dashboard_path, notice: "✅ QC passed. Vehicle ready for pickup."
+      redirect_to vmcott_inspector_dashboard_path, 
+                  notice: "✅ QC passed! Vehicle is ready for pickup. Supervisor has been notified to contact the customer."
     else
       failure_reason = params[:failure_reason] || "Quality control failed"
       
       begin
         @inspection.update!(
           notes: @inspection.notes.to_s + "\n\n" + "="*50 + 
-                 "\n🔴 QC FAILED\n" +
-                 "Failed by: #{current_user.name}\n" +
-                 "Failed at: #{Time.current.strftime('%Y-%m-%d %H:%M')}\n" +
-                 "Reason: #{failure_reason}\n" +
-                 "="*50,
+                "\n🔴 QC FAILED\n" +
+                "Failed by: #{current_user.name}\n" +
+                "Failed at: #{Time.current.strftime('%Y-%m-%d %H:%M')}\n" +
+                "Reason: #{failure_reason}\n" +
+                "="*50,
           status: :in_progress,
           rework_required: true,
           rework_reason: failure_reason,
@@ -431,12 +447,12 @@ class Vmcott::Inspector::DashboardController < ApplicationController
           end
         end
         
+        # Notify mechanics about rework
         notify_mechanics_for_rework(@inspection, failure_reason)
         
         redirect_to vmcott_inspector_dashboard_path, alert: "❌ QC failed - job sent back to mechanic for rework."
       rescue => e
         Rails.logger.error "Error in QC failure: #{e.message}"
-        Rails.logger.error e.backtrace.join("\n")
         redirect_to vmcott_inspector_qc_path(@inspection), alert: "Error recording QC failure: #{e.message}"
       end
     end
@@ -468,10 +484,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     end
   end
 
-  # =====================================================
-  # COST CALCULATION HELPERS (AVAILABLE IN VIEWS)
-  # =====================================================
-  
   def calculate_labor_cost(inspection)
     inspection.inspection_jobs.sum(:estimated_labor_cost).to_f
   end
@@ -622,10 +634,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
     notes << job_notes if job_notes.present?
     notes.join("\n")
   end
-
-  # =====================================================
-  # NOTIFICATION METHODS
-  # =====================================================
 
   def notify_mechanics_for_diagnosis(inspection)
     mechanic_ids = User.where(role: 'mechanic').pluck(:id)

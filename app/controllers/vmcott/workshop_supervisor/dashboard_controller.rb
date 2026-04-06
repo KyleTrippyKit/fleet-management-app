@@ -50,12 +50,23 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       .limit(20)
 
     # ========================================
+    # 🔥 NEW: PHASE 7.5 - Approved Jobs Ready for Assignment
+    # Jobs that customer approved but not yet assigned to mechanic
+    # ========================================
+    @approved_jobs = InspectionJob
+      .where(status: 'approved')
+      .where(assigned_mechanic_id: nil)
+      .includes(inspection: :vehicle)
+      .order(updated_at: :desc)
+      .limit(20)
+
+    # ========================================
     # PHASE 8: Active jobs in progress
     # ========================================
     @active_jobs = InspectionJob
-      .where(status: 'in_progress')
+      .where(status: ['in_progress', 'assigned'])
       .includes(inspection: :vehicle, job_tasks: :work_sessions)
-      .order(started_at: :desc)
+      .order(started_at: :desc, created_at: :desc)
       .limit(20)
 
     # ========================================
@@ -133,10 +144,116 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       .limit(20)
 
     # ========================================
+    # MECHANICS LIST FOR ASSIGNMENT
+    # ========================================
+    @mechanics = User.where(role: 'mechanic').order(:name)
+
+    # ========================================
     # STATS
     # ========================================
     @pre_check_count = @pre_check_completed.count
     @pending_parts_count = @pending_parts_requests.count
+    @approved_jobs_count = @approved_jobs.count
+  end
+
+  # =====================================================
+  # 🔥 NEW: ASSIGN JOB TO MECHANIC (AJAX)
+  # =====================================================
+
+  def assign_approved_job
+    @job = InspectionJob.find(params[:id])
+    mechanic_id = params[:mechanic_id]
+
+    if mechanic_id.blank?
+      render json: { success: false, message: "Please select a mechanic" } and return
+    end
+
+    mechanic = User.find(mechanic_id)
+
+    begin
+      ActiveRecord::Base.transaction do
+        # Create MechanicAssignment record
+        MechanicAssignment.find_or_initialize_by(
+          inspection_job: @job,
+          mechanic: mechanic
+        ).update!(
+          status: 'assigned',
+          started_at: Time.current,
+          mechanic_notes: "Assigned by supervisor #{current_user.name} after customer approval"
+        )
+
+        # Update job status
+        @job.update!(
+          assigned_mechanic_id: mechanic.id,
+          assigned_at: Time.current,
+          status: 'assigned'
+        )
+
+        # Notify mechanic
+        Notification.create!(
+          user: mechanic,
+          title: "New Job Assigned",
+          message: "Job ##{@job.id} - #{@job.description.truncate(50)} has been assigned to you. Customer has approved this work.",
+          link: vmcott_mechanic_job_path(@job),
+          notification_type: 'success',
+          notifiable: @job
+        )
+      end
+
+      render json: { success: true, message: "Job assigned to #{mechanic.name}" }
+    rescue => e
+      Rails.logger.error "Error assigning job: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
+      render json: { success: false, message: "Error: #{e.message}" }
+    end
+  end
+
+  # =====================================================
+  # 🔥 NEW: BULK ASSIGN JOBS TO MECHANIC
+  # =====================================================
+
+  def bulk_assign_jobs
+    job_ids = params[:job_ids]
+    mechanic_id = params[:mechanic_id]
+
+    if job_ids.blank? || mechanic_id.blank?
+      flash[:alert] = "Please select jobs and a mechanic"
+      redirect_to vmcott_workshop_supervisor_dashboard_path and return
+    end
+
+    mechanic = User.find(mechanic_id)
+    assigned_count = 0
+
+    ActiveRecord::Base.transaction do
+      job_ids.each do |job_id|
+        job = InspectionJob.find(job_id)
+        next unless job.status == 'approved' && job.assigned_mechanic_id.nil?
+
+        MechanicAssignment.find_or_initialize_by(
+          inspection_job: job,
+          mechanic: mechanic
+        ).update!(
+          status: 'assigned',
+          started_at: Time.current,
+          mechanic_notes: "Assigned by supervisor #{current_user.name} (bulk assignment)"
+        )
+
+        job.update!(
+          assigned_mechanic_id: mechanic.id,
+          assigned_at: Time.current,
+          status: 'assigned'
+        )
+
+        assigned_count += 1
+      end
+    end
+
+    flash[:notice] = "#{assigned_count} job(s) assigned to #{mechanic.name}"
+    redirect_to vmcott_workshop_supervisor_dashboard_path
+  rescue => e
+    Rails.logger.error "Error in bulk assign: #{e.message}"
+    flash[:alert] = "Error assigning jobs: #{e.message}"
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   end
 
   # =====================================================
@@ -625,10 +742,28 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   end
 
   # =====================================================
-  # 🔥 UPDATED: PHASE 4 - JOB CREATION (FIXED for missing columns)
+  # 🔥 UPDATED: PHASE 4 - JOB CREATION
   # =====================================================
 
-def create_jobs
+  def job_creation
+    @inspection = Inspection.find(params[:id])
+    
+    # Load INSPECTOR recommendations
+    @inspector_recommendations = @inspection.inspection_recommendations.where(status: 'pending')
+    
+    # Load MECHANIC findings
+    @mechanic_findings = @inspection.findings.where(finding_type: 'mechanic')
+    
+    # For backward compatibility
+    @findings = @mechanic_findings
+    
+    @mechanics = User.where(role: 'mechanic').order(:name)
+    @job_templates = JobTemplate.active if defined?(JobTemplate)
+
+    disable_all_caching
+  end
+
+  def create_jobs
     @inspection = Inspection.find(params[:id])
 
     ActiveRecord::Base.transaction do
@@ -643,7 +778,7 @@ def create_jobs
           job = @inspection.inspection_jobs.create!(
             description: rec_data[:description] || recommendation.description,
             estimated_hours: rec_data[:estimated_hours] || recommendation.estimated_hours || 1,
-            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
+            status: 'pending_customer_approval',
             recommendation_source: 'inspector',
             priority: rec_data[:priority] || recommendation.priority || 'normal'
           )
@@ -660,7 +795,7 @@ def create_jobs
           job = @inspection.inspection_jobs.create!(
             description: finding_data[:description] || finding.description,
             estimated_hours: finding_data[:estimated_hours] || 1,
-            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
+            status: 'pending_customer_approval',
             recommendation_source: 'mechanic',
             priority: finding_data[:priority] || 'normal'
           )
@@ -676,7 +811,7 @@ def create_jobs
           job = @inspection.inspection_jobs.create!(
             description: job_data[:description],
             estimated_hours: job_data[:estimated_hours] || 1,
-            status: 'pending_customer_approval',  # ← CHANGED from 'pending_approval'
+            status: 'pending_customer_approval',
             priority: job_data[:priority] || 'normal',
             recommendation_source: 'supervisor'
           )
@@ -1609,6 +1744,7 @@ def create_jobs
         qc_requested_by: current_user
       )
 
+      qc_users = User.where(role: 'inspector')
       qc_users.find_each do |user|
         Notification.create!(
           user: user,
@@ -1899,7 +2035,8 @@ def create_jobs
       pending_quotation: Inspection.where(status: 'parts_approved').count,
       awaiting_approval: Inspection.where(status: 'awaiting_approval').count,
       pending_additional_findings: Inspection.where(status: 'additional_findings_pending').count,
-      qc_pending_inspections: Inspection.where(status: 'ready_for_qc').count
+      qc_pending_inspections: Inspection.where(status: 'ready_for_qc').count,
+      approved_jobs: InspectionJob.where(status: 'approved').where(assigned_mechanic_id: nil).count
     }
   end
 
@@ -1974,8 +2111,27 @@ def create_jobs
     events.sort_by { |e| e[:date] || Time.current }
   end
 
+  def send_ready_for_pickup_email
+    @inspection = Inspection.find(params[:id])
+    reception = ReceptionLog.find_by(vehicle: @inspection.vehicle)
+    
+    if reception&.customer_email.present?
+      CustomerMailer.vehicle_ready(
+        @inspection, 
+        reception.customer_email, 
+        reception.customer_name
+      ).deliver_later
+      
+      flash[:notice] = "✅ Email sent to #{reception.customer_email}"
+    else
+      flash[:alert] = "No customer email found for this vehicle"
+    end
+    
+    redirect_to vmcott_workshop_supervisor_inspection_path(@inspection)
+  end
+
   # =====================================================
-  # 🔥 NEW: HELPER NOTIFICATION METHODS
+  # HELPER NOTIFICATION METHODS
   # =====================================================
 
   def notify_procurement_for_parts(parts_request)

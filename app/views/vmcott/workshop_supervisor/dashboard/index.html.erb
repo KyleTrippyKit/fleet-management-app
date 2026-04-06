@@ -15,6 +15,7 @@
         <span class="badge bg-warning me-1">Phase 5: Parts</span>
         <span class="badge bg-success me-1">Phase 6: Quote</span>
         <span class="badge bg-secondary me-1">Phase 7: Approval</span>
+        <span class="badge bg-purple me-1">Phase 7.5: Assign Jobs</span>
         <span class="badge bg-primary me-1">Phase 8: Active</span>
         <span class="badge bg-danger me-1">Phase 9: Findings</span>
         <span class="badge bg-info me-1">Phase 10: QC</span>
@@ -33,6 +34,7 @@
       ["Parts Requests", @pending_parts_requests&.count || 0, "#3b82f6"],
       ["Quotations", @pending_quotation&.count || 0, "#10b981"],
       ["Awaiting Approval", @awaiting_approval&.count || 0, "#f59e0b"],
+      ["Ready to Assign", @approved_jobs_count || 0, "#8b5cf6"],
       ["Active Jobs", @active_jobs&.count || 0, "#0ea5e9"],
       ["Findings", @pending_findings&.count || 0, "#ef4444"],
       ["QC Pending", @qc_pending_inspections&.count || 0, "#06b6d4"]
@@ -147,7 +149,7 @@
   <% end %>
 
   <!-- ===================================================== -->
-  <!-- PHASE 5: PARTS REQUESTS (UPDATED - Shows only Review button for non-pending) -->
+  <!-- PHASE 5: PARTS REQUESTS -->
   <!-- ===================================================== -->
   <div id="parts" class="card shadow-sm mb-4">
     <div class="card-header bg-white fw-bold border-bottom">
@@ -167,7 +169,7 @@
                 <th>Requested By</th>
                 <th>Status</th>
                 <th class="pe-3 text-end">Actions</th>
-              </tr>
+              </td>
             </thead>
             <tbody>
               <% @pending_parts_requests.each do |request| %>
@@ -186,12 +188,12 @@
                   <td>
                     <%= request.inspection&.vehicle&.license_plate || 'N/A' %><br>
                     <small class="text-muted"><%= request.inspection&.vehicle&.make %> <%= request.inspection&.vehicle&.model %></small>
-                   </td>
+                  </td>
                   <td>
                     <% requester = request.requested_by || request.inspection_job&.assigned_mechanic || request.inspection&.inspector %>
                     <%= requester&.name || 'Mechanic' %><br>
                     <small class="text-muted"><%= time_ago_in_words(request.created_at) %> ago</small>
-                   </td>
+                  </td>
                   <td>
                     <% if request.status == 'requested' %>
                       <span class="badge bg-warning">Pending Approval</span>
@@ -211,7 +213,6 @@
                     <div class="btn-group btn-group-sm">
                       <%= link_to "Review", vmcott_workshop_supervisor_review_parts_request_path(request), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
                       
-                      <%# Only show Approve/Reject buttons for pending requests (status: 'requested') %>
                       <% if request.status == 'requested' %>
                         <%= button_to "Approve", vmcott_workshop_supervisor_approve_parts_request_path(request), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
                         <%= button_to "Reject", vmcott_workshop_supervisor_reject_parts_request_path(request), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this parts request?", turbo: false } %>
@@ -221,7 +222,7 @@
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
         <div class="text-center p-3 border-top">
           <small class="text-muted">Showing <%= @pending_parts_requests.count %> parts requests</small>
@@ -270,18 +271,18 @@
                   <td class="ps-3">
                     <strong><%= inspection.vehicle.license_plate %></strong><br>
                     <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
-                   </td>
+                  </td>
                   <td><%= inspection.inspection_jobs.count %> jobs</td>
                   <td>$<%= number_with_precision(calculate_parts_cost(inspection), precision: 2) %></td>
                   <td>$<%= number_with_precision(calculate_labor_cost(inspection), precision: 2) %></td>
                   <td class="fw-bold text-success">$<%= number_with_precision(calculate_labor_cost(inspection) + calculate_parts_cost(inspection), precision: 2) %></td>
                   <td class="text-center">
                     <%= link_to "Create Quotation", vmcott_workshop_supervisor_quotation_creation_path(inspection), class: "btn btn-success btn-sm rounded-pill px-3" %>
-                   </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
       </div>
     </div>
@@ -313,7 +314,7 @@
                 <th>Workflow Type</th>
                 <th>Sent Date</th>
                 <th class="text-center">Status</th>
-              </tr>
+              </td>
             </thead>
             <tbody>
               <% @awaiting_approval.each do |inspection| %>
@@ -322,7 +323,7 @@
                   <td class="ps-3">
                     <strong><%= inspection.vehicle.license_plate %></strong><br>
                     <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
-                   </td>
+                  </td>
                   <td><%= quote&.quote_number || 'N/A' %></td>
                   <td class="fw-bold">$<%= number_with_precision(quote&.amount || inspection.total_estimated_cost, precision: 2) %></td>
                   <td>
@@ -334,10 +335,102 @@
                   <td class="text-center">
                     <span class="badge bg-warning">Awaiting Client</span>
                   </td>
+                </table>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ===================================================== -->
+  <!-- 🔥 NEW: PHASE 7.5 - APPROVED JOBS READY FOR ASSIGNMENT -->
+  <!-- ===================================================== -->
+  <% if @approved_jobs.present? && @approved_jobs.any? %>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #8b5cf6;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-check-circle me-2 text-success"></i>
+            Phase 7.5: Approved Jobs - Ready for Assignment
+          </h5>
+          <span class="badge bg-success"><%= @approved_jobs.count %> Ready to Assign</span>
+        </div>
+        <p class="text-muted small mt-1 mb-0">Customer has approved these jobs. Assign mechanics to start work.</p>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th style="width: 40px;">
+                  <input type="checkbox" id="selectAllApprovedJobs" class="form-check-input">
+                </th>
+                <th class="ps-3">Vehicle</th>
+                <th>Job Description</th>
+                <th>Customer Approved</th>
+                <th>Est. Hours</th>
+                <th>Assign Mechanic</th>
+                <th class="text-center">Action</th>
+              </thead>
+            <tbody>
+              <% @approved_jobs.each do |job| %>
+                <tr data-turbo="false" id="job-row-<%= job.id %>">
+                  <td class="text-center">
+                    <input type="checkbox" class="form-check-input job-select-checkbox" value="<%= job.id %>">
+                  </td>
+                  <td class="ps-3">
+                    <strong><%= job.inspection&.vehicle&.license_plate %></strong><br>
+                    <small class="text-muted"><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td><%= job.description.truncate(50) %></td>
+                  <td>
+                    <span class="badge bg-success">
+                      <i class="bi bi-check-circle me-1"></i> Approved
+                    </span>
+                    <br>
+                    <small class="text-muted"><%= time_ago_in_words(job.updated_at) %> ago</small>
+                  </td>
+                  <td class="text-center"><%= job.estimated_hours %> hrs</td>
+                  <td>
+                    <select class="form-select form-select-sm mechanic-select" data-job-id="<%= job.id %>" style="width: 160px;">
+                      <option value="">Select Mechanic</option>
+                      <% @mechanics.each do |mechanic| %>
+                        <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                      <% end %>
+                    </select>
+                  </td>
+                  <td class="text-center">
+                    <button class="btn btn-sm btn-primary assign-mechanic-btn rounded-pill px-3" data-job-id="<%= job.id %>">
+                      <i class="bi bi-person-plus me-1"></i> Assign
+                    </button>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
-           </table>
+            <tfoot class="bg-light">
+              <tr>
+                <td colspan="7" class="py-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>Bulk Assign:</strong>
+                      <select id="bulkMechanicSelect" class="form-select form-select-sm d-inline-block" style="width: 180px;">
+                        <option value="">Select Mechanic</option>
+                        <% @mechanics.each do |mechanic| %>
+                          <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                        <% end %>
+                      </select>
+                      <button id="bulkAssignBtn" class="btn btn-sm btn-primary ms-2 rounded-pill">
+                        <i class="bi bi-person-plus me-1"></i> Assign Selected
+                      </button>
+                    </div>
+                    <small class="text-muted">Select jobs and assign to mechanic in bulk</small>
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
@@ -439,17 +532,17 @@
                     <% end %>
                     <br>
                     <small class="text-muted"><%= time_ago_in_words(finding.created_at) %> ago</small>
-                   </td>
+                  </td>
                   <td>
                     <%= finding.work_order&.vehicle&.license_plate || 'N/A' %><br>
                     <small class="text-muted"><%= finding.work_order&.vehicle&.make %> <%= finding.work_order&.vehicle&.model %></small>
-                   </td>
+                  </td>
                   <td>
                     <span class="badge <%= finding.severity == 'critical' ? 'bg-danger' : (finding.severity == 'high' ? 'bg-warning' : 'bg-secondary') %>">
                       <i class="bi bi-flag-fill me-1"></i>
                       <%= finding.severity&.humanize || 'Normal' %>
                     </span>
-                   </td>
+                  </td>
                   <td><%= finding.created_by&.name || 'Unknown' %></td>
                   <td><span class="badge bg-warning">Pending Review</span></td>
                   <td class="text-end pe-3">
@@ -458,11 +551,11 @@
                       <%= button_to "Approve", vmcott_workshop_supervisor_approve_finding_path(finding), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
                       <%= button_to "Reject", vmcott_workshop_supervisor_reject_finding_path(finding), method: :post, class: "btn btn-danger rounded-pill ms-1", data: { confirm: "Reject this finding?", turbo: false } %>
                     </div>
-                   </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
         <div class="text-center p-3 border-top">
           <%= link_to "View All Findings", vmcott_workshop_supervisor_findings_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
@@ -510,7 +603,7 @@
                   <td class="ps-3">
                     <strong><%= inspection.vehicle.license_plate %></strong><br>
                     <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
-                   </td>
+                  </td>
                   <td><%= inspection.inspection_jobs.where(status: 'completed').count %> / <%= inspection.inspection_jobs.count %> jobs</td>
                   <td><%= inspection.inspection_jobs.map(&:assigned_mechanic).compact.map(&:name).join(', ') || 'Various' %></td>
                   <td><%= inspection.updated_at.strftime('%b %d, %Y') %></td>
@@ -520,7 +613,7 @@
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
       </div>
     </div>
@@ -538,7 +631,7 @@
       <% if @pending_tasks&.any? %>
         <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+            <thead class="bg-light">
               <tr>
                 <th class="ps-3">Task</th>
                 <th>Vehicle</th>
@@ -553,11 +646,11 @@
                   <td class="ps-3">
                     <strong><%= task.name %></strong><br>
                     <small class="text-muted"><%= task.description&.truncate(50) %></small>
-                    </td>
+                  </td>
                   <td>
                     <%= task.inspection_job&.inspection&.vehicle&.license_plate || 'N/A' %><br>
                     <small class="text-muted"><%= task.inspection_job&.inspection&.vehicle&.make %> <%= task.inspection_job&.inspection&.vehicle&.model %></small>
-                    </td>
+                  </td>
                   <td><%= task.assigned_mechanic&.name || 'Unassigned' %></td>
                   <td><%= task.estimated_hours ? "#{task.estimated_hours} hrs" : 'Not set' %></td>
                   <td class="text-end pe-3">
@@ -565,11 +658,11 @@
                       <%= link_to "View Details", vmcott_workshop_supervisor_task_path(task), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
                       <%= button_to "Approve Task", vmcott_workshop_supervisor_approve_task_path(task), method: :post, class: "btn btn-success rounded-pill ms-1", data: { turbo: false } %>
                     </div>
-                    </td>
+                  </td>
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
         <div class="text-center p-3 border-top">
           <%= link_to "View All Pending Tasks", vmcott_workshop_supervisor_tasks_path(status: 'pending'), class: "btn btn-link text-decoration-none", data: { turbo: false } %>
@@ -587,7 +680,10 @@
 </div>
 
 <style>
-  /* Hover effect for job cards */
+  .bg-purple {
+    background-color: #8b5cf6 !important;
+  }
+  
   .hover-shadow {
     transition: all 0.2s ease;
   }
@@ -597,13 +693,11 @@
     box-shadow: 0 8px 20px rgba(0,0,0,0.1);
   }
   
-  /* Table row hover */
   .table tbody tr:hover {
     background-color: #f8fafc;
     transition: background-color 0.2s ease;
   }
   
-  /* Alert styling */
   .alert {
     border-left: 4px solid;
   }
@@ -620,12 +714,10 @@
     border-left-color: #3b82f6;
   }
   
-  /* Badge styling */
   .badge {
     font-weight: 500;
   }
   
-  /* Button styling */
   .btn-group .btn {
     transition: all 0.2s ease;
   }
@@ -634,7 +726,6 @@
     transform: translateY(-1px);
   }
   
-  /* Progress bar */
   .progress {
     background-color: #e2e8f0;
     border-radius: 8px;
@@ -643,11 +734,6 @@
   .progress-bar {
     border-radius: 8px;
     transition: width 0.3s ease;
-  }
-  
-  /* Purple styling for workflow section */
-  .bg-purple {
-    background-color: #8b5cf6 !important;
   }
   
   .btn-purple {
@@ -662,15 +748,6 @@
     color: white;
   }
   
-  .progress-bar.bg-purple {
-    background-color: #8b5cf6 !important;
-  }
-  
-  .border-purple {
-    border-color: #8b5cf6 !important;
-  }
-  
-  /* Diagnosis notes styling */
   .diagnosis-note {
     background-color: #f8fafc;
     border-left: 3px solid #8b5cf6;
@@ -685,7 +762,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Auto-hide alerts after 5 seconds (if any)
+  // Auto-hide alerts after 5 seconds
   const alerts = document.querySelectorAll('.alert');
   alerts.forEach(alert => {
     setTimeout(() => {
@@ -697,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 5000);
   });
   
-  // Smooth scroll to sections when clicking anchor links
+  // Smooth scroll to sections
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function(e) {
       const target = document.querySelector(this.getAttribute('href'));
@@ -711,10 +788,133 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Initialize tooltips for finding badges
+  // Initialize tooltips
   const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
   tooltipTriggerList.map(function (tooltipTriggerEl) {
     return new bootstrap.Tooltip(tooltipTriggerEl);
   });
+  
+  // =====================================================
+  // PHASE 7.5: ASSIGN MECHANIC FUNCTIONALITY
+  // =====================================================
+
+  // Single job assignment
+  document.querySelectorAll('.assign-mechanic-btn').forEach(button => {
+    button.addEventListener('click', async function() {
+      const jobId = this.dataset.jobId;
+      const select = document.querySelector(`.mechanic-select[data-job-id="${jobId}"]`);
+      const mechanicId = select.value;
+      
+      if (!mechanicId) {
+        alert('Please select a mechanic');
+        return;
+      }
+      
+      if (confirm('Assign this job to the selected mechanic?')) {
+        // Disable button to prevent double submission
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Assigning...';
+        
+        try {
+          const response = await fetch(`/vmcott/workshop_supervisor/assign_approved_job/${jobId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ mechanic_id: mechanicId })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            // Show success message
+            const row = document.getElementById(`job-row-${jobId}`);
+            if (row) {
+              row.style.backgroundColor = '#d1fae5';
+              setTimeout(() => {
+                location.reload();
+              }, 500);
+            } else {
+              location.reload();
+            }
+          } else {
+            alert(data.message);
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-person-plus me-1"></i> Assign';
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          alert('Error assigning job: ' + error.message);
+          this.disabled = false;
+          this.innerHTML = '<i class="bi bi-person-plus me-1"></i> Assign';
+        }
+      }
+    });
+  });
+
+  // Select all checkbox for approved jobs
+  const selectAllCheckbox = document.getElementById('selectAllApprovedJobs');
+  const jobCheckboxes = document.querySelectorAll('.job-select-checkbox');
+
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      jobCheckboxes.forEach(cb => cb.checked = this.checked);
+    });
+  }
+
+  // Bulk assign
+  const bulkAssignBtn = document.getElementById('bulkAssignBtn');
+  if (bulkAssignBtn) {
+    bulkAssignBtn.addEventListener('click', function() {
+      const selectedJobs = Array.from(document.querySelectorAll('.job-select-checkbox:checked'))
+        .map(cb => cb.value);
+      
+      const mechanicId = document.getElementById('bulkMechanicSelect').value;
+      
+      if (selectedJobs.length === 0) {
+        alert('Please select at least one job');
+        return;
+      }
+      
+      if (!mechanicId) {
+        alert('Please select a mechanic');
+        return;
+      }
+      
+      if (confirm(`Assign ${selectedJobs.length} job(s) to the selected mechanic?`)) {
+        // Show loading on button
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Assigning...';
+        
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/vmcott/workshop_supervisor/bulk_assign_jobs';
+        
+        const tokenInput = document.createElement('input');
+        tokenInput.type = 'hidden';
+        tokenInput.name = 'authenticity_token';
+        tokenInput.value = document.querySelector('meta[name="csrf-token"]').content;
+        form.appendChild(tokenInput);
+        
+        const mechanicInput = document.createElement('input');
+        mechanicInput.type = 'hidden';
+        mechanicInput.name = 'mechanic_id';
+        mechanicInput.value = mechanicId;
+        form.appendChild(mechanicInput);
+        
+        selectedJobs.forEach(jobId => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'job_ids[]';
+          input.value = jobId;
+          form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+      }
+    });
+  }
 });
 </script>

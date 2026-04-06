@@ -410,8 +410,11 @@ Rails.application.routes.draw do
 
     # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, parts request review, and workflow selection)
     namespace :workshop_supervisor do
+      post 'inspections/:id/send_ready_email', to: 'dashboard#send_ready_for_pickup_email', as: :send_ready_email
       get 'inspections/:id/job_creation', to: 'dashboard#job_creation', as: :job_creation
       post 'inspections/:id/create_jobs', to: 'dashboard#create_jobs', as: :create_jobs
+      post 'assign_approved_job/:id', to: 'dashboard#assign_approved_job', as: :assign_approved_job
+      post 'bulk_assign_jobs', to: 'dashboard#bulk_assign_jobs', as: :bulk_assign_jobs
       get 'dashboard', to: 'dashboard#index', as: :dashboard
       get 'tasks', to: 'dashboard#tasks', as: :tasks
       get 'tasks/:id', to: 'dashboard#task_show', as: :task
@@ -1460,6 +1463,17 @@ Rails.application.routes.draw do
   end
 
   get "vendors", to: "suppliers#index", as: :vendors
+
+  # ========================
+  # PAYMENT ROUTES (NEW)
+  # ========================
+  resources :payments, only: [:new] do
+    collection do
+      post :create_payment_intent
+      post :confirm_payment
+      post :webhook
+    end
+  end
 
   # ========================
   # Public

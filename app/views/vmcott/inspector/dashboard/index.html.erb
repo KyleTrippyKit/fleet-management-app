@@ -456,7 +456,7 @@
                     <th class="border-0 py-3">Parts Used</th>
                     <th class="border-0 py-3">Status</th>
                     <th class="border-0 py-3 text-end">Action</th>
-                  </tr>
+                  </td>
                 </thead>
                 <tbody>
                   <% @qc_pending.each do |inspection| %>
@@ -472,12 +472,9 @@
                         <% total_parts = inspection.total_parts_used %>
                         <% if total_parts > 0 %>
                           <div class="d-flex flex-column">
-                            <span class="badge bg-info text-white px-3 py-1 mb-1" 
-                                  data-bs-toggle="tooltip" 
-                                  title="<%= inspection.parts_used_list.join(', ') %>">
+                            <span class="badge bg-info text-white px-3 py-1 mb-1">
                               <i class="bi bi-box-seam me-1"></i> <%= total_parts %> part(s) used
                             </span>
-                            <small class="text-muted"><%= inspection.parts_used_display %></small>
                           </div>
                         <% else %>
                           <span class="badge bg-secondary text-white px-3 py-1">
@@ -505,6 +502,117 @@
           <% end %>
         </div>
       </div>
+
+      <!-- 🔥 NEW SECTION 5: RECENTLY PASSED QC -->
+      <div id="recent-qc-passed" class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
+        <div class="card-header bg-white border-0 pt-4">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+                <i class="bi bi-check2-circle me-2 text-success"></i>
+                Recently Passed QC
+              </h5>
+              <p class="text-muted small mb-0">Jobs that have passed quality control inspection and are ready for pickup</p>
+            </div>
+            <span class="badge bg-success px-3 py-2 rounded-pill">
+              <i class="bi bi-calendar-check me-1"></i> <%= @recent_qc_passed&.count || 0 %> Today
+            </span>
+          </div>
+        </div>
+        <div class="card-body">
+          <% if @recent_qc_passed&.any? %>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                  <tr>
+                    <th class="border-0 py-3">Job #</th>
+                    <th class="border-0 py-3">Vehicle</th>
+                    <th class="border-0 py-3">Passed At</th>
+                    <th class="border-0 py-3">Inspector</th>
+                    <th class="border-0 py-3">QC Notes</th>
+                    <th class="border-0 py-3 text-end">Status</th>
+                   </thead>
+                  <tbody>
+                    <% @recent_qc_passed.each do |job| %>
+                      <tr class="table-success">
+                        <td class="fw-semibold">#<%= job.id %></td>
+                        <td>
+                          <div><strong><%= job.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                          <small class="text-muted"><%= job.inspection&.vehicle&.make %> <%= job.inspection&.vehicle&.model %></small>
+                        </td>
+                        <td>
+                          <span class="badge bg-success text-white px-3 py-1">
+                            <i class="bi bi-check-circle-fill me-1"></i>
+                            <%= time_ago_in_words(job.qc_passed_at) %> ago
+                          </span>
+                          <br>
+                          <small class="text-muted"><%= job.qc_passed_at&.strftime("%b %d, %Y • %I:%M %p") %></small>
+                        </td>
+                        <td><%= User.find_by(id: job.qc_passed_by_id)&.name || current_user&.name || 'You' %></td>
+                        <td><%= job.qc_notes&.truncate(40) || 'No notes' %></td>
+                        <td class="text-end">
+                          <span class="badge bg-info text-white px-3 py-1">
+                            <i class="bi bi-truck me-1"></i> Ready for Pickup
+                          </span>
+                        </td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
+            <% else %>
+              <div class="text-center py-5">
+                <i class="bi bi-check-circle text-muted fs-1 mb-3 d-block"></i>
+                <h6 class="text-muted">No QC passed today</h6>
+                <p class="small text-muted">Vehicles that pass QC inspection will appear here</p>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <!-- SECTION 6: RECENT ACTIVITY SUMMARY -->
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+                  <i class="bi bi-activity me-2" style="color: #8b5cf6;"></i>
+                  Today's Activity Summary
+                </h5>
+                <p class="text-muted small mb-0">Overview of your inspection activity for today</p>
+              </div>
+              <%= link_to "View All Activity", vmcott_inspector_recent_activity_path, class: "btn btn-sm btn-outline-secondary rounded-pill" %>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-4">
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded-3">
+                  <div class="display-6 fw-bold text-primary"><%= @recent_completed&.count || 0 %></div>
+                  <div class="small text-muted">Inspections Completed</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded-3">
+                  <div class="display-6 fw-bold text-success"><%= @qc_passed_today&.count || 0 %></div>
+                  <div class="small text-muted">QC Passed</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded-3">
+                  <div class="display-6 fw-bold text-warning"><%= @qc_pending&.count || 0 %></div>
+                  <div class="small text-muted">QC Pending</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="text-center p-3 bg-light rounded-3">
+                  <div class="display-6 fw-bold text-info"><%= @pending_inspections&.count || 0 %></div>
+                  <div class="small text-muted">Awaiting Inspection</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
       <style>
         /* Professional Color Scheme */
