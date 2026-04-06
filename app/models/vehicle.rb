@@ -7,6 +7,7 @@
 
 class Vehicle < ApplicationRecord
   has_many :reception_logs
+  has_many :inspections
   # ------------------------------------------------------------
   # Polymorphic Association (replaces belongs_to :agency)
   # ------------------------------------------------------------

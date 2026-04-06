@@ -143,6 +143,13 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       .order(created_at: :asc)
       .limit(20)
 
+    # 🔥 NEW: Ready for pickup inspections (QC passed)
+    @ready_for_pickup_inspections = Inspection
+      .where(status: 'ready_for_pickup')
+      .includes(:vehicle, :final_inspector)
+      .order(qc_passed_at: :desc)
+      .limit(20)
+
     # ========================================
     # MECHANICS LIST FOR ASSIGNMENT
     # ========================================
@@ -2115,18 +2122,25 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     @inspection = Inspection.find(params[:id])
     reception = ReceptionLog.find_by(vehicle: @inspection.vehicle)
     
-    if reception&.customer_email.present?
+    customer_email = reception&.customer_email
+    customer_name = reception&.customer_name
+    
+    if customer_email.present?
       CustomerMailer.vehicle_ready(
         @inspection, 
-        reception.customer_email, 
-        reception.customer_name
+        customer_email, 
+        customer_name
       ).deliver_later
       
-      flash[:notice] = "✅ Email sent to #{reception.customer_email}"
+      flash[:notice] = "✅ Ready for pickup notification sent to #{customer_email}"
     else
-      flash[:alert] = "No customer email found for this vehicle"
+      flash[:alert] = "No customer email found for this vehicle. Cannot send notification."
     end
     
+    redirect_to vmcott_workshop_supervisor_inspection_path(@inspection)
+  rescue => e
+    Rails.logger.error "Error sending ready for pickup email: #{e.message}"
+    flash[:alert] = "Error sending notification: #{e.message}"
     redirect_to vmcott_workshop_supervisor_inspection_path(@inspection)
   end
 

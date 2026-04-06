@@ -11,6 +11,7 @@ class ReceptionLog < ApplicationRecord
   end
   # Associations
   belongs_to :vehicle
+  belongs_to :inspection, optional: true
   belongs_to :security_gate_officer, class_name: 'User', foreign_key: 'user_id'
   belongs_to :inspector, class_name: 'User', optional: true, foreign_key: 'inspector_id'
   belongs_to :purchase_order, optional: true

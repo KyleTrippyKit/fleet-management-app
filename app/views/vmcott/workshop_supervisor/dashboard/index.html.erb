@@ -620,6 +620,86 @@
   <% end %>
 
   <!-- ===================================================== -->
+<!-- 🔥 NEW SECTION: READY FOR PICKUP (QC PASSED) -->
+<!-- ===================================================== -->
+<% if @ready_for_pickup_inspections.present? && @ready_for_pickup_inspections.any? %>
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-truck me-2 text-success"></i>
+            Ready for Pickup (QC Passed)
+          </h5>
+          <p class="text-muted small mb-0">Vehicles that have passed QC and are ready to be returned to customers</p>
+        </div>
+        <span class="badge bg-success px-3 py-2 rounded-pill">
+          <i class="bi bi-check-circle me-1"></i> <%= @ready_for_pickup_inspections&.count || 0 %> Ready
+        </span>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-3">Vehicle</th>
+              <th>QC Passed By</th>
+              <th>QC Passed At</th>
+              <th>QC Notes</th>
+              <th class="text-center">Customer Contact</th>
+              <th class="pe-3 text-end">Actions</th>
+             </thead>
+            <tbody>
+              <% @ready_for_pickup_inspections.each do |inspection| %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= inspection.vehicle.license_plate %></strong><br>
+                    <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
+                  </td>
+                  <td>
+                    <%= inspection.final_inspector&.name || 'Unknown' %><br>
+                    <small class="text-muted"><%= inspection.final_inspector&.role&.humanize %></small>
+                  </td>
+                  <td>
+                    <span class="badge bg-success">
+                      <i class="bi bi-check-circle-fill me-1"></i>
+                      <%= time_ago_in_words(inspection.qc_passed_at) %> ago
+                    </span>
+                    <br>
+                    <small class="text-muted"><%= inspection.qc_passed_at&.strftime("%b %d, %Y • %I:%M %p") %></small>
+                  </td>
+                  <td><%= inspection.final_inspection_notes&.truncate(40) || 'No notes' %></td>
+                  <td class="text-center">
+                    <% reception = ReceptionLog.find_by(vehicle: inspection.vehicle) %>
+                    <% if reception&.customer_email.present? %>
+                      <span class="badge bg-info">
+                        <i class="bi bi-envelope me-1"></i> <%= reception.customer_email %>
+                      </span>
+                    <% else %>
+                      <span class="badge bg-secondary">No email on file</span>
+                    <% end %>
+                  </td>
+                  <td class="text-end pe-3">
+                    <div class="btn-group btn-group-sm">
+                      <%= link_to "View Details", vmcott_workshop_supervisor_inspection_path(inspection), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                      <%= button_to "📧 Notify Customer", 
+                            vmcott_workshop_supervisor_send_ready_email_path(inspection), 
+                            method: :post, 
+                            class: "btn btn-success rounded-pill ms-1",
+                            data: { confirm: "Send pickup notification email to customer?" } %>
+                    </div>
+                  </td>
+                 </tr>
+              <% end %>
+            </tbody>
+           </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <!-- ===================================================== -->
   <!-- PHASE 11-14: TASK APPROVALS & WORK ORDERS -->
   <!-- ===================================================== -->
   <div id="tasks" class="card shadow-sm mb-4">

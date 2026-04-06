@@ -10,12 +10,18 @@ class Inspection < ApplicationRecord
   belongs_to :final_inspector, class_name: 'User', optional: true
   belongs_to :workflow_selected_by, class_name: "User", foreign_key: "workflow_selected_by_id", optional: true
   
+  # 🔥 NEW: Direct association to reception log (optional)
+  belongs_to :reception_log, optional: true
+  
   has_many :inspection_jobs, dependent: :destroy
   has_many :parts_requests, dependent: :destroy
   has_many :quotations, dependent: :nullify
   has_many :findings, dependent: :destroy
   has_many :inspection_recommendations, dependent: :destroy
   has_many :jobs, dependent: :destroy
+
+  # Callbacks
+  before_validation :assign_reception_log, on: :create
 
   # =========================
   # SIMPLIFIED STATUS ENGINE (14-STEP WORKFLOW)
@@ -65,20 +71,40 @@ class Inspection < ApplicationRecord
   attribute :mileage_at_inspection, :integer
   attribute :notes, :text
 
+  # Validations
   validates :status, presence: true
   validate :diagnosis_requirements
 
   def diagnosis_requirements
     return unless diagnosed?
 
-    if diagnosis_notes.blank?
-      errors.add(:diagnosis_notes, "must be present")
-    end
-
-    if inspection_recommendations.empty?
-      errors.add(:base, "At least one recommendation is required")
-    end
+    errors.add(:diagnosis_notes, "must be present") if diagnosis_notes.blank?
+    errors.add(:base, "At least one recommendation is required") if inspection_recommendations.empty?
   end
+
+  # =========================
+  # 🔥 CALLBACK: AUTO-ASSIGN RECEPTION LOG
+  # =========================
+  def assign_reception_log
+    return if reception_log.present? || vehicle.blank?
+
+    self.reception_log = vehicle.reception_logs.order(created_at: :desc).first
+  end
+  
+  # =========================
+  # 🔥 CUSTOMER CONTACT HELPER
+  # =========================
+  def customer_contact_info
+    log = reception_log
+
+    return nil unless log
+
+    {
+      email: log.customer_email,
+      name: log.customer_name
+    }
+  end
+
   # =========================
   # WORKFLOW RULES (SAFETY GUARDS)
   # =========================
@@ -104,27 +130,23 @@ class Inspection < ApplicationRecord
   end
 
   # =========================
-  # 🔥 NEW: PARTS USAGE METHODS (Fixes the view error)
+  # PARTS USAGE METHODS
   # =========================
 
   def total_parts_used
-    # Sum all quantities from parts_requests that have been used/approved
     parts_requests.where(status: ['approved', 'received']).sum(:quantity).to_i
   end
 
   def parts_used_list
-    # Get list of part names used
     parts_requests.where(status: ['approved', 'received']).map do |pr|
       pr.part&.name || pr.custom_part_name || "Unknown Part"
     end.uniq
   end
 
   def parts_used_display
-    # Format the parts used list for display
     parts_used_list.first(3).join(', ') + (parts_used_list.size > 3 ? " + #{parts_used_list.size - 3} more" : "")
   end
 
-  # Alternative method for backward compatibility
   def total_parts_used_count
     total_parts_used
   end
@@ -142,7 +164,7 @@ class Inspection < ApplicationRecord
 
   def move_to_diagnosed!
     return false unless inspected?
-    return false unless has_recommendations? # 🔥 NEW LINE
+    return false unless has_recommendations?
     update!(status: :diagnosed, diagnosis_completed_at: Time.current)
     notify_supervisor_for_job_creation
     true
@@ -195,7 +217,11 @@ class Inspection < ApplicationRecord
 
   def move_to_ready_for_pickup!
     return false unless qc_pending?
-    update!(status: :ready_for_pickup, ready_for_pickup_at: Time.current, pickup_code: generate_pickup_code)
+    update!(
+      status: :ready_for_pickup, 
+      ready_for_pickup_at: Time.current, 
+      pickup_code: generate_pickup_code
+    )
     notify_customer_ready
     notify_billing_for_invoice
     true
@@ -227,14 +253,12 @@ class Inspection < ApplicationRecord
   end
 
   # =========================
-  # NOTIFICATION HELPERS (FIXED - Individual Notifications)
+  # NOTIFICATION HELPERS
   # =========================
 
   def notify_mechanics_for_diagnosis
-    # Find all mechanics
     mechanics = User.where(role: 'mechanic')
     
-    # Create a notification for each mechanic individually
     mechanics.find_each do |mechanic|
       Notification.create!(
         user: mechanic,
@@ -247,11 +271,9 @@ class Inspection < ApplicationRecord
     end
   rescue => e
     Rails.logger.error "Failed to notify mechanics: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
   end
 
   def notify_supervisor_for_job_creation
-    # Find all workshop supervisors
     supervisors = User.where(role: 'workshop_supervisor')
     
     supervisors.find_each do |supervisor|
@@ -266,7 +288,6 @@ class Inspection < ApplicationRecord
     end
   rescue => e
     Rails.logger.error "Failed to notify supervisor: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
   end
 
   def notify_customer_for_approval
@@ -292,7 +313,6 @@ class Inspection < ApplicationRecord
   end
 
   def notify_qc_inspector
-    # Find all inspectors
     inspectors = User.where(role: 'inspector')
     
     inspectors.find_each do |inspector|
@@ -309,12 +329,26 @@ class Inspection < ApplicationRecord
     Rails.logger.error "Failed to notify QC inspector: #{e.message}"
   end
 
+  # 🔥 UPDATED: Customer email notification using reception log
   def notify_customer_ready
-    Rails.logger.info "Notify customer vehicle is ready for pickup"
+    contact = customer_contact_info
+
+    if contact&.dig(:email).present?
+      CustomerMailer.vehicle_ready(
+        self,
+        contact[:email],
+        contact[:name]
+      ).deliver_later
+
+      Rails.logger.info "✅ Email sent to #{contact[:email]} for inspection #{id}"
+    else
+      Rails.logger.warn "⚠️ No customer email found for inspection #{id}"
+    end
+  rescue => e
+    Rails.logger.error "❌ Failed to send customer email: #{e.message}"
   end
 
   def notify_billing_for_invoice
-    # Find billing/finance users
     billing_users = User.where(role: ['procurement', 'finance'])
     
     billing_users.find_each do |user|

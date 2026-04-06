@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_06_203805) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -382,6 +382,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
     t.datetime "pre_check_completed_at"
     t.text "pre_check_notes"
     t.string "priority"
+    t.datetime "qc_failed_at"
+    t.text "qc_failure_reason"
     t.text "qc_notes"
     t.datetime "qc_passed_at"
     t.integer "qc_passed_by_id"
@@ -500,6 +502,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
     t.datetime "qc_passed_at"
     t.datetime "ready_for_pickup_at"
     t.datetime "received_at"
+    t.bigint "reception_log_id"
     t.text "rejection_reason"
     t.datetime "rework_completed_at"
     t.text "rework_reason"
@@ -533,6 +536,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
     t.index ["purchase_order_id"], name: "index_inspections_on_purchase_order_id"
     t.index ["qc_passed_at"], name: "index_inspections_on_qc_passed_at"
     t.index ["received_at"], name: "index_inspections_on_received_at"
+    t.index ["reception_log_id"], name: "index_inspections_on_reception_log_id"
     t.index ["status", "created_at"], name: "index_inspections_on_status_and_created_at"
     t.index ["supervisor_id"], name: "index_inspections_on_supervisor_id"
     t.index ["updated_by_id"], name: "index_inspections_on_updated_by_id"
@@ -1996,6 +2000,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_181314) do
   add_foreign_key "inspection_recommendations", "users", column: "approved_by_id"
   add_foreign_key "inspection_recommendations", "users", column: "suggested_by_id"
   add_foreign_key "inspections", "purchase_orders"
+  add_foreign_key "inspections", "reception_logs"
   add_foreign_key "inspections", "users", column: "assigned_mechanic_id"
   add_foreign_key "inspections", "users", column: "created_by_id"
   add_foreign_key "inspections", "users", column: "final_inspector_id"
