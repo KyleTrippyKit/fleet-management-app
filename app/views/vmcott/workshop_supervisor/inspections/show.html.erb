@@ -12,11 +12,15 @@
           <div>
             <%= link_to "← Back to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary me-2 rounded-pill" %>
             <% if @inspection.status == 'ready_for_pickup' %>
-              <%= button_to "📧 Send Ready for Pickup Email", 
-                    vmcott_workshop_supervisor_send_ready_email_path(@inspection), 
+              <%= form_with url: vmcott_workshop_supervisor_send_ready_email_path(@inspection), 
                     method: :post, 
-                    class: "btn btn-info rounded-pill",
-                    data: { confirm: "Send email notification to customer?" } %>
+                    local: true,
+                    data: { turbo: false },
+                    class: "d-inline" do |f| %>
+                <%= f.submit "📧 Send Ready for Pickup Email", 
+                      class: "btn btn-info rounded-pill",
+                      data: { confirm: "Send email notification to customer?" } %>
+              <% end %>
             <% end %>
           </div>
         </div>
@@ -61,12 +65,6 @@
               <p class="text-danger small mt-2">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
                 On Hold: <%= @inspection.hold_reason || 'No reason provided' %>
-              </p>
-            <% end %>
-            <% if @inspection.cancelled? %>
-              <p class="text-danger small mt-2">
-                <i class="bi bi-x-circle-fill me-1"></i>
-                Cancelled: <%= @inspection.cancellation_reason || 'No reason provided' %>
               </p>
             <% end %>
           </div>
@@ -209,7 +207,7 @@
       </div>
 
       <div class="col-md-4">
-
+        <!-- Available Actions Card -->
         <div class="card mb-4">
           <div class="card-header bg-dark text-white">
             <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Available Actions</h5>
@@ -246,10 +244,6 @@
               
               <% if @inspection.rework_required %>
                 <%= link_to "Approve Rework", approve_rework_vmcott_workshop_supervisor_inspection_path(@inspection), method: :patch, class: "btn btn-warning btn-sm rounded-pill" %>
-              <% end %>
-              
-              <% if @inspection.can_transition_to?('cancelled') %>
-                <%= link_to "Cancel Inspection", vmcott_workshop_supervisor_inspection_path(@inspection, status: 'cancelled'), method: :patch, class: "btn btn-danger btn-sm rounded-pill", data: { confirm: "Are you sure?" } %>
               <% end %>
             </div>
           </div>
