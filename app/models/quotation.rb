@@ -8,7 +8,6 @@ class Quotation < ApplicationRecord
   # ------------------------------------------------------------
   # Safety: clear any problematic alias that can break associations
   # ------------------------------------------------------------
-  # Commenting this out as recommended unless we know why it's needed
   # self.attribute_aliases = attribute_aliases.except("quotation_line_items")
 
   # ------------------------------------------------------------
@@ -56,8 +55,6 @@ class Quotation < ApplicationRecord
     allow_destroy: true,
     reject_if: proc { |attributes| attributes['name'].blank? }
 
-  has_many :quotation_job_parts, through: :quotation_jobs
-
   # ------------------------------------------------------------
   # Enums
   # ------------------------------------------------------------
@@ -80,7 +77,6 @@ class Quotation < ApplicationRecord
   validates :vendor, presence: true
   validates :valid_from, :valid_to, presence: true
   validates :amount, numericality: { greater_than_or_equal_to: 0 }
-  # ✅ Only require amount > 0 for non-draft statuses
   validates :amount, numericality: { greater_than: 0 }, if: :requires_positive_amount?
 
   validate :valid_date_range
@@ -101,7 +97,6 @@ class Quotation < ApplicationRecord
   scope :by_vendor, ->(vendor) { vendor.present? ? where("vendor ILIKE ?", "%#{vendor}%") : all }
   scope :search, ->(term) { return all unless term.present?; where("quote_number ILIKE :t OR vendor ILIKE :t OR notes ILIKE :t", t: "%#{term}%") }
   scope :for_agency, ->(agency) { return all unless agency.present?; left_joins(:vehicle).where("quotations.agency_id = :aid OR vehicles.agency_id = :aid", aid: agency.id) }
-  # NEW: Scope for client type
   scope :for_client, ->(client) { where(client: client) if client.present? }
   scope :agency_quotations, -> { where(client_type: 'Agency') }
   scope :client_quotations, -> { where(client_type: ['corporate', 'individual']) }
@@ -113,7 +108,6 @@ class Quotation < ApplicationRecord
   before_validation :set_default_dates, on: :create
   before_validation :set_agency_from_vehicle, if: -> { agency_id.blank? && vehicle_id.present? }
   before_validation :set_client_from_vehicle, if: -> { client_id.blank? && vehicle_id.present? }
-  # ✅ Agency fallback for create
   before_validation :set_agency_fallback, on: :create
   before_validation :recalculate_amount_from_children
   before_save :update_status_timestamps, if: :will_save_change_to_status?
@@ -122,7 +116,6 @@ class Quotation < ApplicationRecord
   # Client Helper Methods
   # ------------------------------------------------------------
   
-  # Get the client name regardless of type
   def client_name
     if client.is_a?(Agency)
       client.name
@@ -135,7 +128,6 @@ class Quotation < ApplicationRecord
     end
   end
   
-  # Get display info about the client type
   def client_type_display
     if client.is_a?(Agency)
       "Agency: #{client.code}"
@@ -148,12 +140,10 @@ class Quotation < ApplicationRecord
     end
   end
   
-  # Check if client is an agency
   def for_agency?
     client.is_a?(Agency) || agency.present?
   end
   
-  # Check if client is a client
   def for_client?
     client.is_a?(Client)
   end
@@ -162,55 +152,34 @@ class Quotation < ApplicationRecord
   # User-friendly Status Methods
   # ------------------------------------------------------------
   
-  # Friendly status name for VMCOTT workspace view
   def vmcott_friendly_status
     case status.to_sym
-    when :draft
-      '⚪ Draft - VMCOTT Processing'
-    when :sent
-      '🔵 Sent to Client'
-    when :pending_acceptance
-      '🟡 Under Client Review'
-    when :accepted
-      '🟢 Accepted by Client'
-    when :rejected
-      '🔴 Rejected by Client'
-    when :expired
-      '⚫ Expired'
-    when :converted
-      '🔵 Converted to PO'
-    when :partially_rejected
-      '🟠 Partially Rejected'
-    else
-      status.humanize
+    when :draft then '⚪ Draft - VMCOTT Processing'
+    when :sent then '🔵 Sent to Client'
+    when :pending_acceptance then '🟡 Under Client Review'
+    when :accepted then '🟢 Accepted by Client'
+    when :rejected then '🔴 Rejected by Client'
+    when :expired then '⚫ Expired'
+    when :converted then '🔵 Converted to PO'
+    when :partially_rejected then '🟠 Partially Rejected'
+    else status.humanize
     end
   end
 
-  # Friendly status name for Client/Finance view
   def client_friendly_status
     case status.to_sym
-    when :draft
-      '⚪ Draft'
-    when :sent
-      '🔵 Under Review'
-    when :pending_acceptance
-      '🟡 Awaiting Your Decision'
-    when :accepted
-      '🟢 Accepted - Ready for PO'
-    when :rejected
-      '🔴 Rejected'
-    when :expired
-      '⚫ Expired'
-    when :converted
-      '🔵 Converted to PO'
-    when :partially_rejected
-      '🟠 Partially Rejected'
-    else
-      status.humanize
+    when :draft then '⚪ Draft'
+    when :sent then '🔵 Under Review'
+    when :pending_acceptance then '🟡 Awaiting Your Decision'
+    when :accepted then '🟢 Accepted - Ready for PO'
+    when :rejected then '🔴 Rejected'
+    when :expired then '⚫ Expired'
+    when :converted then '🔵 Converted to PO'
+    when :partially_rejected then '🟠 Partially Rejected'
+    else status.humanize
     end
   end
 
-  # Priority level for finance team
   def finance_priority
     return nil unless status.to_sym == :sent
     
@@ -223,7 +192,6 @@ class Quotation < ApplicationRecord
     end
   end
 
-  # Expiry warning
   def expiry_warning
     return nil unless valid_to.present? && status.to_sym == :sent
     
@@ -239,7 +207,6 @@ class Quotation < ApplicationRecord
     end
   end
 
-  # Status badge color for Bootstrap
   def status_badge_color(context = 'workspace')
     case status.to_sym
     when :draft then 'secondary'
@@ -310,12 +277,10 @@ class Quotation < ApplicationRecord
     save!
   end
 
-  # Backward compatibility
   def calculate_total_amount
     recalculate_amount!
   end
 
-  # Explicit calculation methods
   def line_items_total
     quotation_line_items.sum do |li|
       qty  = li.quantity.to_i
@@ -328,14 +293,16 @@ class Quotation < ApplicationRecord
     quotation_jobs.sum { |j| j.total_labor_cost.to_f }
   end
 
+  # ✅ FIXED: Calculate parts total directly through jobs
   def parts_total
-    quotation_job_parts.sum do |p|
-      if p.total_price.present?
-        p.total_price.to_f
-      else
-        p.quantity.to_i * p.unit_price.to_f
+    total = 0.0
+    quotation_jobs.includes(:quotation_job_parts).each do |job|
+      job.quotation_job_parts.each do |part|
+        total += part.total_price.to_f if part.total_price.present?
+        total += part.quantity.to_i * part.unit_price.to_f if part.unit_price.present?
       end
     end
+    total
   end
 
   def total_job_cost
@@ -496,7 +463,6 @@ class Quotation < ApplicationRecord
     end
   end
 
-  # Aliases for backward compatibility
   def total_labor_cost
     labor_total
   end
@@ -536,12 +502,10 @@ class Quotation < ApplicationRecord
     events.sort_by { |e| e[:date] || Time.at(0) }
   end
 
-  # Helper for conversion validation
   def converting_to_converted?
     will_save_change_to_status? && status.to_sym == :converted
   end
 
-  # Helper for positive amount requirement
   def requires_positive_amount?
     !draft?
   end
@@ -561,10 +525,12 @@ class Quotation < ApplicationRecord
       end
     end
 
-    quotation_job_parts.each do |part|
-      if part.unit_price.blank? || part.unit_price.to_f <= 0
-        errors.add(:base, "Part '#{part.part&.name || 'Unknown'}' must have a valid price")
-        return
+    quotation_jobs.includes(:quotation_job_parts).each do |job|
+      job.quotation_job_parts.each do |part|
+        if part.unit_price.blank? || part.unit_price.to_f <= 0
+          errors.add(:base, "Part '#{part.part&.name || 'Unknown'}' must have a valid price")
+          return
+        end
       end
     end
   end
@@ -573,20 +539,16 @@ class Quotation < ApplicationRecord
     self.agency = vehicle.agency if vehicle&.agency
   end
 
-  # NEW: Set client from vehicle's polymorphic owner
   def set_client_from_vehicle
     return unless vehicle&.owner.present?
     self.client = vehicle.owner
   end
 
-  # Agency fallback for create
   def set_agency_fallback
     return if agency_id.present? || client_id.present?
     self.agency_id = created_by&.agency_id || Agency.find_by(code: "VMCOTT")&.id || Agency.first&.id
   end
-  private :set_agency_fallback
 
-  # Generate quote number that doesn't depend on vendor being present yet
   def generate_quote_number
     return if quote_number.present?
     date_part   = Time.current.strftime("%Y%m%d")
@@ -616,6 +578,6 @@ class Quotation < ApplicationRecord
 
   def recalculate_amount_from_children
     self.amount = (line_items_total + labor_total + parts_total).round(2)
-    self.amount = 0.0 if amount.nil?  # Ensure never nil
+    self.amount = 0.0 if amount.nil?
   end
 end

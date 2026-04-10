@@ -372,10 +372,11 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
         Rails.logger.info "✅ Created inspection ##{inspection.id} for vehicle #{@vehicle.license_plate} with status 'received'"
         
         # STEP 5: Link reception log to inspection
-        if reception_log.respond_to?(:inspection=)
-          reception_log.inspection = inspection
-          reception_log.save!
-        end
+        # The inspection already has reception_log_id, so this is not needed
+        # if reception_log.respond_to?(:inspection=)
+        #   reception_log.inspection = inspection
+        #   reception_log.save!
+        # end
         
         # STEP 6: Create vehicle status
         VehicleStatus.create!(
@@ -418,7 +419,7 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
-    render :check_in, layout: 'application'
+    render "vmcott/security_gate_officer/check_in", layout: 'application'
   end
   
   def reception_logs

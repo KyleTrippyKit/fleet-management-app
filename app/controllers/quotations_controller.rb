@@ -460,6 +460,49 @@ class QuotationsController < ApplicationController
                 alert: "Failed to create Purchase Order: #{e.message}"
   end
 
+  def new_from_inspection
+    @inspection = Inspection.find(params[:inspection_id])
+    @draft_jobs = @inspection.inspection_jobs.where(status: 'draft')
+    
+    # Create a new quotation pre-filled with these draft jobs
+    quote_number = "Q-#{@inspection.vehicle.license_plate}-#{Time.current.strftime('%Y%m%d%H%M')}"
+    
+    @quotation = Quotation.new(
+      vehicle_id: @inspection.vehicle_id,
+      inspection_id: @inspection.id,
+      agency_id: current_user.agency_id,
+      quote_number: quote_number,
+      valid_from: Date.today,
+      valid_to: Date.today + 30.days,
+      status: 'draft',
+      created_by: current_user,
+      notes: "Quotation for inspection ##{@inspection.id} - #{@inspection.vehicle.license_plate}\n\nDiagnosis notes: #{@inspection.diagnosis_notes}"
+    )
+    
+    # Create quotation jobs from draft inspection jobs
+    @draft_jobs.each do |job|
+      @quotation.quotation_jobs.build(
+        name: job.description,
+        description: job.description,
+        estimated_hours: job.estimated_hours,
+        labor_rate_per_hour: @inspection.labor_rate || 80.0,
+        total_labor_cost: job.estimated_hours.to_f * (@inspection.labor_rate || 80.0),
+        job_type: 'inspection_job',
+        inspection_job_id: job.id
+      )
+    end
+    
+    @vehicles = [@inspection.vehicle]
+    @vendors = ['VMCOTT']
+    load_job_templates
+    load_parts_for_inventory
+    
+    # Set flash notice
+    flash.now[:notice] = "Quotation created from #{@draft_jobs.count} draft job(s). Add parts and pricing below."
+    
+    render :new
+  end
+
   # POST /quotations/1/submit_to_agency
   def submit_to_agency
     Rails.logger.info "================ SUBMIT TO AGENCY ================="

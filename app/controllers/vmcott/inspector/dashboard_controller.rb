@@ -243,7 +243,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
           finding_type: rec[:finding_type],
           priority: rec[:priority] || 'normal',
           estimated_hours: rec[:estimated_hours],
-          suggested_by: current_user,
+          suggested_by_id: current_user.id,
           notes: rec[:notes]
         )
       end

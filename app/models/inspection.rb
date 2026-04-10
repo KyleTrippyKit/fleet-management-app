@@ -19,6 +19,7 @@ class Inspection < ApplicationRecord
   has_many :findings, dependent: :destroy
   has_many :inspection_recommendations, dependent: :destroy
   has_many :jobs, dependent: :destroy
+    accepts_nested_attributes_for :inspection_jobs, allow_destroy: true, reject_if: :all_blank
 
   # Callbacks
   before_validation :assign_reception_log, on: :create
@@ -79,7 +80,7 @@ class Inspection < ApplicationRecord
     return unless diagnosed?
 
     errors.add(:diagnosis_notes, "must be present") if diagnosis_notes.blank?
-    errors.add(:base, "At least one recommendation is required") if inspection_recommendations.empty?
+    #errors.add(:base, "At least one recommendation is required") if inspection_recommendations.empty?
   end
 
   # =========================

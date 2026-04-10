@@ -1,0 +1,376 @@
+<%# app/views/vmcott/workshop_supervisor/dashboard/customer_quotation.html.erb %>
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">📄 Customer Quotation</h4>
+      <% if @inspection.present? %>
+        <small class="text-muted">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></small>
+      <% end %>
+    </div>
+    <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-sm btn-outline-secondary" do %>
+      ← Back
+    <% end %>
+  </div>
+
+  <% if @inspection.present? %>
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <%= form_with url: vmcott_workshop_supervisor_send_customer_quotation_path(@inspection), 
+                      method: :post, 
+                      local: true,
+                      data: { turbo: false },
+                      id: "quotation-form" do |f| %>
+          
+          <!-- Quote Header -->
+          <div class="card mb-3 border shadow-sm">
+            <div class="card-body py-2">
+              <div class="row small">
+                <div class="col-md-3"><strong>Quote #:</strong> Q-<%= @inspection.id %>-<%= Time.current.strftime('%Y%m%d') %></div>
+                <div class="col-md-3"><strong>Vehicle:</strong> <%= @inspection.vehicle.license_plate %></div>
+                <div class="col-md-3"><strong>Customer:</strong> <%= @customer_name || 'Walk-in' %></div>
+                <div class="col-md-3"><strong>Status:</strong> <span class="badge bg-warning">Draft</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Global Labor Rate -->
+          <div class="mb-3 text-end">
+            <label class="small me-2"><strong>Labor Rate:</strong></label>
+            <div class="input-group input-group-sm" style="width: 150px; display: inline-flex;">
+              <span class="input-group-text">$</span>
+              <input type="number" name="labor_rate" value="<%= @labor_rate || 80 %>" class="form-control text-end labor-rate-global" step="5" min="0">
+            </div>
+          </div>
+
+          <!-- Jobs Table -->
+          <div class="card mb-3 border shadow-sm">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0">🔧 Work to be Done</h6>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-sm mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 40%">Job Description</th>
+                    <th style="width: 15%" class="text-center">Hours</th>
+                    <th style="width: 15%" class="text-end">Labor</th>
+                    <th style="width: 30%" class="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="jobs-container">
+                  <% if @jobs.any? %>
+                    <% @jobs.each do |job| %>
+                      <tr class="job-row" id="job-row-<%= job.id %>" data-job-id="<%= job.id %>">
+                        <td>
+                          <input type="text" name="jobs[<%= job.id %>][description]" value="<%= job.description %>" class="form-control form-control-sm" required>
+                        </td>
+                        <td class="text-center">
+                          <input type="number" name="jobs[<%= job.id %>][hours]" value="<%= job.estimated_hours || 1 %>" class="form-control form-control-sm text-center job-hours" step="0.5" min="0.5" style="width: 70px; margin:0 auto;">
+                        </td>
+                        <td class="text-end align-middle labor-cost-cell">$<span class="labor-cost">0</span></td>
+                        <td class="text-center">
+                          <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-sm btn-outline-primary toggle-parts-btn" data-job-id="<%= job.id %>">
+                              <i class="bi bi-plus-circle"></i> Parts
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-job-btn" data-job-id="<%= job.id %>" data-job-description="<%= job.description %>">
+                              <i class="bi bi-trash"></i> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr class="parts-row-<%= job.id %>" style="display: none;">
+                        <td colspan="4" class="bg-light p-2">
+                          <div id="parts-list-<%= job.id %>">
+                            <div class="text-muted small text-center py-2" id="no-parts-msg-<%= job.id %>">No parts added. Click "Add Part" to add parts.</div>
+                          </div>
+                          <button type="button" class="btn btn-sm btn-outline-primary add-part-btn mt-1" data-job-id="<%= job.id %>">
+                            + Add Part
+                          </button>
+                        </td>
+                      </tr>
+                    <% end %>
+                  <% else %>
+                    <tr><td colspan="4" class="text-center py-3 text-muted">No jobs found</td>
+                  </tr>
+                  <% end %>
+                </tbody>
+                <tfoot class="table-light">
+                  <tr><td colspan="2" class="text-end fw-bold">Subtotal Labor:</td><td class="text-end fw-bold" id="total-labor">$0</td><td class="pe-2"></td>
+                  </tr>
+                  <tr><td colspan="2" class="text-end fw-bold">Parts Total:</td><td class="text-end fw-bold" id="total-parts">$0</td><td class="pe-2"></td>
+                  </tr>
+                  <tr class="table-active"><td colspan="2" class="text-end fw-bold">GRAND TOTAL:</td><td class="text-end fw-bold text-success" id="grand-total">$0</td><td class="pe-2"></td></tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-3">
+            <textarea name="quote_notes" class="form-control form-control-sm" rows="2" placeholder="Additional notes..."></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="d-flex justify-content-between">
+            <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-sm btn-outline-secondary" %>
+            <button type="submit" class="btn btn-sm btn-success px-3" id="submit-btn">📧 Send to Customer</button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <div class="alert alert-danger">Inspection not found.</div>
+  <% end %>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteJobModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white py-1">
+        <h6 class="modal-title">Delete Job</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2">
+        <small>Delete "<span id="delete-job-description"></span>"?</small>
+      </div>
+      <div class="modal-footer py-1">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-job">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .part-row { background: white; padding: 8px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #dee2e6; }
+  .search-results { position: absolute; z-index: 1000; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); min-width: 250px; }
+  .search-results .dropdown-item { padding: 6px 10px; cursor: pointer; font-size: 0.8rem; border-bottom: 1px solid #eee; }
+  .search-results .dropdown-item:hover { background: #f0f0f0; }
+  .job-row.deleted { display: none; }
+  .table-sm td, .table-sm th { padding: 0.4rem; }
+</style>
+
+<script>
+let partCounters = {};
+let jobToDelete = null;
+
+function calculateTotals() {
+  let totalLabor = 0;
+  let totalParts = 0;
+  const globalRate = parseFloat(document.querySelector('.labor-rate-global')?.value) || 80;
+  
+  document.querySelectorAll('.job-row:not(.deleted)').forEach(row => {
+    const hours = parseFloat(row.querySelector('.job-hours')?.value) || 0;
+    const labor = hours * globalRate;
+    totalLabor += labor;
+    const laborCostSpan = row.querySelector('.labor-cost');
+    if (laborCostSpan) laborCostSpan.innerText = labor.toFixed(2);
+  });
+  
+  document.querySelectorAll('.part-row').forEach(partRow => {
+    const qty = parseFloat(partRow.querySelector('.part-qty')?.value) || 0;
+    const price = parseFloat(partRow.querySelector('.part-price')?.value) || 0;
+    totalParts += qty * price;
+  });
+  
+  document.getElementById('total-labor').innerText = '$' + totalLabor.toFixed(2);
+  document.getElementById('total-parts').innerText = '$' + totalParts.toFixed(2);
+  document.getElementById('grand-total').innerText = '$' + (totalLabor + totalParts).toFixed(2);
+  console.log('Labor:', totalLabor, 'Parts:', totalParts, 'Total:', totalLabor + totalParts);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('quotation-form');
+  
+  // Debug form submission
+  form.addEventListener('submit', function(e) {
+    console.log('=== FORM SUBMITTED ===');
+    const formData = new FormData(form);
+    console.log('Form data entries:');
+    for (let pair of formData.entries()) {
+      console.log(pair[0] + ' = ' + pair[1]);
+    }
+  });
+  
+  document.querySelectorAll('.job-hours').forEach(input => {
+    input.addEventListener('input', calculateTotals);
+  });
+  document.querySelector('.labor-rate-global')?.addEventListener('input', calculateTotals);
+  
+  // Delete job
+  document.querySelectorAll('.delete-job-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      jobToDelete = this.dataset.jobId;
+      document.getElementById('delete-job-description').innerText = this.dataset.jobDescription;
+      new bootstrap.Modal(document.getElementById('deleteJobModal')).show();
+    });
+  });
+  
+  document.getElementById('confirm-delete-job')?.addEventListener('click', function() {
+    if (jobToDelete) {
+      const jobRow = document.getElementById(`job-row-${jobToDelete}`);
+      if (jobRow) {
+        form.appendChild(Object.assign(document.createElement('input'), { type: 'hidden', name: 'deleted_jobs[]', value: jobToDelete }));
+        jobRow.classList.add('deleted');
+        const partsRow = document.querySelector(`.parts-row-${jobToDelete}`);
+        if (partsRow) partsRow.style.display = 'none';
+        calculateTotals();
+      }
+      bootstrap.Modal.getInstance(document.getElementById('deleteJobModal')).hide();
+      jobToDelete = null;
+    }
+  });
+  
+  // Toggle parts
+  document.querySelectorAll('.toggle-parts-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const partsRow = document.querySelector(`.parts-row-${this.dataset.jobId}`);
+      if (partsRow) {
+        partsRow.style.display = partsRow.style.display === 'none' ? 'table-row' : 'none';
+      }
+    });
+  });
+  
+  // Simple part search
+  function setupPartSearch(input, nameField, priceField) {
+    let timeout;
+    const resultsDiv = document.createElement('div');
+    resultsDiv.className = 'search-results dropdown-menu';
+    resultsDiv.style.display = 'none';
+    input.parentNode.appendChild(resultsDiv);
+    
+    input.addEventListener('input', function() {
+      clearTimeout(timeout);
+      const query = this.value.trim();
+      if (query.length < 2) { resultsDiv.style.display = 'none'; return; }
+      resultsDiv.innerHTML = '<div class="dropdown-item">Searching...</div>';
+      resultsDiv.style.display = 'block';
+      
+      timeout = setTimeout(() => {
+        fetch(`/vmcott/parts/search?q=${encodeURIComponent(query)}`)
+          .then(res => res.json())
+          .then(parts => {
+            resultsDiv.innerHTML = '';
+            parts.forEach(part => {
+              const item = document.createElement('div');
+              item.className = 'dropdown-item';
+              item.innerHTML = `<strong>${escapeHtml(part.name)}</strong> <small>Stock: ${part.current_stock}</small><br><small>$${part.sale_price || part.cost_price || 0}</small>`;
+              item.onclick = () => {
+                input.value = part.name;
+                if (nameField) nameField.value = part.name;
+                if (priceField) priceField.value = part.sale_price || part.cost_price || 0;
+                resultsDiv.style.display = 'none';
+                calculateTotals();
+              };
+              resultsDiv.appendChild(item);
+            });
+          }).catch(() => {
+            resultsDiv.innerHTML = '<div class="dropdown-item text-danger">Error searching</div>';
+          });
+      }, 300);
+    });
+    
+    document.addEventListener('click', function(e) {
+      if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+        resultsDiv.style.display = 'none';
+      }
+    });
+  }
+  
+  // Add part
+  window.addPartRow = function(jobId) {
+    if(!partCounters[jobId]) partCounters[jobId] = 0;
+    const idx = partCounters[jobId]++;
+    const partsList = document.getElementById(`parts-list-${jobId}`);
+    const noPartsMsg = document.getElementById(`no-parts-msg-${jobId}`);
+    if(noPartsMsg) noPartsMsg.style.display = 'none';
+    
+    const partRow = document.createElement('div');
+    partRow.className = 'part-row';
+    partRow.innerHTML = `
+      <div class="row g-2">
+        <div class="col-5">
+          <input type="text" class="form-control form-control-sm part-search-input" placeholder="Search or type part name...">
+          <input type="hidden" name="jobs[${jobId}][parts][${idx}][name]" class="part-name-field" value="">
+        </div>
+        <div class="col-2">
+          <input type="number" name="jobs[${jobId}][parts][${idx}][quantity]" class="form-control form-control-sm part-qty" value="1" min="1">
+        </div>
+        <div class="col-3">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">$</span>
+            <input type="number" name="jobs[${jobId}][parts][${idx}][unit_price]" class="form-control form-control-sm part-price" step="0.01" min="0" placeholder="0.00">
+          </div>
+        </div>
+        <div class="col-2">
+          <button type="button" class="btn btn-sm btn-outline-danger w-100 remove-part-btn">Remove</button>
+        </div>
+      </div>
+    `;
+    
+    partsList.appendChild(partRow);
+    
+    const searchInput = partRow.querySelector('.part-search-input');
+    const nameField = partRow.querySelector('.part-name-field');
+    const priceInput = partRow.querySelector('.part-price');
+    const qtyInput = partRow.querySelector('.part-qty');
+    
+    setupPartSearch(searchInput, nameField, priceInput);
+    
+    searchInput.addEventListener('blur', function() {
+      if (this.value.trim() && !nameField.value) {
+        nameField.value = this.value;
+        calculateTotals();
+      }
+    });
+    
+    searchInput.addEventListener('input', function() {
+      if (!nameField.value && this.value.trim()) {
+        nameField.value = this.value;
+      }
+      calculateTotals();
+    });
+    
+    qtyInput.addEventListener('input', calculateTotals);
+    priceInput.addEventListener('input', calculateTotals);
+    
+    partRow.querySelector('.remove-part-btn').onclick = () => {
+      partRow.remove();
+      if (partsList.children.length === 0 && noPartsMsg) noPartsMsg.style.display = 'block';
+      calculateTotals();
+    };
+    calculateTotals();
+  };
+  
+  document.querySelectorAll('.add-part-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const jobRow = document.getElementById(`job-row-${this.dataset.jobId}`);
+      if(jobRow && !jobRow.classList.contains('deleted')) addPartRow(this.dataset.jobId);
+    });
+  });
+  
+  document.addEventListener('click', (e) => {
+    if(e.target.closest('.remove-part-btn')) {
+      const partRow = e.target.closest('.part-row');
+      const partsList = partRow?.parentElement;
+      if(partsList) {
+        partRow.remove();
+        const noPartsMsg = partsList.querySelector('[id^="no-parts-msg"]');
+        if(partsList.children.length === 0 && noPartsMsg) noPartsMsg.style.display = 'block';
+        calculateTotals();
+      }
+    }
+  });
+  
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  calculateTotals();
+});
+</script>

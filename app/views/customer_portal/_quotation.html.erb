@@ -2,7 +2,7 @@
 <div class="table-responsive">
   <table class="table table-bordered">
     <thead class="table-light">
-      56
+      <tr>
         <th style="width: 40px">
           <input type="checkbox" id="selectAllJobs" class="form-check-input">
         </th>
@@ -13,31 +13,70 @@
        </thead>
     <tbody>
       <% jobs.each do |job| %>
-        <tr>
+        <tr class="align-middle">
           <td class="text-center">
-            <input type="checkbox" name="approved_jobs[]" value="<%= job.id %>" class="form-check-input job-checkbox" <%= 'checked' if job.client_approved == true %>>
-            </td>
+            <input type="checkbox" name="approved_jobs[]" value="<%= job.id %>" 
+                   class="form-check-input job-checkbox" 
+                   <%= 'checked' if job.client_approved == true %>>
+          </td>
           <td>
             <strong><%= job.name || job.description %></strong>
             <% if job.description.present? && job.description != job.name %>
               <br><small class="text-muted"><%= job.description %></small>
             <% end %>
-          </td>
-          <td class="text-end">$<%= number_with_delimiter(job.total_labor_cost || 0) %></td>
+            
+            <!-- Required Parts Warning -->
+            <% required_parts = job.quotation_job_parts.select { |p| p.part_type == 'required' } if job.respond_to?(:quotation_job_parts) %>
+            <% if required_parts.present? && required_parts.any? %>
+              <div class="mt-2">
+                <span class="badge bg-danger">⚠️ Required Parts</span>
+                <small class="text-danger d-block">
+                  This job requires: <%= required_parts.map { |p| "#{p.quantity}x #{p.part&.name || p.custom_part_name}" }.join(', ') %>
+                </small>
+              </div>
+            <% end %>
+            
+            <!-- Recommended Parts -->
+            <% recommended_parts = job.quotation_job_parts.select { |p| p.part_type == 'recommended' } if job.respond_to?(:quotation_job_parts) %>
+            <% if recommended_parts.present? && recommended_parts.any? %>
+              <div class="mt-1">
+                <span class="badge bg-warning text-dark">⭐ Recommended</span>
+                <small class="text-muted d-block">
+                  <%= recommended_parts.map { |p| "#{p.quantity}x #{p.part&.name || p.custom_part_name}" }.join(', ') %>
+                </small>
+              </div>
+            <% end %>
+            
+            <!-- Optional Parts -->
+            <% optional_parts = job.quotation_job_parts.select { |p| p.part_type == 'optional' } if job.respond_to?(:quotation_job_parts) %>
+            <% if optional_parts.present? && optional_parts.any? %>
+              <div class="mt-1">
+                <span class="badge bg-secondary">➕ Optional Add-ons</span>
+                <small class="text-muted d-block">
+                  <%= optional_parts.map { |p| "#{p.quantity}x #{p.part&.name || p.custom_part_name}" }.join(', ') %>
+                </small>
+              </div>
+            <% end %>
+           </td>
+          <td class="text-end fw-semibold">$<%= number_with_delimiter(job.total_labor_cost || 0) %></td>
           <td class="text-end">$<%= number_with_delimiter(job.total_parts_cost || 0) %></td>
-          <td class="text-end"><strong>$<%= number_with_delimiter((job.total_labor_cost || 0) + (job.total_parts_cost || 0)) %></strong></td>
-        </tr>
+          <td class="text-end fw-bold text-primary">$<%= number_with_delimiter((job.total_labor_cost || 0) + (job.total_parts_cost || 0)) %></td>
+        </td>
       <% end %>
     </tbody>
     <tfoot class="table-dark">
       <tr>
         <td colspan="4" class="text-end"><strong>Total:</strong></td>
         <td class="text-end"><strong>$<%= number_with_delimiter(jobs.sum { |j| (j.total_labor_cost || 0) + (j.total_parts_cost || 0) }) %></strong></td>
-      </tr>
+       </tr>
     </tfoot>
   </table>
 </div>
 
 <div class="alert alert-info mt-3">
-  <i class="bi bi-info-circle"></i> <strong>Note:</strong> You can approve all jobs or select specific jobs to approve. Only approved work will be performed.
+  <i class="bi bi-info-circle"></i> <strong>Note:</strong> 
+  <span class="text-danger">🔴 Required parts</span> are mandatory for job completion. 
+  <span class="text-warning">⭐ Recommended parts</span> are strongly suggested. 
+  <span class="text-secondary">➕ Optional add-ons</span> are your choice.
+  Only approved work will be performed.
 </div>

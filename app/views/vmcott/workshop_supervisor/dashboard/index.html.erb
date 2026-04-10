@@ -14,6 +14,7 @@
         <span class="badge bg-info me-1">Phase 4: Job Creation</span>
         <span class="badge bg-warning me-1">Phase 5: Parts</span>
         <span class="badge bg-success me-1">Phase 6: Quote</span>
+        <span class="badge bg-purple me-1">Phase 6.5: Approved Quotations</span>
         <span class="badge bg-secondary me-1">Phase 7: Approval</span>
         <span class="badge bg-purple me-1">Phase 7.5: Assign Jobs</span>
         <span class="badge bg-primary me-1">Phase 8: Active</span>
@@ -93,7 +94,18 @@
                     <strong><%= inspection.vehicle.license_plate %></strong><br>
                     <small class="text-muted"><%= inspection.vehicle.make %> <%= inspection.vehicle.model %></small>
                     <br>
-                    <span class="badge bg-<%= inspection.status %>"><%= inspection.status&.humanize %></span>
+                    <span class="badge <%= 
+                      case inspection.status
+                      when 'diagnosed' then 'bg-info text-dark'
+                      when 'inspected' then 'bg-warning text-dark'
+                      when 'in_progress' then 'bg-primary'
+                      when 'completed' then 'bg-success'
+                      when 'cancelled' then 'bg-danger'
+                      else 'bg-secondary'
+                      end
+                    %>">
+                      <%= inspection.status&.humanize %>
+                    </span>
                   </td>
                   <td style="max-width: 250px;">
                     <% if inspection.diagnosis_notes.present? %>
@@ -289,6 +301,73 @@
   <% end %>
 
   <!-- ===================================================== -->
+  <!-- PHASE 6.5: APPROVED QUOTATIONS AWAITING INVENTORY -->
+  <!-- ===================================================== -->
+  <div id="approved-quotations" class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #8b5cf6;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+          <i class="bi bi-check-circle me-2" style="color: #8b5cf6;"></i>
+          Phase 6.5: Approved Quotations - Awaiting Inventory Processing
+        </h5>
+        <%= link_to "View All", vmcott_workshop_supervisor_approved_quotations_path, class: "btn btn-sm btn-outline-purple rounded-pill" %>
+      </div>
+      <p class="text-muted small mt-1 mb-0">Customer approved - ready to send parts to inventory manager</p>
+    </div>
+    <div class="card-body p-0">
+      <% @approved_quotations = Quotation.where(status: ['accepted', 'partially_rejected']).where.not(inspection_id: nil).order(accepted_at: :desc).limit(10) %>
+      <% if @approved_quotations.present? && @approved_quotations.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Quote #</th>
+                <th>Vehicle</th>
+                <th>Approved Amount</th>
+                <th>Jobs</th>
+                <th>Parts</th>
+                <th>Approved At</th>
+                <th class="pe-3 text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @approved_quotations.each do |quotation| %>
+                <% approved_job_ids = quotation.client_approved_job_ids || [] %>
+                <% approved_part_ids = quotation.client_approved_part_ids || [] %>
+                <tr data-turbo="false">
+                  <td class="ps-3">
+                    <strong><%= quotation.quote_number %></strong>
+                  </td>
+                  <td>
+                    <%= quotation.vehicle&.license_plate || 'N/A' %><br>
+                    <small class="text-muted"><%= quotation.vehicle&.make %> <%= quotation.vehicle&.model %></small>
+                  </td>
+                  <td class="text-success fw-bold">$<%= '%.2f' % quotation.amount %></td>
+                  <td class="text-center"><span class="badge bg-success"><%= approved_job_ids.count %> approved</span></td>
+                  <td class="text-center"><span class="badge bg-info"><%= approved_part_ids.count %> parts</span></td>
+                  <td><%= quotation.accepted_at&.strftime("%b %d, %Y") || 'N/A' %><br><small class="text-muted"><%= time_ago_in_words(quotation.accepted_at) %> ago</small></td>
+                  <td class="text-end pe-3">
+                    <%= link_to "Review & Send to Inventory", vmcott_workshop_supervisor_approved_quotation_details_path(quotation), class: "btn btn-sm btn-purple rounded-pill px-3" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-center p-3 border-top">
+          <%= link_to "View All Approved Quotations", vmcott_workshop_supervisor_approved_quotations_path, class: "btn btn-link text-decoration-none" %>
+        </div>
+      <% else %>
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-check-circle fs-1 d-block mb-2" style="color: #8b5cf6;"></i>
+          <h6>No approved quotations</h6>
+          <p class="small mb-0">Customer-approved quotations will appear here for inventory processing</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- ===================================================== -->
   <!-- PHASE 7: AWAITING CUSTOMER APPROVAL -->
   <!-- ===================================================== -->
   <% if @awaiting_approval.present? && @awaiting_approval.any? %>
@@ -435,6 +514,92 @@
       </div>
     </div>
   <% end %>
+
+  <!-- ===================================================== -->
+  <!-- QUOTATIONS SECTION - Access to all quotes -->
+  <!-- ===================================================== -->
+  <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fw-bold" style="color: #1e293b;">
+          <i class="bi bi-file-text me-2 text-success"></i>
+          Quotations & Estimates
+        </h5>
+        <div>
+          <%= link_to "View All Quotations", quotations_path, class: "btn btn-outline-primary btn-sm rounded-pill me-2" %>
+          <%= link_to "Quotation Workspace", workspace_quotations_path, class: "btn btn-outline-secondary btn-sm rounded-pill" %>
+        </div>
+      </div>
+      <p class="text-muted small mt-1 mb-0">Manage quotes sent to customers and track approvals</p>
+    </div>
+    <div class="card-body p-0">
+      <% recent_quotations = Quotation.where(inspection_id: @pending_job_creation.pluck(:id)).or(
+                            Quotation.where(created_by_id: current_user.id)
+                          ).order(created_at: :desc).limit(10) %>
+      
+      <% if recent_quotations.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Quote #</th>
+                <th>Vehicle</th>
+                <th>Total Amount</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="pe-3 text-center">Actions</th>
+              </thead>
+              <tbody>
+                <% recent_quotations.each do |quote| %>
+                  <tr data-turbo="false">
+                    <td class="ps-3">
+                      <strong><%= quote.quote_number %></strong>
+                    </td>
+                    <td>
+                      <%= quote.vehicle&.license_plate || 'N/A' %><br>
+                      <small class="text-muted"><%= quote.vehicle&.make %> <%= quote.vehicle&.model %></small>
+                    </td>
+                    <td class="fw-bold text-success">$<%= number_with_precision(quote.amount, precision: 2) %></td>
+                    <td>
+                      <span class="badge <%= 
+                        case quote.status
+                        when 'draft' then 'bg-secondary'
+                        when 'sent' then 'bg-info'
+                        when 'accepted' then 'bg-success'
+                        when 'rejected' then 'bg-danger'
+                        else 'bg-warning'
+                        end
+                      %>">
+                        <%= quote.status&.humanize || 'Draft' %>
+                      </span>
+                    </td>
+                    <td><%= time_ago_in_words(quote.created_at) %> ago</td>
+                    <td class="text-center pe-3">
+                      <div class="btn-group btn-group-sm">
+                        <%= link_to "View", quotation_path(quote), class: "btn btn-outline-primary rounded-pill", data: { turbo: false } %>
+                        <% if quote.draft? %>
+                          <%= link_to "Edit", edit_quotation_path(quote), class: "btn btn-outline-secondary rounded-pill ms-1", data: { turbo: false } %>
+                        <% end %>
+                      </div>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-center p-3 border-top">
+            <%= link_to "View All Quotations", quotations_path, class: "btn btn-link text-decoration-none", data: { turbo: false } %>
+          </div>
+        </div>
+      <% else %>
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-file-text fs-1 d-block mb-2"></i>
+          <h6>No quotations yet</h6>
+          <p class="small mb-0">Create jobs from diagnosis to generate a quotation.</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
 
   <!-- ===================================================== -->
   <!-- PHASE 8: ACTIVE JOBS IN PROGRESS -->

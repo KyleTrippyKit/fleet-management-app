@@ -16,6 +16,66 @@
     </div>
   </div>
 
+  <!-- 🔥 Customer Portal Access Card with Auto-fill Button -->
+  <div class="card shadow-sm mb-4 border-info">
+    <div class="card-header bg-info text-white">
+      <h5 class="mb-0"><i class="bi bi-globe2 me-2"></i> Customer Portal Access</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="text-muted small mb-1">License Plate</label>
+          <div class="bg-light p-3 rounded">
+            <code class="fs-4 fw-bold"><%= @log.vehicle&.license_plate || 'N/A' %></code>
+          </div>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="text-muted small mb-1">Receipt Number</label>
+          <div class="bg-light p-3 rounded">
+            <code class="fs-5"><%= @log.receipt_number || 'N/A' %></code>
+          </div>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="text-muted small mb-1">Portal Login URL</label>
+          <div class="bg-light p-3 rounded">
+            <code class="small" style="word-break: break-all;"><%= customer_login_url %></code>
+            <button onclick="copyToClipboard('<%= customer_login_url %>')" class="btn btn-sm btn-outline-primary ms-2">
+              <i class="bi bi-clipboard"></i> Copy
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 🔥 Auto-fill Portal Link Button -->
+      <div class="mt-3">
+        <a href="<%= customer_login_url(license_plate: @log.vehicle&.license_plate, receipt_number: @log.receipt_number, auto_filled: true) %>" 
+           target="_blank" 
+           class="btn btn-success w-100 mb-2">
+          <i class="bi bi-box-arrow-up-right me-2"></i> Open Customer Portal (Auto-filled)
+        </a>
+        <p class="small text-muted mb-0 text-center">
+          <i class="bi bi-info-circle me-1"></i> 
+          Clicking this button will open the portal with license plate and receipt number pre-filled.
+          Customer only needs to enter their email.
+        </p>
+      </div>
+      
+      <div class="alert alert-success mt-3 mb-0">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          <div>
+            <strong>Customer Instructions:</strong> Share these credentials with the customer so they can track their vehicle repair online.
+            <ul class="mt-2 mb-0">
+              <li>1. Click the "Open Customer Portal (Auto-filled)" button above</li>
+              <li>2. Enter your email address</li>
+              <li>3. View inspection status, approve quotations, and track repairs</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row">
     <!-- Main Details -->
     <div class="col-md-8">
@@ -29,7 +89,9 @@
               <table class="table table-sm">
                 <tr>
                   <th width="40%">License Plate:</th>
-                  <td><strong><%= @log.vehicle&.license_plate || 'N/A' %></strong></td>
+                  <td><strong><%= @log.vehicle&.license_plate || 'N/A' %></strong> 
+                  <button onclick="copyToClipboard('<%= @log.vehicle&.license_plate %>')" class="btn btn-sm btn-outline-secondary ms-2"><i class="bi bi-clipboard"></i></button>
+                </td>
                 </tr>
                 <tr>
                   <th>Make/Model:</th>
@@ -49,7 +111,7 @@
               <table class="table table-sm">
                 <tr>
                   <th width="40%">Agency:</th>
-                  <td><span class="badge bg-primary"><%= @log.vehicle&.agency&.code || 'Public' %></span></td>
+                  <td><span class="badge bg-primary"><%= @log.vehicle&.agency&.code || 'Public' %></span></th>
                 </tr>
                 <tr>
                   <th>Check-in Time:</th>
@@ -60,22 +122,10 @@
                   <td><%= @log.driver_name %></td>
                 </tr>
                 <tr>
-                  <th>ID Number:</th>
+                  <th>Receipt Number:</th>
                   <td>
-                    <% if @log.condition_report.present? %>
-                      <%= @log.condition_report.driver_id_number.presence || 'Not provided' %>
-                      <br>
-                      <small class="text-success">✓<%=%></small>
-                    <% else %>
-                      Not provided
-                      <% if @log.condition_report_id.present? %>
-                        <br>
-                        <small class="text-warning">⚠️ Has condition_report_id: <%= @log.condition_report_id %> but report not found</small>
-                      <% else %>
-                        <br>
-                        <small class="text-danger">❌ No condition report linked</small>
-                      <% end %>
-                    <% end %>
+                    <code><%= @log.receipt_number || 'N/A' %></code>
+                    <button onclick="copyToClipboard('<%= @log.receipt_number %>')" class="btn btn-sm btn-outline-secondary ms-1"><i class="bi bi-clipboard"></i></button>
                   </td>
                 </tr>
               </table>
@@ -83,6 +133,34 @@
           </div>
         </div>
       </div>
+
+      <!-- Customer Contact Card -->
+      <% if @log.customer_email.present? || @log.customer_phone.present? %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i> Customer Contact</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <% if @log.customer_name.present? %>
+                <div class="col-md-12 mb-2">
+                  <strong>Name:</strong> <%= @log.customer_name %>
+                </div>
+              <% end %>
+              <% if @log.customer_email.present? %>
+                <div class="col-md-6">
+                  <strong>Email:</strong> <%= @log.customer_email %>
+                </div>
+              <% end %>
+              <% if @log.customer_phone.present? %>
+                <div class="col-md-6">
+                  <strong>Phone:</strong> <%= @log.customer_phone %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
 
       <!-- Condition Report Card -->
       <% if @log.condition_report %>
@@ -97,11 +175,11 @@
                 <table class="table table-sm">
                   <tr>
                     <th>Fuel Level:</th>
-                    <td><%= @log.condition_report.fuel_level %>%</td>
+                    <td><%= @log.condition_report.fuel_level %>%</th>
                   </tr>
                   <tr>
                     <th>Odometer:</th>
-                    <td><%= @log.condition_report.odometer %> km</td>
+                    <td><%= @log.condition_report.odometer %> km</th>
                   </tr>
                   <tr>
                     <th>Signed:</th>
@@ -177,6 +255,49 @@
 
     <!-- Sidebar -->
     <div class="col-md-4">
+      <!-- Quick Access Card -->
+      <div class="card shadow-sm mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0"><i class="bi bi-key me-2"></i> Quick Access for Customer</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="text-muted small mb-1">Portal URL</label>
+            <div class="input-group">
+              <input type="text" id="portal-url" class="form-control form-control-sm" value="<%= customer_login_url %>" readonly>
+              <button class="btn btn-outline-primary btn-sm" onclick="copyToClipboardFromInput('portal-url')">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-muted small mb-1">License Plate</label>
+            <div class="input-group">
+              <input type="text" id="license-plate" class="form-control form-control-sm" value="<%= @log.vehicle&.license_plate || 'N/A' %>" readonly>
+              <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboardFromInput('license-plate')">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-muted small mb-1">Receipt Number</label>
+            <div class="input-group">
+              <input type="text" id="receipt-number" class="form-control form-control-sm" value="<%= @log.receipt_number || 'N/A' %>" readonly>
+              <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboardFromInput('receipt-number')">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </div>
+          </div>
+          <hr>
+          <a href="<%= customer_login_url %>" target="_blank" class="btn btn-info w-100 mb-2">
+            <i class="bi bi-box-arrow-up-right me-2"></i> Open Customer Portal
+          </a>
+          <button class="btn btn-outline-success w-100" onclick="copyAllCustomerInfo()">
+            <i class="bi bi-files me-2"></i> Copy All Info
+          </button>
+        </div>
+      </div>
+
       <!-- Driver Signature Card -->
       <% if @log.condition_report&.signature_data.present? %>
         <div class="card shadow-sm mb-4">
@@ -256,9 +377,60 @@
                 <span class="badge bg-danger">Not Linked</span>
               <% end %>
             </li>
+            <li class="mb-2">
+              <strong>Portal Access:</strong><br>
+              <% if @log.portal_access_token.present? && @log.portal_access_expires_at.present? && @log.portal_access_expires_at > Time.current %>
+                <span class="badge bg-success">Active until <%= @log.portal_access_expires_at.strftime("%b %d, %Y") %></span>
+              <% elsif @log.portal_access_token.present? %>
+                <span class="badge bg-warning">Expired</span>
+              <% else %>
+                <span class="badge bg-secondary">Not generated</span>
+              <% end %>
+            </li>
           </ul>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(function() {
+    // Show temporary feedback
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+    }, 2000);
+  });
+}
+
+function copyToClipboardFromInput(inputId) {
+  const input = document.getElementById(inputId);
+  input.select();
+  input.setSelectionRange(0, 99999);
+  document.execCommand('copy');
+  
+  // Show feedback
+  const btn = event.target.closest('button');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+  setTimeout(() => {
+    btn.innerHTML = originalHtml;
+  }, 2000);
+}
+
+function copyAllCustomerInfo() {
+  const portalUrl = document.getElementById('portal-url')?.value || '';
+  const licensePlate = document.getElementById('license-plate')?.value || '';
+  const receiptNumber = document.getElementById('receipt-number')?.value || '';
+  
+  const message = `Customer Portal Access:\n\nURL: ${portalUrl}\nLicense Plate: ${licensePlate}\nReceipt Number: ${receiptNumber}\n\nInstructions:\n1. Go to the portal URL\n2. Enter your license plate\n3. Enter your receipt number\n4. Track your vehicle repair status`;
+  
+  navigator.clipboard.writeText(message).then(function() {
+    alert('✅ Customer portal information copied to clipboard!');
+  });
+}
+</script>

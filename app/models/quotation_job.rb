@@ -2,23 +2,17 @@
 class QuotationJob < ApplicationRecord
   # Associations
   belongs_to :quotation
+  belongs_to :inspection_job, optional: true  # ← ADD this line
   belongs_to :job_template, optional: true
   
   has_many :quotation_job_parts, dependent: :destroy
   has_many :parts, through: :quotation_job_parts
   
-  accepts_nested_attributes_for :quotation_job_parts, allow_destroy: true
+  accepts_nested_attributes_for :quotation_job_parts, allow_destroy: true, reject_if: :all_blank
   
   # Validations
   validates :name, presence: true
   validates :job_type, presence: true
-  # validates :quotation_id, presence: true
-  
-  # Comment out the enum for now to see if that's the issue
-  # enum job_type: {
-  #   template: 'template',
-  #   custom: 'custom'
-  # }
   
   before_save :calculate_labor_cost
   
@@ -36,8 +30,4 @@ class QuotationJob < ApplicationRecord
   def total_job_cost
     (total_labor_cost || 0) + (total_parts_cost || 0)
   end
-  
-  private
-  
-  # If you have any other private methods, add them here
 end

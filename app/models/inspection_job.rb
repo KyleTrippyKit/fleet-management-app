@@ -1,55 +1,42 @@
-# app/models/inspection_job.rb
 class InspectionJob < ApplicationRecord
   include Auditable
   
   belongs_to :inspection
   belongs_to :job_template, optional: true
   belongs_to :assigned_mechanic, class_name: 'User', optional: true
-  belongs_to :work_order, optional: true  # NEW: Link to work order
-  belongs_to :pre_check_by, class_name: 'User', optional: true  # NEW: Who did pre-check
+  belongs_to :work_order, optional: true
+  belongs_to :pre_check_by, class_name: 'User', optional: true
   
   has_many :inspection_job_parts, dependent: :destroy
   has_many :parts, through: :inspection_job_parts
   has_many :mechanic_assignments, dependent: :destroy
   has_many :parts_requests, foreign_key: :inspection_job_id, dependent: :nullify
   has_many :findings, dependent: :destroy
-  has_many :job_tasks, dependent: :destroy  # NEW: Tasks for this job
+  has_many :job_tasks, dependent: :destroy
+  
+  # Nested attributes for parts
+  accepts_nested_attributes_for :inspection_job_parts, 
+                                allow_destroy: true, 
+                                reject_if: ->(attrs) { attrs['custom_part_name'].blank? && attrs['part_id'].blank? }
   
   # Job dependencies
   has_many :dependencies_as_job, class_name: 'JobDependency', foreign_key: :job_id, dependent: :destroy
   has_many :dependencies_on, through: :dependencies_as_job, source: :depends_on
-  
   has_many :dependencies_as_dependency, class_name: 'JobDependency', foreign_key: :depends_on_job_id, dependent: :destroy
   has_many :dependent_jobs, through: :dependencies_as_dependency, source: :job
 
   PRIORITIES = ['low', 'normal', 'high', 'critical'].freeze
 
-  # Status workflow - ENHANCED with pre-check, approval stages, and QC
+  # ✅ SIMPLIFIED STATUS - Only what matters
   enum :status, {
-    pending_supervisor_review: 'pending_supervisor_review',
-    pending_mechanic_review: 'pending_mechanic_review',
-    pending_parts_review: 'pending_parts_review',
-    pending_customer_approval: 'pending_customer_approval',
+    draft: 'draft',
     approved: 'approved',
-    assigned: 'assigned',                    # NEW: Assigned to mechanic but not started
-    pre_check_in_progress: 'pre_check_in_progress',  # NEW: Mechanic doing pre-check
-    pre_check_completed: 'pre_check_completed',      # NEW: Pre-check done, awaiting approval
-    pending_approval: 'pending_approval',            # NEW: Waiting for supervisor approval
-    approved_for_work: 'approved_for_work',          # NEW: Approved to start work
-    pending_mechanic_work: 'pending_mechanic_work',
     in_progress: 'in_progress',
-    paused: 'paused',
-    blocked: 'blocked',
-    rework_needed: 'rework_needed',
     completed: 'completed',
-    # QC Statuses
-    qc_pending: 'qc_pending',                # NEW: Ready for QC inspection
-    qc_in_progress: 'qc_in_progress',        # NEW: Currently in QC
-    qc_passed: 'qc_passed',                  # NEW: Passed QC inspection
-    qc_failed: 'qc_failed'                   # NEW: Failed QC, needs rework
-  }, default: :pending_supervisor_review
+    cancelled: 'cancelled'
+  }, default: :draft
 
-  # Add new fields
+  # Existing fields (keep all)
   attribute :paused_at, :datetime
   attribute :paused_reason, :text
   attribute :blocked_at, :datetime
@@ -64,16 +51,12 @@ class InspectionJob < ApplicationRecord
   attribute :locked_for_changes, :boolean, default: false
   attribute :locked_at, :datetime
   attribute :quantity_used, :integer, default: 0
-  
-  # NEW: Time tracking and pre-check fields
   attribute :total_time_hours, :decimal, precision: 5, scale: 2, default: 0
   attribute :billable_time_hours, :decimal, precision: 5, scale: 2, default: 0
   attribute :pre_check_notes, :text
   attribute :pre_check_completed_at, :datetime
   attribute :additional_findings, :jsonb, default: []
   attribute :pre_check_started_at, :datetime
-  
-  # NEW: QC fields
   attribute :qc_submitted_at, :datetime
   attribute :qc_completed_at, :datetime
   attribute :qc_notes, :text
@@ -82,32 +65,45 @@ class InspectionJob < ApplicationRecord
 
   validates :description, presence: true
   validates :priority, inclusion: { in: PRIORITIES }, allow_nil: true
-  validate :cannot_add_parts_after_approval, if: :approved_for_repair?
 
-  # Scopes
+  # ✅ CALLBACK: Prevent modification after approval
+  before_update :prevent_modification_after_approval
+  before_create :ensure_quotation_not_approved
+
+  # Scopes (simplified)
   scope :pending, -> { where(completed_at: nil) }
   scope :completed, -> { where.not(completed_at: nil) }
   scope :by_priority, -> { order(Arel.sql("CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END")) }
-  scope :available_for_work, -> { where(status: :pending_mechanic_work) }
-  scope :in_progress, -> { where(status: :in_progress) }
-  scope :paused, -> { where(status: :paused) }
-  scope :blocked, -> { where(status: :blocked) }
-  scope :rework_needed, -> { where(status: :rework_needed) }
-  scope :needs_supervisor_pricing, -> { where(status: :pending_supervisor_review) }
-  scope :needs_pre_check, -> { where(status: :assigned) }
-  scope :pre_check_in_progress, -> { where(status: :pre_check_in_progress) }
-  scope :needs_approval, -> { where(status: :pre_check_completed) }
+
+  # =====================================================
+  # ✅ APPROVAL METHODS - SINGLE AUTHORITY
+  # =====================================================
   
-  # NEW: QC Scopes
-  scope :qc_pending, -> { where(status: :qc_pending) }
-  scope :in_qc, -> { where(status: :qc_in_progress) }
-  scope :qc_passed, -> { where(status: :qc_passed) }
-  scope :qc_failed, -> { where(status: :qc_failed) }
-  
-  # NEW: Scopes for work order integration
-  scope :by_work_order, ->(work_order_id) { where(work_order_id: work_order_id) }
-  scope :with_active_tasks, -> { joins(:job_tasks).where(job_tasks: { status: ['in_progress', 'pending', 'approved'] }).distinct }
-  scope :approved, -> { where(status: ['approved', 'approved_for_work']) }
+  # ✅ ONLY Quotation calls this
+  def approve_internal!
+    return if status_in_database == 'approved'
+    update!(status: 'approved')
+  end
+
+  # ✅ Guard against modifications after approval
+  def prevent_modification_after_approval
+    if status_in_database == 'approved'
+      errors.add(:base, "Approved jobs cannot be modified")
+      throw(:abort)
+    end
+  end
+
+  # ✅ Prevent jobs from being added after quotation approved
+  def ensure_quotation_not_approved
+    if inspection.quotations.where(status: 'approved').exists?
+      errors.add(:base, "Cannot add jobs after quotation is approved")
+      throw(:abort)
+    end
+  end
+
+  # =====================================================
+  # EXISTING METHODS (keep as is)
+  # =====================================================
 
   def estimated_total
     estimated_labor_cost.to_f
@@ -126,10 +122,6 @@ class InspectionJob < ApplicationRecord
     mechanic_assignments.create!(mechanic: mechanic_user, status: 'assigned')
   end
 
-  # =====================================================
-  # PRE-CHECK METHODS
-  # =====================================================
-  
   def start_pre_check!(mechanic)
     update!(
       status: :pre_check_in_progress,
@@ -146,7 +138,6 @@ class InspectionJob < ApplicationRecord
       additional_findings: findings
     )
     
-    # Notify supervisor
     if inspection.supervisor
       Notification.create!(
         user: inspection.supervisor,
@@ -177,22 +168,17 @@ class InspectionJob < ApplicationRecord
     )
   end
 
-  # =====================================================
-  # PARTS REQUEST METHODS
-  # =====================================================
-  
   def request_part!(part_params, mechanic)
     parts_request = parts_requests.create!(
       part_id: part_params[:part_id],
       custom_part_name: part_params[:custom_part_name],
       quantity: part_params[:quantity],
-      status: 'pending_approval',  # Changed from 'pending' to 'pending_approval'
+      status: 'pending_approval',
       notes: part_params[:notes],
       inspection_job_id: id,
       inspection_id: inspection_id
     )
     
-    # Notify supervisor
     if inspection.supervisor
       Notification.create!(
         user: inspection.supervisor,
@@ -228,21 +214,10 @@ class InspectionJob < ApplicationRecord
   end
 
   def can_start?
-    puts "DEBUG: can_start? called - status: #{status}, dependencies: #{dependencies_on.map(&:status)}"
-    puts "DEBUG: can_start? called - status: #{status}, client_can_start_work?: #{inspection.client_can_start_work?}"
     return false unless status == 'approved_for_work'
     return false unless inspection.client_can_start_work?
-    
-    unless dependencies_satisfied?
-      puts "DEBUG: can_start? failed - missing dependencies: #{missing_dependencies.map(&:id)}"
-      return false
-    end
-    
-    if blocked?
-      puts "DEBUG: can_start? failed - job is blocked: #{blocked_reason}"
-      return false
-    end
-    
+    return false unless dependencies_satisfied?
+    return false if blocked?
     true
   end
 
@@ -258,35 +233,16 @@ class InspectionJob < ApplicationRecord
     status == 'in_progress'
   end
   
-  # =====================================================
-  # QC METHODS
-  # =====================================================
-  
   def can_send_to_qc?
-    # A job can be sent to QC if:
-    # 1. It's completed
-    # 2. Not already in QC or QC passed/failed
-    # 3. All tasks are completed (if using work order integration)
-    # 4. All parts usage is recorded
-    # 5. All required documentation is present
-    
     return false unless completed?
     return false if ['qc_pending', 'qc_in_progress', 'qc_passed'].include?(status)
-    
-    # Check if all tasks are completed
     return false unless all_tasks_completed?
-    
-    # Check if parts usage is properly recorded
     return false unless parts_usage_recorded?
-    
-    # Check if QC hasn't already been submitted
     return false if qc_submitted_at.present? && status == 'completed'
-    
     true
   end
   
   def parts_usage_recorded?
-    # Verify that all parts have been recorded as used
     inspection_job_parts.each do |job_part|
       return false unless job_part.quantity_used.present? || job_part.quantity == 0
     end
@@ -300,7 +256,6 @@ class InspectionJob < ApplicationRecord
       qc_inspector_id: inspector_id
     )
     
-    # Notify QC inspector
     if inspector_id.present?
       Notification.create!(
         user_id: inspector_id,
@@ -312,7 +267,6 @@ class InspectionJob < ApplicationRecord
       )
     end
     
-    # Notify supervisor
     if inspection.supervisor
       Notification.create!(
         user: inspection.supervisor,
@@ -339,7 +293,6 @@ class InspectionJob < ApplicationRecord
       qc_notes: notes
     )
     
-    # Notify relevant parties
     Notification.create!(
       user: assigned_mechanic,
       title: "QC Passed",
@@ -369,7 +322,6 @@ class InspectionJob < ApplicationRecord
       qc_notes: notes
     )
     
-    # Notify mechanic about rework needed
     Notification.create!(
       user: assigned_mechanic,
       title: "QC Failed",
@@ -415,36 +367,19 @@ class InspectionJob < ApplicationRecord
   end
 
   def start!
-    puts ">>> DEBUG: In start! method for job #{id}"
-    puts "DEBUG: In start! method - current status: #{status}"
-    update!(
-      status: :in_progress,
-      started_at: Time.current
-    )
+    update!(status: :in_progress, started_at: Time.current)
   end
 
   def pause!(reason)
-    update!(
-      status: :paused,
-      paused_at: Time.current,
-      paused_reason: reason
-    )
+    update!(status: :paused, paused_at: Time.current, paused_reason: reason)
   end
 
   def resume!
-    update!(
-      status: :in_progress,
-      paused_at: nil,
-      paused_reason: nil
-    )
+    update!(status: :in_progress, paused_at: nil, paused_reason: nil)
   end
 
   def block!(reason, requires_quote: true)
-    update!(
-      status: :blocked,
-      blocked_at: Time.current,
-      blocked_reason: reason
-    )
+    update!(status: :blocked, blocked_at: Time.current, blocked_reason: reason)
     
     if requires_quote && inspection.present?
       inspection.findings.create!(
@@ -474,18 +409,11 @@ class InspectionJob < ApplicationRecord
   end
 
   def request_rework!(reason)
-    update!(
-      status: :rework_needed,
-      rework_requested_at: Time.current,
-      rework_reason: reason
-    )
+    update!(status: :rework_needed, rework_requested_at: Time.current, rework_reason: reason)
   end
 
   def add_dependency(dependency_job, type: 'required')
-    dependencies_as_job.create!(
-      depends_on_job_id: dependency_job.id,
-      dependency_type: type
-    )
+    dependencies_as_job.create!(depends_on_job_id: dependency_job.id, dependency_type: type)
   end
 
   def missing_dependencies
@@ -494,12 +422,6 @@ class InspectionJob < ApplicationRecord
 
   def dependencies_satisfied?
     missing_dependencies.empty?
-  end
-
-  def cannot_add_parts_after_approval
-    if inspection&.status == 'approved_for_repair' && will_save_change_to_parts?
-      errors.add(:base, "Cannot add parts after job is approved. Create additional work request instead.")
-    end
   end
 
   def lock_for_changes!
@@ -513,11 +435,7 @@ class InspectionJob < ApplicationRecord
   def record_parts_usage!
     if completed? && !locked_for_changes?
       total_quantity = inspection_job_parts.sum(:quantity)
-      update!(
-        quantity_used: total_quantity,
-        locked_for_changes: true,
-        locked_at: Time.current
-      )
+      update!(quantity_used: total_quantity, locked_for_changes: true, locked_at: Time.current)
     end
   end
 
@@ -528,10 +446,6 @@ class InspectionJob < ApplicationRecord
       []
     end
   end
-  
-  # =====================================================
-  # METHODS FOR WORK ORDER INTEGRATION
-  # =====================================================
   
   def update_total_time!
     total = job_tasks.sum(:actual_hours)

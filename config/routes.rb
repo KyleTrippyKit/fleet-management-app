@@ -105,7 +105,8 @@ Rails.application.routes.draw do
   # ========================
   get "customer/login", to: "customer_portal#login", as: :customer_login
   post "customer/authenticate", to: "customer_portal#authenticate", as: :customer_authenticate
-  delete "customer/logout", to: "customer_portal#logout", as: :customer_logout
+  get "customer/logout", to: "customer_portal#logout", as: :customer_logout
+  delete "customer/logout", to: "customer_portal#logout"  # Keep for compatibility
   get "customer/dashboard", to: "customer_portal#dashboard", as: :customer_dashboard
   get "customer/quotation/:id", to: "customer_portal#quotation", as: :customer_quotation
   post "customer/approve/:id", to: "customer_portal#approve", as: :customer_approve_quotation
@@ -410,7 +411,12 @@ Rails.application.routes.draw do
 
     # 7. WORKSHOP SUPERVISOR (UPDATED with comprehensive management routes, pre-check review, parts request review, and workflow selection)
     namespace :workshop_supervisor do
+      get 'approved_quotations', to: 'dashboard#approved_quotations', as: :approved_quotations
+      get 'approved_quotation/:id', to: 'dashboard#approved_quotation_details', as: :approved_quotation_details
+      post 'send_to_inventory/:id', to: 'dashboard#send_to_inventory', as: :send_to_inventory
       post 'inspections/:id/send_ready_email', to: 'dashboard#send_ready_for_pickup_email', as: :send_ready_email
+      get 'inspections/:id/customer_quotation', to: 'dashboard#customer_quotation', as: :customer_quotation
+      post 'inspections/:id/send_customer_quotation', to: 'dashboard#send_customer_quotation', as: :send_customer_quotation
       get 'inspections/:id/job_creation', to: 'dashboard#job_creation', as: :job_creation
       post 'inspections/:id/create_jobs', to: 'dashboard#create_jobs', as: :create_jobs
       post 'assign_approved_job/:id', to: 'dashboard#assign_approved_job', as: :assign_approved_job
@@ -1014,6 +1020,7 @@ Rails.application.routes.draw do
       get "convert_from_rfq/:rfq_id", to: "quotations#convert_from_rfq", as: :convert_from_rfq
       get "new_from_rfq/:rfq_id",     to: "quotations#new_from_rfq",     as: :new_from_rfq
       get "inventory_check/:rfq_id",  to: "quotations#inventory_check",  as: :inventory_check
+      get "new_from_inspection/:inspection_id", to: "quotations#new_from_inspection", as: :new_from_inspection
     end
 
     member do

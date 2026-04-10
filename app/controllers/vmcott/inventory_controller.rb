@@ -11,13 +11,19 @@ module Vmcott
     end
     
     # ========================
+    # TEST OK METHOD
+    # ========================
+    def test_ok
+      render plain: "OK - Controller is working at #{Time.current}"
+    end
+    
+    # ========================
     # INDEX - Stock Management Page
     # ========================
     def index
       @total_parts = Part.count
       @low_stock_parts = Part.below_reorder_point.count
       @out_of_stock_parts = Part.out_of_stock.count
-      # ✅ FIXED: Render with proper layout that has DOCTYPE
       render 'vmcott/inventory/index', layout: 'inventory'
     end
     
@@ -72,7 +78,6 @@ module Vmcott
         }
       end
       
-      # ✅ FIXED: Use main application layout (has DOCTYPE)
       render 'vmcott/inventory/dashboard'
     end
     
@@ -121,21 +126,12 @@ module Vmcott
         }
       end
       
-      # ✅ FIXED: Use minimal layout with DOCTYPE
       render layout: 'minimal'
     end
     
     def hello
       @total_parts = Part.count
       render 'vmcott/inventory/hello', layout: 'minimal'
-    end
-    
-    # ... rest of your controller methods remain the same
-  end
-end
-    
-    def test_ok
-      render plain: "OK - Controller is working at #{Time.current}"
     end
     
     def purchase_requests
@@ -234,13 +230,11 @@ end
       begin
         @part = Part.find(params[:id])
         
-        # Get values from params (handle both direct and nested params)
         quantity = params[:quantity].to_i
         urgency = params[:urgency] || params[:priority] || 'normal'
         notes = params[:notes] || "Manual purchase request"
         needed_by_date = params[:needed_by_date] || params[:needed_by] || 7.days.from_now.to_date
         
-        # Convert to Date if it's a string
         needed_by_date = needed_by_date.to_date if needed_by_date.is_a?(String)
         
         purchase_request = PurchaseRequest.create!(
@@ -253,7 +247,6 @@ end
           status: 'pending'
         )
         
-        # NOTIFY PROCUREMENT TEAM
         User.where(role: 'procurement').each do |procurement_user|
           Notification.create!(
             user: procurement_user,

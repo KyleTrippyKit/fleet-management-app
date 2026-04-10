@@ -21,6 +21,11 @@ class CustomerPortalController < ApplicationController
     if session[:customer_token].present? && current_customer_reception.present?
       redirect_to customer_dashboard_path and return
     end
+    
+    # Capture parameters for auto-fill
+    @auto_fill_license_plate = params[:license_plate]
+    @auto_fill_receipt_number = params[:receipt_number]
+    @auto_filled = params[:auto_filled] == 'true'
   end
 
   def authenticate
@@ -94,7 +99,6 @@ class CustomerPortalController < ApplicationController
     @total_cost = @quotation.amount || @quotation.quotation_jobs.sum(&:total_labor_cost) + @quotation.quotation_job_parts.sum(&:total_price)
   end
 
-  # 🔥 REVISED: Approve method with safe notification handling
   def approve
     # Make sure we have a valid quotation ID
     if params[:id].blank?
@@ -124,11 +128,10 @@ class CustomerPortalController < ApplicationController
       @quotation.update(status: 'accepted', accepted_at: Time.current)
       
       # Update ALL jobs from 'pending_approval' to 'approved'
-      updated_count = @inspection.inspection_jobs.update_all(status: 'approved')
+      @inspection.inspection_jobs.each { |job| job.approve_internal! }
       
       flash[:notice] = "All jobs approved. Work will begin shortly."
-      Rails.logger.info "Customer approved all #{updated_count} jobs for inspection #{@inspection.id}"
-      
+      Rails.logger.info "Customer approved all jobs for inspection #{@inspection.id}"      
     elsif params[:approved_jobs].present?
       # Approve selected jobs
       approved_ids = params[:approved_jobs]
@@ -139,8 +142,8 @@ class CustomerPortalController < ApplicationController
       approved_job_ids = @quotation.quotation_jobs.where(id: approved_ids).pluck(:inspection_job_id).compact
       
       if approved_job_ids.any?
-        updated_count = @inspection.inspection_jobs.where(id: approved_job_ids).update_all(status: 'approved')
-        Rails.logger.info "Customer approved #{updated_count} specific jobs for inspection #{@inspection.id}"
+        @inspection.inspection_jobs.where(id: approved_job_ids).each { |job| job.approve_internal! }
+        Rails.logger.info "Customer approved #{approved_ids.length} specific jobs for inspection #{@inspection.id}"
       end
       
       if approved_ids.length == @quotation.quotation_jobs.count
@@ -160,7 +163,7 @@ class CustomerPortalController < ApplicationController
       @inspection.update(status: 'approved') if @inspection.status == 'awaiting_approval'
     end
     
-    # 🔥 SAFELY notify supervisor (wrap in begin/rescue)
+    # Safely notify supervisor
     supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
     if supervisor_ids.any?
       begin
@@ -181,7 +184,7 @@ class CustomerPortalController < ApplicationController
       Rails.logger.warn "No workshop supervisors found to notify"
     end
     
-    # 🔥 SAFELY notify mechanics (wrap in begin/rescue)
+    # Safely notify mechanics
     approved_job_count = @inspection.inspection_jobs.where(status: 'approved').count
     if approved_job_count > 0
       mechanic_ids = User.where(role: 'mechanic').pluck(:id)

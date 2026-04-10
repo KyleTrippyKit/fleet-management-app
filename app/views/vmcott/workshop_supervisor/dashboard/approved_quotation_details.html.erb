@@ -1,0 +1,62 @@
+<div class="container py-4">
+  <div class="card">
+    <div class="card-header bg-success text-white">
+      <h5>✅ Customer Approval Received</h5>
+      <p>Quotation #<%= @quotation.quote_number %> - <%= @quotation.vehicle&.license_plate %></p>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-success">
+        Customer approved: <strong>$<%= '%.2f' % @approved_total %></strong>
+        <% if @rejected_total > 0 %>
+          <br>Customer declined: <strong class="text-danger">$<%= '%.2f' % @rejected_total %></strong>
+        <% end %>
+      </div>
+      
+      <!-- Show Approved Parts Only -->
+      <h6>Approved Parts to Send to Inventory:</h6>
+      <% if @approved_parts.any? %>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th>Part Name</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @approved_parts.each do |part| %>
+                <tr>
+                  <td><%= part.part&.name || "Part ##{part.part_id}" %></td>
+                  <td class="text-center"><%= part.quantity %></td>
+                  <td class="text-end">$<%= '%.2f' % part.unit_price %></td>
+                  <td class="text-end">$<%= '%.2f' % part.total_price %></td>
+                </tr>
+              <% end %>
+              <tr class="table-active">
+                <td colspan="3" class="text-end fw-bold">Total Parts:</td>
+                <td class="text-end fw-bold">$<%= '%.2f' % @approved_parts_total %></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="alert alert-warning">No parts approved to send to inventory.</div>
+      <% end %>
+      
+      <div class="mt-4">
+        <%= button_to "Send Parts to Inventory", 
+            vmcott_workshop_supervisor_send_to_inventory_path(@quotation), 
+            method: :post, 
+            class: "btn btn-primary",
+            data: { 
+              confirm: "Send approved parts to inventory manager?",
+              turbo: false 
+            } %>
+        <%= link_to "Back", vmcott_workshop_supervisor_approved_quotations_path, 
+                    class: "btn btn-secondary ms-2" %>
+      </div>
+    </div>
+  </div>
+</div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_06_203805) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_09_225619) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -337,6 +337,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_203805) do
 
   create_table "inspection_job_parts", force: :cascade do |t|
     t.decimal "actual_cost", precision: 10, scale: 2
+    t.boolean "cannot_complete_without", default: false
     t.datetime "created_at", null: false
     t.string "custom_part_name"
     t.boolean "customer_approved", default: false
@@ -345,11 +346,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_203805) do
     t.bigint "inspection_job_id", null: false
     t.text "notes"
     t.bigint "part_id"
+    t.string "part_type", default: "required"
     t.integer "quantity", default: 1
     t.datetime "updated_at", null: false
+    t.index ["cannot_complete_without"], name: "index_inspection_job_parts_on_cannot_complete_without"
     t.index ["inspection_job_id", "part_id"], name: "idx_inspection_job_parts_unique", unique: true
     t.index ["inspection_job_id"], name: "index_inspection_job_parts_on_inspection_job_id"
     t.index ["part_id"], name: "index_inspection_job_parts_on_part_id"
+    t.index ["part_type"], name: "index_inspection_job_parts_on_part_type"
   end
 
   create_table "inspection_jobs", force: :cascade do |t|
@@ -414,7 +418,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_06_203805) do
     t.index ["verification_status"], name: "index_inspection_jobs_on_verification_status"
     t.index ["verified_by_mechanic_id"], name: "index_inspection_jobs_on_verified_by_mechanic_id"
     t.index ["work_order_id"], name: "index_inspection_jobs_on_work_order_id"
-    t.check_constraint "status::text = ANY (ARRAY['pending_supervisor_review'::character varying, 'approved'::character varying, 'assigned'::character varying, 'pre_check_in_progress'::character varying, 'pre_check_completed'::character varying, 'pending_approval'::character varying, 'in_progress'::character varying, 'blocked'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])", name: "job_status_check_v2"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'pending_supervisor_review'::character varying::text, 'approved'::character varying::text, 'assigned'::character varying::text, 'pre_check_in_progress'::character varying::text, 'pre_check_completed'::character varying::text, 'pending_approval'::character varying::text, 'in_progress'::character varying::text, 'blocked'::character varying::text, 'completed'::character varying::text, 'cancelled'::character varying::text])", name: "job_status_check_v2"
   end
 
   create_table "inspection_recommendations", force: :cascade do |t|

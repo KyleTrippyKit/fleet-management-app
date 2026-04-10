@@ -1,34 +1,139 @@
 <%# app/views/customer_portal/login.html.erb %>
 <div class="container py-5">
   <div class="row justify-content-center">
-    <div class="col-md-6">
-      <div class="card shadow">
-        <div class="card-header bg-primary text-white">
-          <h4 class="mb-0">Track Your Vehicle Repair</h4>
+    <div class="col-md-6 col-lg-5">
+      <div class="card border-0 shadow-lg rounded-4">
+        <div class="card-header bg-gradient-primary text-white text-center border-0 rounded-top-4 py-4">
+          <i class="bi bi-person-badge fs-1"></i>
+          <h3 class="mt-2 mb-0">Customer Portal</h3>
+          <p class="small opacity-75 mb-0">Track your vehicle repair status</p>
         </div>
-        <div class="card-body">
-          <p class="text-muted">Enter your vehicle license plate and receipt number from your drop-off slip.</p>
-          
-          <%= form_with url: customer_authenticate_path, method: :post, local: true do |f| %>
-            <div class="mb-3">
-              <%= label_tag :license_plate, "Vehicle License Plate", class: "form-label" %>
-              <%= text_field_tag :license_plate, nil, class: "form-control", placeholder: "PBC-7065", required: true %>
+        
+        <div class="card-body p-4">
+          <% if flash[:alert] %>
+            <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              <%= flash[:alert] %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
-            
-            <div class="mb-3">
-              <%= label_tag :receipt_number, "Receipt Number", class: "form-label" %>
-              <%= text_field_tag :receipt_number, nil, class: "form-control", placeholder: "RCP-20250323-ABCD", required: true %>
-            </div>
-            
-            <div class="mb-3">
-              <%= label_tag :email, "Email (to receive updates)", class: "form-label" %>
-              <%= email_field_tag :email, nil, class: "form-control", placeholder: "customer@example.com" %>
-            </div>
-            
-            <%= submit_tag "Track My Vehicle", class: "btn btn-primary w-100" %>
           <% end %>
+          
+          <% if @auto_filled %>
+            <div class="alert alert-info rounded-3 mb-4">
+              <i class="bi bi-info-circle-fill me-2"></i>
+              Your vehicle information has been pre-filled. Please enter your email to continue.
+            </div>
+          <% end %>
+          
+          <%= form_with url: customer_authenticate_path, method: :post, local: true, data: { turbo: false }, class: "needs-validation" do |f| %>
+            
+            <!-- License Plate Field (Auto-filled from URL parameter) -->
+            <div class="mb-3">
+              <%= label_tag :license_plate, "License Plate", class: "form-label fw-bold" %>
+              <div class="input-group">
+                <span class="input-group-text bg-light">
+                  <i class="bi bi-truck"></i>
+                </span>
+                <%= text_field_tag :license_plate, @auto_fill_license_plate, 
+                      class: "form-control form-control-lg rounded-end",
+                      placeholder: "e.g., ABC-1234",
+                      required: true,
+                      autofocus: true %>
+              </div>
+              <div class="form-text">Enter your vehicle's license plate number</div>
+            </div>
+            
+            <!-- Receipt Number Field (Auto-filled from URL parameter) -->
+            <div class="mb-3">
+              <%= label_tag :receipt_number, "Receipt Number", class: "form-label fw-bold" %>
+              <div class="input-group">
+                <span class="input-group-text bg-light">
+                  <i class="bi bi-receipt"></i>
+                </span>
+                <%= text_field_tag :receipt_number, @auto_fill_receipt_number, 
+                      class: "form-control form-control-lg rounded-end",
+                      placeholder: "e.g., RCP-20240401-ABC123",
+                      required: true %>
+              </div>
+              <div class="form-text">Enter the receipt number from your check-in receipt</div>
+            </div>
+            
+            <!-- Email Field (User must enter this) -->
+            <div class="mb-3">
+              <%= label_tag :email, "Email Address", class: "form-label fw-bold" %>
+              <div class="input-group">
+                <span class="input-group-text bg-light">
+                  <i class="bi bi-envelope"></i>
+                </span>
+                <%= email_field_tag :email, params[:email], 
+                      class: "form-control form-control-lg rounded-end",
+                      placeholder: "you@example.com",
+                      required: true %>
+              </div>
+              <div class="form-text">We'll send updates to this email address</div>
+            </div>
+            
+            <!-- Phone Field (Optional) -->
+            <div class="mb-4">
+              <%= label_tag :phone, "Phone Number (Optional)", class: "form-label fw-bold" %>
+              <div class="input-group">
+                <span class="input-group-text bg-light">
+                  <i class="bi bi-phone"></i>
+                </span>
+                <%= telephone_field_tag :phone, params[:phone], 
+                      class: "form-control form-control-lg rounded-end",
+                      placeholder: "868-555-1234" %>
+              </div>
+            </div>
+            
+            <!-- Customer Name (Hidden) -->
+            <%= hidden_field_tag :customer_name, params[:customer_name] %>
+            
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg rounded-pill py-3">
+                <i class="bi bi-box-arrow-in-right me-2"></i> Access My Vehicle
+              </button>
+            </div>
+          <% end %>
+          
+          <hr class="my-4">
+          
+          <div class="text-center">
+            <p class="small text-muted">
+              <i class="bi bi-question-circle me-1"></i>
+              Lost your receipt number?
+              <%= link_to "Recover Account", customer_recover_path, class: "text-decoration-none" %>
+            </p>
+            <p class="small text-muted mt-3">
+              <i class="bi bi-headset me-1"></i>
+              Need help?
+              <%= link_to "Contact Support", customer_contact_support_path, class: "text-decoration-none" %>
+            </p>
+          </div>
         </div>
+      </div>
+      
+      <!-- VMCOTT Contact Info - Using instance variables from controller -->
+      <div class="text-center mt-4">
+        <p class="small text-muted">
+          <i class="bi bi-telephone me-1"></i> <%= @vmcott_phone || "868-625-1234" %> |
+          <i class="bi bi-envelope me-1"></i> <%= @vmcott_email || "service@vmcott.com" %> |
+          <i class="bi bi-geo-alt me-1"></i> <%= @vmcott_address || "Golden Grove Road, Piarco, Trinidad" %>
+        </p>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  .rounded-4 {
+    border-radius: 1rem !important;
+  }
+  .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+  }
+</style>

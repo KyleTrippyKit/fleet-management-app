@@ -4,23 +4,16 @@
     <div class="col">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h1 class="h2">Create Jobs from Diagnosis</h1>
+          <h1 class="h3 mb-1">Create Jobs</h1>
           <% if @inspection.present? %>
-            <p class="text-muted mb-1">Inspection #<%= @inspection.id %> - <%= @inspection.vehicle.license_plate %></p>
-            <p class="text-muted small">
-              <i class="bi bi-person-badge me-1"></i>Inspector: <%= @inspection.inspector&.name || 'Unknown' %>
-              <% if @inspection.diagnosis_completed_at %>
-                <span class="ms-3 badge bg-success">
-                  <i class="bi bi-check-circle me-1"></i>Diagnosis Completed: <%= @inspection.diagnosis_completed_at.strftime('%b %d, %Y at %I:%M %p') %>
-                </span>
-              <% end %>
+            <p class="text-muted small mb-0">
+              <strong><%= @inspection.vehicle.license_plate %></strong> — 
+              <%= @inspection.vehicle.make %> <%= @inspection.vehicle.model %>
             </p>
-          <% else %>
-            <p class="text-danger">Inspection not found</p>
           <% end %>
         </div>
-        <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill" do %>
-          <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+        <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary btn-sm rounded-pill" do %>
+          <i class="bi bi-arrow-left me-1"></i> Back
         <% end %>
       </div>
     </div>
@@ -32,500 +25,258 @@
         <%= form_with url: vmcott_workshop_supervisor_create_jobs_path(@inspection), 
                       method: :post, 
                       local: true,
-                      data: { turbo: false } do |f| %>
+                      data: { turbo: false },
+                      id: "job-creation-form" do |f| %>
           
-          <!-- DIAGNOSIS SUMMARY SECTION -->
-          <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-gradient-purple text-white border-0">
-              <h5 class="mb-0">
-                <i class="bi bi-stethoscope me-2"></i>
-                Diagnosis Summary
-              </h5>
+          <!-- REFERENCE PANEL -->
+          <div class="card mb-3 border-0 shadow-sm">
+            <div class="card-header bg-light py-2" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#referencePanel">
+              <i class="bi bi-info-circle me-1"></i>
+              <strong>Reference: Inspector & Mechanic Notes</strong>
+              <small class="text-muted ms-2">(click to expand)</small>
             </div>
-            <div class="card-body">
-              <div class="alert alert-light border-start border-4 border-purple mb-3">
-                <div class="d-flex align-items-start">
-                  <i class="bi bi-chat-text fs-4 text-purple me-3"></i>
-                  <div class="flex-grow-1">
-                    <strong class="d-block mb-1">Mechanic's Diagnosis Notes:</strong>
-                    <p class="mb-0"><%= @inspection.diagnosis_notes.presence || '<em class="text-muted">No diagnosis notes provided</em>'.html_safe %></p>
-                    <% if @inspection.diagnosis_completed_at %>
-                      <small class="text-muted mt-2 d-block">
-                        <i class="bi bi-clock me-1"></i>Diagnosed at: <%= @inspection.diagnosis_completed_at.strftime('%b %d, %Y at %I:%M %p') %>
-                        <% if @inspection.assigned_mechanic %>
-                          <i class="bi bi-person ms-2 me-1"></i>Diagnosed by: <%= @inspection.assigned_mechanic.name %>
-                        <% end %>
-                      </small>
+            <div class="collapse" id="referencePanel">
+              <div class="card-body bg-light">
+                <% if @inspection.diagnosis_notes.present? %>
+                  <div class="mb-3">
+                    <small class="text-muted">Mechanic's notes:</small>
+                    <div class="small bg-white p-2 rounded mt-1"><%= @inspection.diagnosis_notes %></div>
+                  </div>
+                <% end %>
+                
+                <% if @inspector_recommendations.present? && @inspector_recommendations.any? %>
+                  <div class="mb-3">
+                    <small class="text-primary">Inspector suggested:</small>
+                    <% @inspector_recommendations.each do |rec| %>
+                      <div class="small bg-white p-2 rounded mt-1 border-start border-3 border-primary">
+                        <strong><%= rec.description %></strong>
+                        <span class="badge bg-secondary ms-2"><%= rec.estimated_hours %> hrs</span>
+                      </div>
                     <% end %>
                   </div>
-                </div>
-              </div>
-              
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <div class="bg-light rounded-3 p-3 text-center">
-                    <i class="bi bi-clipboard-check fs-3 text-primary"></i>
-                    <h3 class="mb-0 mt-2"><%= @inspector_recommendations&.count || 0 %></h3>
-                    <small class="text-muted">Inspector Recommendations</small>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="bg-light rounded-3 p-3 text-center">
-                    <i class="bi bi-wrench fs-3 text-warning"></i>
-                    <h3 class="mb-0 mt-2"><%= @mechanic_findings&.count || 0 %></h3>
-                    <small class="text-muted">Mechanic Findings</small>
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="bg-light rounded-3 p-3 text-center">
-                    <i class="bi bi-briefcase fs-3 text-success"></i>
-                    <h3 class="mb-0 mt-2"><%= @inspection.inspection_jobs.count %></h3>
-                    <small class="text-muted">Jobs Created</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- INSPECTOR'S RECOMMENDATIONS SECTION -->
-          <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-primary text-white">
-              <h5 class="mb-0">
-                <i class="bi bi-clipboard2-pulse me-2"></i>
-                Phase 2: Inspector's Findings & Recommendations
-              </h5>
-            </div>
-            <div class="card-body">
-              <!-- Inspector's Original Notes -->
-              <div class="alert alert-info mb-3">
-                <div class="d-flex align-items-start">
-                  <i class="bi bi-file-text fs-5 me-3"></i>
+                <% end %>
+                
+                <% if @mechanic_findings.present? && @mechanic_findings.any? %>
                   <div>
-                    <strong class="d-block mb-1">Inspector's Notes:</strong>
-                    <p class="mb-0"><%= @inspection.notes.presence || '<em class="text-muted">No notes provided</em>'.html_safe %></p>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Inspector Recommendations -->
-              <% if @inspector_recommendations.present? && @inspector_recommendations.any? %>
-                <h6 class="fw-bold mt-3 text-primary">
-                  <i class="bi bi-list-check me-2"></i>Inspector's Recommendations
-                </h6>
-                <div class="list-group mb-3">
-                  <% @inspector_recommendations.each do |rec| %>
-                    <div class="list-group-item list-group-item-action">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                          <div class="d-flex justify-content-between">
-                            <strong><%= rec.description %></strong>
-                            <span class="badge bg-<%= rec.priority == 'high' ? 'warning' : (rec.priority == 'critical' ? 'danger' : 'secondary') %>">
-                              <i class="bi bi-flag-fill me-1"></i><%= rec.priority&.humanize || 'Normal' %>
-                            </span>
-                          </div>
-                          <% if rec.notes.present? %>
-                            <p class="small text-muted mt-1 mb-1"><%= rec.notes %></p>
-                          <% end %>
-                          <small class="text-muted">
-                            <i class="bi bi-clock me-1"></i>Est. Hours: <%= rec.estimated_hours || 'TBD' %>
-                            <i class="bi bi-person ms-2 me-1"></i>Suggested by: <%= rec.suggested_by&.name || 'Inspector' %>
-                          </small>
-                        </div>
+                    <small class="text-warning">Mechanic found:</small>
+                    <% @mechanic_findings.each do |finding| %>
+                      <div class="small bg-white p-2 rounded mt-1 border-start border-3 border-warning">
+                        <strong><%= finding.description %></strong>
+                        <span class="badge bg-secondary ms-2"><%= finding.metadata&.[]('estimated_hours') || 1 %> hrs</span>
                       </div>
-                      <div class="mt-2">
-                        <div class="form-check form-switch">
-                          <input type="checkbox" 
-                                 name="inspector_recommendations[<%= rec.id %>][include]" 
-                                 value="true" 
-                                 class="form-check-input"
-                                 id="include_rec_<%= rec.id %>"
-                                 checked>
-                          <label class="form-check-label small" for="include_rec_<%= rec.id %>">
-                            <i class="bi bi-check-circle me-1"></i>Include this recommendation in job creation
-                          </label>
-                        </div>
-                        <input type="hidden" name="inspector_recommendations[<%= rec.id %>][description]" value="<%= rec.description %>">
-                        <input type="hidden" name="inspector_recommendations[<%= rec.id %>][priority]" value="<%= rec.priority %>">
-                        <input type="hidden" name="inspector_recommendations[<%= rec.id %>][estimated_hours]" value="<%= rec.estimated_hours || 1 %>">
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <div class="alert alert-secondary">
-                  <i class="bi bi-info-circle me-2"></i>
-                  No inspector recommendations found for this inspection.
-                </div>
-              <% end %>
-            </div>
-          </div>
-          
-          <!-- MECHANIC DIAGNOSIS FINDINGS SECTION -->
-          <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-warning text-dark">
-              <h5 class="mb-0">
-                <i class="bi bi-wrench me-2"></i>
-                Phase 3: Mechanic Diagnosis Findings
-              </h5>
-            </div>
-            <div class="card-body">
-              <!-- Mechanic's Diagnosis Notes -->
-              <div class="alert alert-warning mb-3">
-                <div class="d-flex align-items-start">
-                  <i class="bi bi-chat-quote fs-5 me-3"></i>
-                  <div class="flex-grow-1">
-                    <strong class="d-block mb-1">Mechanic's Diagnosis Notes:</strong>
-                    <p class="mb-0"><%= @inspection.diagnosis_notes.presence || '<em class="text-muted">No diagnosis notes provided</em>'.html_safe %></p>
-                  </div>
-                </div>
-              </div>
-              
-              <h6 class="fw-bold mt-3 text-warning">
-                <i class="bi bi-tools me-2"></i>Diagnosis Findings (<%= @mechanic_findings.count %>)
-              </h6>
-              
-              <% if @mechanic_findings.present? && @mechanic_findings.any? %>
-                <div class="list-group mb-3">
-                  <% @mechanic_findings.each do |finding| %>
-                    <div class="list-group-item list-group-item-action">
-                      <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                          <div class="d-flex justify-content-between">
-                            <strong><%= finding.description %></strong>
-                            <div>
-                              <span class="badge bg-<%= finding.severity == 'critical' ? 'danger' : (finding.severity == 'major' ? 'warning' : 'info') %> me-1">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i><%= finding.severity&.humanize || 'Normal' %>
-                              </span>
-                              <% if finding.blocking %>
-                                <span class="badge bg-danger">
-                                  <i class="bi bi-ban me-1"></i>Blocking
-                                </span>
-                              <% end %>
-                            </div>
-                          </div>
-                          <% if finding.notes.present? %>
-                            <p class="small text-muted mt-1 mb-1"><%= finding.notes %></p>
-                          <% end %>
-                          <div class="small text-muted mt-2">
-                            <i class="bi bi-person me-1"></i>Found by: <%= finding.created_by&.name || 'Mechanic' %>
-                            <% if finding.metadata&.[]('root_cause').present? %>
-                              <span class="ms-2"><i class="bi bi-diagram-3 me-1"></i>Root Cause: <%= finding.metadata['root_cause'] %></span>
-                            <% end %>
-                          </div>
-                          <div class="small text-muted">
-                            <% if finding.metadata&.[]('estimated_hours').present? %>
-                              <i class="bi bi-clock me-1"></i>Est. Hours: <%= finding.metadata['estimated_hours'] %>
-                            <% end %>
-                            <% if finding.metadata&.[]('complexity').present? %>
-                              <span class="ms-2"><i class="bi bi-speedometer2 me-1"></i>Complexity: <%= finding.metadata['complexity']&.humanize %></span>
-                            <% end %>
-                            <% if finding.metadata&.[]('suggested_parts').present? %>
-                              <div class="mt-1">
-                                <i class="bi bi-box-seam me-1"></i>Suggested Parts: 
-                                <span class="text-info"><%= finding.metadata['suggested_parts'] %></span>
-                              </div>
-                            <% end %>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="mt-2 pt-2 border-top">
-                        <div class="form-check form-switch">
-                          <input type="checkbox" 
-                                 name="mechanic_findings[<%= finding.id %>][include]" 
-                                 value="true" 
-                                 class="form-check-input"
-                                 id="include_finding_<%= finding.id %>"
-                                 checked>
-                          <label class="form-check-label small" for="include_finding_<%= finding.id %>">
-                            <i class="bi bi-check-circle me-1"></i>Create job from this finding
-                          </label>
-                        </div>
-                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][description]" value="<%= finding.description %>">
-                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][priority]" value="<%= finding.priority %>">
-                        <input type="hidden" name="mechanic_findings[<%= finding.id %>][estimated_hours]" value="<%= finding.metadata&.[]('estimated_hours') || 1 %>">
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <div class="alert alert-secondary">
-                  <i class="bi bi-info-circle me-2"></i>
-                  No mechanic findings found for this inspection.
-                </div>
-              <% end %>
-            </div>
-          </div>
-          
-          <!-- NO FINDINGS MESSAGE -->
-          <% if @inspector_recommendations.blank? && @mechanic_findings.blank? %>
-            <div class="card mb-4 border-0 shadow-sm">
-              <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0">No Findings Available</h5>
-              </div>
-              <div class="card-body text-center py-5">
-                <i class="bi bi-inbox fs-1 text-muted mb-3 d-block"></i>
-                <p>No inspector recommendations or mechanic findings found for this inspection.</p>
-                <p class="small text-muted">You can still create custom jobs below.</p>
-              </div>
-            </div>
-          <% end %>
-          
-          <!-- Custom Jobs Section -->
-          <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-secondary text-white">
-              <h5 class="mb-0">
-                <i class="bi bi-plus-circle me-2"></i>
-                Create Custom Jobs (Optional)
-              </h5>
-            </div>
-            <div class="card-body">
-              <div id="jobs-container">
-                <div class="job-item mb-3 border p-3 rounded bg-light">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label small fw-bold">Job Description *</label>
-                      <input type="text" 
-                             name="jobs[][description]" 
-                             class="form-control" 
-                             placeholder="e.g., Replace brake pads, Engine diagnostic..."
-                             required>
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label small fw-bold">Est. Hours</label>
-                      <input type="number" 
-                             name="jobs[][estimated_hours]" 
-                             class="form-control" 
-                             placeholder="Hours"
-                             step="0.5"
-                             value="1">
-                    </div>
-                    <div class="col-md-2">
-                      <label class="form-label small fw-bold">Priority</label>
-                      <select name="jobs[][priority]" class="form-select">
-                        <option value="low">Low</option>
-                        <option value="normal" selected>Normal</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                      </select>
-                    </div>
-                    <div class="col-md-1">
-                      <label class="form-label small">&nbsp;</label>
-                      <button type="button" class="btn btn-danger btn-sm remove-job-btn w-100" style="display: none;">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="row mt-2">
-                    <div class="col-md-12">
-                      <label class="form-label small">Assign Mechanic (Optional - overrides default)</label>
-                      <select name="jobs[][mechanic_id]" class="form-select job-mechanic-select">
-                        <option value="">Use Default Mechanic</option>
-                        <% @mechanics.each do |mechanic| %>
-                          <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
-                        <% end %>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2 rounded-pill" id="add-job-btn">
-                <i class="bi bi-plus-circle me-1"></i> Add Another Custom Job
-              </button>
-              <small class="text-muted d-block mt-2">
-                <i class="bi bi-info-circle me-1"></i>
-                Custom jobs are in addition to the selected recommendations/findings above.
-              </small>
-            </div>
-          </div>
-          
-          <!-- Assign Mechanic Section -->
-          <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-info text-white">
-              <h5 class="mb-0">
-                <i class="bi bi-person-gear me-2"></i>
-                Assign Mechanics
-              </h5>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">
-                    <i class="bi bi-person-check me-1"></i>Default Mechanic for All Jobs
-                  </label>
-                  <select name="default_mechanic_id" class="form-select" id="default-mechanic">
-                    <option value="">-- Select a Mechanic --</option>
-                    <% @mechanics.each do |mechanic| %>
-                      <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
                     <% end %>
-                  </select>
-                  <small class="text-muted mt-1 d-block">
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+          
+          <!-- JOBS LIST -->
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                  <i class="bi bi-list-check me-2 text-success"></i>
+                  Jobs to Create
+                </h5>
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" id="add-job-btn">
+                  <i class="bi bi-plus-lg me-1"></i> Add Job
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="jobs-list">
+                <div class="text-center text-muted py-4" id="empty-jobs-message">
+                  <i class="bi bi-inbox fs-2 mb-2 d-block"></i>
+                  <p class="mb-0 small">No jobs yet. Click "Add Job" to create one.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- JOB PREVIEW & ACTIONS -->
+          <div class="row mt-3">
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body py-3">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <span class="text-muted small">Total Jobs:</span>
+                      <span class="fs-4 fw-bold text-success ms-2" id="preview-total-jobs">0</span>
+                    </div>
+                    <div>
+                      <span class="text-muted small">Total Hours:</span>
+                      <span class="fs-4 fw-bold text-primary ms-2" id="preview-total-hours">0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card border-0 shadow-sm">
+                <div class="card-body py-3">
+                  <div class="d-flex gap-2">
+                    <select name="default_mechanic_id" class="form-select form-select-sm" id="default-mechanic" style="width: auto;">
+                      <option value="">-- No default mechanic --</option>
+                      <% @mechanics.each do |mechanic| %>
+                        <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+                      <% end %>
+                    </select>
+                    <button type="submit" class="btn btn-success btn-sm rounded-pill px-4" id="create-jobs-btn" disabled>
+                      <i class="bi bi-check-lg me-1"></i> Create Jobs
+                    </button>
+                    <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary btn-sm rounded-pill" do %>
+                      Cancel
+                    <% end %>
+                  </div>
+                  <small class="text-muted d-block mt-2">
                     <i class="bi bi-info-circle me-1"></i>
-                    This mechanic will be assigned to all jobs unless overridden per job above.
+                    After creating jobs, you'll add parts and pricing in the Quotation Builder.
                   </small>
                 </div>
               </div>
             </div>
           </div>
-          
-          <!-- Form Actions -->
-          <div class="d-flex justify-content-between mt-4">
-            <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill px-4" do %>
-              <i class="bi bi-x-circle me-1"></i> Cancel
-            <% end %>
-            <button type="submit" class="btn btn-success btn-lg rounded-pill px-5">
-              <i class="bi bi-check-circle me-2"></i>Create Jobs & Request Parts
-            </button>
-          </div>
         <% end %>
       </div>
     </div>
   <% else %>
-    <div class="row">
-      <div class="col-lg-8 mx-auto">
-        <div class="card border-0 shadow-sm rounded-4">
-          <div class="card-body text-center py-5">
-            <i class="bi bi-exclamation-triangle fs-1 text-danger mb-3 d-block"></i>
-            <h4>Inspection Not Found</h4>
-            <p class="text-muted">The inspection you're looking for doesn't exist or has been removed.</p>
-            <%= link_to vmcott_workshop_supervisor_dashboard_path, class: "btn btn-primary rounded-pill mt-3" do %>
-              <i class="bi bi-arrow-left me-1"></i> Return to Dashboard
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="alert alert-danger">Inspection not found.</div>
   <% end %>
 </div>
 
 <style>
-  .bg-gradient-purple {
-    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-  }
-  
-  .border-purple {
-    border-color: #8b5cf6 !important;
-  }
-  
-  .text-purple {
-    color: #8b5cf6 !important;
-  }
-  
-  .btn-purple {
-    background-color: #8b5cf6;
-    border-color: #8b5cf6;
-  }
-  
-  .btn-purple:hover {
-    background-color: #7c3aed;
-    border-color: #7c3aed;
-  }
-  
-  .form-switch .form-check-input:checked {
-    background-color: #10b981;
-    border-color: #10b981;
-  }
-  
-  .list-group-item {
+  .job-item {
     transition: all 0.2s ease;
   }
-  
-  .list-group-item:hover {
-    background-color: #f8fafc;
-    transform: translateX(4px);
+  .job-item:hover {
+    background-color: #f8f9fa;
+  }
+  .remove-job-btn {
+    cursor: pointer;
+  }
+  .remove-job-btn:hover {
+    background-color: #dc2626;
+    color: white;
   }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const container = document.getElementById('jobs-container');
+  const jobsList = document.getElementById('jobs-list');
   const addBtn = document.getElementById('add-job-btn');
   const defaultMechanicSelect = document.getElementById('default-mechanic');
+  const createBtn = document.getElementById('create-jobs-btn');
+  const totalHoursSpan = document.getElementById('preview-total-hours');
+  const totalJobsSpan = document.getElementById('preview-total-jobs');
+  const emptyJobsMessage = document.getElementById('empty-jobs-message');
   
-  function updateRemoveButtons() {
-    const items = container.querySelectorAll('.job-item');
-    items.forEach((item, index) => {
-      const removeBtn = item.querySelector('.remove-job-btn');
+  let jobCounter = 0;
+  
+  function updatePreview() {
+    const jobItems = document.querySelectorAll('.job-item');
+    let totalHours = 0;
+    const jobs = [];
+    
+    jobItems.forEach(item => {
+      const descInput = item.querySelector('.job-desc');
+      const hoursInput = item.querySelector('.job-hours');
       
-      if (items.length > 1) {
-        removeBtn.style.display = 'block';
-        removeBtn.onclick = () => item.remove();
-      } else {
-        removeBtn.style.display = 'none';
+      if (descInput && descInput.value.trim() !== '') {
+        const hours = parseFloat(hoursInput?.value) || 1;
+        totalHours += hours;
+        jobs.push({ description: descInput.value.trim(), hours: hours });
       }
     });
+    
+    if (totalJobsSpan) totalJobsSpan.innerText = jobs.length;
+    if (totalHoursSpan) totalHoursSpan.innerText = totalHours.toFixed(1);
+    
+    if (emptyJobsMessage) {
+      emptyJobsMessage.style.display = jobs.length === 0 ? 'block' : 'none';
+    }
+    
+    if (createBtn) {
+      createBtn.disabled = jobs.length === 0;
+    }
+  }
+  
+  function addNewJob() {
+    const newId = Date.now() + jobCounter++;
+    const newItem = document.createElement('div');
+    newItem.className = 'job-item border rounded p-3 mb-2 bg-white';
+    newItem.setAttribute('data-job-id', newId);
+    newItem.innerHTML = `
+      <div class="row g-2">
+        <div class="col-md-6">
+          <input type="text" 
+                 name="jobs[][description]" 
+                 class="form-control form-control-sm job-desc" 
+                 placeholder="Job description..."
+                 required>
+        </div>
+        <div class="col-md-2">
+          <input type="number" 
+                 name="jobs[][estimated_hours]" 
+                 class="form-control form-control-sm job-hours" 
+                 placeholder="Hrs"
+                 step="0.5"
+                 value="1"
+                 style="width: 80px;">
+        </div>
+        <div class="col-md-2">
+          <select name="jobs[][priority]" class="form-select form-select-sm job-priority">
+            <option value="low">Low</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="col-md-2 text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger remove-job-btn" style="border: none;">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </div>
+      <div class="row mt-2">
+        <div class="col-md-12">
+          <select name="jobs[][mechanic_id]" class="form-select form-select-sm job-mechanic-select">
+            <option value="">-- No mechanic --</option>
+            <% @mechanics.each do |mechanic| %>
+              <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
+            <% end %>
+          </select>
+        </div>
+      </div>
+    `;
+    
+    if (jobsList) {
+      jobsList.appendChild(newItem);
+      
+      const descInput = newItem.querySelector('.job-desc');
+      const hoursInput = newItem.querySelector('.job-hours');
+      const removeBtn = newItem.querySelector('.remove-job-btn');
+      
+      if (descInput) descInput.addEventListener('input', updatePreview);
+      if (hoursInput) hoursInput.addEventListener('input', updatePreview);
+      
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          newItem.remove();
+          updatePreview();
+        });
+      }
+    }
+    
+    updatePreview();
+    newItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
   
   if (addBtn) {
-    addBtn.addEventListener('click', function() {
-      const newItem = document.createElement('div');
-      newItem.className = 'job-item mb-3 border p-3 rounded bg-light';
-      newItem.innerHTML = `
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label small fw-bold">Job Description *</label>
-            <input type="text" name="jobs[][description]" class="form-control" placeholder="e.g., Replace brake pads, Engine diagnostic..." required>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label small fw-bold">Est. Hours</label>
-            <input type="number" name="jobs[][estimated_hours]" class="form-control" placeholder="Hours" step="0.5" value="1">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label small fw-bold">Priority</label>
-            <select name="jobs[][priority]" class="form-select">
-              <option value="low">Low</option>
-              <option value="normal" selected>Normal</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-          <div class="col-md-1">
-            <label class="form-label small">&nbsp;</label>
-            <button type="button" class="btn btn-danger btn-sm remove-job-btn w-100">
-              <i class="bi bi-trash"></i>
-            </button>
-          </div>
-        </div>
-        <div class="row mt-2">
-          <div class="col-md-12">
-            <label class="form-label small">Assign Mechanic (Optional - overrides default)</label>
-            <select name="jobs[][mechanic_id]" class="form-select job-mechanic-select">
-              <option value="">Use Default Mechanic</option>
-              <% @mechanics.each do |mechanic| %>
-                <option value="<%= mechanic.id %>"><%= mechanic.name %></option>
-              <% end %>
-            </select>
-          </div>
-        </div>
-      `;
-      container.appendChild(newItem);
-      updateRemoveButtons();
-      
-      // Auto-scroll to new item
-      newItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    addBtn.addEventListener('click', addNewJob);
   }
   
-  // Auto-update mechanic selects when default changes
-  if (defaultMechanicSelect) {
-    defaultMechanicSelect.addEventListener('change', function() {
-      const mechanicSelects = document.querySelectorAll('.job-mechanic-select');
-      mechanicSelects.forEach(select => {
-        if (select.value === '') {
-          select.style.borderColor = '#10b981';
-          setTimeout(() => {
-            select.style.borderColor = '';
-          }, 500);
-        }
-      });
-    });
-  }
-  
-  updateRemoveButtons();
-  
-  // Add tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  tooltipTriggerList.map(function (tooltipTriggerEl) {
-    return new bootstrap.Tooltip(tooltipTriggerEl);
-  });
+  updatePreview();
+  addNewJob();
 });
 </script>
