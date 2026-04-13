@@ -11,13 +11,17 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   before_action :disable_caching
 
   def index
-    # Stats for KPI cards
+    # Stats for KPI cards - Updated to match workshop PartsRequest statuses
     @stats = {
-      pending_parts: PartsRequest.where(status: 'pending').count,
-      pending_procurement: PartsRequest.where(status: 'parts_coordinator_notified').count,
+      # Workshop uses 'requested' and 'approved' for pending review
+      pending_parts: PartsRequest.where(status: ['requested', 'approved']).count,
+      # Workshop uses 'needs_order' for procurement stage
+      pending_procurement: PartsRequest.where(status: 'needs_order').count,
       pending_finance: PartsRequest.where(status: 'finance_review').count,
-      ordered_count: PartsRequest.where(status: 'parts_ordered').count,
-      parts_received: PartsRequest.where(status: 'parts_received').count,
+      # Workshop uses 'ordered' for ordered status
+      ordered_count: PartsRequest.where(status: 'ordered').count,
+      # Workshop uses 'received' for received status
+      parts_received: PartsRequest.where(status: 'received').count,
       low_stock_count: Part.where('current_stock <= reorder_point').count,
       in_stock_count: Part.where('current_stock > reorder_point').count,
       out_of_stock_count: Part.where('current_stock <= 0').count,
@@ -30,58 +34,67 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       avg_delivery_days: calculate_avg_delivery_days
     }
 
-    # Pending parts - needs review
-    @pending_parts = PartsRequest.includes(inspection: :vehicle, part: [])
-                                  .where(status: 'pending')
-                                  .order(created_at: :desc)
-                                  .limit(20)
+    # 🔥 FIXED: Pending parts - needs review (workshop uses 'requested' and 'approved')
+    @pending_parts = PartsRequest
+      .includes(inspection: :vehicle, part: [], inspection_job: [])
+      .where(status: ['requested', 'approved'])
+      .order(created_at: :desc)
+      .limit(20)
 
-    # With Procurement - RFQ sent
-    @pending_procurement = PartsRequest.includes(inspection: :vehicle)
-                                        .where(status: 'parts_coordinator_notified')
-                                        .order(updated_at: :desc)
-                                        .limit(20)
+    # 🔥 FIXED: With Procurement - needs ordering (workshop uses 'needs_order')
+    @pending_procurement = PartsRequest
+      .includes(inspection: :vehicle, part: [])
+      .where(status: 'needs_order')
+      .order(updated_at: :desc)
+      .limit(20)
 
-    # Finance Review
-    @pending_finance = PartsRequest.includes(inspection: :vehicle)
-                                    .where(status: 'finance_review')
-                                    .order(updated_at: :desc)
-                                    .limit(20)
+    # Finance Review (if your workflow uses this)
+    @pending_finance = PartsRequest
+      .includes(inspection: :vehicle)
+      .where(status: 'finance_review')
+      .order(updated_at: :desc)
+      .limit(20)
 
-    # Ordered - Awaiting delivery
-    @ordered_requests = PartsRequest.includes(:purchase_order)
-                                     .where(status: 'parts_ordered')
-                                     .order(updated_at: :desc)
-                                     .limit(20)
+    # 🔥 FIXED: Ordered - Awaiting delivery (workshop uses 'ordered')
+    @ordered_requests = PartsRequest
+      .includes(:purchase_order, :part, inspection: :vehicle)
+      .where(status: 'ordered')
+      .order(updated_at: :desc)
+      .limit(20)
     
-    # Received - Ready for workshop
-    @parts_received = PartsRequest.includes(inspection: :vehicle)
-                                   .where(status: 'parts_received')
-                                   .order(updated_at: :desc)
-                                   .limit(20)
+    # 🔥 FIXED: Received - Ready for workshop (workshop uses 'received')
+    @parts_received = PartsRequest
+      .includes(inspection: :vehicle, part: [])
+      .where(status: 'received')
+      .order(updated_at: :desc)
+      .limit(20)
     
     # Ready for workshop - Complete inspections
-    @ready_for_workshop = Inspection.where(status: 'ready_for_workshop')
-                                    .includes(:vehicle)
-                                    .order(updated_at: :desc)
-                                    .limit(20)
+    @ready_for_workshop = Inspection
+      .where(status: 'ready_for_workshop')
+      .includes(:vehicle)
+      .order(updated_at: :desc)
+      .limit(20)
 
     # Low stock alerts
-    @low_stock_parts = Part.where('current_stock <= reorder_point')
-                           .order(current_stock: :asc)
-                           .limit(20)
+    @low_stock_parts = Part
+      .where('current_stock <= reorder_point')
+      .order(current_stock: :asc)
+      .limit(20)
 
     # Approved POs
-    @approved_pos = PurchaseOrder.includes(:purchase_order_items)
-                                  .where(status: 'approved')
-                                  .order(approved_at: :desc)
-                                  .limit(10)
+    @approved_pos = PurchaseOrder
+      .includes(:purchase_order_items)
+      .where(status: 'approved')
+      .order(approved_at: :desc)
+      .limit(10)
 
     # Ordered POs
-    @ordered_pos = PurchaseOrder.includes(:purchase_order_items)
-                                 .where(status: 'ordered')
-                                 .order(ordered_at: :desc)
-                                 .limit(10)
+    @ordered_pos = PurchaseOrder
+      .includes(:purchase_order_items)
+      .where(status: 'ordered')
+      .order(ordered_at: :desc)
+      .limit(10)
     
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -94,36 +107,48 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   def mark_in_stock
     parts_request = PartsRequest.find(params[:id])
     
-    # Update part request status - only use fields that exist
-    parts_request.update(
-      status: 'approved',
-      in_stock: true
-    )
-    
-    # Also update the timestamp if the field exists
-    if parts_request.respond_to?(:approved_at)
-      parts_request.update_column(:approved_at, Time.current)
-    end
-    
-    # Optionally deduct from inventory if we're consuming the part
-    if parts_request.part && parts_request.part.current_stock >= parts_request.quantity
-      parts_request.part.update(
-        current_stock: parts_request.part.current_stock - parts_request.quantity
+    ActiveRecord::Base.transaction do
+      # Update part request to 'issued' status (part given to mechanic)
+      parts_request.update!(
+        status: 'issued',
+        in_stock: true,
+        issued_at: Time.current,
+        issued_by_id: current_user.id
       )
       
-      # Create inventory transaction record
-      InventoryTransaction.create!(
-        inventory_item: parts_request.part,
-        quantity: -parts_request.quantity,
-        transaction_type: 'consumption',
-        reference: parts_request,
-        notes: "Consumed for job ##{parts_request.inspection_job_id}",
-        user_id: current_user.id
-      )
+      # Deduct from inventory
+      if parts_request.part && parts_request.part.current_stock >= parts_request.quantity
+        parts_request.part.update!(
+          current_stock: parts_request.part.current_stock - parts_request.quantity
+        )
+        
+        # Create inventory transaction record
+        InventoryTransaction.create!(
+          inventory_item: parts_request.part,
+          quantity: -parts_request.quantity,
+          transaction_type: 'consumption',
+          reference: parts_request,
+          notes: "Issued for job ##{parts_request.inspection_job_id} - #{parts_request.inspection_job&.description}",
+          user_id: current_user.id
+        )
+        
+        # 🔥 Notify mechanic that part is available
+        if parts_request.inspection_job&.assigned_mechanic
+          Notification.create!(
+            user: parts_request.inspection_job.assigned_mechanic,
+            title: "🔧 Part Ready for Pickup",
+            message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} has been issued for your job. Ready at parts counter.",
+            link: vmcott_mechanic_job_path(parts_request.inspection_job),
+            notification_type: 'success',
+            notifiable: parts_request
+          )
+        end
+      end
     end
     
-    flash[:notice] = "Part approved and allocated to job ##{parts_request.inspection_job_id}"
+    flash[:notice] = "✓ Part approved and issued to job ##{parts_request.inspection_job_id}"
     redirect_to vmcott_inventory_manager_dashboard_path
+    
   rescue => e
     Rails.logger.error "Error in mark_in_stock: #{e.message}"
     flash[:alert] = "Failed to approve part: #{e.message}"
@@ -134,12 +159,12 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   def send_to_procurement
     parts_request = PartsRequest.find(params[:id])
     
-    # Update part request status - use the correct field names
+    # Update part request to 'needs_order' status
     update_params = {
-      status: 'parts_coordinator_notified'
+      status: 'needs_order'
     }
     
-    # Add timestamp if the field exists
+    # Add timestamp fields if they exist
     if parts_request.respond_to?(:sent_to_procurement_at)
       update_params[:sent_to_procurement_at] = Time.current
     end
@@ -150,8 +175,9 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     
     parts_request.update(update_params)
     
-    flash[:notice] = "Part sent to procurement team for ordering"
+    flash[:notice] = "📦 Part sent to procurement team for ordering"
     redirect_to vmcott_inventory_manager_dashboard_path
+    
   rescue => e
     Rails.logger.error "Error in send_to_procurement: #{e.message}"
     flash[:alert] = "Failed to send to procurement: #{e.message}"
@@ -173,12 +199,25 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       # Notify mechanics
       notify_mechanics_workshop_ready(inspection)
       
-      flash[:notice] = "Job passed to workshop. Mechanics notified."
+      # 🔥 Notify workshop supervisor that job is ready
+      if inspection.supervisor.present?
+        Notification.create!(
+          user: inspection.supervisor,
+          title: "🔧 Job Ready for Workshop",
+          message: "All parts for #{inspection.vehicle.license_plate} are available. Ready to assign to mechanics.",
+          link: vmcott_workshop_supervisor_job_creation_path(inspection),
+          notification_type: 'success',
+          notifiable: inspection
+        )
+      end
+      
+      flash[:notice] = "✓ Job passed to workshop. Mechanics notified."
     else
       flash[:alert] = "Cannot pass to workshop - not all parts are available yet."
     end
     
     redirect_to vmcott_inventory_manager_dashboard_path
+    
   rescue => e
     Rails.logger.error "Error in pass_to_workshop: #{e.message}"
     flash[:alert] = "Failed to pass to workshop: #{e.message}"
@@ -188,89 +227,116 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   # Mark purchase order as ordered
   def mark_po_ordered
     purchase_order = PurchaseOrder.find(params[:id])
-    purchase_order.update(status: 'ordered', ordered_at: Time.current)
     
-    # Update associated parts requests
-    purchase_order.parts_requests.each do |pr|
-      pr.update(status: 'parts_ordered')
+    ActiveRecord::Base.transaction do
+      purchase_order.update(status: 'ordered', ordered_at: Time.current)
       
-      # Update ordered_at if the field exists
-      if pr.respond_to?(:ordered_at)
-        pr.update_column(:ordered_at, Time.current)
+      # Update associated parts requests to 'ordered' status
+      purchase_order.parts_requests.each do |pr|
+        pr.update!(
+          status: 'ordered',
+          ordered_at: Time.current,
+          purchase_order_id: purchase_order.id
+        )
+        
+        # 🔥 Notify requester that parts are ordered
+        if pr.requested_by.present?
+          Notification.create!(
+            user: pr.requested_by,
+            title: "📦 Parts Ordered",
+            message: "#{pr.quantity}x #{pr.part&.name || pr.custom_part_name} has been ordered. PO ##{purchase_order.po_number}",
+            link: vmcott_mechanic_dashboard_path,
+            notification_type: 'info',
+            notifiable: pr
+          )
+        end
       end
     end
     
-    redirect_to vmcott_inventory_manager_dashboard_path, notice: "PO marked as ordered"
+    redirect_to vmcott_inventory_manager_dashboard_path, notice: "✓ PO marked as ordered"
+    
   rescue => e
     Rails.logger.error "Error in mark_po_ordered: #{e.message}"
     flash[:alert] = "Failed to mark PO as ordered: #{e.message}"
     redirect_to vmcott_inventory_manager_dashboard_path
   end
 
-  # 🔥 UPDATED: Mark purchase order as received and update inventory with supervisor notification
+  # Mark purchase order as received and update inventory with supervisor notification
   def mark_po_received
     purchase_order = PurchaseOrder.find(params[:id])
-    purchase_order.update(status: 'received', received_at: Time.current)
     
-    # Update all associated parts requests and inventory
-    received_count = 0
-    supervisor_notified = false
-    
-    purchase_order.parts_requests.each do |pr|
-      update_params = { status: 'parts_received' }
+    ActiveRecord::Base.transaction do
+      purchase_order.update(status: 'received', received_at: Time.current)
       
-      # Add timestamp if the field exists
-      if pr.respond_to?(:parts_received_at)
-        update_params[:parts_received_at] = Time.current
-      end
+      received_count = 0
+      supervisor_notified = false
       
-      pr.update(update_params)
-      received_count += 1
-      
-      # Update inventory stock levels
-      if pr.part
-        pr.part.update(current_stock: pr.part.current_stock + pr.quantity)
+      purchase_order.parts_requests.each do |pr|
+        # Update parts request to 'received' status
+        pr.update!(
+          status: 'received',
+          parts_received_at: Time.current
+        )
+        received_count += 1
         
-        # Create inventory transaction record
-        InventoryTransaction.create!(
-          inventory_item: pr.part,
-          quantity: pr.quantity,
-          transaction_type: 'receipt',
-          reference: purchase_order,
-          notes: "Received via PO ##{purchase_order.po_number}",
-          user_id: current_user.id
-        )
+        # Update inventory stock levels
+        if pr.part
+          pr.part.update!(current_stock: pr.part.current_stock + pr.quantity)
+          
+          # Create inventory transaction record
+          InventoryTransaction.create!(
+            inventory_item: pr.part,
+            quantity: pr.quantity,
+            transaction_type: 'receipt',
+            reference: purchase_order,
+            notes: "Received via PO ##{purchase_order.po_number}",
+            user_id: current_user.id
+          )
+        end
+        
+        # 🔥 NOTIFY WORKSHOP SUPERVISOR that parts are received
+        if pr.inspection && pr.inspection.supervisor.present?
+          supervisor_notified = true
+          Notification.create!(
+            user: pr.inspection.supervisor,
+            title: "📦 Parts Received - Ready for Quotation",
+            message: "#{pr.quantity}x #{pr.part&.name || pr.custom_part_name} has been received for #{pr.inspection.vehicle&.license_plate}. Ready to create quotation.",
+            link: vmcott_workshop_supervisor_quotation_creation_path(pr.inspection),
+            notification_type: 'success',
+            notifiable: pr
+          )
+          Rails.logger.info "Notified supervisor #{pr.inspection.supervisor.name} about parts receipt"
+        end
+        
+        # 🔥 Notify requester that parts are received
+        if pr.requested_by.present?
+          Notification.create!(
+            user: pr.requested_by,
+            title: "📦 Parts Received",
+            message: "#{pr.quantity}x #{pr.part&.name || pr.custom_part_name} has been received and is ready for pickup.",
+            link: vmcott_mechanic_dashboard_path,
+            notification_type: 'success',
+            notifiable: pr
+          )
+        end
+        
+        # Check if all parts for this inspection are now available
+        inspection = pr.inspection
+        if inspection && inspection.all_parts_available?
+          inspection.update!(
+            status: 'ready_for_workshop',
+            parts_ready_at: Time.current
+          )
+          notify_mechanics_workshop_ready(inspection)
+        end
       end
       
-      # 🔥 NOTIFY WORKSHOP SUPERVISOR that parts are received
-      if pr.inspection && pr.inspection.supervisor.present?
-        supervisor_notified = true
-        Notification.create!(
-          user: pr.inspection.supervisor,
-          title: "📦 Parts Received - Ready for Quotation",
-          message: "#{pr.quantity}x #{pr.part&.name || pr.custom_part_name} has been received for #{pr.inspection.vehicle&.license_plate}. Ready to create quotation.",
-          link: vmcott_workshop_supervisor_quotation_creation_path(pr.inspection),
-          notification_type: 'success',
-          notifiable: pr
-        )
-        Rails.logger.info "Notified supervisor #{pr.inspection.supervisor.name} about parts receipt"
-      end
+      notice = "✓ PO marked as received. #{received_count} parts updated in inventory."
+      notice += " Supervisor notified." if supervisor_notified
       
-      # Check if all parts for this inspection are now available
-      inspection = pr.inspection
-      if inspection && inspection.all_parts_available?
-        inspection.update(
-          status: 'ready_for_workshop',
-          parts_ready_at: Time.current
-        )
-        notify_mechanics_workshop_ready(inspection)
-      end
+      redirect_to vmcott_inventory_manager_dashboard_path, notice: notice
     end
     
-    notice = "PO marked as received. #{received_count} parts updated in inventory."
-    notice += " Supervisor notified." if supervisor_notified
-    
-    redirect_to vmcott_inventory_manager_dashboard_path, notice: notice
   rescue => e
     Rails.logger.error "Error in mark_po_received: #{e.message}"
     flash[:alert] = "Failed to mark PO as received: #{e.message}"
@@ -282,57 +348,68 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     purchase_order = PurchaseOrder.find(params[:purchase_order_id])
     parts_request = PartsRequest.find(params[:parts_request_id])
     
-    purchase_order.update(status: 'received', received_at: Time.current) if purchase_order.status != 'received'
-    
-    update_params = { status: 'parts_received' }
-    
-    # Add timestamp if the field exists
-    if parts_request.respond_to?(:parts_received_at)
-      update_params[:parts_received_at] = Time.current
-    end
-    
-    parts_request.update(update_params)
-    
-    # Update inventory
-    if parts_request.part
-      parts_request.part.update(current_stock: parts_request.part.current_stock + parts_request.quantity)
+    ActiveRecord::Base.transaction do
+      purchase_order.update(status: 'received', received_at: Time.current) if purchase_order.status != 'received'
       
-      InventoryTransaction.create!(
-        inventory_item: parts_request.part,
-        quantity: parts_request.quantity,
-        transaction_type: 'receipt',
-        reference: purchase_order,
-        notes: "Received via PO ##{purchase_order.po_number}",
-        user_id: current_user.id
+      parts_request.update!(
+        status: 'received',
+        parts_received_at: Time.current
       )
-    end
-    
-    # 🔥 Notify supervisor about this specific part
-    if parts_request.inspection && parts_request.inspection.supervisor.present?
-      Notification.create!(
-        user: parts_request.inspection.supervisor,
-        title: "📦 Part Received - #{parts_request.part&.name || parts_request.custom_part_name}",
-        message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} has been received for #{parts_request.inspection.vehicle&.license_plate}.",
-        link: vmcott_workshop_supervisor_quotation_creation_path(parts_request.inspection),
-        notification_type: 'info',
-        notifiable: parts_request
-      )
-    end
-    
-    # Check if inspection is now ready
-    inspection = parts_request.inspection
-    if inspection && inspection.all_parts_available?
-      inspection.update(
-        status: 'ready_for_workshop',
-        parts_ready_at: Time.current
-      )
-      notify_mechanics_workshop_ready(inspection)
-      flash[:notice] = "Parts received. All parts ready! Job passed to workshop. Supervisor notified."
-    else
-      flash[:notice] = "Parts marked as received. Supervisor notified."
+      
+      # Update inventory
+      if parts_request.part
+        parts_request.part.update!(current_stock: parts_request.part.current_stock + parts_request.quantity)
+        
+        InventoryTransaction.create!(
+          inventory_item: parts_request.part,
+          quantity: parts_request.quantity,
+          transaction_type: 'receipt',
+          reference: purchase_order,
+          notes: "Received via PO ##{purchase_order.po_number}",
+          user_id: current_user.id
+        )
+      end
+      
+      # 🔥 Notify supervisor about this specific part
+      if parts_request.inspection && parts_request.inspection.supervisor.present?
+        Notification.create!(
+          user: parts_request.inspection.supervisor,
+          title: "📦 Part Received - #{parts_request.part&.name || parts_request.custom_part_name}",
+          message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} has been received for #{parts_request.inspection.vehicle&.license_plate}.",
+          link: vmcott_workshop_supervisor_quotation_creation_path(parts_request.inspection),
+          notification_type: 'info',
+          notifiable: parts_request
+        )
+      end
+      
+      # 🔥 Notify requester
+      if parts_request.requested_by.present?
+        Notification.create!(
+          user: parts_request.requested_by,
+          title: "📦 Part Received",
+          message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} has been received.",
+          link: vmcott_mechanic_dashboard_path,
+          notification_type: 'success',
+          notifiable: parts_request
+        )
+      end
+      
+      # Check if inspection is now ready
+      inspection = parts_request.inspection
+      if inspection && inspection.all_parts_available?
+        inspection.update!(
+          status: 'ready_for_workshop',
+          parts_ready_at: Time.current
+        )
+        notify_mechanics_workshop_ready(inspection)
+        flash[:notice] = "✓ Parts received. All parts ready! Job passed to workshop. Supervisor notified."
+      else
+        flash[:notice] = "✓ Parts marked as received. Supervisor notified."
+      end
     end
     
     redirect_to vmcott_inventory_manager_dashboard_path
+    
   rescue => e
     Rails.logger.error "Error in receive_parts: #{e.message}"
     flash[:alert] = "Failed to receive parts: #{e.message}"
@@ -363,20 +440,10 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     )
     
     if vendor_rfq.save
-      update_params = {
-        status: 'parts_coordinator_notified'
-      }
-      
-      # Add timestamp if the field exists
-      if parts_request.respond_to?(:sent_to_procurement_at)
-        update_params[:sent_to_procurement_at] = Time.current
-      end
-      
-      if parts_request.respond_to?(:notified_parts_coordinator_at)
-        update_params[:notified_parts_coordinator_at] = Time.current
-      end
-      
-      parts_request.update(update_params)
+      parts_request.update!(
+        status: 'needs_order',
+        sent_to_procurement_at: Time.current
+      )
       
       redirect_to vmcott_vendor_rfqs_path, notice: "RFQ ##{rfq_number} created successfully."
     else
@@ -422,7 +489,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     redirect_to vmcott_inventory_manager_dashboard_path, alert: "Failed to accept quotation: #{e.message}"
   end
 
-  # 🔥 NEW: Get low stock parts for reordering
+  # Get low stock parts for reordering
   def low_stock
     @low_stock_parts = Part.where('current_stock <= reorder_point')
                            .includes(:supplier)
@@ -439,7 +506,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     end
   end
 
-  # 🔥 NEW: Generate reorder suggestions
+  # Generate reorder suggestions
   def reorder_suggestions
     @parts = []
     
@@ -489,7 +556,6 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   end
   
   def calculate_avg_delivery_days
-    # Calculate average delivery time for completed orders
     completed_orders = PurchaseOrder.where.not(ordered_at: nil).where.not(received_at: nil)
     if completed_orders.any?
       total_days = completed_orders.sum { |po| (po.received_at.to_date - po.ordered_at.to_date).to_i }
