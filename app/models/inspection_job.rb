@@ -28,11 +28,27 @@ class InspectionJob < ApplicationRecord
   PRIORITIES = ['low', 'normal', 'high', 'critical'].freeze
 
   # ✅ SIMPLIFIED STATUS - Only what matters
+  # Updated enum to match your methods
   enum :status, {
     draft: 'draft',
+    pending_supervisor_review: 'pending_supervisor_review',
+    pending_mechanic_review: 'pending_mechanic_review',
+    pending_parts_review: 'pending_parts_review',
     approved: 'approved',
+    assigned: 'assigned',
+    pre_check_in_progress: 'pre_check_in_progress',
+    pre_check_completed: 'pre_check_completed',
+    pending_approval: 'pending_approval',
+    approved_for_work: 'approved_for_work',
     in_progress: 'in_progress',
+    paused: 'paused',
+    blocked: 'blocked',
+    rework_needed: 'rework_needed',
     completed: 'completed',
+    qc_pending: 'qc_pending',
+    qc_in_progress: 'qc_in_progress',
+    qc_passed: 'qc_passed',
+    qc_failed: 'qc_failed',
     cancelled: 'cancelled'
   }, default: :draft
 

@@ -12,132 +12,165 @@
     </div>
   </div>
 
-  <div class="row">
-    <div class="col-lg-8 mx-auto">
-      <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-header bg-white border-0 pt-4">
-          <h5 class="mb-0 fw-bold">Parts Request Details</h5>
+  <% if @parts_request.nil? %>
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <div class="alert alert-danger rounded-4">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          Parts request not found. It may have been already processed or deleted.
         </div>
-        <div class="card-body">
-          
-          <!-- Part Information -->
-          <div class="mb-4">
-            <h6 class="fw-bold text-primary mb-3">Part Information</h6>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <div class="bg-light rounded-3 p-3">
-                  <small class="text-muted d-block">Part Name</small>
-                  <strong><%= @parts_request.part&.name || @parts_request.custom_part_name || 'Custom Part' %></strong>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="bg-light rounded-3 p-3">
-                  <small class="text-muted d-block">Quantity</small>
-                  <strong class="fs-4"><%= @parts_request.quantity %></strong>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="bg-light rounded-3 p-3">
-                  <small class="text-muted d-block">Unit Price</small>
-                  <strong>$<%= number_with_precision(@parts_request.unit_price || 0, precision: 2) %></strong>
-                </div>
-              </div>
-            </div>
+        <%= link_to "Return to Dashboard", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-primary rounded-pill" %>
+      </div>
+    </div>
+  <% else %>
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-white border-0 pt-4">
+            <h5 class="mb-0 fw-bold">Parts Request Details</h5>
+            <span class="badge <%= @parts_request.status == 'requested' ? 'bg-warning' : 'bg-secondary' %> mt-2">
+              Status: <%= @parts_request.status&.humanize || 'Pending' %>
+            </span>
           </div>
-
-          <!-- Job Information -->
-          <div class="mb-4">
-            <h6 class="fw-bold text-primary mb-3">Related Job</h6>
-            <div class="bg-light rounded-3 p-3">
-              <div class="row">
-                <div class="col-md-6">
-                  <small class="text-muted d-block">Job ID</small>
-                  <strong>#<%= @parts_request.inspection_job&.id || 'N/A' %></strong>
-                </div>
-                <div class="col-md-6">
-                  <small class="text-muted d-block">Vehicle</small>
-                  <strong><%= @vehicle&.license_plate || 'N/A' %></strong>
-                </div>
-              </div>
-              <div class="mt-2">
-                <small class="text-muted d-block">Job Description</small>
-                <p class="mb-0"><%= @parts_request.inspection_job&.description || 'No description' %></p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Request Information -->
-          <div class="mb-4">
-            <h6 class="fw-bold text-primary mb-3">Request Information</h6>
-            <div class="bg-light rounded-3 p-3">
-              <div class="row">
-                <div class="col-md-6">
-                  <small class="text-muted d-block">Requested By</small>
-                  <strong><%= @parts_request.requested_by&.name || 'Mechanic' %></strong>
-                </div>
-                <div class="col-md-6">
-                  <small class="text-muted d-block">Requested Date</small>
-                  <strong><%= @parts_request.created_at.strftime('%b %d, %Y at %I:%M %p') %></strong>
-                </div>
-              </div>
-              <%# Notes removed - PartsRequest doesn't have notes column %>
-            </div>
-          </div>
-
-          <!-- Current Stock Information -->
-          <% if @parts_request.part.present? %>
+          <div class="card-body">
+            
+            <!-- Part Information -->
             <div class="mb-4">
-              <h6 class="fw-bold text-primary mb-3">Inventory Status</h6>
+              <h6 class="fw-bold text-primary mb-3">Part Information</h6>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="bg-light rounded-3 p-3">
+                    <small class="text-muted d-block">Part Name</small>
+                    <strong><%= @parts_request.part&.name || @parts_request.custom_part_name || 'Custom Part' %></strong>
+                    <% if @parts_request.part&.part_number %>
+                      <br><small class="text-muted">PN: <%= @parts_request.part.part_number %></small>
+                    <% end %>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="bg-light rounded-3 p-3">
+                    <small class="text-muted d-block">Quantity</small>
+                    <strong class="fs-4"><%= @parts_request.quantity %></strong>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="bg-light rounded-3 p-3">
+                    <small class="text-muted d-block">Unit Price</small>
+                    <strong>$<%= number_with_precision(@parts_request.unit_price || 0, precision: 2) %></strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Job Information -->
+            <div class="mb-4">
+              <h6 class="fw-bold text-primary mb-3">Related Job</h6>
               <div class="bg-light rounded-3 p-3">
                 <div class="row">
-                  <div class="col-md-4">
-                    <small class="text-muted d-block">Current Stock</small>
-                    <strong class="<%= @parts_request.part.current_stock.to_i < @parts_request.quantity.to_i ? 'text-danger' : 'text-success' %>">
-                      <%= @parts_request.part.current_stock %> units
-                    </strong>
+                  <div class="col-md-6">
+                    <small class="text-muted d-block">Job ID</small>
+                    <strong>#<%= @parts_request.inspection_job&.id || 'N/A' %></strong>
                   </div>
-                  <div class="col-md-4">
-                    <small class="text-muted d-block">Minimum Stock</small>
-                    <strong><%= @parts_request.part.minimum_stock || 5 %> units</strong>
-                  </div>
-                  <div class="col-md-4">
-                    <small class="text-muted d-block">Reorder Point</small>
-                    <strong><%= @parts_request.part.reorder_point || 10 %> units</strong>
+                  <div class="col-md-6">
+                    <small class="text-muted d-block">Vehicle</small>
+                    <strong><%= @vehicle&.license_plate || @parts_request.inspection&.vehicle&.license_plate || 'N/A' %></strong>
                   </div>
                 </div>
-                <% if @parts_request.part.current_stock.to_i < @parts_request.quantity.to_i %>
-                  <div class="alert alert-warning mt-3 mb-0">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    <strong>Out of Stock:</strong> Current stock (<%= @parts_request.part.current_stock %>) is less than requested quantity (<%= @parts_request.quantity %>). This part will need to be ordered.
+                <div class="mt-2">
+                  <small class="text-muted d-block">Job Description</small>
+                  <p class="mb-0"><%= @parts_request.inspection_job&.description || 'No description' %></p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Request Information -->
+            <div class="mb-4">
+              <h6 class="fw-bold text-primary mb-3">Request Information</h6>
+              <div class="bg-light rounded-3 p-3">
+                <div class="row">
+                  <div class="col-md-6">
+                    <small class="text-muted d-block">Requested By</small>
+                    <strong><%= @parts_request.requested_by&.name || 'Mechanic' %></strong>
                   </div>
-                <% else %>
-                  <div class="alert alert-success mt-3 mb-0">
-                    <i class="bi bi-check-circle me-2"></i>
-                    <strong>In Stock:</strong> Sufficient inventory available.
+                  <div class="col-md-6">
+                    <small class="text-muted d-block">Requested Date</small>
+                    <strong><%= @parts_request.created_at.strftime('%b %d, %Y at %I:%M %p') %></strong>
+                  </div>
+                </div>
+                <% if @parts_request.rejection_reason.present? %>
+                  <div class="mt-2">
+                    <small class="text-muted d-block">Rejection Reason / Notes</small>
+                    <p class="mb-0"><%= @parts_request.rejection_reason %></p>
                   </div>
                 <% end %>
               </div>
             </div>
-          <% end %>
 
-          <!-- Action Buttons -->
-          <div class="d-flex gap-3 justify-content-end mt-4 pt-3 border-top">
-            <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-outline-secondary rounded-pill px-4" %>
-            
-            <%= button_to "Reject Request", 
-                vmcott_workshop_supervisor_reject_parts_request_path(@parts_request), 
-                method: :post,
-                params: { rejection_reason: "Not approved by supervisor" },
-                class: "btn btn-outline-danger rounded-pill px-4",
-                data: { confirm: "Are you sure you want to reject this parts request?" } %>
-            
-            <%= button_to "Approve Request", 
-                vmcott_workshop_supervisor_approve_parts_request_path(@parts_request), 
-                method: :post,
-                class: "btn btn-success rounded-pill px-4" %>
+            <!-- Current Stock Information -->
+            <% if @parts_request.part.present? %>
+              <div class="mb-4">
+                <h6 class="fw-bold text-primary mb-3">Inventory Status</h6>
+                <div class="bg-light rounded-3 p-3">
+                  <div class="row">
+                    <div class="col-md-4">
+                      <small class="text-muted d-block">Current Stock</small>
+                      <strong class="<%= @parts_request.part.current_stock.to_i < @parts_request.quantity.to_i ? 'text-danger' : 'text-success' %>">
+                        <%= @parts_request.part.current_stock %> units
+                      </strong>
+                    </div>
+                    <div class="col-md-4">
+                      <small class="text-muted d-block">Minimum Stock</small>
+                      <strong><%= @parts_request.part.minimum_stock || 5 %> units</strong>
+                    </div>
+                    <div class="col-md-4">
+                      <small class="text-muted d-block">Reorder Point</small>
+                      <strong><%= @parts_request.part.reorder_point || 10 %> units</strong>
+                    </div>
+                  </div>
+                  <% if @parts_request.part.current_stock.to_i < @parts_request.quantity.to_i %>
+                    <div class="alert alert-warning mt-3 mb-0">
+                      <i class="bi bi-exclamation-triangle me-2"></i>
+                      <strong>Out of Stock:</strong> Current stock (<%= @parts_request.part.current_stock %>) is less than requested quantity (<%= @parts_request.quantity %>). This part will need to be ordered.
+                    </div>
+                  <% else %>
+                    <div class="alert alert-success mt-3 mb-0">
+                      <i class="bi bi-check-circle me-2"></i>
+                      <strong>In Stock:</strong> Sufficient inventory available.
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% else %>
+              <div class="mb-4">
+                <div class="alert alert-info">
+                  <i class="bi bi-info-circle me-2"></i>
+                  <strong>Custom Part:</strong> This is a custom/non-inventory part. It will need to be procured from a supplier.
+                </div>
+              </div>
+            <% end %>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-3 justify-content-end mt-4 pt-3 border-top">
+              <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path(anchor: 'parts'), class: "btn btn-outline-secondary rounded-pill px-4" %>
+              
+              <%= button_to vmcott_workshop_supervisor_reject_parts_request_path(@parts_request), 
+                  method: :post,
+                  params: { rejection_reason: "Not approved by supervisor" },
+                  class: "btn btn-outline-danger rounded-pill px-4",
+                  data: { confirm: "Are you sure you want to reject this parts request?", turbo: false } do %>
+                <i class="bi bi-x-circle me-1"></i> Reject Request
+              <% end %>
+              
+              <%= button_to vmcott_workshop_supervisor_approve_parts_request_path(@parts_request), 
+                  method: :post,
+                  class: "btn btn-success rounded-pill px-4",
+                  data: { turbo: false } do %>
+                <i class="bi bi-check-circle me-1"></i> Approve Request
+              <% end %>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  <% end %>
 </div>

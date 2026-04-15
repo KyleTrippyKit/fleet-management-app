@@ -335,26 +335,49 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
-    # Assign the job to current mechanic
-    @job.update!(
+    # Check if job is in a state that can be assigned
+    unless @job.status == 'approved'
+      redirect_to vmcott_mechanic_dashboard_path, alert: "This job cannot be assigned (current status: #{@job.status}). Only approved jobs can be taken."
+      return
+    end
+    
+    # Use update_columns to bypass the approval callback
+    @job.update_columns(
       assigned_mechanic_id: current_user.id,
-      status: 'assigned'  # Change status to assigned
+      status: 'assigned',
+      assigned_at: Time.current
     )
     
-    # Create MechanicAssignment record
-    MechanicAssignment.find_or_create_by!(
+    # Create or update MechanicAssignment record
+    assignment = MechanicAssignment.find_or_initialize_by(
       inspection_job_id: @job.id,
       mechanic_id: current_user.id
-    ).update!(
-      status: 'assigned',
-      started_at: Time.current,
-      mechanic_notes: "Assigned by mechanic at #{Time.current}"
     )
     
-    flash[:notice] = "✅ Job ##{@job.id} assigned to you successfully!"
+    assignment.update!(
+      status: 'assigned',
+      started_at: Time.current,
+      mechanic_notes: "Assigned by mechanic #{current_user.name} at #{Time.current}"
+    )
+    
+    # Notify the workshop supervisor that a mechanic took the job
+    if @job.inspection&.supervisor.present?
+      Notification.create!(
+        user: @job.inspection.supervisor,
+        title: "🔧 Job Taken by Mechanic",
+        message: "#{current_user.name} has taken job ##{@job.id}: #{@job.description.truncate(50)}",
+        link: vmcott_workshop_supervisor_job_path(@job),
+        notification_type: 'info',
+        notifiable: @job
+      )
+    end
+    
+    flash[:notice] = "✅ Job ##{@job.id} assigned to you successfully! You can now start working."
     redirect_to vmcott_mechanic_job_path(@job)
+    
   rescue => e
     Rails.logger.error "Error assigning job: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Error assigning job: #{e.message}"
     redirect_to vmcott_mechanic_dashboard_path
   end

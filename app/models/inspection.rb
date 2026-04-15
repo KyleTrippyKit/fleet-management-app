@@ -19,7 +19,7 @@ class Inspection < ApplicationRecord
   has_many :findings, dependent: :destroy
   has_many :inspection_recommendations, dependent: :destroy
   has_many :jobs, dependent: :destroy
-    accepts_nested_attributes_for :inspection_jobs, allow_destroy: true, reject_if: :all_blank
+  accepts_nested_attributes_for :inspection_jobs, allow_destroy: true, reject_if: :all_blank
 
   # Callbacks
   before_validation :assign_reception_log, on: :create
@@ -128,6 +128,28 @@ class Inspection < ApplicationRecord
 
   def all_jobs_completed?
     inspection_jobs.where(status: 'completed').count == inspection_jobs.count
+  end
+
+  # =========================
+  # 🔥 PARTS AVAILABILITY METHODS
+  # =========================
+  
+  # Check if all parts needed for this inspection have been received
+  def all_parts_available?
+    # Get all parts requests that still need to be ordered or are in transit
+    pending_parts = parts_requests.where(status: ['needs_order', 'ordered'])
+    # If there are no pending parts, all parts are available
+    pending_parts.empty?
+  end
+  
+  # Check if any parts are still pending (need ordering or in transit)
+  def parts_pending?
+    parts_requests.where(status: ['needs_order', 'ordered']).exists?
+  end
+  
+  # Get count of parts still pending
+  def pending_parts_count
+    parts_requests.where(status: ['needs_order', 'ordered']).count
   end
 
   # =========================

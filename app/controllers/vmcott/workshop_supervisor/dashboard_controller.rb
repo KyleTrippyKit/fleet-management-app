@@ -828,234 +828,61 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     redirect_to vmcott_workshop_supervisor_approved_quotation_details_path(@quotation)
   end
 
-    # =====================================================
-    # DUPLICATE DETECTION HELPER METHOD
-    # =====================================================
-
-  private
-
-  def safe_params_hash(params_object)
-    return {} if params_object.blank?
-    
-    if params_object.respond_to?(:to_unsafe_h)
-      params_object.to_unsafe_h
-    elsif params_object.respond_to?(:to_h)
-      params_object.to_h
-    elsif params_object.is_a?(Hash)
-      params_object
-    else
-      {}
-    end
-  end
-
-  def detect_duplicates(recommendations, findings)
-    duplicate_groups = []
-    used_recommendations = []
-    used_findings = []
-    
-    # Keywords for duplicate detection
-    keywords = {
-      'headlight' => ['headlight', 'head lamp', 'head light', 'headlamp', 'head light assembly'],
-      'brake' => ['brake', 'brakes', 'brake pad', 'brake rotor', 'brake disc', 'brake pads'],
-      'engine' => ['engine', 'motor', 'misfire', 'rough idle', 'engine knock', 'engine noise'],
-      'transmission' => ['transmission', 'trans', 'gear', 'shifting', 'clutch', 'gearbox'],
-      'oil' => ['oil', 'lube', 'oil change', 'oil leak', 'oil filter', 'oil pressure'],
-      'tire' => ['tire', 'tyre', 'wheel', 'tyres', 'tires', 'tyre pressure'],
-      'battery' => ['battery', 'electrical', 'alternator', 'starter', 'dead battery'],
-      'suspension' => ['suspension', 'shock', 'strut', 'spring', 'control arm', 'ball joint'],
-      'exhaust' => ['exhaust', 'muffler', 'pipe', 'catalytic converter', 'exhaust leak'],
-      'cooling' => ['coolant', 'radiator', 'water pump', 'cooling system', 'overheating'],
-      'air conditioning' => ['ac', 'a/c', 'air conditioning', 'aircon', 'compressor']
-    }
-    
-    recommendations.each do |rec|
-      findings.each do |finding|
-        next if used_recommendations.include?(rec.id) || used_findings.include?(finding.id)
-        
-        is_duplicate = false
-        matched_keyword = nil
-        
-        keywords.each do |keyword, variations|
-          rec_desc = rec.description.downcase
-          find_desc = finding.description.downcase
-          
-          if variations.any? { |v| rec_desc.include?(v) && find_desc.include?(v) }
-            is_duplicate = true
-            matched_keyword = keyword
-            break
-          end
-        end
-        
-        # Also check for exact phrase similarity (at least 3 common words)
-        unless is_duplicate
-          rec_words = rec.description.downcase.split
-          find_words = finding.description.downcase.split
-          common_words = (rec_words & find_words).size
-          if common_words >= 3 && (rec_words.size >= 4 || find_words.size >= 4)
-            is_duplicate = true
-            matched_keyword = 'general'
-          end
-        end
-        
-        if is_duplicate
-          duplicate_groups << {
-            keyword: matched_keyword,
-            recommendation: rec,
-            finding: finding,
-            suggested_merged_hours: [rec.estimated_hours.to_f, finding.metadata&.[]('estimated_hours').to_f].max,
-            suggested_description: rec.description.length > finding.description.length ? rec.description : finding.description
-          }
-          used_recommendations << rec.id
-          used_findings << finding.id
-          break
-        end
-      end
-    end
-    
-    duplicate_groups
-  end
-
   # =====================================================
-  # PRE-CHECK REVIEW METHODS
-  # =====================================================
-
-  def review_pre_check
-    @job = InspectionJob.find(params[:id])
-    @additional_findings = @job.additional_findings
-    @mechanic = @job.assigned_mechanic
-
-    disable_all_caching
-  end
-
-  def approve_pre_check
-    @job = InspectionJob.find(params[:id])
-
-    ActiveRecord::Base.transaction do
-      @job.update!(
-        status: 'approved_for_work',
-        approved_at: Time.current,
-        supervisor_id: current_user.id
-      )
-
-      assignment = MechanicAssignment.find_by(inspection_job: @job)
-      if assignment
-        assignment.update!(
-          mechanic_notes: "#{assignment.mechanic_notes}\n\nPre-check approved by #{current_user.name} at #{Time.current}"
-        )
-      end
-
-      if params[:approved_findings].present?
-        params[:approved_findings].each do |finding_index, finding_data|
-          if finding_data[:approved] == 'true'
-            additional_job = @job.inspection.inspection_jobs.create!(
-              description: finding_data[:description],
-              priority: finding_data[:severity] == 'critical' ? 'high' : 'normal',
-              estimated_hours: finding_data[:estimated_hours],
-              status: 'approved_for_work',
-              recommendation_source: 'mechanic_pre_check',
-              parent_job_id: @job.id,
-              assigned_mechanic_id: @job.assigned_mechanic_id
-            )
-
-            if @job.assigned_mechanic
-              MechanicAssignment.create!(
-                inspection_job: additional_job,
-                mechanic: @job.assigned_mechanic,
-                status: 'assigned',
-                mechanic_notes: "Additional work from pre-check findings"
-              )
-            end
-
-            Notification.create!(
-              user: @job.assigned_mechanic,
-              title: "Additional Work Approved",
-              message: "Additional job '#{finding_data[:description]}' has been approved for work.",
-              link: "/vmcott/mechanic/jobs/#{additional_job.id}",
-              notification_type: 'success',
-              notifiable: additional_job
-            )
-          end
-        end
-      end
-
-      Notification.create!(
-        user: @job.assigned_mechanic,
-        title: "Pre-Check Approved",
-        message: "Your pre-check for job ##{@job.id} has been approved. You can now start work.",
-        link: "/vmcott/mechanic/jobs/#{@job.id}",
-        notification_type: 'success',
-        notifiable: @job
-      )
-
-      flash[:notice] = "✅ Pre-check approved. Job is ready for work."
-    end
-
-    redirect_to vmcott_workshop_supervisor_dashboard_path
-  rescue => e
-    Rails.logger.error "Error approving pre-check: #{e.message}"
-    flash[:alert] = "Error approving pre-check: #{e.message}"
-    redirect_to vmcott_workshop_supervisor_review_pre_check_path(@job)
-  end
-
-  def reject_pre_check
-    @job = InspectionJob.find(params[:id])
-    reason = params[:rejection_reason] || "Additional work not approved at this time"
-
-    ActiveRecord::Base.transaction do
-      @job.update!(
-        status: 'assigned',
-        blocked_reason: reason
-      )
-
-      assignment = MechanicAssignment.find_by(inspection_job: @job)
-      if assignment
-        assignment.update!(
-          mechanic_notes: "#{assignment.mechanic_notes}\n\nPre-check REJECTED by #{current_user.name}: #{reason}"
-        )
-      end
-
-      Notification.create!(
-        user: @job.assigned_mechanic,
-        title: "Pre-Check Findings Rejected",
-        message: "Your pre-check findings for job ##{@job.id} were not approved. Reason: #{reason}",
-        link: "/vmcott/mechanic/jobs/#{@job.id}",
-        notification_type: 'warning',
-        notifiable: @job
-      )
-
-      flash[:alert] = "❌ Pre-check findings rejected. Job returned to mechanic."
-    end
-
-    redirect_to vmcott_workshop_supervisor_dashboard_path
-  end
-
-  # =====================================================
-  # PARTS REQUEST APPROVAL METHODS
+  # PARTS REQUEST APPROVAL METHODS (PUBLIC - MOVED HERE)
   # =====================================================
 
   def review_parts_request
-    @parts_request = PartsRequest.find(params[:id])
+    Rails.logger.info "=" * 50
+    Rails.logger.info "review_parts_request called"
+    Rails.logger.info "params: #{params.inspect}"
+    Rails.logger.info "params[:id]: #{params[:id]}"
+    Rails.logger.info "params[:id] class: #{params[:id].class}"
+    Rails.logger.info "=" * 50
+    
+    @parts_request = PartsRequest.find_by(id: params[:id])
+    
+    Rails.logger.info "Found parts_request: #{@parts_request.inspect}"
+    
+    unless @parts_request
+      flash[:alert] = "Parts request ##{params[:id]} not found. It may have been already processed or deleted."
+      redirect_to vmcott_workshop_supervisor_dashboard_path(anchor: 'parts') and return
+    end
+    
     @job = @parts_request.inspection_job
     @vehicle = @parts_request.inspection&.vehicle
-
+    
     disable_all_caching
   end
 
   def approve_parts_request
     @parts_request = PartsRequest.find(params[:id])
     
+    # Check if part is in stock
+    in_stock = @parts_request.part.present? && @parts_request.part.current_stock.to_i >= @parts_request.quantity.to_i
+    
+    # Set appropriate status
+    new_status = in_stock ? 'approved' : 'needs_order'
+    
     if @parts_request.update(
-      status: 'approved', 
+      status: new_status, 
       approved_at: Time.current, 
-      approved_by_id: current_user.id
+      approved_by_id: current_user.id,
+      in_stock: in_stock
     )
       inventory_managers = User.where(role: 'inventory_manager').or(User.where(role: 'parts_coordinator'))
       
       inventory_managers.each do |im|
+        notification_message = if in_stock
+          "✅ IN STOCK: Parts request ##{@parts_request.id} for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved. Ready to issue to mechanic."
+        else
+          "⚠️ OUT OF STOCK: Parts request ##{@parts_request.id} for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved. Needs to be ordered."
+        end
+        
         Notification.create!(
           user: im,
-          title: "Parts Request Approved",
-          message: "Parts request ##{@parts_request.id} for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved by #{current_user.name}. Please process.",
+          title: "Parts Request Approved - #{in_stock ? 'IN STOCK' : 'NEEDS ORDER'}",
+          message: notification_message,
           link: vmcott_inventory_manager_dashboard_path,
           notification_type: 'info',
           notifiable: @parts_request
@@ -1066,7 +893,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
         Notification.create!(
           user: @parts_request.requested_by,
           title: "Parts Request Approved",
-          message: "Your parts request for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved and sent to inventory manager.",
+          message: "Your parts request for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved. #{in_stock ? 'Part is in stock and will be issued.' : 'Part has been sent to procurement for ordering.'}",
           link: vmcott_mechanic_dashboard_path,
           notification_type: 'success',
           notifiable: @parts_request
@@ -1077,19 +904,19 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
         Notification.create!(
           user: @parts_request.inspection_job.assigned_mechanic,
           title: "Parts Request Approved",
-          message: "Parts request for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved and sent to inventory manager.",
+          message: "Parts request for #{@parts_request.quantity}x #{@parts_request.part&.name || @parts_request.custom_part_name || 'Custom part'} has been approved. #{in_stock ? 'In stock and ready.' : 'Sent to procurement for ordering.'}",
           link: vmcott_mechanic_job_path(@parts_request.inspection_job),
           notification_type: 'success',
           notifiable: @parts_request
         )
       end
       
-      flash[:notice] = "✅ Parts request approved. Inventory manager will process it."
+      flash[:notice] = in_stock ? "✅ Parts request approved. Part is IN STOCK and ready for pickup." : "✅ Parts request approved. Part is OUT OF STOCK and has been sent to procurement for ordering."
       
       if @parts_request.inspection_job.present?
         redirect_to vmcott_workshop_supervisor_job_path(@parts_request.inspection_job)
       else
-        redirect_to vmcott_workshop_supervisor_dashboard_path
+        redirect_to vmcott_workshop_supervisor_dashboard_path(anchor: 'parts')
       end
     else
       flash[:alert] = "Error approving parts request: #{@parts_request.errors.full_messages.join(', ')}"
@@ -2443,5 +2270,196 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     if Rails.env.development?
       Rails.logger.debug "🚫 Cache disabled for #{controller_name}##{action_name}"
     end
+  end
+
+  def safe_params_hash(params_object)
+    return {} if params_object.blank?
+    
+    if params_object.respond_to?(:to_unsafe_h)
+      params_object.to_unsafe_h
+    elsif params_object.respond_to?(:to_h)
+      params_object.to_h
+    elsif params_object.is_a?(Hash)
+      params_object
+    else
+      {}
+    end
+  end
+
+  def detect_duplicates(recommendations, findings)
+    duplicate_groups = []
+    used_recommendations = []
+    used_findings = []
+    
+    # Keywords for duplicate detection
+    keywords = {
+      'headlight' => ['headlight', 'head lamp', 'head light', 'headlamp', 'head light assembly'],
+      'brake' => ['brake', 'brakes', 'brake pad', 'brake rotor', 'brake disc', 'brake pads'],
+      'engine' => ['engine', 'motor', 'misfire', 'rough idle', 'engine knock', 'engine noise'],
+      'transmission' => ['transmission', 'trans', 'gear', 'shifting', 'clutch', 'gearbox'],
+      'oil' => ['oil', 'lube', 'oil change', 'oil leak', 'oil filter', 'oil pressure'],
+      'tire' => ['tire', 'tyre', 'wheel', 'tyres', 'tires', 'tyre pressure'],
+      'battery' => ['battery', 'electrical', 'alternator', 'starter', 'dead battery'],
+      'suspension' => ['suspension', 'shock', 'strut', 'spring', 'control arm', 'ball joint'],
+      'exhaust' => ['exhaust', 'muffler', 'pipe', 'catalytic converter', 'exhaust leak'],
+      'cooling' => ['coolant', 'radiator', 'water pump', 'cooling system', 'overheating'],
+      'air conditioning' => ['ac', 'a/c', 'air conditioning', 'aircon', 'compressor']
+    }
+    
+    recommendations.each do |rec|
+      findings.each do |finding|
+        next if used_recommendations.include?(rec.id) || used_findings.include?(finding.id)
+        
+        is_duplicate = false
+        matched_keyword = nil
+        
+        keywords.each do |keyword, variations|
+          rec_desc = rec.description.downcase
+          find_desc = finding.description.downcase
+          
+          if variations.any? { |v| rec_desc.include?(v) && find_desc.include?(v) }
+            is_duplicate = true
+            matched_keyword = keyword
+            break
+          end
+        end
+        
+        # Also check for exact phrase similarity (at least 3 common words)
+        unless is_duplicate
+          rec_words = rec.description.downcase.split
+          find_words = finding.description.downcase.split
+          common_words = (rec_words & find_words).size
+          if common_words >= 3 && (rec_words.size >= 4 || find_words.size >= 4)
+            is_duplicate = true
+            matched_keyword = 'general'
+          end
+        end
+        
+        if is_duplicate
+          duplicate_groups << {
+            keyword: matched_keyword,
+            recommendation: rec,
+            finding: finding,
+            suggested_merged_hours: [rec.estimated_hours.to_f, finding.metadata&.[]('estimated_hours').to_f].max,
+            suggested_description: rec.description.length > finding.description.length ? rec.description : finding.description
+          }
+          used_recommendations << rec.id
+          used_findings << finding.id
+          break
+        end
+      end
+    end
+    
+    duplicate_groups
+  end
+
+  def review_pre_check
+    @job = InspectionJob.find(params[:id])
+    @additional_findings = @job.additional_findings
+    @mechanic = @job.assigned_mechanic
+
+    disable_all_caching
+  end
+
+  def approve_pre_check
+    @job = InspectionJob.find(params[:id])
+
+    ActiveRecord::Base.transaction do
+      @job.update!(
+        status: 'approved_for_work',
+        approved_at: Time.current,
+        supervisor_id: current_user.id
+      )
+
+      assignment = MechanicAssignment.find_by(inspection_job: @job)
+      if assignment
+        assignment.update!(
+          mechanic_notes: "#{assignment.mechanic_notes}\n\nPre-check approved by #{current_user.name} at #{Time.current}"
+        )
+      end
+
+      if params[:approved_findings].present?
+        params[:approved_findings].each do |finding_index, finding_data|
+          if finding_data[:approved] == 'true'
+            additional_job = @job.inspection.inspection_jobs.create!(
+              description: finding_data[:description],
+              priority: finding_data[:severity] == 'critical' ? 'high' : 'normal',
+              estimated_hours: finding_data[:estimated_hours],
+              status: 'approved_for_work',
+              recommendation_source: 'mechanic_pre_check',
+              parent_job_id: @job.id,
+              assigned_mechanic_id: @job.assigned_mechanic_id
+            )
+
+            if @job.assigned_mechanic
+              MechanicAssignment.create!(
+                inspection_job: additional_job,
+                mechanic: @job.assigned_mechanic,
+                status: 'assigned',
+                mechanic_notes: "Additional work from pre-check findings"
+              )
+            end
+
+            Notification.create!(
+              user: @job.assigned_mechanic,
+              title: "Additional Work Approved",
+              message: "Additional job '#{finding_data[:description]}' has been approved for work.",
+              link: "/vmcott/mechanic/jobs/#{additional_job.id}",
+              notification_type: 'success',
+              notifiable: additional_job
+            )
+          end
+        end
+      end
+
+      Notification.create!(
+        user: @job.assigned_mechanic,
+        title: "Pre-Check Approved",
+        message: "Your pre-check for job ##{@job.id} has been approved. You can now start work.",
+        link: "/vmcott/mechanic/jobs/#{@job.id}",
+        notification_type: 'success',
+        notifiable: @job
+      )
+
+      flash[:notice] = "✅ Pre-check approved. Job is ready for work."
+    end
+
+    redirect_to vmcott_workshop_supervisor_dashboard_path
+  rescue => e
+    Rails.logger.error "Error approving pre-check: #{e.message}"
+    flash[:alert] = "Error approving pre-check: #{e.message}"
+    redirect_to vmcott_workshop_supervisor_review_pre_check_path(@job)
+  end
+
+  def reject_pre_check
+    @job = InspectionJob.find(params[:id])
+    reason = params[:rejection_reason] || "Additional work not approved at this time"
+
+    ActiveRecord::Base.transaction do
+      @job.update!(
+        status: 'assigned',
+        blocked_reason: reason
+      )
+
+      assignment = MechanicAssignment.find_by(inspection_job: @job)
+      if assignment
+        assignment.update!(
+          mechanic_notes: "#{assignment.mechanic_notes}\n\nPre-check REJECTED by #{current_user.name}: #{reason}"
+        )
+      end
+
+      Notification.create!(
+        user: @job.assigned_mechanic,
+        title: "Pre-Check Findings Rejected",
+        message: "Your pre-check findings for job ##{@job.id} were not approved. Reason: #{reason}",
+        link: "/vmcott/mechanic/jobs/#{@job.id}",
+        notification_type: 'warning',
+        notifiable: @job
+      )
+
+      flash[:alert] = "❌ Pre-check findings rejected. Job returned to mechanic."
+    end
+
+    redirect_to vmcott_workshop_supervisor_dashboard_path
   end
 end

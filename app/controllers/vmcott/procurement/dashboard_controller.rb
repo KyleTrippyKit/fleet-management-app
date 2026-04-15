@@ -97,25 +97,32 @@ class Vmcott::Procurement::DashboardController < ApplicationController
       # Associate parts request with RFQ
       if params[:parts_request_id].present?
         parts_request = PartsRequest.find(params[:parts_request_id])
-        parts_request.update(status: 'rfq_sent')
         
-        # Create RFQ item
-        @rfq.vendor_rfq_items.create(
+        # 🔥 CRITICAL: Create RFQ item with all fields
+        rfq_item = @rfq.vendor_rfq_items.new(
           part_id: parts_request.part_id,
           custom_part_name: parts_request.custom_part_name,
           quantity: parts_request.quantity,
-          description: parts_request.part&.description,
+          description: parts_request.part&.name || parts_request.custom_part_name,
           unit_of_measure: parts_request.part&.unit_of_measure || 'each'
         )
         
-        # Handle supplier selections - create vendor quotations for each selected supplier
+        if rfq_item.save
+          Rails.logger.info "✅ Created RFQ item for part: #{rfq_item.description}"
+          
+          # Update parts request status to 'needs_order' (if it's not already)
+          if parts_request.status != 'needs_order'
+            parts_request.update(status: 'needs_order')
+          end
+        else
+          Rails.logger.error "❌ Failed to create RFQ item: #{rfq_item.errors.full_messages}"
+        end
+        
+        # Handle supplier selections
         if params[:vendor_rfq].present? && params[:vendor_rfq][:supplier_ids].present?
-          supplier_ids = params[:vendor_rfq][:supplier_ids]
-          # Remove any empty values
-          supplier_ids = supplier_ids.reject(&:blank?)
+          supplier_ids = params[:vendor_rfq][:supplier_ids].reject(&:blank?)
           
           supplier_ids.each do |supplier_id|
-            # Create vendor quotation with status 'draft' (matching the model's default)
             @rfq.vendor_quotations.create!(
               supplier_id: supplier_id,
               status: 'draft',
@@ -123,23 +130,19 @@ class Vmcott::Procurement::DashboardController < ApplicationController
             )
           end
           
-          # Update the RFQ notes with supplier count
           @rfq.update(notes: "#{@rfq.notes}\nSelected #{supplier_ids.count} suppliers for RFQ.")
-          
-          Rails.logger.info "Created #{supplier_ids.count} vendor quotations for RFQ #{@rfq.id}"
+          Rails.logger.info "✅ Created #{supplier_ids.count} vendor quotations for RFQ #{@rfq.id}"
         else
-          Rails.logger.warn "No suppliers selected for RFQ #{@rfq.id}"
+          Rails.logger.warn "⚠️ No suppliers selected for RFQ #{@rfq.id}"
         end
       end
       
-      # Store the RFQ ID in the session to highlight it on the dashboard
       session[:highlight_rfq_id] = @rfq.id
-      
-      vehicle_info = @rfq.vehicle ? " Vehicle: #{@rfq.vehicle.license_plate}" : ""
-      redirect_to vmcott_procurement_dashboard_path, notice: "RFQ ##{@rfq.rfq_number} created successfully!#{vehicle_info} It has been added to Active RFQs with #{@rfq.vendor_quotations.count} supplier(s)."
+      redirect_to vmcott_vendor_rfq_path(@rfq), notice: "RFQ ##{@rfq.rfq_number} created successfully with #{@rfq.vendor_rfq_items.count} item(s) and #{@rfq.vendor_quotations.count} supplier(s)."
     else
       @parts_request = PartsRequest.find(params[:parts_request_id]) if params[:parts_request_id].present?
       @suppliers = Supplier.where(is_active: true).order(:name).limit(50)
+      flash[:alert] = "Error creating RFQ: #{@rfq.errors.full_messages.join(', ')}"
       render :new_rfq
     end
   rescue => e
@@ -543,9 +546,17 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     PurchaseRequest.where(status: 'pending').count
   end
 
+  # 🔥 FIXED: Look for workshop parts that need ordering (status: 'needs_order')
   def load_parts_to_quote_count
-    PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
-                .count
+    PartsRequest.where(status: 'needs_order').count
+  end
+
+  # 🔥 FIXED: Load workshop parts that need ordering (status: 'needs_order')
+  def load_pending_parts_requests
+    PartsRequest.where(status: 'needs_order')
+                .includes(:part, inspection: [:vehicle])
+                .order(created_at: :desc)
+                .limit(20) || []
   end
 
   def load_active_rfqs_count
@@ -562,13 +573,6 @@ class Vmcott::Procurement::DashboardController < ApplicationController
     VendorRfq.where(status: 'quotations_received')
              .where.not(id: VendorQuotation.where(status: 'accepted').select(:vendor_rfq_id))
              .count
-  end
-
-  def load_pending_parts_requests
-    PartsRequest.where(status: ['pending', 'parts_coordinator_notified'])
-                .includes(:part, inspection: [:vehicle])
-                .order(created_at: :desc)
-                .limit(20) || []
   end
 
   def load_active_rfqs

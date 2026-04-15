@@ -188,39 +188,22 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
   def pass_to_workshop
     inspection = Inspection.find(params[:id])
     
-    # Verify all parts are actually available
-    if inspection.all_parts_available?
-      inspection.update(
-        status: 'ready_for_workshop',
-        passed_to_workshop_at: Time.current,
-        passed_to_workshop_by_id: current_user.id
+    # Update inspection status
+    inspection.update(status: 'parts_ready')
+    
+    # 🔥 ONLY notify workshop supervisor - NOT mechanics yet
+    if inspection.supervisor.present?
+      Notification.create!(
+        user_id: inspection.supervisor.id,
+        title: "📋 Parts Ready - Create Quotation",
+        message: "All parts for #{inspection.vehicle.license_plate} have been received. Please create a quotation for customer approval.",
+        link: vmcott_workshop_supervisor_quotation_creation_path(inspection),
+        notification_type: 'info',
+        notifiable: inspection
       )
-      
-      # Notify mechanics
-      notify_mechanics_workshop_ready(inspection)
-      
-      # 🔥 Notify workshop supervisor that job is ready
-      if inspection.supervisor.present?
-        Notification.create!(
-          user: inspection.supervisor,
-          title: "🔧 Job Ready for Workshop",
-          message: "All parts for #{inspection.vehicle.license_plate} are available. Ready to assign to mechanics.",
-          link: vmcott_workshop_supervisor_job_creation_path(inspection),
-          notification_type: 'success',
-          notifiable: inspection
-        )
-      end
-      
-      flash[:notice] = "✓ Job passed to workshop. Mechanics notified."
-    else
-      flash[:alert] = "Cannot pass to workshop - not all parts are available yet."
     end
     
-    redirect_to vmcott_inventory_manager_dashboard_path
-    
-  rescue => e
-    Rails.logger.error "Error in pass_to_workshop: #{e.message}"
-    flash[:alert] = "Failed to pass to workshop: #{e.message}"
+    flash[:success] = "✓ Parts marked as ready. Workshop supervisor will create quotation."
     redirect_to vmcott_inventory_manager_dashboard_path
   end
 
@@ -261,7 +244,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     redirect_to vmcott_inventory_manager_dashboard_path
   end
 
-  # Mark purchase order as received and update inventory with supervisor notification
+  # 🔥 UPDATED: Mark purchase order as received and update inventory with notifications
   def mark_po_received
     purchase_order = PurchaseOrder.find(params[:id])
     
@@ -270,6 +253,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       
       received_count = 0
       supervisor_notified = false
+      mechanic_notified = false
       
       purchase_order.parts_requests.each do |pr|
         # Update parts request to 'received' status
@@ -281,7 +265,10 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         
         # Update inventory stock levels
         if pr.part
-          pr.part.update!(current_stock: pr.part.current_stock + pr.quantity)
+          old_stock = pr.part.current_stock
+          new_stock = old_stock + pr.quantity
+          
+          pr.part.update!(current_stock: new_stock)
           
           # Create inventory transaction record
           InventoryTransaction.create!(
@@ -292,6 +279,8 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
             notes: "Received via PO ##{purchase_order.po_number}",
             user_id: current_user.id
           )
+          
+          Rails.logger.info "📦 Stock updated for #{pr.part.name}: #{old_stock} → #{new_stock}"
         end
         
         # 🔥 NOTIFY WORKSHOP SUPERVISOR that parts are received
@@ -308,8 +297,9 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
           Rails.logger.info "Notified supervisor #{pr.inspection.supervisor.name} about parts receipt"
         end
         
-        # 🔥 Notify requester that parts are received
+        # 🔥 Notify requester (mechanic) that parts are received
         if pr.requested_by.present?
+          mechanic_notified = true
           Notification.create!(
             user: pr.requested_by,
             title: "📦 Parts Received",
@@ -331,14 +321,28 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         end
       end
       
+      # 🔥 NEW: Notify inventory manager that parts are now in stock
+      if received_count > 0
+        Notification.create!(
+          user: current_user,
+          title: "📦 Inventory Updated",
+          message: "#{received_count} part(s) received and added to inventory. Current stock levels updated.",
+          link: vmcott_inventory_manager_dashboard_path,
+          notification_type: 'success',
+          notifiable: purchase_order
+        )
+      end
+      
       notice = "✓ PO marked as received. #{received_count} parts updated in inventory."
       notice += " Supervisor notified." if supervisor_notified
+      notice += " Mechanic notified." if mechanic_notified
       
       redirect_to vmcott_inventory_manager_dashboard_path, notice: notice
     end
     
   rescue => e
     Rails.logger.error "Error in mark_po_received: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Failed to mark PO as received: #{e.message}"
     redirect_to vmcott_inventory_manager_dashboard_path
   end
@@ -358,7 +362,10 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
       
       # Update inventory
       if parts_request.part
-        parts_request.part.update!(current_stock: parts_request.part.current_stock + parts_request.quantity)
+        old_stock = parts_request.part.current_stock
+        new_stock = old_stock + parts_request.quantity
+        
+        parts_request.part.update!(current_stock: new_stock)
         
         InventoryTransaction.create!(
           inventory_item: parts_request.part,
@@ -368,6 +375,8 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
           notes: "Received via PO ##{purchase_order.po_number}",
           user_id: current_user.id
         )
+        
+        Rails.logger.info "📦 Stock updated for #{parts_request.part.name}: #{old_stock} → #{new_stock}"
       end
       
       # 🔥 Notify supervisor about this specific part
@@ -394,6 +403,16 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         )
       end
       
+      # 🔥 Notify inventory manager
+      Notification.create!(
+        user: current_user,
+        title: "📦 Part Received - Inventory Updated",
+        message: "#{parts_request.quantity}x #{parts_request.part&.name || parts_request.custom_part_name} added to inventory.",
+        link: vmcott_inventory_manager_dashboard_path,
+        notification_type: 'success',
+        notifiable: purchase_order
+      )
+      
       # Check if inspection is now ready
       inspection = parts_request.inspection
       if inspection && inspection.all_parts_available?
@@ -404,7 +423,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
         notify_mechanics_workshop_ready(inspection)
         flash[:notice] = "✓ Parts received. All parts ready! Job passed to workshop. Supervisor notified."
       else
-        flash[:notice] = "✓ Parts marked as received. Supervisor notified."
+        flash[:notice] = "✓ Parts marked as received. Supervisor notified. Inventory updated."
       end
     end
     
@@ -412,6 +431,7 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     
   rescue => e
     Rails.logger.error "Error in receive_parts: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Failed to receive parts: #{e.message}"
     redirect_to vmcott_inventory_manager_dashboard_path
   end
@@ -600,17 +620,20 @@ class Vmcott::InventoryManager::DashboardController < ApplicationController
     mechanic_ids = User.where(role: 'mechanic').pluck(:id)
     
     if mechanic_ids.any?
-      Notification.create!(
-        title: "🚗 Vehicle Ready for Repair",
-        message: "All parts for #{inspection.vehicle.license_plate} (#{inspection.vehicle.make} #{inspection.vehicle.model}) are available. Ready for workshop.",
-        link: vmcott_mechanic_job_path(inspection.id),
-        user_id: mechanic_ids,
-        notifiable_type: 'Inspection',
-        notifiable_id: inspection.id,
-        notification_type: 'success'
-      )
+      mechanic_ids.each do |mechanic_id|
+        Notification.create!(
+          user_id: mechanic_id,
+          title: "🚗 Vehicle Ready for Repair",
+          message: "All parts for #{inspection.vehicle.license_plate} (#{inspection.vehicle.make} #{inspection.vehicle.model}) are available. Ready for workshop.",
+          link: vmcott_mechanic_dashboard_path,
+          notifiable_type: 'Inspection',
+          notifiable_id: inspection.id,
+          notification_type: 'success'
+        )
+      end
     end
     
+    # Create vehicle status record
     VehicleStatus.create!(
       vehicle: inspection.vehicle,
       created_by: current_user,

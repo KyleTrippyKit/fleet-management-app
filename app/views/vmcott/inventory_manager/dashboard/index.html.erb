@@ -128,7 +128,7 @@
         <div class="table-responsive">
           <table class="table table-hover align-middle" id="pendingTable">
             <thead class="bg-light">
-              56
+              <tr>
                 <th class="border-0 py-3" style="width: 30px;">
                   <input type="checkbox" id="selectAll" class="form-check-input">
                 </th>
@@ -138,7 +138,8 @@
                 <th class="border-0 py-3">Requested By</th>
                 <th class="border-0 py-3">Stock Status</th>
                 <th class="border-0 py-3 text-end">Action</th>
-               </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @pending_parts.each do |pr| %>
                 <tr id="pending-request-<%= pr.id %>" data-stock-status="<%= pr.in_stock? ? 'instock' : 'outofstock' %>">
@@ -196,7 +197,7 @@
                 </tr>
               <% end %>
             </tbody>
-           </table>
+          </table>
         </div>
         
         <!-- Batch Actions Bar -->
@@ -415,14 +416,15 @@
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead class="bg-light">
-              56
+              <tr>
                 <th class="border-0 py-3">Vehicle</th>
                 <th class="border-0 py-3">Part</th>
                 <th class="border-0 py-3 text-center">Quantity</th>
                 <th class="border-0 py-3">Sent to Procurement</th>
                 <th class="border-0 py-3">Status</th>
                 <th class="border-0 py-3 text-end">Action</th>
-               </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @pending_procurement.each do |pr| %>
                 <tr id="procurement-request-<%= pr.id %>">
@@ -436,8 +438,8 @@
                   </td>
                   <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
                   <td>
-                    <% if pr.sent_to_procurement_at.present? %>
-                      <%= time_ago_in_words(pr.sent_to_procurement_at) %> ago
+                    <% if pr.updated_at.present? %>
+                      <%= time_ago_in_words(pr.updated_at) %> ago
                     <% else %>
                       <span class="text-muted">Recently</span>
                     <% end %>
@@ -484,7 +486,7 @@
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead class="bg-light">
-              56
+              <tr>
                 <th class="border-0 py-3">Vehicle</th>
                 <th class="border-0 py-3">Part</th>
                 <th class="border-0 py-3 text-center">Quantity</th>
@@ -492,7 +494,8 @@
                 <th class="border-0 py-3">Supplier</th>
                 <th class="border-0 py-3">Ordered Date</th>
                 <th class="border-0 py-3 text-end">Action</th>
-               </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @ordered_requests.each do |pr| %>
                 <tr id="ordered-request-<%= pr.id %>">
@@ -569,13 +572,14 @@
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead class="bg-light">
-              56
+              <tr>
                 <th class="border-0 py-3">Vehicle</th>
                 <th class="border-0 py-3">Parts Received</th>
                 <th class="border-0 py-3">Inspection</th>
                 <th class="border-0 py-3">Received Date</th>
                 <th class="border-0 py-3 text-end">Action</th>
-               </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @parts_received.each do |pr| %>
                 <tr id="received-inspection-<%= pr.inspection_id %>">
@@ -585,7 +589,7 @@
                   </td>
                   <td>
                     <% if pr.inspection %>
-                      <% pr.inspection.parts_requests.where(status: 'parts_received').each do |part_req| %>
+                      <% pr.inspection.parts_requests.where(status: 'received').each do |part_req| %>
                         <div class="mb-1">
                           <i class="bi bi-check-circle-fill text-success me-1"></i>
                           <small><%= part_req.part&.name || part_req.custom_part_name %> x<%= part_req.quantity %></small>
@@ -597,15 +601,12 @@
                   <td><%= time_ago_in_words(pr.updated_at) %> ago</td>
                   <td class="text-end">
                     <div class="workshop-action" data-inspection-id="<%= pr.inspection_id %>">
-                      <%= button_to "🔧 Pass to Mechanic Workshop", 
-                          vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
-                          method: :post,
-                          class: "btn btn-sm btn-success rounded-pill px-3 pass-to-workshop-btn",
-                          form: { data: { turbo: false } },
-                          data: { 
-                            confirm: "All parts received. Pass this job to mechanic workshop?",
-                            disable_with: "<i class='bi bi-hourglass-split'></i> Processing..."
-                          } %>
+                      <%= button_to "📋 Parts Ready - Create Quotation",
+                      vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
+                      method: :post,
+                      class: "btn btn-sm btn-success rounded-pill px-3",
+                      form: { data: { turbo: false } },
+                      data: { confirm: "All parts received. Notify supervisor to create quotation?" } %>
                     </div>
                   </td>
                 </tr>
@@ -633,15 +634,12 @@
                       <i class="bi bi-gear me-1"></i> <%= inspection.inspection_jobs.count %> jobs pending
                     </div>
                     <div class="workshop-action mt-2" data-inspection-id="<%= inspection.id %>">
-                      <%= button_to "🔧 Pass to Mechanic Workshop", 
-                          vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
-                          method: :post,
-                          class: "btn btn-success btn-sm w-100 rounded-pill pass-to-workshop-btn",
-                          form: { data: { turbo: false } },
-                          data: { 
-                            confirm: "Pass this inspection to mechanic workshop?",
-                            disable_with: "<i class='bi bi-hourglass-split'></i> Processing..."
-                          } %>
+                      <%= button_to "📋 Parts Ready - Create Quotation",
+                      vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
+                      method: :post,
+                      class: "btn btn-success btn-sm w-100 rounded-pill",
+                      form: { data: { turbo: false } },
+                      data: { confirm: "Pass this inspection to mechanic workshop?" } %>
                     </div>
                   </div>
                 </div>
@@ -680,7 +678,7 @@
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead class="bg-light">
-              56
+              <tr>
                 <th class="border-0 py-3">Part #</th>
                 <th class="border-0 py-3">Part Name</th>
                 <th class="border-0 py-3 text-center">Current Stock</th>
@@ -688,7 +686,8 @@
                 <th class="border-0 py-3">Status</th>
                 <th class="border-0 py-3">Request Status</th>
                 <th class="border-0 py-3 text-end">Action</th>
-               </thead>
+              </tr>
+            </thead>
             <tbody>
               <% @low_stock_parts.each do |part| %>
                 <%

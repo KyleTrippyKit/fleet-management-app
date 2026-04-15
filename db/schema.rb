@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_09_225619) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_15_103822) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -364,6 +364,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_225619) do
     t.bigint "assigned_mechanic_id"
     t.datetime "blocked_at"
     t.text "blocked_reason"
+    t.text "cancellation_reason"
+    t.datetime "cancelled_at"
+    t.integer "cancelled_by_id"
     t.datetime "completed_at"
     t.datetime "created_at", null: false
     t.bigint "created_by_id"
@@ -418,7 +421,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_09_225619) do
     t.index ["verification_status"], name: "index_inspection_jobs_on_verification_status"
     t.index ["verified_by_mechanic_id"], name: "index_inspection_jobs_on_verified_by_mechanic_id"
     t.index ["work_order_id"], name: "index_inspection_jobs_on_work_order_id"
-    t.check_constraint "status::text = ANY (ARRAY['draft'::character varying::text, 'pending_supervisor_review'::character varying::text, 'approved'::character varying::text, 'assigned'::character varying::text, 'pre_check_in_progress'::character varying::text, 'pre_check_completed'::character varying::text, 'pending_approval'::character varying::text, 'in_progress'::character varying::text, 'blocked'::character varying::text, 'completed'::character varying::text, 'cancelled'::character varying::text])", name: "job_status_check_v2"
+    t.check_constraint "status::text = ANY (ARRAY['draft'::text, 'pending_supervisor_review'::text, 'pending_mechanic_review'::text, 'pending_parts_review'::text, 'approved'::text, 'assigned'::text, 'pre_check_in_progress'::text, 'pre_check_completed'::text, 'pending_approval'::text, 'approved_for_work'::text, 'pending_mechanic_work'::text, 'in_progress'::text, 'paused'::text, 'blocked'::text, 'rework_needed'::text, 'completed'::text, 'qc_pending'::text, 'qc_in_progress'::text, 'qc_passed'::text, 'qc_failed'::text, 'cancelled'::text])", name: "job_status_check_v2"
   end
 
   create_table "inspection_recommendations", force: :cascade do |t|
