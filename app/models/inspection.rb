@@ -1,3 +1,4 @@
+# app/models/inspection.rb
 class Inspection < ApplicationRecord
   include Auditable
   
@@ -34,6 +35,7 @@ class Inspection < ApplicationRecord
     jobs_created: "jobs_created",
     parts_pending: "parts_pending",
     parts_ready: "parts_ready",
+    parts_confirmed: "parts_confirmed",  # 🔥 NEW: Parts confirmed, ready for quotation
     awaiting_approval: "awaiting_approval",
     approved: "approved",
     in_progress: "in_progress",
@@ -80,7 +82,6 @@ class Inspection < ApplicationRecord
     return unless diagnosed?
 
     errors.add(:diagnosis_notes, "must be present") if diagnosis_notes.blank?
-    #errors.add(:base, "At least one recommendation is required") if inspection_recommendations.empty?
   end
 
   # =========================
@@ -97,9 +98,7 @@ class Inspection < ApplicationRecord
   # =========================
   def customer_contact_info
     log = reception_log
-
     return nil unless log
-
     {
       email: log.customer_email,
       name: log.customer_name
@@ -134,22 +133,57 @@ class Inspection < ApplicationRecord
   # 🔥 PARTS AVAILABILITY METHODS
   # =========================
   
-  # Check if all parts needed for this inspection have been received
   def all_parts_available?
-    # Get all parts requests that still need to be ordered or are in transit
     pending_parts = parts_requests.where(status: ['needs_order', 'ordered'])
-    # If there are no pending parts, all parts are available
     pending_parts.empty?
   end
   
-  # Check if any parts are still pending (need ordering or in transit)
   def parts_pending?
     parts_requests.where(status: ['needs_order', 'ordered']).exists?
   end
   
-  # Get count of parts still pending
   def pending_parts_count
     parts_requests.where(status: ['needs_order', 'ordered']).count
+  end
+
+  # =========================
+  # 🔥 NEW: PARTS CONFIRMATION METHODS
+  # =========================
+  
+  def all_parts_confirmed?
+    parts_requests.where.not(status: 'confirmed').none?
+  end
+  
+  def pending_confirmation_count
+    parts_requests.where(status: ['approved', 'received']).count
+  end
+  
+  def check_parts_confirmation!
+    all_requests = parts_requests
+    
+    if all_requests.any? && all_requests.all? { |pr| pr.confirmed? }
+      update!(status: 'parts_confirmed')
+      
+      supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+      if supervisor_ids.any?
+        Notification.create!(
+          user_id: supervisor_ids,
+          title: "📋 All Parts Confirmed",
+          message: "All parts for #{vehicle.license_plate} are CONFIRMED. Ready to create quotation.",
+          link: "/vmcott/workshop_supervisor/quotations/new?inspection_id=#{id}",
+          notification_type: 'success',
+          notifiable: self
+        )
+      end
+      Rails.logger.info "✅ Inspection ##{id} updated to parts_confirmed"
+      true
+    else
+      false
+    end
+  end
+
+  def can_create_quotation?
+    status == 'parts_confirmed'
   end
 
   # =========================
@@ -157,11 +191,11 @@ class Inspection < ApplicationRecord
   # =========================
 
   def total_parts_used
-    parts_requests.where(status: ['approved', 'received']).sum(:quantity).to_i
+    parts_requests.where(status: ['approved', 'received', 'confirmed']).sum(:quantity).to_i
   end
 
   def parts_used_list
-    parts_requests.where(status: ['approved', 'received']).map do |pr|
+    parts_requests.where(status: ['approved', 'received', 'confirmed']).map do |pr|
       pr.part&.name || pr.custom_part_name || "Unknown Part"
     end.uniq
   end
@@ -211,8 +245,14 @@ class Inspection < ApplicationRecord
     true
   end
 
+  def move_to_parts_confirmed!
+    return false unless parts_ready? && all_parts_confirmed?
+    update!(status: :parts_confirmed)
+    true
+  end
+
   def move_to_awaiting_approval!
-    return false unless parts_ready?
+    return false unless parts_confirmed?
     update!(status: :awaiting_approval)
     notify_customer_for_approval
     true
@@ -281,7 +321,6 @@ class Inspection < ApplicationRecord
 
   def notify_mechanics_for_diagnosis
     mechanics = User.where(role: 'mechanic')
-    
     mechanics.find_each do |mechanic|
       Notification.create!(
         user: mechanic,
@@ -298,7 +337,6 @@ class Inspection < ApplicationRecord
 
   def notify_supervisor_for_job_creation
     supervisors = User.where(role: 'workshop_supervisor')
-    
     supervisors.find_each do |supervisor|
       Notification.create!(
         user: supervisor,
@@ -337,7 +375,6 @@ class Inspection < ApplicationRecord
 
   def notify_qc_inspector
     inspectors = User.where(role: 'inspector')
-    
     inspectors.find_each do |inspector|
       Notification.create!(
         user: inspector,
@@ -352,17 +389,14 @@ class Inspection < ApplicationRecord
     Rails.logger.error "Failed to notify QC inspector: #{e.message}"
   end
 
-  # 🔥 UPDATED: Customer email notification using reception log
   def notify_customer_ready
     contact = customer_contact_info
-
     if contact&.dig(:email).present?
       CustomerMailer.vehicle_ready(
         self,
         contact[:email],
         contact[:name]
       ).deliver_later
-
       Rails.logger.info "✅ Email sent to #{contact[:email]} for inspection #{id}"
     else
       Rails.logger.warn "⚠️ No customer email found for inspection #{id}"
@@ -373,7 +407,6 @@ class Inspection < ApplicationRecord
 
   def notify_billing_for_invoice
     billing_users = User.where(role: ['procurement', 'finance'])
-    
     billing_users.find_each do |user|
       Notification.create!(
         user: user,
@@ -390,7 +423,6 @@ class Inspection < ApplicationRecord
 
   def notify_supervisor_completion
     supervisors = User.where(role: 'workshop_supervisor')
-    
     supervisors.find_each do |supervisor|
       Notification.create!(
         user: supervisor,
@@ -414,7 +446,7 @@ class Inspection < ApplicationRecord
   end
 
   def total_parts_cost
-    parts_requests.where(status: 'approved').sum(:customer_price).to_f
+    parts_requests.where(status: 'confirmed').sum(:customer_price).to_f
   end
 
   def total_estimated_cost
@@ -440,7 +472,8 @@ class Inspection < ApplicationRecord
       diagnosed: [:jobs_created, :cancelled],
       jobs_created: [:parts_pending, :cancelled],
       parts_pending: [:parts_ready, :cancelled],
-      parts_ready: [:awaiting_approval, :cancelled],
+      parts_ready: [:parts_confirmed, :cancelled],
+      parts_confirmed: [:awaiting_approval, :cancelled],
       awaiting_approval: [:approved, :cancelled],
       approved: [:in_progress, :cancelled],
       in_progress: [:qc_pending, :additional_findings_pending, :on_hold, :cancelled],
@@ -462,7 +495,6 @@ class Inspection < ApplicationRecord
     unless can_transition_to?(new_status)
       raise "Invalid transition from #{status} to #{new_status}"
     end
-    
     send("move_to_#{new_status}!".to_sym)
   end
 

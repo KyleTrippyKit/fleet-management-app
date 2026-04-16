@@ -52,7 +52,7 @@
 
   <!-- Quick Stats Row -->
   <div class="row mb-4 g-2">
-    <div class="col-md-3 col-6">
+    <div class="col-md-2 col-6">
       <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
         <div class="d-flex justify-content-between align-items-center">
           <span class="text-muted small">Pending Review</span>
@@ -62,7 +62,7 @@
         <small class="text-muted">needs attention</small>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-md-2 col-6">
       <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
         <div class="d-flex justify-content-between align-items-center">
           <span class="text-muted small">In Transit</span>
@@ -72,17 +72,27 @@
         <small class="text-muted">parts coming</small>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-md-2 col-6">
       <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
         <div class="d-flex justify-content-between align-items-center">
-          <span class="text-muted small">Ready for Workshop</span>
-          <span class="badge bg-success"><%= @parts_received&.count || 0 %></span>
+          <span class="text-muted small">Awaiting Confirmation</span>
+          <span class="badge bg-warning"><%= @received_awaiting_confirmation&.count || 0 %></span>
         </div>
-        <h4 class="mb-0 mt-2"><%= @parts_received&.count || 0 %></h4>
-        <small class="text-muted">to pass to mechanics</small>
+        <h4 class="mb-0 mt-2"><%= @received_awaiting_confirmation&.count || 0 %></h4>
+        <small class="text-muted">need confirmation</small>
       </div>
     </div>
-    <div class="col-md-3 col-6">
+    <div class="col-md-2 col-6">
+      <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Confirmed</span>
+          <span class="badge bg-success"><%= @confirmed_parts&.count || 0 %></span>
+        </div>
+        <h4 class="mb-0 mt-2"><%= @confirmed_parts&.count || 0 %></h4>
+        <small class="text-muted">ready for quote</small>
+      </div>
+    </div>
+    <div class="col-md-2 col-6">
       <div class="bg-white rounded-3 p-3 text-center border border-light shadow-sm">
         <div class="d-flex justify-content-between align-items-center">
           <span class="text-muted small">Low Stock</span>
@@ -116,7 +126,6 @@
           </span>
         </div>
       </div>
-      <!-- Filter Buttons -->
       <div class="d-flex gap-2 mt-3">
         <button type="button" class="btn btn-sm btn-outline-secondary active filter-btn" data-filter="all">All</button>
         <button type="button" class="btn btn-sm btn-outline-success filter-btn" data-filter="instock">In Stock</button>
@@ -200,7 +209,6 @@
           </table>
         </div>
         
-        <!-- Batch Actions Bar -->
         <div id="batchActions" class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded-3" style="display: none;">
           <div class="text-muted">
             <i class="bi bi-check2-square me-1"></i>
@@ -222,7 +230,6 @@
           </div>
           <h6 class="text-muted">All caught up!</h6>
           <p class="small text-muted mb-0">No parts pending review at the moment</p>
-          <p class="small text-muted">Great job keeping the inventory moving! 🎉</p>
         </div>
       <% end %>
     </div>
@@ -249,7 +256,8 @@
         pending_count = @pending_parts&.count.to_i
         procurement_count = @pending_procurement&.count.to_i
         ordered_count = @ordered_requests&.count.to_i
-        received_count = @parts_received&.count.to_i
+        received_count = @received_awaiting_confirmation&.count.to_i
+        confirmed_count = @confirmed_parts&.count.to_i
         
         current_step = if pending_count > 0
           'pending'
@@ -259,6 +267,8 @@
           'ordered'
         elsif received_count > 0
           'received'
+        elsif confirmed_count > 0
+          'confirmed'
         else
           'complete'
         end
@@ -304,12 +314,23 @@
               name: 'Received', 
               count: received_count,
               active: current_step == 'received',
+              icon: 'bi-hourglass-split',
+              color: received_count > 0 ? '#f59e0b' : '#94a3b8',
+              bg: received_count > 0 ? '#fef3c7' : '#f1f5f9',
+              detail: received_count > 0 ? "#{received_count} need confirmation" : "None",
+              tooltip: "Parts received, awaiting confirmation",
+              target: '#confirmation-section'
+            },
+            { 
+              name: 'Confirmed', 
+              count: confirmed_count,
+              active: current_step == 'confirmed',
               icon: 'bi-check-circle',
-              color: received_count > 0 ? '#10b981' : '#94a3b8',
-              bg: received_count > 0 ? '#d1fae5' : '#f1f5f9',
-              detail: received_count > 0 ? "#{received_count} ready" : "None",
-              tooltip: "Parts received, ready for workshop",
-              target: '#received-section'
+              color: confirmed_count > 0 ? '#10b981' : '#94a3b8',
+              bg: confirmed_count > 0 ? '#d1fae5' : '#f1f5f9',
+              detail: confirmed_count > 0 ? "#{confirmed_count} ready" : "None",
+              tooltip: "Parts confirmed, ready for quotation",
+              target: '#confirmed-section'
             }
           ] %>
           
@@ -337,7 +358,7 @@
                   </span>
                 </div>
               </div>
-              <% if index < 3 %>
+              <% if index < 4 %>
                 <div class="step-connector <%= 'active-connector' if steps[index + 1][:active] || step[:active] %>"></div>
               <% end %>
             </div>
@@ -345,50 +366,32 @@
         </div>
       </div>
 
-      <!-- Action Hint -->
       <div class="mt-4">
         <% if pending_count > 0 %>
           <div class="alert alert-warning border-0 rounded-3 d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center">
               <div class="alert-icon me-3"><i class="bi bi-clock-history fs-4"></i></div>
-              <div>
-                <strong class="d-block">Parts Pending Review</strong>
-                <span><%= pending_count %> part<%= 's' if pending_count > 1 %> waiting for your review.</span>
-              </div>
+              <div><strong>Parts Pending Review</strong><br><%= pending_count %> part(s) waiting for your review.</div>
             </div>
             <a href="#pending-review-section" class="btn btn-warning btn-sm rounded-pill px-4">Review Now →</a>
           </div>
-        <% elsif procurement_count > 0 %>
-          <div class="alert alert-info border-0 rounded-3 d-flex align-items-center">
-            <div class="alert-icon me-3"><i class="bi bi-send fs-4"></i></div>
-            <div>
-              <strong class="d-block">RFQs Sent to Procurement</strong>
-              <span><%= procurement_count %> RFQ<%= 's' if procurement_count > 1 %> awaiting vendor responses.</span>
-            </div>
-          </div>
-        <% elsif ordered_count > 0 %>
-          <div class="alert alert-secondary border-0 rounded-3 d-flex align-items-center">
-            <div class="alert-icon me-3"><i class="bi bi-truck fs-4"></i></div>
-            <div>
-              <strong class="d-block">Parts Ordered</strong>
-              <span><%= ordered_count %> item<%= 's' if ordered_count > 1 %> awaiting delivery.</span>
-            </div>
-          </div>
         <% elsif received_count > 0 %>
-          <div class="alert alert-success border-0 rounded-3 d-flex align-items-center">
-            <div class="alert-icon me-3"><i class="bi bi-check-circle fs-4"></i></div>
-            <div>
-              <strong class="d-block">Parts Received</strong>
-              <span><%= received_count %> part request<%= 's' if received_count > 1 %> ready to pass to workshop.</span>
+          <div class="alert alert-warning border-0 rounded-3 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+              <div class="alert-icon me-3"><i class="bi bi-hourglass-split fs-4"></i></div>
+              <div><strong>⚠️ Parts Received - Need Confirmation</strong><br><%= received_count %> part(s) received but NOT confirmed. Quotation CANNOT be created until confirmed.</div>
             </div>
+            <a href="#confirmation-section" class="btn btn-warning btn-sm rounded-pill px-4">Confirm Now →</a>
+          </div>
+        <% elsif confirmed_count > 0 %>
+          <div class="alert alert-success border-0 rounded-3 d-flex align-items-center">
+            <div class="alert-icon me-3"><i class="bi bi-check-circle-fill fs-4"></i></div>
+            <div><strong>✅ Parts Confirmed</strong><br><%= confirmed_count %> part(s) confirmed and ready for quotation.</div>
           </div>
         <% else %>
           <div class="alert alert-success border-0 rounded-3 d-flex align-items-center">
             <div class="alert-icon me-3"><i class="bi bi-check-all fs-4"></i></div>
-            <div>
-              <strong class="d-block">All Caught Up!</strong>
-              <span>No pending parts requests. Great job!</span>
-            </div>
+            <div><strong>All Caught Up!</strong><br>No pending parts requests. Great job!</div>
           </div>
         <% end %>
       </div>
@@ -446,20 +449,17 @@
                   </td>
                   <td><span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i> RFQ Sent</span></td>
                   <td class="text-end">
-                    <%= link_to "📋 Track RFQ", 
-                        vmcott_vendor_rfqs_path(part_id: pr.part_id),
-                        class: "btn btn-sm btn-outline-info rounded-pill px-3" %>
+                    <%= link_to "📋 Track RFQ", vmcott_vendor_rfqs_path(part_id: pr.part_id), class: "btn btn-sm btn-outline-info rounded-pill px-3" %>
                   </td>
                 </tr>
               <% end %>
             </tbody>
-          </table>
+          <table>
         </div>
       <% else %>
         <div class="text-center py-5">
           <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
           <h6 class="text-muted">No parts with procurement</h6>
-          <p class="small text-muted">All RFQs have been processed</p>
         </div>
       <% end %>
     </div>
@@ -532,8 +532,7 @@
                           ),
                           method: :post,
                           class: "btn btn-sm btn-success rounded-pill px-3",
-                          form: { data: { turbo: false } },
-                          data: { confirm: "Mark parts as received and update inventory?" } %>
+                          data: { confirm: "Mark parts as received?" } %>
                     <% end %>
                   </td>
                 </tr>
@@ -545,119 +544,150 @@
         <div class="text-center py-5">
           <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
           <h6 class="text-muted">No parts currently on order</h6>
-          <p class="small text-muted">All orders have been received</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- SECTION 5: Received - Ready for Workshop -->
-  <div id="received-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #10b981;">
+  <!-- 🔥 NEW: SECTION 5 - RECEIVED AWAITING CONFIRMATION -->
+  <div id="confirmation-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #f59e0b;">
     <div class="card-header bg-white border-0 pt-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
           <h5 class="mb-1 fw-bold" style="color: #1e293b;">
-            <i class="bi bi-check-circle me-2" style="color: #10b981;"></i>
-            Received - Ready for Workshop
+            <i class="bi bi-hourglass-split me-2" style="color: #f59e0b;"></i>
+            Received - Awaiting Confirmation
           </h5>
-          <p class="text-muted small mb-0">Parts received, ready to pass to mechanics</p>
+          <p class="text-muted small mb-0">⚠️ Parts received but NOT confirmed. Quotation CANNOT be created until confirmed.</p>
         </div>
-        <span class="badge px-3 py-2 rounded-pill" style="background: #d1fae5; color: #059669;">
-          <i class="bi bi-check-circle me-1"></i> <%= @parts_received&.count || 0 %> Ready
+        <span class="badge px-3 py-2 rounded-pill" style="background: #fef3c7; color: #b45309;">
+          <i class="bi bi-hourglass-split me-1"></i> <%= @received_awaiting_confirmation&.count || 0 %> Need Confirmation
         </span>
       </div>
     </div>
     <div class="card-body">
-      <% if @parts_received&.any? || @ready_for_workshop&.any? %>
+      <% if @received_awaiting_confirmation&.any? %>
         <div class="table-responsive">
           <table class="table table-hover align-middle">
             <thead class="bg-light">
               <tr>
                 <th class="border-0 py-3">Vehicle</th>
-                <th class="border-0 py-3">Parts Received</th>
-                <th class="border-0 py-3">Inspection</th>
+                <th class="border-0 py-3">Part</th>
+                <th class="border-0 py-3 text-center">Quantity</th>
                 <th class="border-0 py-3">Received Date</th>
+                <th class="border-0 py-3">Status</th>
                 <th class="border-0 py-3 text-end">Action</th>
-              </tr>
-            </thead>
+               </thead>
             <tbody>
-              <% @parts_received.each do |pr| %>
-                <tr id="received-inspection-<%= pr.inspection_id %>">
+              <% @received_awaiting_confirmation.each do |pr| %>
+                <tr id="confirm-request-<%= pr.id %>">
                   <td>
                     <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
                     <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
                   </td>
                   <td>
-                    <% if pr.inspection %>
-                      <% pr.inspection.parts_requests.where(status: 'received').each do |part_req| %>
-                        <div class="mb-1">
-                          <i class="bi bi-check-circle-fill text-success me-1"></i>
-                          <small><%= part_req.part&.name || part_req.custom_part_name %> x<%= part_req.quantity %></small>
-                        </div>
-                      <% end %>
-                    <% end %>
+                    <div><strong><%= pr.part_name %></strong></div>
+                    <small class="text-muted"><%= pr.part&.part_number %></small>
                   </td>
-                  <td class="fw-semibold">#<%= pr.inspection_id %></td>
-                  <td><%= time_ago_in_words(pr.updated_at) %> ago</td>
+                  <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                  <td class="text-center"><%= time_ago_in_words(pr.updated_at) %> ago</td>
+                  <td>
+                    <span class="badge bg-warning">
+                      <i class="bi bi-hourglass-split me-1"></i> Awaiting Confirmation
+                    </span>
+                    <br>
+                    <small class="text-danger">⚠️ Quotation locked</small>
+                  </th>
                   <td class="text-end">
-                    <div class="workshop-action" data-inspection-id="<%= pr.inspection_id %>">
-                      <%= button_to "📋 Parts Ready - Create Quotation",
-                      vmcott_inventory_manager_pass_to_workshop_path(pr.inspection_id),
+                    <%= button_to "✅ Confirm Part", 
+                      vmcott_inventory_manager_confirm_part_path(pr),
                       method: :post,
-                      class: "btn btn-sm btn-success rounded-pill px-3",
-                      form: { data: { turbo: false } },
-                      data: { confirm: "All parts received. Notify supervisor to create quotation?" } %>
-                    </div>
-                  </td>
-                </tr>
+                      class: "btn btn-success btn-sm rounded-pill px-3",
+                      data: { confirm: "Confirm this part? This will make it ready for quotation." } %>
+                   </th>
+                 </td>
               <% end %>
             </tbody>
           </table>
         </div>
-
-        <!-- Additional ready for workshop inspections -->
-        <% if @ready_for_workshop&.any? %>
-          <hr class="my-4">
-          <h6 class="mb-3">Additional Inspections Ready for Workshop:</h6>
-          <div class="row g-3">
-            <% @ready_for_workshop.each do |inspection| %>
-              <div class="col-md-6 col-lg-4" id="workshop-item-<%= inspection.id %>">
-                <div class="card border-success bg-light h-100">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                      <span class="fw-semibold text-primary">Inspection #<%= inspection.id %></span>
-                      <span class="badge bg-success">All Parts Ready</span>
-                    </div>
-                    <h6 class="fw-bold mb-2"><%= inspection.vehicle.license_plate %></h6>
-                    <div class="text-muted small mb-2">
-                      <%= inspection.vehicle.make %> <%= inspection.vehicle.model %><br>
-                      <i class="bi bi-gear me-1"></i> <%= inspection.inspection_jobs.count %> jobs pending
-                    </div>
-                    <div class="workshop-action mt-2" data-inspection-id="<%= inspection.id %>">
-                      <%= button_to "📋 Parts Ready - Create Quotation",
-                      vmcott_inventory_manager_pass_to_workshop_path(inspection.id),
-                      method: :post,
-                      class: "btn btn-success btn-sm w-100 rounded-pill",
-                      form: { data: { turbo: false } },
-                      data: { confirm: "Pass this inspection to mechanic workshop?" } %>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <% end %>
+        
+        <% if @received_awaiting_confirmation.any? %>
+          <div class="mt-3 text-end">
+            <%= button_to "✅ Confirm All Parts for Quotation", 
+                confirm_all_parts_vmcott_inventory_manager_path(@received_awaiting_confirmation.first.inspection_id),
+                method: :post,
+                class: "btn btn-success rounded-pill px-4",
+                data: { confirm: "Confirm all received parts? This will make them ready for quotation." } %>
           </div>
         <% end %>
       <% else %>
         <div class="text-center py-5">
           <i class="bi bi-check-circle text-success fs-1 mb-3 d-block"></i>
-          <h6 class="text-muted">No parts ready for workshop</h6>
-          <p class="small text-muted">Check back when parts are received</p>
+          <h6 class="text-muted">No parts awaiting confirmation</h6>
+          <p class="small text-muted">All received parts have been confirmed</p>
         </div>
       <% end %>
     </div>
   </div>
 
-  <!-- SECTION 6: Low Stock Alerts -->
+  <!-- SECTION 6: CONFIRMED PARTS (Ready for Quotation) -->
+  <div id="confirmed-section" class="card border-0 shadow-sm mb-4" style="border-left: 4px solid #10b981;">
+    <div class="card-header bg-white border-0 pt-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+            <i class="bi bi-check-circle-fill me-2" style="color: #10b981;"></i>
+            Confirmed Parts (Ready for Quotation)
+          </h5>
+          <p class="text-muted small mb-0">✅ Parts confirmed - workshop supervisor can now create quotation</p>
+        </div>
+        <span class="badge bg-success px-3 py-2 rounded-pill">
+          <i class="bi bi-check-circle me-1"></i> <%= @confirmed_parts&.count || 0 %> Confirmed
+        </span>
+      </div>
+    </div>
+    <div class="card-body">
+      <% if @confirmed_parts&.any? %>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="bg-light">
+              <tr>
+                <th class="border-0 py-3">Vehicle</th>
+                <th class="border-0 py-3">Part</th>
+                <th class="border-0 py-3 text-center">Quantity</th>
+                <th class="border-0 py-3">Confirmed Date</th>
+                <th class="border-0 py-3">Status</th>
+               </thead>
+            <tbody>
+              <% @confirmed_parts.each do |pr| %>
+                <tr>
+                  <td>
+                    <div><strong><%= pr.inspection&.vehicle&.license_plate || 'N/A' %></strong></div>
+                    <small class="text-muted"><%= pr.inspection&.vehicle&.make %> <%= pr.inspection&.vehicle&.model %></small>
+                  </td>
+                  <td>
+                    <div><strong><%= pr.part_name %></strong></div>
+                    <small class="text-muted"><%= pr.part&.part_number %></small>
+                  </td>
+                  <td class="text-center"><span class="badge bg-secondary"><%= pr.quantity %></span></td>
+                  <td><%= time_ago_in_words(pr.updated_at) %> ago</td>
+                  <td><span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i> Confirmed</span></th>
+                 </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-muted fs-1 mb-3 d-block"></i>
+          <h6 class="text-muted">No confirmed parts</h6>
+          <p class="small text-muted">Confirm received parts to make them ready for quotation</p>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- SECTION 7: Low Stock Alerts -->
   <% if @low_stock_parts.any? %>
     <div class="card border-0 shadow-sm mb-4" style="border-top: 4px solid #ef4444;">
       <div class="card-header bg-white border-0 pt-4">
@@ -686,8 +716,7 @@
                 <th class="border-0 py-3">Status</th>
                 <th class="border-0 py-3">Request Status</th>
                 <th class="border-0 py-3 text-end">Action</th>
-              </tr>
-            </thead>
+               </thead>
             <tbody>
               <% @low_stock_parts.each do |part| %>
                 <%
@@ -712,51 +741,27 @@
                   <td class="text-center"><%= part.reorder_point %></td>
                   <td>
                     <% if part.current_stock <= 0 %>
-                      <span class="badge bg-danger" data-tooltip="Immediate action required">Out of Stock</span>
+                      <span class="badge bg-danger">Out of Stock</span>
                     <% else %>
-                      <span class="badge bg-warning" data-tooltip="Order soon">Low Stock</span>
+                      <span class="badge bg-warning">Low Stock</span>
                     <% end %>
                   </td>
                   <td>
                     <% if ordered_request.present? %>
-                      <span class="badge bg-success">
-                        <i class="bi bi-check-circle"></i> Ordered
-                      </span>
-                      <br>
-                      <small class="text-muted">PO: <%= ordered_request.purchase_order&.po_number || 'Processing' %></small>
+                      <span class="badge bg-success">Ordered</span>
                     <% elsif pending_request.present? %>
-                      <span class="badge bg-info">
-                        <i class="bi bi-clock-history"></i> Pending
-                      </span>
-                      <br>
-                      <small class="text-muted"><%= time_ago_in_words(pending_request.created_at) %> ago</small>
+                      <span class="badge bg-info">Pending</span>
                     <% else %>
-                      <span class="badge bg-secondary">
-                        <i class="bi bi-exclamation-circle"></i> No Request
-                      </span>
+                      <span class="badge bg-secondary">No Request</span>
                     <% end %>
                   </td>
                   <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                      <%= link_to "🔍 View", vmcott_part_path(part), class: "btn btn-sm btn-outline-secondary rounded-pill" %>
-                      
-                      <% if pending_request.present? %>
-                        <%= link_to "📋 Request", 
-                            vmcott_purchase_request_path(pending_request),
-                            class: "btn btn-sm btn-outline-primary rounded-pill" %>
-                      <% elsif ordered_request.present? && ordered_request.purchase_order %>
-                        <%= link_to "📦 PO", 
-                            vmcott_purchase_order_path(ordered_request.purchase_order),
-                            class: "btn btn-sm btn-outline-success rounded-pill" %>
-                      <% else %>
-                        <button type="button" class="btn btn-sm btn-primary rounded-pill quick-reorder" 
-                                data-part-id="<%= part.id %>"
-                                data-part-name="<%= part.name %>"
-                                data-quantity="<%= part.suggested_reorder_quantity %>">
-                          <i class="bi bi-cart-plus"></i> Quick Reorder
-                        </button>
-                      <% end %>
-                    </div>
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill quick-reorder" 
+                            data-part-id="<%= part.id %>"
+                            data-part-name="<%= part.name %>"
+                            data-quantity="<%= part.suggested_reorder_quantity %>">
+                      <i class="bi bi-cart-plus"></i> Quick Reorder
+                    </button>
                   </td>
                 </tr>
               <% end %>
@@ -769,245 +774,95 @@
 </div>
 
 <style>
-  /* Stats Cards */
-  .stats-card {
-    transition: all 0.3s ease;
-    cursor: pointer;
-  }
-  .stats-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.1);
-  }
+  .stats-card { transition: all 0.3s ease; cursor: pointer; }
+  .stats-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
   
-  /* Workflow Timeline */
-  .workflow-container {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-  }
-  .workflow-steps-wrapper {
-    padding: 1rem 0;
-  }
-  .workflow-steps {
-    position: relative;
-  }
-  .workflow-step-item {
-    position: relative;
-    z-index: 2;
-  }
-  .step-circle {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    background: #e2e8f0;
-    position: relative;
-  }
-  .step-circle.active {
-    transform: scale(1.08);
-    animation: pulse 2s infinite;
-  }
-  .step-count-badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background: #ef4444;
-    color: white;
-    border-radius: 20px;
-    padding: 2px 6px;
-    font-size: 10px;
-    font-weight: bold;
-  }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
-    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
-  }
+  .workflow-container { background: #ffffff; border: 1px solid #e2e8f0; }
+  .workflow-steps-wrapper { padding: 1rem 0; }
+  .workflow-steps { position: relative; }
+  .workflow-step-item { position: relative; z-index: 2; }
+  .step-circle { width: 64px; height: 64px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; background: #e2e8f0; position: relative; }
+  .step-circle.active { transform: scale(1.08); animation: pulse 2s infinite; }
+  .step-count-badge { position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 20px; padding: 2px 6px; font-size: 10px; font-weight: bold; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
   .step-circle i { font-size: 1.5rem; }
-  .step-connector {
-    position: absolute;
-    top: 32px;
-    left: 50%;
-    width: 100%;
-    height: 2px;
-    background: #e2e8f0;
-    z-index: -1;
-  }
-  .step-connector.active-connector {
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  }
+  .step-connector { position: absolute; top: 32px; left: 50%; width: 100%; height: 2px; background: #e2e8f0; z-index: -1; }
+  .step-connector.active-connector { background: linear-gradient(90deg, #3b82f6, #8b5cf6); }
   .step-number { font-size: 0.7rem; font-weight: 600; }
   .step-label { font-size: 0.85rem; }
   .alert-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
   
-  /* Clickable Steps */
-  .clickable-step {
-    cursor: pointer;
-    transition: transform 0.2s ease;
-  }
-  .clickable-step:hover {
-    transform: scale(1.02);
-  }
-  .clickable-step:hover .step-circle {
-    transform: scale(1.05);
-    transition: transform 0.2s ease;
-  }
+  .clickable-step { cursor: pointer; transition: transform 0.2s ease; }
+  .clickable-step:hover { transform: scale(1.02); }
+  .clickable-step:hover .step-circle { transform: scale(1.05); }
   
-  /* Table styling */
   .table > :not(caption) > * > * { padding: 0.75rem 0.75rem; }
-  .bg-light th { 
-    background-color: #f8fafc !important;
-    font-weight: 600;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #475569;
-  }
+  .bg-light th { background-color: #f8fafc !important; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; }
   [data-bs-toggle="tooltip"], [data-tooltip] { cursor: help; }
-  [data-tooltip] {
-    position: relative;
-    cursor: help;
-  }
-  [data-tooltip]:hover:after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1e293b;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    white-space: nowrap;
-    z-index: 10;
-  }
+  [data-tooltip] { position: relative; cursor: help; }
+  [data-tooltip]:hover:after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; z-index: 10; }
   
-  /* Card styling */
-  .card {
-    border-radius: 16px !important;
-    overflow: hidden;
-  }
-  .card-header {
-    background: white !important;
-  }
+  .card { border-radius: 16px !important; overflow: hidden; }
+  .card-header { background: white !important; }
+  .table tbody tr:hover { background-color: #f8fafc; transition: background-color 0.2s ease; }
+  .empty-state-icon { animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
   
-  /* Hover effects */
-  .table tbody tr:hover {
-    background-color: #f8fafc;
-    transition: background-color 0.2s ease;
-  }
-  
-  /* Empty state */
-  .empty-state-icon {
-    animation: float 3s ease-in-out infinite;
-  }
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-  }
-  
-  /* Responsive */
-  @media (max-width: 992px) {
-    .step-connector { display: none; }
-    .workflow-steps { flex-wrap: wrap; gap: 1.5rem; }
-    .workflow-step-item { flex: 0 0 calc(33.333% - 1rem); }
-  }
-  @media (max-width: 768px) {
-    .step-circle { width: 52px; height: 52px; }
-    .step-circle i { font-size: 1.25rem; }
-    .workflow-step-item { flex: 0 0 calc(50% - 1rem); }
-    .step-connector { display: none; }
-  }
+  @media (max-width: 992px) { .step-connector { display: none; } .workflow-steps { flex-wrap: wrap; gap: 1.5rem; } .workflow-step-item { flex: 0 0 calc(33.333% - 1rem); } }
+  @media (max-width: 768px) { .step-circle { width: 52px; height: 52px; } .step-circle i { font-size: 1.25rem; } .workflow-step-item { flex: 0 0 calc(50% - 1rem); } .step-connector { display: none; } }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Auto-fade success alerts after 5 seconds
   const successAlert = document.getElementById('successAlert');
   if (successAlert) {
     setTimeout(() => {
       successAlert.style.transition = 'opacity 0.5s ease';
       successAlert.style.opacity = '0';
-      setTimeout(() => {
-        if (successAlert && successAlert.remove) {
-          successAlert.remove();
-        }
-      }, 500);
+      setTimeout(() => { if (successAlert && successAlert.remove) successAlert.remove(); }, 500);
     }, 5000);
   }
   
-  // Make workflow steps clickable
   document.querySelectorAll('.clickable-step').forEach(step => {
     step.addEventListener('click', function(e) {
       const targetId = this.getAttribute('data-target');
       if (targetId && targetId !== '#') {
         const targetElement = document.querySelector(targetId);
         if (targetElement) {
-          targetElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start'
-          });
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
           targetElement.style.transition = 'box-shadow 0.3s ease';
           targetElement.style.boxShadow = '0 0 0 3px #3b82f6, 0 0 0 6px rgba(59,130,246,0.2)';
-          setTimeout(() => {
-            targetElement.style.boxShadow = '';
-          }, 1500);
+          setTimeout(() => { targetElement.style.boxShadow = ''; }, 1500);
         }
       }
     });
   });
   
-  // Handle workshop button clicks
-  document.querySelectorAll('.pass-to-workshop-btn').forEach(button => {
-    button.addEventListener('click', function(e) {
-      const form = this.closest('form');
-      if (form) {
-        this.disabled = true;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-      }
-    });
-  });
-  
-  // Search functionality
   const searchInput = document.getElementById('pendingSearch');
   if (searchInput) {
     searchInput.addEventListener('keyup', function() {
       const searchTerm = this.value.toLowerCase();
-      const rows = document.querySelectorAll('#pendingTable tbody tr');
-      rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(searchTerm) ? '' : 'none';
+      document.querySelectorAll('#pendingTable tbody tr').forEach(row => {
+        row.style.display = row.innerText.toLowerCase().includes(searchTerm) ? '' : 'none';
       });
     });
   }
   
-  // Filter buttons
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
       const filter = this.getAttribute('data-filter');
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
-      const rows = document.querySelectorAll('#pendingTable tbody tr');
-      rows.forEach(row => {
+      document.querySelectorAll('#pendingTable tbody tr').forEach(row => {
         const stockStatus = row.getAttribute('data-stock-status');
-        if (filter === 'all') {
-          row.style.display = '';
-        } else if (filter === 'instock' && stockStatus === 'instock') {
-          row.style.display = '';
-        } else if (filter === 'outofstock' && stockStatus === 'outofstock') {
-          row.style.display = '';
-        } else {
-          row.style.display = 'none';
-        }
+        if (filter === 'all') row.style.display = '';
+        else if (filter === 'instock' && stockStatus === 'instock') row.style.display = '';
+        else if (filter === 'outofstock' && stockStatus === 'outofstock') row.style.display = '';
+        else row.style.display = 'none';
       });
     });
   });
   
-  // Batch selection
   const selectAll = document.getElementById('selectAll');
   const checkboxes = document.querySelectorAll('#pendingTable tbody .row-checkbox');
   const batchActions = document.getElementById('batchActions');
@@ -1021,38 +876,21 @@ document.addEventListener('DOMContentLoaded', function() {
   
   if (selectAll) {
     selectAll.addEventListener('change', function() {
-      const visibleRows = document.querySelectorAll('#pendingTable tbody tr:not([style*="display: none"])');
-      visibleRows.forEach(row => {
-        const cb = row.querySelector('.row-checkbox');
-        if (cb) cb.checked = this.checked;
-      });
+      document.querySelectorAll('#pendingTable tbody tr:not([style*="display: none"]) .row-checkbox').forEach(cb => cb.checked = this.checked);
       updateBatchActions();
     });
   }
+  checkboxes.forEach(cb => cb.addEventListener('change', updateBatchActions));
   
-  checkboxes.forEach(cb => {
-    cb.addEventListener('change', updateBatchActions);
-  });
-  
-  // Batch actions
   const batchMarkInStock = document.getElementById('batchMarkInStock');
   const batchSendToProcurement = document.getElementById('batchSendToProcurement');
   
   if (batchMarkInStock) {
     batchMarkInStock.addEventListener('click', function() {
-      const selected = document.querySelectorAll('#pendingTable tbody .row-checkbox:checked');
-      const inStockItems = Array.from(selected).filter(cb => cb.getAttribute('data-in-stock') === 'true');
-      
-      if (inStockItems.length > 0) {
-        if (confirm(`Approve and allocate ${inStockItems.length} item(s)?`)) {
-          inStockItems.forEach(cb => {
-            const form = cb.closest('tr').querySelector('.btn-success');
-            if (form && form.closest('form')) {
-              form.closest('form').submit();
-            }
-          });
-        }
-      } else if (selected.length > 0) {
+      const inStockItems = Array.from(document.querySelectorAll('#pendingTable tbody .row-checkbox:checked')).filter(cb => cb.getAttribute('data-in-stock') === 'true');
+      if (inStockItems.length > 0 && confirm(`Approve and allocate ${inStockItems.length} item(s)?`)) {
+        inStockItems.forEach(cb => { const form = cb.closest('tr').querySelector('.btn-success'); if (form && form.closest('form')) form.closest('form').submit(); });
+      } else if (document.querySelectorAll('#pendingTable tbody .row-checkbox:checked').length > 0) {
         alert('Selected items are out of stock. Use "Order from Supplier" for those.');
       }
     });
@@ -1060,37 +898,23 @@ document.addEventListener('DOMContentLoaded', function() {
   
   if (batchSendToProcurement) {
     batchSendToProcurement.addEventListener('click', function() {
-      const selected = document.querySelectorAll('#pendingTable tbody .row-checkbox:checked');
-      const outOfStockItems = Array.from(selected).filter(cb => cb.getAttribute('data-in-stock') === 'false');
-      
-      if (outOfStockItems.length > 0) {
-        if (confirm(`Order ${outOfStockItems.length} item(s) from supplier?`)) {
-          outOfStockItems.forEach(cb => {
-            const form = cb.closest('tr').querySelector('.btn-warning');
-            if (form && form.closest('form')) {
-              form.closest('form').submit();
-            }
-          });
-        }
-      } else if (selected.length > 0) {
+      const outOfStockItems = Array.from(document.querySelectorAll('#pendingTable tbody .row-checkbox:checked')).filter(cb => cb.getAttribute('data-in-stock') === 'false');
+      if (outOfStockItems.length > 0 && confirm(`Order ${outOfStockItems.length} item(s) from supplier?`)) {
+        outOfStockItems.forEach(cb => { const form = cb.closest('tr').querySelector('.btn-warning'); if (form && form.closest('form')) form.closest('form').submit(); });
+      } else if (document.querySelectorAll('#pendingTable tbody .row-checkbox:checked').length > 0) {
         alert('Selected items are already in stock. Use "Approve & Allocate" for those.');
       }
     });
   }
   
-  // Quick reorder functionality
   document.querySelectorAll('.quick-reorder').forEach(btn => {
     btn.addEventListener('click', function() {
-      const partId = this.dataset.partId;
-      const partName = this.dataset.partName;
-      const quantity = this.dataset.quantity;
-      
+      const partId = this.dataset.partId, partName = this.dataset.partName, quantity = this.dataset.quantity;
       if (confirm(`Order ${quantity} x ${partName}?`)) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/vmcott/inventory/create_purchase_request/${partId}`;
-        form.innerHTML = `<input type="hidden" name="quantity" value="${quantity}">
-                          <input type="hidden" name="authenticity_token" value="${document.querySelector('meta[name="csrf-token"]').content}">`;
+        form.innerHTML = `<input type="hidden" name="quantity" value="${quantity}"><input type="hidden" name="authenticity_token" value="${document.querySelector('meta[name="csrf-token"]').content}">`;
         document.body.appendChild(form);
         form.submit();
       }

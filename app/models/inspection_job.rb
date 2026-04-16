@@ -103,8 +103,27 @@ class InspectionJob < ApplicationRecord
 
   # ✅ Guard against modifications after approval
   def prevent_modification_after_approval
-    if status_in_database == 'approved'
-      errors.add(:base, "Approved jobs cannot be modified")
+    # Only prevent modification if the job is in a locked state
+    locked_statuses = ['completed', 'qc_passed', 'cancelled']
+    
+    if locked_statuses.include?(status_in_database)
+      errors.add(:base, "#{status_in_database.humanize} jobs cannot be modified")
+      throw(:abort)
+    end
+    
+    # Allow transitions from approved to in_progress (when mechanic starts)
+    if status_in_database == 'approved' && status == 'in_progress'
+      return true  # Allow this transition
+    end
+    
+    # Allow transitions from approved_for_work to in_progress
+    if status_in_database == 'approved_for_work' && status == 'in_progress'
+      return true
+    end
+    
+    # For other changes to approved jobs, block
+    if status_in_database == 'approved' && status != 'in_progress'
+      errors.add(:base, "Approved jobs can only be started, not modified")
       throw(:abort)
     end
   end

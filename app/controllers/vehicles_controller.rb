@@ -717,9 +717,19 @@ class VehiclesController < ApplicationController
   # ====================================================
   # Permission Service Authorization Methods
   # ====================================================
+  # app/controllers/vehicles_controller.rb
+
   def authorize_view!
+    # Allow security gate officers to view vehicles
+    if current_user.security_gate_officer?
+      # Security officers can only view, not edit/delete
+      return true
+    end
+    
     permission = PermissionService.new(current_user, @vehicle)
-    redirect_to vehicles_path, alert: "You are not authorized to view this vehicle." unless permission.can?(:view_vehicle)
+    unless permission.can?(:view_vehicle)
+      redirect_to vehicles_path, alert: "You are not authorized to view this vehicle."
+    end
   end
 
   def authorize_edit!

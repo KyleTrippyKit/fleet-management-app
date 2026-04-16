@@ -10,7 +10,7 @@ class PartsRequest < ApplicationRecord
   belongs_to :purchase_order, optional: true
   belongs_to :vendor_invoice, optional: true
 
-  # Simplified status enum
+  # 🔥 UPDATED: Simplified status enum with CONFIRMED status
   enum :status, {
     requested: 'requested',
     approved: 'approved',
@@ -18,6 +18,7 @@ class PartsRequest < ApplicationRecord
     needs_order: 'needs_order',
     ordered: 'ordered',
     received: 'received',
+    confirmed: 'confirmed',  # ✅ NEW: Parts are ready (in stock or received)
     issued: 'issued'
   }, default: :requested
 
@@ -27,7 +28,7 @@ class PartsRequest < ApplicationRecord
   # Scopes
   scope :pending_approval, -> { where(status: :requested) }
   scope :approved_requests, -> { where(status: :approved) }
-  scope :rejected_requests, -> { where(status: :rejected) }
+  scope :confirmed_requests, -> { where(status: :confirmed) }  # ✅ NEW
   scope :needing_order, -> { where(status: :needs_order) }
   scope :ordered_requests, -> { where(status: :ordered) }
   scope :received_requests, -> { where(status: :received) }
@@ -79,6 +80,15 @@ class PartsRequest < ApplicationRecord
       approved_at: Time.current
     )
     
+    # Check inventory - if in stock, mark as confirmed immediately
+    if in_stock?
+      confirm!(user)
+    else
+      # Update status to needs_order and notify inventory manager
+      update!(status: :needs_order)
+      notify_inventory_manager_for_procurement
+    end
+    
     # Notify mechanic who requested the part
     if inspection_job&.assigned_mechanic
       begin
@@ -110,15 +120,31 @@ class PartsRequest < ApplicationRecord
         Rails.logger.error "Failed to notify requester: #{e.message}"
       end
     end
+  end
+
+  # ✅ NEW: Confirm parts (mark as ready for quotation)
+  def confirm!(user)
+    update!(
+      status: :confirmed,
+      issued_by: user,
+      issued_at: Time.current
+    )
     
-    # Check inventory - if in stock, notify inventory manager to issue
-    if in_stock?
-      notify_inventory_manager
-    else
-      # Update status to needs_order and notify inventory manager to handle procurement
-      update!(status: :needs_order)
-      notify_inventory_manager_for_procurement
+    # Notify supervisor that parts are confirmed
+    supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
+    if supervisor_ids.any?
+      Notification.create!(
+        user_id: supervisor_ids,
+        title: "✅ Parts Confirmed",
+        message: "Part #{part_name} x#{quantity} has been confirmed and is ready for quotation.",
+        link: "/vmcott/workshop_supervisor/dashboard",
+        notification_type: 'success',
+        notifiable: self
+      )
     end
+    
+    # Check if all parts for this inspection are confirmed
+    inspection.check_parts_confirmation! if inspection.respond_to?(:check_parts_confirmation!)
   end
 
   def reject!(user, reason)
@@ -142,22 +168,6 @@ class PartsRequest < ApplicationRecord
         )
       rescue => e
         Rails.logger.error "Failed to notify mechanic: #{e.message}"
-      end
-    end
-    
-    # Notify the requester if different from assigned mechanic
-    if requested_by.present? && requested_by != inspection_job&.assigned_mechanic
-      begin
-        Notification.create!(
-          user: requested_by,
-          title: "Parts Request Rejected",
-          message: "Your parts request for #{quantity}x #{part_name} was rejected. Reason: #{reason}",
-          link: "/vmcott/mechanic/dashboard",
-          notification_type: 'danger',
-          notifiable: self
-        )
-      rescue => e
-        Rails.logger.error "Failed to notify requester: #{e.message}"
       end
     end
   end
@@ -198,7 +208,7 @@ class PartsRequest < ApplicationRecord
       ordered_at: Time.current
     )
     
-    # Notify procurement that order was placed
+    # Notify procurement
     procurement_users = User.where(role: 'procurement')
     if procurement_users.any?
       begin
@@ -215,9 +225,6 @@ class PartsRequest < ApplicationRecord
         Rails.logger.error "Failed to notify procurement: #{e.message}"
       end
     end
-    
-    # Notify inventory manager
-    notify_inventory_manager_order_placed(po_id)
   end
 
   def mark_received!(user, invoice = nil)
@@ -227,10 +234,13 @@ class PartsRequest < ApplicationRecord
       vendor_invoice: invoice
     )
     
-    # Update stock for inventory parts
+    # Update stock
     if inventory? && part.present?
       part.update!(current_stock: part.current_stock + quantity)
     end
+    
+    # Mark as confirmed now that parts are received
+    confirm!(user)
     
     # Notify mechanic
     if inspection_job&.assigned_mechanic
@@ -247,12 +257,6 @@ class PartsRequest < ApplicationRecord
         Rails.logger.error "Failed to notify mechanic: #{e.message}"
       end
     end
-    
-    # Notify inventory manager that parts are now in stock
-    notify_inventory_manager_parts_received
-    
-    # Check if all parts are now available
-    inspection.check_parts_availability! if inspection.respond_to?(:check_parts_availability!)
   end
 
   # =====================================================
@@ -275,8 +279,6 @@ class PartsRequest < ApplicationRecord
       rescue => e
         Rails.logger.error "Failed to notify inventory managers: #{e.message}"
       end
-    else
-      Rails.logger.warn "No inventory managers found. Cannot send notification for parts request ##{id}"
     end
   end
 
@@ -288,49 +290,9 @@ class PartsRequest < ApplicationRecord
         Notification.create!(
           user_id: inventory_manager_ids,
           title: "Parts Need Ordering",
-          message: "Part #{part_name} x#{quantity} is not in stock. Please create a purchase order to procure these parts.",
+          message: "Part #{part_name} x#{quantity} is not in stock. Please create a purchase order.",
           link: "/vmcott/inventory_manager/parts_requests/#{id}",
           notification_type: 'warning',
-          notifiable: self
-        )
-      rescue => e
-        Rails.logger.error "Failed to notify inventory managers for procurement: #{e.message}"
-      end
-    else
-      Rails.logger.warn "No inventory managers found. Cannot send procurement notification for parts request ##{id}"
-    end
-  end
-
-  def notify_inventory_manager_order_placed(po_id)
-    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
-    
-    if inventory_manager_ids.any?
-      begin
-        Notification.create!(
-          user_id: inventory_manager_ids,
-          title: "Parts Order Placed",
-          message: "PO ##{po_id} has been created for #{quantity}x #{part_name}. Awaiting receipt.",
-          link: "/vmcott/inventory_manager/purchase_orders/#{po_id}",
-          notification_type: 'info',
-          notifiable: self
-        )
-      rescue => e
-        Rails.logger.error "Failed to notify inventory managers: #{e.message}"
-      end
-    end
-  end
-
-  def notify_inventory_manager_parts_received
-    inventory_manager_ids = User.where(role: 'inventory_manager').pluck(:id)
-    
-    if inventory_manager_ids.any?
-      begin
-        Notification.create!(
-          user_id: inventory_manager_ids,
-          title: "Parts Received",
-          message: "#{quantity}x #{part_name} has been received and added to inventory. Ready for issue.",
-          link: "/vmcott/inventory_manager/parts_requests/#{id}",
-          notification_type: 'success',
           notifiable: self
         )
       rescue => e
@@ -367,6 +329,10 @@ class PartsRequest < ApplicationRecord
     status == 'received'
   end
 
+  def confirmed?
+    status == 'confirmed'
+  end
+
   def issued?
     status == 'issued'
   end
@@ -374,11 +340,12 @@ class PartsRequest < ApplicationRecord
   def status_display
     case status
     when 'requested' then 'Pending Approval'
-    when 'approved' then 'Approved'
+    when 'approved' then 'Approved - Awaiting Stock'
     when 'rejected' then 'Rejected'
-    when 'needs_order' then 'Needs Order - Awaiting PO Creation'
+    when 'needs_order' then 'Needs Order - Awaiting PO'
     when 'ordered' then 'Ordered - Awaiting Delivery'
-    when 'received' then 'Received - Ready for Issue'
+    when 'received' then 'Received - Awaiting Confirmation'
+    when 'confirmed' then '✅ Confirmed - Ready for Quotation'
     when 'issued' then 'Issued to Mechanic'
     else status.to_s.humanize
     end
@@ -387,12 +354,13 @@ class PartsRequest < ApplicationRecord
   def status_badge_class
     case status
     when 'requested' then 'warning'
-    when 'approved' then 'success'
+    when 'approved' then 'info'
     when 'rejected' then 'danger'
     when 'needs_order' then 'danger'
     when 'ordered' then 'primary'
-    when 'received' then 'success'
-    when 'issued' then 'info'
+    when 'received' then 'info'
+    when 'confirmed' then 'success'
+    when 'issued' then 'secondary'
     else 'secondary'
     end
   end

@@ -409,11 +409,15 @@ class Vmcott::SecurityGateOfficer::DashboardController < ApplicationController
     end
   end
   
-  # 🔥 NEW: Check-in success page showing receipt number
   def check_in_success
     @vehicle = Vehicle.find(params[:vehicle_id]) if params[:vehicle_id].present?
     @receipt_number = flash[:receipt_number]
     @portal_url = flash[:portal_url] || customer_login_url
+    
+    # Get the condition report for the vehicle
+    if @vehicle
+      @condition_report = @vehicle.vehicle_condition_reports.last
+    end
     
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"

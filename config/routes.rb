@@ -158,7 +158,8 @@ Rails.application.routes.draw do
       
       # NEW: Check-in success page with receipt
       get "check_in", to: "dashboard#check_in_success", as: :check_in
-      
+      get "vehicle_summary/:vehicle_id", to: "dashboard#vehicle_summary", as: :vehicle_summary
+
       resources :reception_logs, only: [:index, :show] do
         collection do
           get :today
@@ -217,11 +218,14 @@ Rails.application.routes.draw do
       post "mark_in_stock/:id", to: "dashboard#mark_in_stock", as: :mark_in_stock
       post "send_to_procurement/:id", to: "dashboard#send_to_procurement", as: :send_to_procurement  # was send_to_billing
       post "pass_to_workshop/:id", to: "dashboard#pass_to_workshop", as: :pass_to_workshop
-      
+
       # PO management routes
       post "mark_po_ordered/:id", to: "dashboard#mark_po_ordered", as: :mark_po_ordered
       post "mark_po_received/:id", to: "dashboard#mark_po_received", as: :mark_po_received
       
+      post "confirm_part/:id", to: "dashboard#confirm_part", as: :confirm_part
+      post "confirm_all_parts/:inspection_id", to: "dashboard#confirm_all_parts", as: :confirm_all_parts
+
       # RFQ management
       get "create_rfq/:parts_request_id", to: "dashboard#create_rfq", as: :create_rfq
       post "send_rfq/:id", to: "dashboard#send_rfq", as: :send_rfq
@@ -428,7 +432,8 @@ Rails.application.routes.draw do
       post 'tasks/:id/reject', to: 'dashboard#task_reject', as: :reject_task
       post 'tasks/:id/unblock', to: 'dashboard#task_unblock', as: :unblock_task
       post 'tasks/:id/assign_mechanic', to: 'dashboard#task_assign_mechanic', as: :assign_mechanic_task
-      
+      get 'inspection/:id/parts_status', to: 'dashboard#parts_status', as: :parts_status
+
       get 'work_orders', to: 'dashboard#work_orders', as: :work_orders
       get 'work_orders/:id', to: 'dashboard#work_order_show', as: :work_order
       post 'work_orders/:id/approve', to: 'dashboard#work_order_approve', as: :approve_work_order

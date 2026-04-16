@@ -1,0 +1,201 @@
+# ============================================
+# CLEAR ALL TEST DATA - PRESERVE SPECIFIC USERS
+# ============================================
+
+puts "\n" + "="*70
+puts "CLEARING TEST DATA - PRESERVING SPECIFIC USERS"
+puts "="*70
+
+# List of users to preserve (emails that should NOT be deleted)
+PRESERVE_USERS = [
+  'security_gate@test.com',
+  'inspector@test.com', 
+  'inventory@test.com',
+  'procurement@test.com',
+  'mechanic@test.com',
+  'finance@test.com',
+  'workshop_supervisor@test.com'
+]
+
+# Count before deletion
+puts "\n📊 BEFORE DELETION:"
+
+# Count all records
+puts "   Inspections: #{Inspection.count}"
+puts "   Inspection Jobs: #{InspectionJob.count}"
+puts "   Parts Requests: #{PartsRequest.count}"
+puts "   Quotations: #{Quotation.count}"
+puts "   Quotation Jobs: #{QuotationJob.count}"
+puts "   Quotation Job Parts: #{QuotationJobPart.count}"
+puts "   Findings: #{Finding.count}"
+puts "   Invoices: #{Invoice.count}"
+puts "   Purchase Requests: #{PurchaseRequest.count}"
+puts "   Purchase Orders: #{PurchaseOrder.count}"
+puts "   Mechanic Assignments: #{MechanicAssignment.count}" 
+puts "   Notifications: #{Notification.count}"
+puts "   Reception Logs: #{ReceptionLog.count}"
+puts "   Vehicle Statuses: #{VehicleStatus.count}"
+puts "   Vehicle Condition Reports: #{VehicleConditionReport.count}"
+puts "   Inventory Transactions: #{InventoryTransaction.count}"
+puts "   Work Orders: #{WorkOrder.count}"
+puts "   Job Tasks: #{JobTask.count}"
+puts "   Work Sessions: #{WorkSession.count}"
+puts "   Vendor RFQs: #{VendorRfq.count}"
+puts "   Vendor Quotations: #{VendorQuotation.count}"
+puts "   Vendor RFQ Items: #{VendorRfqItem.count}"
+
+# ============================================
+# DELETE IN ORDER (respecting foreign keys)
+# ============================================
+puts "\n🗑️ DELETING TEST DATA..."
+
+ActiveRecord::Base.transaction do
+  # 1. Delete Quotation Job Parts
+  puts "   Deleting Quotation Job Parts..."
+  QuotationJobPart.delete_all
+  
+  # 2. Delete Quotation Jobs
+  puts "   Deleting Quotation Jobs..."
+  QuotationJob.delete_all
+  
+  # 3. Delete Quotations
+  puts "   Deleting Quotations..."
+  Quotation.delete_all
+  
+  # 4. Delete Invoices
+  puts "   Deleting Invoices..."
+  Invoice.delete_all
+  
+  # 5. Delete Mechanic Assignments
+  puts "   Deleting Mechanic Assignments..."
+  MechanicAssignment.delete_all
+  
+  # 6. Delete Findings
+  puts "   Deleting Findings..."
+  Finding.delete_all
+  
+  # 7. Delete Parts Requests
+  puts "   Deleting Parts Requests..."
+  PartsRequest.delete_all
+  
+  # 8. Delete Inspection Jobs
+  puts "   Deleting Inspection Jobs..."
+  InspectionJob.delete_all
+  
+  # 9. Delete Inspections
+  puts "   Deleting Inspections..."
+  Inspection.delete_all
+  
+  # 10. Delete Reception Logs (before VehicleConditionReport)
+  puts "   Deleting Reception Logs..."
+  ReceptionLog.delete_all
+  
+  # 11. Delete Vehicle Condition Reports
+  puts "   Deleting Vehicle Condition Reports..."
+  VehicleConditionReport.delete_all
+  
+  # 12. Delete Inventory Transactions (references users)
+  puts "   Deleting Inventory Transactions..."
+  InventoryTransaction.delete_all
+  
+  # 13. Delete Purchase Requests
+  puts "   Deleting Purchase Requests..."
+  PurchaseRequest.delete_all
+  
+  # 14. Delete Purchase Orders
+  puts "   Deleting Purchase Orders..."
+  PurchaseOrder.delete_all
+  
+  # 15. Delete Notifications
+  puts "   Deleting Notifications..."
+  Notification.delete_all
+  
+  # 16. Delete Vehicle Statuses
+  puts "   Deleting Vehicle Statuses..."
+  VehicleStatus.delete_all
+  
+  # 17. Delete Work Orders
+  puts "   Deleting Work Orders..."
+  WorkOrder.delete_all
+  
+  # 18. Delete Job Tasks
+  puts "   Deleting Job Tasks..."
+  JobTask.delete_all
+  
+  # 19. Delete Work Sessions
+  puts "   Deleting Work Sessions..."
+  WorkSession.delete_all
+  
+  # 20. Delete Vendor RFQ Items
+  puts "   Deleting Vendor RFQ Items..."
+  VendorRfqItem.delete_all
+  
+  # 21. Delete Vendor Quotations
+  puts "   Deleting Vendor Quotations..."
+  VendorQuotation.delete_all
+  
+  # 22. Delete Vendor RFQs
+  puts "   Deleting Vendor RFQs..."
+  VendorRfq.delete_all
+  
+  # 23. Delete Test Users (EXCEPT preserved users)
+  puts "   Deleting Test Users (keeping preserved users)..."
+  User.where("email LIKE ?", "%@test.com")
+     .where.not(email: PRESERVE_USERS)
+     .delete_all
+end
+
+# ============================================
+# VERIFY PRESERVED DATA
+# ============================================
+puts "\n📊 AFTER DELETION (Preserved Data):"
+
+puts "   ✅ Parts (Inventory): #{Part.count}"
+puts "   ✅ Vehicles: #{Vehicle.count}"
+puts "   ✅ Agencies: #{Agency.count}"
+puts "   ✅ Suppliers: #{Supplier.count}"
+
+puts "\n   ✅ PRESERVED USERS:"
+PRESERVE_USERS.each do |email|
+  user = User.find_by(email: email)
+  if user
+    puts "      - #{user.name} (#{user.email}) - Role: #{user.role}"
+  else
+    puts "      - #{email} - NOT FOUND!"
+  end
+end
+
+# Count remaining non-test users
+real_users_count = User.where.not("email LIKE ?", "%@test.com").count
+puts "\n   ✅ Other Real Users: #{real_users_count}"
+
+# ============================================
+# VERIFY DELETED DATA (Should be zero)
+# ============================================
+puts "\n📊 VERIFICATION (Should be zero):"
+
+puts "   Inspections: #{Inspection.count}"
+puts "   Inspection Jobs: #{InspectionJob.count}"
+puts "   Parts Requests: #{PartsRequest.count}"
+puts "   Quotations: #{Quotation.count}"
+puts "   Findings: #{Finding.count}"
+puts "   Invoices: #{Invoice.count}"
+puts "   Purchase Requests: #{PurchaseRequest.count}"
+puts "   Purchase Orders: #{PurchaseOrder.count}"
+puts "   Mechanic Assignments: #{MechanicAssignment.count}" 
+puts "   Notifications: #{Notification.count}"
+puts "   Reception Logs: #{ReceptionLog.count}"
+puts "   Vehicle Condition Reports: #{VehicleConditionReport.count}"
+puts "   Inventory Transactions: #{InventoryTransaction.count}"
+
+# Count deleted test users
+deleted_test_users_count = User.where("email LIKE ?", "%@test.com")
+                               .where.not(email: PRESERVE_USERS)
+                               .count
+puts "   Test Users (deleted): #{deleted_test_users_count}"
+
+puts "\n" + "="*70
+puts "✅ CLEANUP COMPLETE!"
+puts "   Inventory items and vehicles preserved."
+puts "   All 6 test users + workshop supervisor preserved."
+puts "="*70

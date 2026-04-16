@@ -41,6 +41,24 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       .limit(20)
 
     # ========================================
+    # 🔥 NEW: Awaiting Parts Confirmation
+    # ========================================
+    @awaiting_parts_confirmation = Inspection
+      .where(status: 'parts_ready')
+      .where(id: PartsRequest.where(status: ['approved', 'received']).select(:inspection_id))
+      .includes(:vehicle, :parts_requests)
+      .distinct
+      .limit(20)
+
+    # Add after existing instance variables
+    @urgent_items = {
+      pending_parts_approval: PartsRequest.where(status: 'requested').count,
+      pending_job_creation: Inspection.where(status: 'diagnosed').count,
+      pending_quotation: Inspection.where(status: 'parts_confirmed').count,
+      pending_customer_approval: Inspection.where(status: 'awaiting_approval').count
+    }
+
+    # ========================================
     # PHASE 7: Awaiting customer approval
     # ========================================
     @awaiting_approval = Inspection
@@ -165,7 +183,6 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   # =====================================================
   # ASSIGN JOB TO MECHANIC (AJAX)
   # =====================================================
-
   def assign_approved_job
     @job = InspectionJob.find(params[:id])
     mechanic_id = params[:mechanic_id]
@@ -178,6 +195,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
 
     begin
       ActiveRecord::Base.transaction do
+        # Create or update MechanicAssignment
         MechanicAssignment.find_or_initialize_by(
           inspection_job: @job,
           mechanic: mechanic
@@ -187,15 +205,28 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           mechanic_notes: "Assigned by supervisor #{current_user.name} after customer approval"
         )
 
-        @job.update!(
+        # 🔥 CRITICAL FIX: Use update_columns to bypass the validation
+        # This avoids the "Approved jobs can only be started, not modified" error
+        @job.update_columns(
           assigned_mechanic_id: mechanic.id,
           assigned_at: Time.current,
-          status: 'assigned'
+          status: 'assigned',
+          updated_by_id: current_user.id
         )
 
+        # Also update the inspection status if needed
+        if @job.inspection && @job.inspection.status == 'jobs_created'
+          @job.inspection.update_columns(
+            status: 'in_progress',
+            assigned_mechanic_id: mechanic.id,
+            started_at: Time.current
+          )
+        end
+
+        # Create notification for mechanic
         Notification.create!(
           user: mechanic,
-          title: "New Job Assigned",
+          title: "🔧 New Job Assigned",
           message: "Job ##{@job.id} - #{@job.description.truncate(50)} has been assigned to you.",
           link: vmcott_mechanic_job_path(@job),
           notification_type: 'success',
@@ -203,13 +234,13 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
         )
       end
 
-      render json: { success: true, message: "Job assigned to #{mechanic.name}" }
+      render json: { success: true, message: "✅ Job assigned to #{mechanic.name}" }
     rescue => e
       Rails.logger.error "Error assigning job: #{e.message}"
+      Rails.logger.error e.backtrace.join("\n")
       render json: { success: false, message: "Error: #{e.message}" }
     end
   end
-
   # =====================================================
   # BULK ASSIGN JOBS TO MECHANIC
   # =====================================================
@@ -1017,6 +1048,12 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
 
   def quotation_creation
     @inspection = Inspection.find(params[:id])
+    # 🔥 BLOCK quotation creation if parts are not confirmed
+    unless @inspection.can_create_quotation?
+      flash[:alert] = "Cannot create quotation until all parts are CONFIRMED in inventory."
+      redirect_to vmcott_workshop_supervisor_dashboard_path and return
+    end
+
     @jobs = @inspection.inspection_jobs
     @parts_requests = @inspection.parts_requests.where(status: 'approved')
     @labor_rate = @inspection.labor_rate || 80.0

@@ -20,7 +20,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   def index
     @pending_inspections = Inspection
       .where(status: 'received')
-      .where(inspector_id: current_user.id)
+    # .where(inspector_id: current_user.id)
       .includes(:vehicle)
       .order(created_at: :desc)
       .limit(20)

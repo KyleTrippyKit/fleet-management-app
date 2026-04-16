@@ -1,0 +1,179 @@
+<%# Full Details Modal - Reusable component %>
+<div class="modal fade" id="fullDetailsModal" tabindex="-1" aria-labelledby="fullDetailsModalLabel">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="fullDetailsModalLabel">
+          <i class="bi bi-car-front me-2"></i>
+          Full Vehicle Details - <%= @vehicle.license_plate %>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Vehicle Header -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card">
+              <%= vehicle_image(@vehicle, variant: :medium, 
+                    class: "card-img-top", 
+                    style: "height: 200px; object-fit: cover;") %>
+              <div class="card-body text-center">
+                <h5><%= @vehicle.make %> <%= @vehicle.model %></h5>
+                <p class="text-muted mb-0"><%= @vehicle.year_of_manufacture %> • <%= @vehicle.color %></p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-8">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h6 class="text-muted">License Plate</h6>
+                    <h4><%= @vehicle.license_plate %></h4>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card mb-3">
+                  <div class="card-body">
+                    <h6 class="text-muted">Status</h6>
+                    <h4><span class="badge bg-success"><%= @vehicle.status %></span></h4>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-muted">Latest Check-in Photos</h6>
+                <% if @vehicle.condition_reports.last&.condition_photos&.attached? %>
+                  <div class="row g-2">
+                    <% @vehicle.condition_reports.last.condition_photos.limit(4).each do |photo| %>
+                      <div class="col-3">
+                        <%= image_tag photo, class: "img-fluid rounded", style: "height: 80px; width: 100%; object-fit: cover;" %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <p class="text-muted">No photos available</p>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Tabs for detailed information -->
+        <ul class="nav nav-tabs" id="vehicleDetailTabs" role="tablist">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#specs-tab">
+              Specifications
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#photos-tab">
+              All Photos (<%= @vehicle.condition_reports.sum { |r| r.condition_photos.count } %>)
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#checkins-tab">
+              Check-in History
+            </button>
+          </li>
+        </ul>
+        
+        <div class="tab-content mt-3">
+          <!-- Specifications Tab -->
+          <div class="tab-pane fade show active" id="specs-tab">
+            <div class="row">
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr><th>Make</th><td><%= @vehicle.make %></td></tr>
+                  <tr><th>Model</th><td><%= @vehicle.model %></td></tr>
+                  <tr><th>Year</th><td><%= @vehicle.year_of_manufacture %></td></tr>
+                  <tr><th>Color</th><td><%= @vehicle.color %></td></tr>
+                  <tr><th>VIN/Chassis</th><td><%= @vehicle.chassis_number %></td></tr>
+                  <tr><th>Engine Number</th><td><%= @vehicle.engine_number %></td></tr>
+                </table>
+              </div>
+              <div class="col-md-6">
+                <table class="table table-sm">
+                  <tr><th>Fuel Type</th><td><%= @vehicle.fuel_type %></td></tr>
+                  <tr><th>Transmission</th><td><%= @vehicle.transmission %></td></tr>
+                  <tr><th>Vehicle Type</th><td><%= @vehicle.vehicle_type %></td></tr>
+                  <tr><th>Service Owner</th><td><%= @vehicle.service_owner %></td></tr>
+                  <tr><th>Last Odometer</th><td><%= number_with_delimiter(@vehicle.last_odometer) %> km</td></tr>
+                  <tr><th>Last Fuel</th><td><%= @vehicle.last_fuel_level %>%</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Photos Tab -->
+          <div class="tab-pane fade" id="photos-tab">
+            <div class="row g-3">
+              <% @vehicle.condition_reports.each do |report| %>
+                <% report.condition_photos.each do |photo| %>
+                  <div class="col-md-4 col-lg-3">
+                    <div class="card h-100">
+                      <%= image_tag photo, class: "card-img-top", style: "height: 150px; object-fit: cover;" %>
+                      <div class="card-body p-2">
+                        <small class="text-muted">
+                          <%= report.created_at.strftime("%b %d, %Y") %>
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+          
+          <!-- Check-in History Tab -->
+          <div class="tab-pane fade" id="checkins-tab">
+            <% if @vehicle.condition_reports.any? %>
+              <% @vehicle.condition_reports.order(created_at: :desc).each do |report| %>
+                <div class="card mb-3">
+                  <div class="card-header bg-light">
+                    <div class="d-flex justify-content-between">
+                      <strong><%= report.created_at.strftime("%B %d, %Y at %I:%M %p") %></strong>
+                      <span class="badge bg-info">Check-in</span>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-md-6">
+                        <small class="text-muted">Driver</small>
+                        <p><%= report.driver_name %></p>
+                      </div>
+                      <div class="col-md-6">
+                        <small class="text-muted">Odometer</small>
+                        <p><%= number_with_delimiter(report.odometer) %> km</p>
+                      </div>
+                    </div>
+                    <% if report.condition_data['exterior_damage'].present? && report.condition_data['exterior_damage'].any? %>
+                      <div class="alert alert-warning small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Damage noted: <%= report.condition_data['exterior_damage'].to_sentence %>
+                      </div>
+                    <% end %>
+                    <%= link_to "View Full Report", vmott_vehicle_condition_report_path(report), 
+                          class: "btn btn-sm btn-outline-primary" %>
+                  </div>
+                </div>
+              <% end %>
+            <% else %>
+              <p class="text-muted text-center py-5">No check-in history available</p>
+            <% end %>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <%= link_to "Edit Vehicle", edit_vehicle_path(@vehicle), class: "btn btn-primary" %>
+        <%= link_to "View in VMOTT", @vehicle.vmott_link, target: "_blank", class: "btn btn-info" if @vehicle.vmott_link %>
+      </div>
+    </div>
+  </div>
+</div>
