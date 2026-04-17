@@ -15,6 +15,80 @@
   <% if @inspection.present? %>
     <div class="row justify-content-center">
       <div class="col-lg-10">
+        
+        <!-- ============================================ -->
+        <!-- 🔥 OPTION A: PARTS CONFIRMATION CHECK -->
+        <!-- ============================================ -->
+        <% 
+          # Check if all parts are confirmed
+          all_parts_confirmed = @inspection.parts_requests.empty? || @inspection.parts_requests.all? { |pr| pr.status == 'confirmed' }
+          pending_parts_count = @inspection.parts_requests.where.not(status: 'confirmed').count
+          
+          # Get customer contact info from reception log
+          reception_log = @inspection.reception_log
+          customer_email = reception_log&.customer_email
+          customer_phone = reception_log&.customer_phone
+          customer_name = @customer_name || reception_log&.customer_name || 'Valued Customer'
+        %>
+        
+        <!-- Warning if parts not confirmed -->
+        <% if !all_parts_confirmed %>
+          <div class="alert alert-warning border-0 rounded-3 mb-4 shadow-sm">
+            <div class="d-flex align-items-start">
+              <i class="bi bi-exclamation-triangle-fill fs-2 text-warning me-3 mt-1"></i>
+              <div class="flex-grow-1">
+                <h6 class="fw-bold mb-1">⚠️ Cannot Send Quotation Yet</h6>
+                <p class="small mb-2">
+                  <strong><%= pending_parts_count %> part(s)</strong> are not confirmed in inventory.
+                </p>
+                <div class="small text-muted">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Please wait for the Inventory Manager to confirm all parts before sending quotation to customer.
+                </div>
+                <div class="mt-2">
+                  <span class="badge bg-warning text-dark me-2">
+                    <i class="bi bi-hourglass-split me-1"></i> Pending: <%= pending_parts_count %>
+                  </span>
+                  <span class="badge bg-success">
+                    <i class="bi bi-check-circle me-1"></i> Confirmed: <%= @inspection.parts_requests.where(status: 'confirmed').count %>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+        
+        <!-- Customer Contact Info Card -->
+        <div class="card mb-3 border shadow-sm">
+          <div class="card-header bg-light py-2">
+            <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Customer Information</h6>
+          </div>
+          <div class="card-body py-2">
+            <div class="row small">
+              <div class="col-md-4">
+                <strong>Name:</strong> <%= customer_name %>
+              </div>
+              <div class="col-md-4">
+                <strong>Email:</strong> 
+                <% if customer_email.present? %>
+                  <span class="text-success"><i class="bi bi-envelope-check me-1"></i><%= customer_email %></span>
+                <% else %>
+                  <span class="text-muted"><i class="bi bi-exclamation-circle me-1"></i>No email on file</span>
+                <% end %>
+              </div>
+              <div class="col-md-4">
+                <strong>Phone:</strong> <%= customer_phone || 'Not provided' %>
+              </div>
+            </div>
+            <% if customer_email.blank? %>
+              <div class="alert alert-info small mt-2 mb-0 py-1">
+                <i class="bi bi-info-circle me-1"></i>
+                No customer email found. Quotation will be created but not sent. You can manually share the quote link.
+              </div>
+            <% end %>
+          </div>
+        </div>
+
         <%= form_with url: vmcott_workshop_supervisor_send_customer_quotation_path(@inspection), 
                       method: :post, 
                       local: true,
@@ -27,8 +101,15 @@
               <div class="row small">
                 <div class="col-md-3"><strong>Quote #:</strong> Q-<%= @inspection.id %>-<%= Time.current.strftime('%Y%m%d') %></div>
                 <div class="col-md-3"><strong>Vehicle:</strong> <%= @inspection.vehicle.license_plate %></div>
-                <div class="col-md-3"><strong>Customer:</strong> <%= @customer_name || 'Walk-in' %></div>
-                <div class="col-md-3"><strong>Status:</strong> <span class="badge bg-warning">Draft</span></div>
+                <div class="col-md-3"><strong>Customer:</strong> <%= customer_name %></div>
+                <div class="col-md-3">
+                  <strong>Status:</strong> 
+                  <% if all_parts_confirmed %>
+                    <span class="badge bg-success">Parts Confirmed ✅</span>
+                  <% else %>
+                    <span class="badge bg-warning">Awaiting Parts</span>
+                  <% end %>
+                </div>
               </div>
             </div>
           </div>
@@ -91,16 +172,16 @@
                       </tr>
                     <% end %>
                   <% else %>
-                    <tr><td colspan="4" class="text-center py-3 text-muted">No jobs found</td>
+                    <tr><td colspan="4" class="text-center py-3 text-muted">No jobs found</th>
                   </tr>
                   <% end %>
                 </tbody>
                 <tfoot class="table-light">
-                  <tr><td colspan="2" class="text-end fw-bold">Subtotal Labor:</td><td class="text-end fw-bold" id="total-labor">$0</td><td class="pe-2"></td>
+                  <tr><td colspan="2" class="text-end fw-bold">Subtotal Labor:</td><td class="text-end fw-bold" id="total-labor">$0</th><td class="pe-2"></td>
                   </tr>
-                  <tr><td colspan="2" class="text-end fw-bold">Parts Total:</td><td class="text-end fw-bold" id="total-parts">$0</td><td class="pe-2"></td>
+                  <tr><td colspan="2" class="text-end fw-bold">Parts Total:</th><td class="text-end fw-bold" id="total-parts">$0</th><td class="pe-2"></th>
                   </tr>
-                  <tr class="table-active"><td colspan="2" class="text-end fw-bold">GRAND TOTAL:</td><td class="text-end fw-bold text-success" id="grand-total">$0</td><td class="pe-2"></td></tr>
+                  <tr class="table-active"><td colspan="2" class="text-end fw-bold">GRAND TOTAL:</th><td class="text-end fw-bold text-success" id="grand-total">$0</th><td class="pe-2"></th></tr>
                 </tfoot>
               </table>
             </div>
@@ -108,14 +189,53 @@
 
           <!-- Notes -->
           <div class="mb-3">
-            <textarea name="quote_notes" class="form-control form-control-sm" rows="2" placeholder="Additional notes..."></textarea>
+            <textarea name="quote_notes" class="form-control form-control-sm" rows="2" placeholder="Additional notes for the customer..."></textarea>
           </div>
 
           <!-- Actions -->
-          <div class="d-flex justify-content-between">
-            <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-sm btn-outline-secondary" %>
-            <button type="submit" class="btn btn-sm btn-success px-3" id="submit-btn">📧 Send to Customer</button>
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <%= link_to "Cancel", vmcott_workshop_supervisor_dashboard_path, class: "btn btn-sm btn-outline-secondary" %>
+            </div>
+            <div>
+              <% if customer_email.present? %>
+                <button type="submit" class="btn btn-sm btn-success px-4" id="submit-btn" <%= 'disabled' unless all_parts_confirmed %>>
+                  <i class="bi bi-envelope-paper me-1"></i> 
+                  <%= all_parts_confirmed ? '📧 Send to Customer' : '🔒 Waiting for Parts' %>
+                </button>
+              <% else %>
+                <button type="submit" class="btn btn-sm btn-primary px-4" id="submit-btn" <%= 'disabled' unless all_parts_confirmed %>>
+                  <i class="bi bi-save me-1"></i> 
+                  Save Quotation (No Email)
+                </button>
+              <% end %>
+            </div>
           </div>
+          
+          <!-- Help text for the button -->
+          <% if all_parts_confirmed && customer_email.present? %>
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                <i class="bi bi-envelope-paper me-1"></i> 
+                Quotation will be emailed to <strong><%= customer_email %></strong> and they can approve it via the customer portal.
+              </small>
+            </div>
+          <% elsif all_parts_confirmed && customer_email.blank? %>
+            <div class="text-center mt-2">
+              <small class="text-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i> 
+                No email on file. Quotation saved but not sent. Share the quote link manually with the customer.
+              </small>
+            </div>
+          <% elsif !all_parts_confirmed %>
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i> 
+                Waiting for inventory manager to confirm <%= pending_parts_count %> pending part(s).
+              </small>
+            </div>
+          <% end %>
+          
         <% end %>
       </div>
     </div>
@@ -178,21 +298,20 @@ function calculateTotals() {
   document.getElementById('total-labor').innerText = '$' + totalLabor.toFixed(2);
   document.getElementById('total-parts').innerText = '$' + totalParts.toFixed(2);
   document.getElementById('grand-total').innerText = '$' + (totalLabor + totalParts).toFixed(2);
-  console.log('Labor:', totalLabor, 'Parts:', totalParts, 'Total:', totalLabor + totalParts);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('quotation-form');
   
-  // Debug form submission
-  form.addEventListener('submit', function(e) {
-    console.log('=== FORM SUBMITTED ===');
-    const formData = new FormData(form);
-    console.log('Form data entries:');
-    for (let pair of formData.entries()) {
-      console.log(pair[0] + ' = ' + pair[1]);
-    }
-  });
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      console.log('=== FORM SUBMITTED ===');
+      const formData = new FormData(form);
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ' = ' + pair[1]);
+      }
+    });
+  }
   
   document.querySelectorAll('.job-hours').forEach(input => {
     input.addEventListener('input', calculateTotals);

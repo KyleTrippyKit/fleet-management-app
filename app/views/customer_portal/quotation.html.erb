@@ -1,0 +1,140 @@
+<%# app/views/customer_portal/quotation.html.erb %>
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-0">📄 Quotation Details</h1>
+          <p class="text-muted small mb-0">Review and approve your repair estimate</p>
+        </div>
+        <%= link_to "← Back to Dashboard", customer_dashboard_path, class: "btn btn-sm btn-outline-secondary" %>
+      </div>
+
+      <!-- Quotation Card -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-header bg-white border-0 pt-4 pb-0">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="fw-bold mb-0">Quotation #<%= @quotation.quote_number %></h5>
+              <small class="text-muted">Issued: <%= @quotation.created_at.strftime("%B %d, %Y") %></small>
+            </div>
+            <div class="text-end">
+              <span class="badge <%= @quotation.status == 'accepted' ? 'bg-success' : 'bg-warning' %> px-3 py-2">
+                <%= @quotation.status&.humanize || 'Pending' %>
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body p-4">
+          <!-- Vehicle Info -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="bg-light rounded-3 p-3">
+                <small class="text-muted d-block">Vehicle</small>
+                <strong><%= @quotation.vehicle&.license_plate || 'N/A' %></strong>
+                <br>
+                <small class="text-muted"><%= @quotation.vehicle&.make %> <%= @quotation.vehicle&.model %> (<%= @quotation.vehicle&.year_of_manufacture %>)</small>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="bg-light rounded-3 p-3">
+                <small class="text-muted d-block">Valid Until</small>
+                <strong><%= @quotation.valid_to&.strftime("%B %d, %Y") || 'N/A' %></strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Render the quotation partial -->
+          <%= render "quotation", jobs: @jobs, parts: @parts %>
+
+          <!-- Notes -->
+          <% if @quotation.notes.present? %>
+            <div class="alert alert-info small mb-4">
+              <i class="bi bi-chat-text me-2"></i>
+              <strong>Notes from workshop:</strong><br>
+              <%= @quotation.notes %>
+            </div>
+          <% end %>
+
+          <!-- Action Buttons -->
+          <% if @quotation.status != 'accepted' && @quotation.status != 'rejected' %>
+            <%= form_with url: customer_approve_quotation_path(@quotation), method: :post, local: true, id: "approval-form" do |f| %>
+              <div class="d-flex gap-3 justify-content-end mt-4">
+                <button type="button" class="btn btn-outline-danger" onclick="window.history.back()">
+                  <i class="bi bi-x-circle me-1"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success px-4" id="approve-selected-btn">
+                  <i class="bi bi-check-circle me-1"></i> Approve Selected
+                </button>
+                <button type="submit" name="approve_all" value="true" class="btn btn-primary px-4" id="approve-all-btn">
+                  <i class="bi bi-check-all me-1"></i> Approve All Jobs
+                </button>
+              </div>
+            <% end %>
+          <% elsif @quotation.status == 'accepted' %>
+            <div class="alert alert-success text-center">
+              <i class="bi bi-check-circle-fill me-2"></i>
+              This quotation has been approved. Work will begin shortly.
+            </div>
+          <% elsif @quotation.status == 'rejected' %>
+            <div class="alert alert-danger text-center">
+              <i class="bi bi-x-circle-fill me-2"></i>
+              This quotation has been rejected.
+            </div>
+          <% end %>
+
+          <!-- Contact Info -->
+          <hr class="my-4">
+          <div class="text-center">
+            <small class="text-muted">
+              <i class="bi bi-envelope me-1"></i> Questions? Contact us at 
+              <a href="mailto:service@vmcott.com">service@vmcott.com</a> or call 
+              <a href="tel:8686251234">868-625-1234</a>
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Select All functionality
+  const selectAllCheckbox = document.getElementById('selectAllJobs');
+  const jobCheckboxes = document.querySelectorAll('.job-checkbox');
+  
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener('change', function() {
+      jobCheckboxes.forEach(cb => cb.checked = this.checked);
+    });
+  }
+  
+  // Approve Selected button
+  const approveSelectedBtn = document.getElementById('approve-selected-btn');
+  if (approveSelectedBtn) {
+    approveSelectedBtn.addEventListener('click', function() {
+      const selectedJobs = Array.from(jobCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+      
+      if (selectedJobs.length === 0) {
+        alert('Please select at least one job to approve.');
+        return;
+      }
+      
+      // Create form and submit
+      const form = document.getElementById('approval-form');
+      const approvedJobsInput = document.createElement('input');
+      approvedJobsInput.type = 'hidden';
+      approvedJobsInput.name = 'approved_jobs';
+      approvedJobsInput.value = selectedJobs.join(',');
+      form.appendChild(approvedJobsInput);
+      form.submit();
+    });
+  }
+});
+</script>

@@ -95,10 +95,11 @@ class CustomerPortalController < ApplicationController
     @quotation = Quotation.find(params[:id])
     @inspection = Inspection.find_by(vehicle: @quotation.vehicle) if @quotation.vehicle
     @jobs = @quotation.quotation_jobs
-    @parts = @quotation.quotation_job_parts
+    @parts = @quotation.quotation_jobs.flat_map(&:quotation_job_parts)
     @total_cost = @quotation.amount || @quotation.quotation_jobs.sum(&:total_labor_cost) + @quotation.quotation_job_parts.sum(&:total_price)
   end
 
+  # 🔥 FIXED: approve method with better handling of already-approved jobs
   def approve
     # Make sure we have a valid quotation ID
     if params[:id].blank?
@@ -121,46 +122,94 @@ class CustomerPortalController < ApplicationController
       redirect_to customer_dashboard_path and return
     end
     
+    # Check if already approved
+    if @quotation.status == 'accepted'
+      flash[:alert] = "This quotation has already been approved."
+      redirect_to customer_dashboard_path and return
+    end
+    
     if params[:approve_all].present?
-      # Approve all jobs
-      @quotation.quotation_jobs.update_all(client_approved: true, client_approved_at: Time.current)
-      # Use 'accepted' instead of 'approved' (valid Quotation status)
-      @quotation.update(status: 'accepted', accepted_at: Time.current)
+      begin
+        ActiveRecord::Base.transaction do
+          # Approve all jobs in quotation
+          @quotation.quotation_jobs.update_all(client_approved: true, client_approved_at: Time.current)
+          
+          # Update quotation status to 'accepted'
+          @quotation.update(status: 'accepted', accepted_at: Time.current)
+          
+          # 🔥 FIX: Only update jobs that are NOT already approved
+          @inspection.inspection_jobs.each do |job|
+            if job.status != 'approved'
+              job.approve_internal!
+              Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
+            else
+              Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
+            end
+          end
+          
+          # Update inspection status if still awaiting_approval
+          if @inspection.status == 'awaiting_approval'
+            @inspection.update(status: 'approved', approved_at: Time.current, scope_locked: true)
+          end
+          
+          flash[:notice] = "All jobs approved. Work will begin shortly."
+          Rails.logger.info "Customer approved all jobs for inspection #{@inspection.id}"
+        end
+      rescue => e
+        Rails.logger.error "Error approving all jobs: #{e.message}"
+        Rails.logger.error e.backtrace.join("\n")
+        flash[:alert] = "There was an error approving your quotation. Please contact support."
+        redirect_to customer_quotation_path(@quotation) and return
+      end
       
-      # Update ALL jobs from 'pending_approval' to 'approved'
-      @inspection.inspection_jobs.each { |job| job.approve_internal! }
-      
-      flash[:notice] = "All jobs approved. Work will begin shortly."
-      Rails.logger.info "Customer approved all jobs for inspection #{@inspection.id}"      
     elsif params[:approved_jobs].present?
-      # Approve selected jobs
       approved_ids = params[:approved_jobs]
-      @quotation.quotation_jobs.where(id: approved_ids).update_all(client_approved: true, client_approved_at: Time.current)
-      @quotation.quotation_jobs.where.not(id: approved_ids).update_all(client_approved: false)
       
-      # Update only approved jobs to 'approved' status
-      approved_job_ids = @quotation.quotation_jobs.where(id: approved_ids).pluck(:inspection_job_id).compact
-      
-      if approved_job_ids.any?
-        @inspection.inspection_jobs.where(id: approved_job_ids).each { |job| job.approve_internal! }
-        Rails.logger.info "Customer approved #{approved_ids.length} specific jobs for inspection #{@inspection.id}"
+      begin
+        ActiveRecord::Base.transaction do
+          # Approve selected jobs
+          @quotation.quotation_jobs.where(id: approved_ids).update_all(
+            client_approved: true, 
+            client_approved_at: Time.current
+          )
+          @quotation.quotation_jobs.where.not(id: approved_ids).update_all(client_approved: false)
+          
+          # Get inspection job IDs that were approved
+          approved_job_ids = @quotation.quotation_jobs.where(id: approved_ids).pluck(:inspection_job_id).compact
+          
+          # 🔥 FIX: Only update jobs that are NOT already approved
+          if approved_job_ids.any?
+            @inspection.inspection_jobs.where(id: approved_job_ids).each do |job|
+              if job.status != 'approved'
+                job.approve_internal!
+                Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
+              else
+                Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
+              end
+            end
+          end
+          
+          # Update quotation status
+          if approved_ids.length == @quotation.quotation_jobs.count
+            @quotation.update(status: 'accepted', accepted_at: Time.current)
+            flash[:notice] = "All jobs approved. Work will begin shortly."
+          else
+            @quotation.update(status: 'partially_rejected')
+            flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining jobs will not be performed."
+          end
+          
+          Rails.logger.info "Customer approved #{approved_ids.length} specific jobs for inspection #{@inspection.id}"
+        end
+      rescue => e
+        Rails.logger.error "Error approving selected jobs: #{e.message}"
+        Rails.logger.error e.backtrace.join("\n")
+        flash[:alert] = "There was an error approving your selection. Please contact support."
+        redirect_to customer_quotation_path(@quotation) and return
       end
       
-      if approved_ids.length == @quotation.quotation_jobs.count
-        @quotation.update(status: 'accepted', accepted_at: Time.current)
-        flash[:notice] = "All jobs approved. Work will begin shortly."
-      else
-        @quotation.update(status: 'partially_rejected')
-        flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining jobs will not be performed."
-      end
     else
       flash[:alert] = "Please select at least one job to approve."
       redirect_to customer_quotation_path(@quotation) and return
-    end
-    
-    # Update inspection status if all jobs are now approved
-    if @inspection.inspection_jobs.where(status: 'approved').count > 0
-      @inspection.update(status: 'approved') if @inspection.status == 'awaiting_approval'
     end
     
     # Safely notify supervisor
@@ -169,7 +218,7 @@ class CustomerPortalController < ApplicationController
       begin
         Notification.create!(
           title: "Quotation Approved by Customer",
-          message: "Customer has approved #{@quotation.quotation_jobs.where(client_approved: true).count} out of #{@quotation.quotation_jobs.count} jobs for vehicle #{@quotation.vehicle&.license_plate}",
+          message: "Customer has approved work for vehicle #{@quotation.vehicle&.license_plate}",
           link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}",
           user_id: supervisor_ids,
           notifiable_type: 'Quotation',
@@ -180,8 +229,6 @@ class CustomerPortalController < ApplicationController
       rescue => e
         Rails.logger.error "Failed to create supervisor notification: #{e.message}"
       end
-    else
-      Rails.logger.warn "No workshop supervisors found to notify"
     end
     
     # Safely notify mechanics
@@ -204,8 +251,6 @@ class CustomerPortalController < ApplicationController
           end
         end
         Rails.logger.info "Notified #{mechanic_ids.count} mechanics"
-      else
-        Rails.logger.warn "No mechanics found to notify"
       end
     end
     

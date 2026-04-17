@@ -610,21 +610,23 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       redirect_to vmcott_workshop_supervisor_customer_quotation_path(@inspection) and return
     end
     
-    # Calculate totals (labor + parts from approved requests)
+    # Calculate totals from form data
     total_labor = 0
     total_parts = 0
     labor_rate = params[:labor_rate].to_f
     
+    # First pass: calculate totals from form data
     params[:jobs].each do |job_id, job_data|
       hours = job_data[:hours].to_f
       total_labor += hours * labor_rate
       
-      # Get parts for this job from approved parts requests
-      job = @inspection.inspection_jobs.find_by(id: job_id)
-      if job
-        job.parts_requests.where(status: 'approved', in_stock: true).each do |pr|
-          price = pr.part&.sale_price || pr.unit_price || 0
-          total_parts += pr.quantity * price
+      # Calculate parts from form data
+      if job_data[:parts].present?
+        job_data[:parts].each do |part_index, part_data|
+          next if part_data[:name].blank?
+          quantity = part_data[:quantity].to_i
+          unit_price = part_data[:unit_price].to_f
+          total_parts += quantity * unit_price
         end
       end
     end
@@ -632,71 +634,155 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     grand_total = total_labor + total_parts
     
     if grand_total <= 0
-      flash[:alert] = "Total is $0. Please add hours or approved parts."
+      flash[:alert] = "Total is $0. Please add hours or parts."
       redirect_to vmcott_workshop_supervisor_customer_quotation_path(@inspection) and return
     end
     
     ActiveRecord::Base.transaction do
-      # Update ONLY draft jobs to approved (skip already approved jobs)
+      # Process each job and its parts
       params[:jobs].each do |job_id, job_data|
         job = @inspection.inspection_jobs.find_by(id: job_id)
-        if job && job.status == 'draft'
-          hours = job_data[:hours].to_f
+        next unless job
+        
+        hours = job_data[:hours].to_f
+        job_labor = hours * labor_rate
+        
+        # Update job with hours and labor cost
+        if job.status == 'draft'
           job.update!(
             estimated_hours: hours,
-            estimated_labor_cost: hours * labor_rate,
+            estimated_labor_cost: job_labor,
             status: 'approved'
           )
           Rails.logger.info "Updated job #{job_id} from draft to approved"
-        elsif job
-          Rails.logger.info "Job #{job_id} already has status: #{job.status}, skipping status update"
-          hours = job_data[:hours].to_f
+        else
           job.update_columns(
             estimated_hours: hours,
-            estimated_labor_cost: hours * labor_rate
+            estimated_labor_cost: job_labor
           )
+        end
+        
+        # 🔥 PROCESS PARTS FROM THE FORM
+        if job_data[:parts].present?
+          job_data[:parts].each do |part_index, part_data|
+            next if part_data[:name].blank?
+            
+            part_name = part_data[:name].to_s.strip
+            quantity = part_data[:quantity].to_i
+            unit_price = part_data[:unit_price].to_f
+            total_price = quantity * unit_price
+            
+            # Find or create the part
+            part = Part.find_or_create_by(name: part_name) do |p|
+              p.price = unit_price
+              p.current_stock = 0
+              p.minimum_stock = 5
+              p.reorder_point = 3
+            end
+            
+            # Update price if needed
+            if part.price != unit_price
+              part.update!(price: unit_price)
+            end
+            
+            # Create or update parts request
+            parts_request = PartsRequest.find_or_initialize_by(
+              inspection: @inspection,
+              inspection_job: job,
+              part: part
+            )
+            parts_request.assign_attributes(
+              quantity: quantity,
+              unit_price: unit_price,
+              customer_price: unit_price * 1.3, # 30% markup
+              status: parts_request.persisted? ? parts_request.status : 'requested',
+              requested_by_id: current_user.id
+            )
+            parts_request.save!
+            
+            Rails.logger.info "  📦 Part: #{part_name} - #{quantity} x $#{unit_price} = $#{total_price}"
+          end
         end
       end
       
-      # Create quotation as DRAFT first (bypass amount validation)
+      # Create or update quotation
       vendor_name = current_user.agency&.name || "VMCOTT Auto Services"
       
-      quotation = Quotation.new(
+      # Check if quotation already exists
+      quotation = Quotation.find_or_initialize_by(
         inspection_id: @inspection.id,
-        quote_number: "Q-#{@inspection.id}-#{Time.current.strftime('%Y%m%d%H%M')}",
-        amount: 0,
+        status: ['draft', 'sent']
+      )
+      
+      quote_number = if quotation.persisted?
+        quotation.quote_number
+      else
+        "Q-#{@inspection.id}-#{Time.current.strftime('%Y%m%d%H%M')}"
+      end
+      
+      quotation.assign_attributes(
+        quote_number: quote_number,
+        amount: grand_total,
         vendor: vendor_name,
         valid_from: Date.current,
         valid_to: 14.days.from_now,
-        status: 0,  # draft status - bypasses amount > 0 validation
+        status: 1, # sent status
         notes: params[:quote_notes],
         created_by_id: current_user.id,
-        agency_id: current_user.agency_id
+        agency_id: current_user.agency_id,
+        sent_at: Time.current
       )
+      quotation.save!
       
-      # Skip the recalculation callback
-      quotation.save(validate: false)
-      Rails.logger.info "Quotation created as draft: #{quotation.id}"
+      # Delete existing quotation jobs to avoid duplicates
+      quotation.quotation_jobs.destroy_all
       
-      # Create quotation jobs for ALL jobs in params AND add approved parts
+      # Create quotation jobs with parts
       params[:jobs].each do |job_id, job_data|
         job = InspectionJob.find(job_id)
         hours = job_data[:hours].to_f
+        job_labor = hours * labor_rate
         
         q_job = QuotationJob.create!(
           quotation_id: quotation.id,
           inspection_job_id: job.id,
-          name: job.description,
-          description: job.description,
+          name: job_data[:description] || job.description,
+          description: job_data[:description] || job.description,
           estimated_hours: hours,
-          total_labor_cost: hours * labor_rate,
+          total_labor_cost: job_labor,
           job_type: 'inspection_job'
         )
         Rails.logger.info "Created quotation job for job #{job.id}"
         
-        # ✅ ADD APPROVED PARTS TO QUOTATION
-        job.parts_requests.where(status: 'approved', in_stock: true).each do |pr|
-          part_price = pr.part&.sale_price || pr.unit_price || 0
+        # 🔥 ADD PARTS TO QUOTATION JOB
+        if job_data[:parts].present?
+          job_data[:parts].each do |part_index, part_data|
+            next if part_data[:name].blank?
+            
+            part_name = part_data[:name].to_s.strip
+            quantity = part_data[:quantity].to_i
+            unit_price = part_data[:unit_price].to_f
+            total_price = quantity * unit_price
+            
+            part = Part.find_by(name: part_name)
+            next unless part
+            
+            QuotationJobPart.create!(
+              quotation_job_id: q_job.id,
+              part_id: part.id,
+              quantity: quantity,
+              unit_price: unit_price,
+              total_price: total_price
+            )
+            Rails.logger.info "  ✅ Added part to quotation: #{part_name} - #{quantity} x $#{unit_price} = $#{total_price}"
+          end
+        end
+        
+        # Also add approved parts requests that were created earlier
+        job.parts_requests.where(status: 'approved').each do |pr|
+          next if QuotationJobPart.exists?(quotation_job_id: q_job.id, part_id: pr.part_id)
+          
+          part_price = pr.customer_price || pr.unit_price || 0
           total_price = pr.quantity * part_price
           
           QuotationJobPart.create!(
@@ -706,29 +792,30 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
             unit_price: part_price,
             total_price: total_price
           )
-          Rails.logger.info "  Added part: #{pr.part&.name || pr.custom_part_name} - #{pr.quantity} x $#{part_price} = $#{total_price}"
+          Rails.logger.info "  ✅ Added approved part to quotation: #{pr.part_name} - #{pr.quantity} x $#{part_price} = $#{total_price}"
         end
       end
       
-      # Now update amount and status to sent
-      quotation.update!(
-        amount: grand_total,
-        status: 1  # sent status
-      )
-      Rails.logger.info "Quotation updated to sent with amount $#{grand_total}"
-      
-      # Update inspection
+      # Update inspection status
       @inspection.update!(
         status: 'awaiting_approval',
         total_estimated_cost: grand_total,
         labor_rate: labor_rate
       )
       
+      # Send email notification to customer (if email exists)
+      customer_email = @inspection.reception_log&.customer_email
+      if customer_email.present?
+        # Send email here (implement CustomerMailer if needed)
+        Rails.logger.info "📧 Quotation sent to #{customer_email}"
+        # CustomerMailer.quotation_ready(@inspection, quotation).deliver_later
+      end
+      
       flash[:notice] = "✅ Quotation sent! Total: $#{'%.2f' % grand_total} (Labor: $#{'%.2f' % total_labor}, Parts: $#{'%.2f' % total_parts})"
       redirect_to vmcott_workshop_supervisor_dashboard_path
     end
   rescue => e
-    Rails.logger.error "ERROR: #{e.message}"
+    Rails.logger.error "ERROR in send_customer_quotation: #{e.message}"
     Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Error: #{e.message}"
     redirect_to vmcott_workshop_supervisor_customer_quotation_path(@inspection)
