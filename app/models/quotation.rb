@@ -83,17 +83,18 @@ class Quotation < ApplicationRecord
   validate :ensure_prices_present_before_conversion, if: :converting_to_converted?
 
   # ------------------------------------------------------------
-  # Scopes
+  # Scopes - FIXED: Use integer values directly to avoid enum array issues
   # ------------------------------------------------------------
-  scope :pending, -> { where(status: [:draft, :sent, :pending_acceptance]) }
-  scope :active, -> { where("valid_to >= ?", Date.current).where(status: [:draft, :sent, :pending_acceptance]) }
+  # draft=0, sent=1, pending_acceptance=6
+  scope :pending, -> { where(status: [0, 1, 6]) }
+  scope :active, -> { where("valid_to >= ?", Date.current).where(status: [0, 1, 6]) }
   scope :this_month, -> { where(created_at: Time.current.beginning_of_month..Time.current.end_of_month) }
-  scope :expiring_soon, ->(days = 7) { where(valid_to: Date.current..(Date.current + days.days)).where(status: [:draft, :sent, :pending_acceptance]) }
-  scope :expired, -> { where("valid_to < ?", Date.current).or(where(status: :expired)) }
-  scope :accepted, -> { where(status: :accepted) }
-  scope :rejected, -> { where(status: :rejected) }
-  scope :converted, -> { where(status: :converted) }
-  scope :pending_acceptance, -> { where(status: :pending_acceptance) }
+  scope :expiring_soon, ->(days = 7) { where(valid_to: Date.current..(Date.current + days.days)).where(status: [0, 1, 6]) }
+  scope :expired, -> { where("valid_to < ?", Date.current).or(where(status: 4)) }
+  scope :accepted, -> { where(status: 2) }
+  scope :rejected, -> { where(status: 3) }
+  scope :converted, -> { where(status: 5) }
+  scope :pending_acceptance, -> { where(status: 6) }
   scope :by_vendor, ->(vendor) { vendor.present? ? where("vendor ILIKE ?", "%#{vendor}%") : all }
   scope :search, ->(term) { return all unless term.present?; where("quote_number ILIKE :t OR vendor ILIKE :t OR notes ILIKE :t", t: "%#{term}%") }
   scope :for_agency, ->(agency) { return all unless agency.present?; left_joins(:vehicle).where("quotations.agency_id = :aid OR vehicles.agency_id = :aid", aid: agency.id) }
@@ -235,7 +236,7 @@ class Quotation < ApplicationRecord
   end
 
   # ------------------------------------------------------------
-  # Locking / permissions
+  # Locking / permissions - FIXED: Use string arrays for status checks
   # ------------------------------------------------------------
   def locked?
     sent? || accepted? || rejected? || converted?
@@ -257,12 +258,14 @@ class Quotation < ApplicationRecord
     draft? && !expired?
   end
 
+  # FIXED: Check integer values directly
   def can_be_accepted?
-    [:draft, :sent, :pending_acceptance].include?(status.to_sym) && !expired?
+    [0, 1, 6].include?(status_before_type_cast) && !expired?
   end
 
+  # FIXED: Check integer values directly
   def can_be_rejected?
-    [:draft, :sent, :accepted, :pending_acceptance].include?(status.to_sym) && !expired?
+    [0, 1, 2, 6].include?(status_before_type_cast) && !expired?
   end
 
   def can_be_converted_to_po?
@@ -327,10 +330,11 @@ class Quotation < ApplicationRecord
     )
   end
 
+  # FIXED: Check integer values directly
   def expire!
     return unless valid_to.present?
     return unless valid_to < Date.current
-    return unless [:draft, :sent, :pending_acceptance].include?(status.to_sym)
+    return unless [0, 1, 6].include?(status_before_type_cast)
     update(status: :expired)
   end
 

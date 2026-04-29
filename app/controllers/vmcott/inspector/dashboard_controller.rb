@@ -20,7 +20,6 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   def index
     @pending_inspections = Inspection
       .where(status: 'received')
-    # .where(inspector_id: current_user.id)
       .includes(:vehicle)
       .order(created_at: :desc)
       .limit(20)
@@ -45,14 +44,14 @@ class Vmcott::Inspector::DashboardController < ApplicationController
       .order(created_at: :desc)
       .limit(5)
     
-    # 🔥 Recently passed QC jobs
+    # Recently passed QC jobs
     @recent_qc_passed = InspectionJob
       .where('qc_passed_at >= ?', Time.current.beginning_of_day)
       .includes(inspection: :vehicle)
       .order(qc_passed_at: :desc)
       .limit(20)
     
-    # 🔥 QC passed count for today
+    # QC passed count for today
     @qc_passed_today = InspectionJob
       .where('qc_passed_at >= ?', Time.current.beginning_of_day)
     
@@ -236,39 +235,70 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   def create_recommendations
     @inspection = Inspection.find(params[:inspection_id])
     
+    findings_count = 0
+    
     if params[:recommendations].present?
       params[:recommendations].each do |rec|
-        @inspection.inspection_recommendations.create!(
+        # Skip if description is blank
+        next if rec[:description].blank?
+        
+        # Convert priority to severity mapping
+        severity_value = case rec[:priority]
+        when 'critical', 'high'
+          'critical'
+        when 'normal', 'medium'
+          'major'
+        else
+          'minor'
+        end
+        
+        # Create inspector finding with type 'initial'
+        @inspection.findings.create!(
           description: rec[:description],
-          finding_type: rec[:finding_type],
+          finding_type: 'initial',           # Inspector initial findings
+          severity: severity_value,
           priority: rec[:priority] || 'normal',
-          estimated_hours: rec[:estimated_hours],
-          suggested_by_id: current_user.id,
-          notes: rec[:notes]
+          blocking: rec[:blocking] == 'true',
+          created_by_id: current_user.id,
+          metadata: {
+            estimated_hours: rec[:estimated_hours].to_f,
+            notes: rec[:notes],
+            suggested_by: current_user.name,
+            recommendation_type: rec[:finding_type] || 'standard'
+          }
         )
+        findings_count += 1
       end
     end
     
+    # Update inspection status to diagnosed
     @inspection.update!(
       status: :diagnosed,
       diagnosis_notes: params[:diagnosis_notes],
       diagnosis_completed_at: Time.current
     )
     
+    # Notify supervisors that diagnosis is complete
     supervisors = User.where(role: 'workshop_supervisor')
     supervisors.find_each do |supervisor|
       Notification.create!(
         user: supervisor,
-        title: "📋 New Recommendations Ready",
-        message: "Recommendations for #{@inspection.vehicle.license_plate} are ready for review",
+        title: "📋 New Inspector Findings Ready",
+        message: "#{findings_count} inspector finding(s) for #{@inspection.vehicle.license_plate} are ready for review",
         link: vmcott_workshop_supervisor_recommendations_path(@inspection),
         notification_type: 'info',
         notifiable: @inspection
       )
     end
     
-    flash[:notice] = "✅ Recommendations created. Supervisor will review them."
+    flash[:notice] = "✅ #{findings_count} finding(s) created. Supervisor will review them."
     redirect_to vmcott_inspector_dashboard_path
+    
+  rescue => e
+    Rails.logger.error "Error in create_recommendations: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    flash[:alert] = "Error saving findings: #{e.message}"
+    redirect_to vmcott_inspector_job_recommendations_path(@inspection.vehicle_id)
   end
 
   def create_inspection
@@ -386,7 +416,7 @@ class Vmcott::Inspector::DashboardController < ApplicationController
         )
       end
       
-      # 🔥 NOTIFY SUPERVISOR that QC passed (NO EMAIL TO CUSTOMER - Supervisor handles that)
+      # NOTIFY SUPERVISOR that QC passed
       supervisors = User.where(role: 'workshop_supervisor')
       supervisors.each do |supervisor|
         Notification.create!(
@@ -539,8 +569,8 @@ class Vmcott::Inspector::DashboardController < ApplicationController
   end
 
   def find_original_request(vehicle)
-    Rfq.find_by(vehicle: vehicle, status: ['accepted', 'pending', 'approved']) ||
-    MaintenanceRequest.find_by(vehicle: vehicle, status: ['pending', 'approved']) ||
+    Rfq.where(vehicle: vehicle, status: ['accepted', 'pending', 'approved']).first ||
+    MaintenanceRequest.where(vehicle: vehicle, status: ['pending', 'approved']).first ||
     ReceptionLog.where(vehicle: vehicle).where("notes LIKE ?", "%RFQ%").order(created_at: :desc).first
   end
 

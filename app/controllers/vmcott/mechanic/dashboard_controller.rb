@@ -24,14 +24,14 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
     
     # ========================================
-    # 🔧 PHASE 3: DIAGNOSIS QUEUE (FIXED)
+    # DIAGNOSIS QUEUE
     # Inspections that are 'inspected' and need diagnosis
     # ========================================
     @pending_diagnosis = Inspection
-      .where(status: 'inspected')  # Use 'inspected' status
+      .where(status: 'inspected')
       .where(diagnosis_completed_at: nil)
       .includes(:vehicle, :inspector)
-      .order(created_at: :asc)  # Oldest first
+      .order(created_at: :asc)
     
     @pending_diagnosis_count = @pending_diagnosis.count
     
@@ -120,7 +120,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
                                       .limit(10)
 
     # ========================================
-    # WORKFLOW STATUS VARIABLES (For the progress bar)
+    # WORKFLOW STATUS VARIABLES
     # ========================================
     @inspections_complete = Inspection.where(status: ['inspected', 'diagnosed', 'approved']).count
     @parts_complete = PartsRequest.where(status: ['approved', 'received']).count
@@ -186,7 +186,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   end
 
   # =====================================================
-  # PHASE 3: DIAGNOSIS METHODS
+  # DIAGNOSIS METHODS
   # =====================================================
 
   def diagnosis_index
@@ -205,7 +205,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def diagnosis_show
     @inspection = Inspection.find(params[:id])
     
-    # Check if inspection is ready for diagnosis
     unless @inspection.status == 'inspected'
       flash[:alert] = "This inspection is not ready for diagnosis (current status: #{@inspection.status})"
       redirect_to vmcott_mechanic_dashboard_path and return
@@ -213,7 +212,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     
     @vehicle = @inspection.vehicle
     @inspector_notes = @inspection.notes
-    @inspector_findings = @inspection.findings.where(finding_type: 'inspector')
+    @inspector_findings = @inspection.findings.where(finding_type: 'initial')
     @inspector_recommendations = @inspection.inspection_recommendations
     
     disable_caching
@@ -237,6 +236,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     
     begin
       ActiveRecord::Base.transaction do
+        findings_created = 0
+        
         # Handle findings if present
         if params[:findings].present?
           findings_array = if params[:findings].is_a?(Hash)
@@ -249,19 +250,32 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
             next unless finding.is_a?(Hash)
             next if finding[:description].blank?
             
+            # Convert severity - valid values: critical, major, minor
+            severity_value = case finding[:severity]
+            when 'critical', 'high'
+              'critical'
+            when 'major', 'medium', 'normal'
+              'major'
+            else
+              'minor'
+            end
+            
+            # Create mechanic finding with type 'mechanic'
             @inspection.findings.create!(
               description: finding[:description],
-              finding_type: 'mechanic_diagnosis',
-              severity: finding[:severity] || 'normal',
+              finding_type: 'mechanic',           # Valid type from enum
+              severity: severity_value,
               blocking: finding[:blocking] == 'true',
-              created_by: current_user,
+              created_by_id: current_user.id,
               metadata: {
                 root_cause: finding[:root_cause],
                 complexity: finding[:complexity] || 'moderate',
-                estimated_hours: finding[:estimated_hours],
-                suggested_parts: finding[:suggested_parts]
+                estimated_hours: finding[:estimated_hours].to_f,
+                suggested_parts: finding[:suggested_parts],
+                created_by_name: current_user.name
               }
             )
+            findings_created += 1
           end
         end
         
@@ -280,21 +294,28 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
         # Notify supervisor that diagnosis is complete
         supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
         if supervisor_ids.any?
-          Notification.create!(
-            title: "📋 Diagnosis Complete",
-            message: "Diagnosis for #{@inspection.vehicle.license_plate} is complete. Please create jobs.",
-            link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}/job_creation",
-            user_id: supervisor_ids,
-            notifiable_type: 'Inspection',
-            notifiable_id: @inspection.id,
-            notification_type: 'info'
-          )
+          supervisor_ids.each do |supervisor_id|
+            Notification.create!(
+              title: "📋 Diagnosis Complete",
+              message: "Mechanic #{current_user.name} completed diagnosis for #{@inspection.vehicle.license_plate}. #{findings_created} mechanic finding(s) recorded.",
+              link: "/vmcott/workshop_supervisor/inspections/#{@inspection.id}/job_creation",
+              user_id: supervisor_id,
+              notifiable_type: 'Inspection',
+              notifiable_id: @inspection.id,
+              notification_type: 'info'
+            )
+          end
         end
         
         # Log success
         Rails.logger.info "✅ Diagnosis completed for inspection ##{@inspection.id} by #{current_user.name}"
+        Rails.logger.info "   Findings created: #{findings_created}"
         
-        flash[:notice] = "✅ Diagnosis completed successfully! Supervisor will now create jobs."
+        if findings_created > 0
+          flash[:notice] = "✅ Diagnosis completed successfully! #{findings_created} mechanic finding(s) created. Supervisor will now create jobs."
+        else
+          flash[:notice] = "✅ Diagnosis completed successfully! No findings recorded. Supervisor can still create jobs manually."
+        end
         redirect_to vmcott_mechanic_dashboard_path and return
       end
     rescue => e
@@ -325,30 +346,25 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     response.headers["Expires"] = "Mon, 01 Jan 1990 00:00:00 GMT"
   end
 
-  # 🔥 FIX: This method now actually assigns the job to the mechanic
   def assign_self
     @job = InspectionJob.find(params[:id])
     
-    # Check if job is already assigned
     if @job.assigned_mechanic_id.present?
       redirect_to vmcott_mechanic_job_path(@job), alert: "This job is already assigned to another mechanic."
       return
     end
     
-    # Check if job is in a state that can be assigned
     unless @job.status == 'approved'
       redirect_to vmcott_mechanic_dashboard_path, alert: "This job cannot be assigned (current status: #{@job.status}). Only approved jobs can be taken."
       return
     end
     
-    # Use update_columns to bypass the approval callback
     @job.update_columns(
       assigned_mechanic_id: current_user.id,
       status: 'assigned',
       assigned_at: Time.current
     )
     
-    # Create or update MechanicAssignment record
     assignment = MechanicAssignment.find_or_initialize_by(
       inspection_job_id: @job.id,
       mechanic_id: current_user.id
@@ -360,7 +376,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       mechanic_notes: "Assigned by mechanic #{current_user.name} at #{Time.current}"
     )
     
-    # Notify the workshop supervisor that a mechanic took the job
     if @job.inspection&.supervisor.present?
       Notification.create!(
         user: @job.inspection.supervisor,
@@ -377,7 +392,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     
   rescue => e
     Rails.logger.error "Error assigning job: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "Error assigning job: #{e.message}"
     redirect_to vmcott_mechanic_dashboard_path
   end
@@ -458,7 +472,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       return
     end
     
-    # Allow starting from 'assigned' or 'approved_for_work' status
     unless @job.status == 'assigned' || @job.status == 'approved_for_work'
       redirect_to vmcott_mechanic_job_path(@job), alert: "This job is not ready to start (current status: #{@job.status})."
       return
@@ -508,7 +521,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     redirect_to vmcott_mechanic_job_path(@job)
   rescue => e
     Rails.logger.error "Error in update_progress: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     redirect_to vmcott_mechanic_job_path(@job), alert: "An error occurred while updating progress: #{e.message}"
   end
 
@@ -561,7 +573,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     render json: { success: true, new_stock: part.current_stock, message: "#{qty}x #{part.name} logged successfully" }
   rescue => e
     Rails.logger.error "Error in log_parts: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     render json: { success: false, message: "An error occurred: #{e.message}" }, status: :internal_server_error
   end
 
@@ -612,13 +623,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Added #{quantity}x #{part_name} to existing request (Total: #{new_quantity})"
         )
         
-        flash[:notice] = "✅ Quantity Updated\n\n" \
-                        "Part: #{part_name}\n" \
-                        "Added: #{quantity} units\n" \
-                        "Total: #{new_quantity} units\n\n" \
-                        "Waiting for supervisor approval."
+        flash[:notice] = "✅ Quantity Updated\n\nPart: #{part_name}\nAdded: #{quantity} units\nTotal: #{new_quantity} units\n\nWaiting for supervisor approval."
       else
-        # Create new parts request
         PartsRequest.create!(
           inspection_job_id: @job.id,
           inspection_id: @job.inspection_id,
@@ -633,10 +639,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part_name}"
         )
         
-        flash[:notice] = "📋 Request Submitted\n\n" \
-                        "Part: #{part_name}\n" \
-                        "Quantity: #{quantity} units\n\n" \
-                        "Waiting for supervisor approval."
+        flash[:notice] = "📋 Request Submitted\n\nPart: #{part_name}\nQuantity: #{quantity} units\n\nWaiting for supervisor approval."
       end
       
     elsif params[:part_type] == 'custom'
@@ -647,7 +650,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       
       part_name = params[:custom_part_name]
       
-      # Check for existing pending request for this custom part
       existing_request = PartsRequest.find_by(
         inspection_id: @job.inspection_id,
         custom_part_name: part_name,
@@ -662,13 +664,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Added #{quantity}x #{part_name} (custom) to existing request (Total: #{new_quantity})"
         )
         
-        flash[:notice] = "✅ Quantity Updated\n\n" \
-                        "Part: #{part_name} (Custom)\n" \
-                        "Added: #{quantity} units\n" \
-                        "Total: #{new_quantity} units\n\n" \
-                        "Waiting for supervisor approval."
+        flash[:notice] = "✅ Quantity Updated\n\nPart: #{part_name} (Custom)\nAdded: #{quantity} units\nTotal: #{new_quantity} units\n\nWaiting for supervisor approval."
       else
-        # Create custom part request
         PartsRequest.create!(
           inspection_job_id: @job.id,
           inspection_id: @job.inspection_id,
@@ -682,10 +679,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
           mechanic_notes: "#{assignment.mechanic_notes}\n[REQUEST] Requested #{quantity}x #{part_name} (custom part)"
         )
         
-        flash[:notice] = "📦 Request Submitted\n\n" \
-                        "Part: #{part_name} (Custom)\n" \
-                        "Quantity: #{quantity} units\n\n" \
-                        "Supervisor has been notified."
+        flash[:notice] = "📦 Request Submitted\n\nPart: #{part_name} (Custom)\nQuantity: #{quantity} units\n\nSupervisor has been notified."
       end
     else
       redirect_to vmcott_mechanic_job_path(@job), alert: "Selection Required: Please select a part type (Inventory or Custom)."
@@ -695,7 +689,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     redirect_to vmcott_mechanic_job_path(@job), notice: flash[:notice]
   rescue => e
     Rails.logger.error "Error in request_part: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "System Error: #{e.message}"
     redirect_to vmcott_mechanic_job_path(@job)
   end
@@ -747,7 +740,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     redirect_to vmcott_mechanic_dashboard_path
   rescue => e
     Rails.logger.error "Error in request_qc: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     redirect_to vmcott_mechanic_job_path(@job), alert: "An error occurred while requesting QC: #{e.message}"
   end
 
@@ -916,7 +908,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     redirect_to vmcott_mechanic_dashboard_path
   rescue => e
     Rails.logger.error "Error in submit_verification: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     flash[:alert] = "An error occurred while submitting verification: #{e.message}"
     redirect_to vmcott_mechanic_verify_job_path(@job)
   end
@@ -970,7 +961,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     end
   rescue => e
     Rails.logger.error "Error in create_additional_finding: #{e.message}"
-    Rails.logger.error e.backtrace.join("\n")
     
     if @job.present?
       redirect_to vmcott_mechanic_job_path(@job), alert: "An error occurred: #{e.message}"
@@ -1032,12 +1022,8 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
     @active_session = @task.active_work_session
     @dependencies = @task.depends_on
     @inspection_job = @task.inspection_job
-    
-    # Safe navigation for work_order and vehicle
     @work_order = @inspection_job&.work_order if @inspection_job.present?
-    
-    # Safe navigation for dependent tasks if needed
-    @dependent_tasks = []  # If you need this, you can calculate it or remove it
+    @dependent_tasks = []
   end
 
   def task_start
@@ -1120,7 +1106,7 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
       description: params[:description],
       severity: params[:severity] || 'normal',
       blocking: params[:blocking] == 'true',
-      finding_type: 'mechanic',
+      finding_type: 'additional',
       created_by: current_user
     )
     
@@ -1175,7 +1161,6 @@ class Vmcott::Mechanic::DashboardController < ApplicationController
   def ensure_can_start_job
     return unless @job
     
-    # ✅ Allow starting from 'assigned' or 'approved_for_work'
     unless @job.status == 'assigned' || @job.status == 'approved_for_work'
       redirect_to vmcott_mechanic_job_path(@job), alert: "This job is not approved for work yet. Current status: #{@job.status}."
       return false

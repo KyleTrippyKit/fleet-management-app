@@ -77,8 +77,8 @@
               <tr>
                 <th class="ps-3">Vehicle</th>
                 <th>Diagnosis Notes</th>
-                <th>Mechanic Findings</th>
-                <th>Inspector Recs</th>
+                <th style="min-width: 200px;">Mechanic Findings</th>
+                <th style="min-width: 200px;">Inspector Recs</th>
                 <th>Diagnosed By</th>
                 <th>Completed</th>
                 <th class="text-center">Actions</th>
@@ -86,8 +86,12 @@
             <tbody>
               <% @pending_job_creation.each do |inspection| %>
                 <% 
+                  # Get mechanic findings - finding_type: 'mechanic'
                   mechanic_findings = inspection.findings.where(finding_type: 'mechanic')
-                  inspector_recs = inspection.inspection_recommendations
+                  
+                  # 🔥 FIXED: Get inspector recs from findings with type 'initial'
+                  # (NOT from inspection_recommendations)
+                  inspector_recs = inspection.findings.where(finding_type: 'initial')
                 %>
                 <tr data-turbo="false">
                   <td class="ps-3">
@@ -108,41 +112,85 @@
                     </span>
                   </td>
                   <td style="max-width: 250px;">
-                    <% if inspection.diagnosis_notes.present? %>
-                      <div class="small">
+                    <div class="diagnosis-note mb-1">
+                      <% if inspection.diagnosis_notes.present? %>
                         <i class="bi bi-chat-text text-primary me-1"></i>
                         <%= truncate(inspection.diagnosis_notes, length: 100) %>
-                      </div>
-                    <% else %>
-                      <span class="text-muted fst-italic small">No diagnosis notes recorded</span>
-                    <% end %>
-                    <br>
+                      <% else %>
+                        <span class="text-muted fst-italic small">No diagnosis notes recorded</span>
+                      <% end %>
+                    </div>
                     <small class="text-muted">
                       <i class="bi bi-clock me-1"></i>
                       <%= time_ago_in_words(inspection.diagnosis_completed_at || inspection.created_at) %> ago
                     </small>
                   </td>
-                  <td class="text-center">
+                  <!-- MECHANIC FINDINGS COLUMN -->
+                  <td>
                     <% if mechanic_findings.any? %>
-                      <span class="badge bg-primary" data-bs-toggle="tooltip" title="<%= mechanic_findings.map(&:description).join(' | ') %>">
-                        <i class="bi bi-tools me-1"></i><%= mechanic_findings.count %> findings
-                      </span>
+                      <div class="mb-1">
+                        <span class="badge bg-primary">
+                          <i class="bi bi-tools me-1"></i><%= mechanic_findings.count %> finding(s)
+                        </span>
+                      </div>
+                      <div class="small">
+                        <% mechanic_findings.each do |finding| %>
+                          <div class="text-muted mb-1">
+                            <i class="bi bi-chat-dots me-1 text-primary"></i>
+                            <%= truncate(finding.description, length: 60) %>
+                            <% if finding.severity.present? %>
+                              <span class="badge <%= finding.severity == 'critical' ? 'bg-danger' : (finding.severity == 'major' ? 'bg-warning' : 'bg-secondary') %> ms-1">
+                                <%= finding.severity %>
+                              </span>
+                            <% end %>
+                            <% if finding.blocking %>
+                              <span class="badge bg-danger ms-1">BLOCKING</span>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
                     <% else %>
                       <span class="badge bg-secondary">0 findings</span>
+                      <div class="small text-muted mt-1">No mechanic findings recorded</div>
                     <% end %>
                   </td>
-                  <td class="text-center">
+                  <!-- INSPECTOR RECS COLUMN -->
+                  <td>
                     <% if inspector_recs.any? %>
-                      <span class="badge bg-info" data-bs-toggle="tooltip" title="<%= inspector_recs.map(&:description).join(' | ') %>">
-                        <i class="bi bi-clipboard me-1"></i><%= inspector_recs.count %> recs
-                      </span>
+                      <div class="mb-1">
+                        <span class="badge bg-info">
+                          <i class="bi bi-clipboard me-1"></i><%= inspector_recs.count %> rec(s)
+                        </span>
+                      </div>
+                      <div class="small">
+                        <% inspector_recs.each do |rec| %>
+                          <div class="text-muted mb-1">
+                            <i class="bi bi-chat-dots me-1 text-info"></i>
+                            <%= truncate(rec.description, length: 60) %>
+                            <% if rec.severity.present? %>
+                              <span class="badge <%= rec.severity == 'critical' ? 'bg-danger' : (rec.severity == 'major' ? 'bg-warning' : 'bg-secondary') %> ms-1">
+                                <%= rec.severity %>
+                              </span>
+                            <% end %>
+                            <% if rec.blocking %>
+                              <span class="badge bg-danger ms-1">BLOCKING</span>
+                            <% end %>
+                            <% if rec.metadata && rec.metadata['estimated_hours'].present? %>
+                              <span class="badge bg-secondary ms-1"><%= rec.metadata['estimated_hours'] %> hrs</span>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
                     <% else %>
                       <span class="badge bg-secondary">0 recs</span>
+                      <div class="small text-muted mt-1">No inspector recommendations</div>
                     <% end %>
                   </td>
                   <td>
-                    <%= inspection.assigned_mechanic&.name || 'Not assigned' %><br>
-                    <small class="text-muted"><%= inspection.inspector&.name || 'Unknown inspector' %></small>
+                    <% if inspection.assigned_mechanic %>
+                      <%= inspection.assigned_mechanic.name %><br>
+                    <% end %>
+                    <small class="text-muted"><%= inspection.inspector&.name || 'No inspector assigned' %></small>
                   </td>
                   <td><%= inspection.diagnosis_completed_at&.strftime('%b %d, %Y') || 'N/A' %></td>
                   <td class="text-center">
@@ -181,7 +229,7 @@
                 <th>Requested By</th>
                 <th>Status</th>
                 <th class="pe-3 text-end">Actions</th>
-              </td>
+              </tr>
             </thead>
             <tbody>
               <% @pending_parts_requests.each do |request| %>
@@ -393,7 +441,7 @@
                 <th>Workflow Type</th>
                 <th>Sent Date</th>
                 <th class="text-center">Status</th>
-              </td>
+              </tr>
             </thead>
             <tbody>
               <% @awaiting_approval.each do |inspection| %>
@@ -414,7 +462,7 @@
                   <td class="text-center">
                     <span class="badge bg-warning">Awaiting Client</span>
                   </td>
-                </table>
+                </tr>
               <% end %>
             </tbody>
           </table>
@@ -424,7 +472,7 @@
   <% end %>
 
   <!-- ===================================================== -->
-  <!-- 🔥 NEW: PHASE 7.5 - APPROVED JOBS READY FOR ASSIGNMENT -->
+  <!-- PHASE 7.5: APPROVED JOBS READY FOR ASSIGNMENT -->
   <!-- ===================================================== -->
   <% if @approved_jobs.present? && @approved_jobs.any? %>
     <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #8b5cf6;">
@@ -785,36 +833,36 @@
   <% end %>
 
   <!-- ===================================================== -->
-<!-- 🔥 NEW SECTION: READY FOR PICKUP (QC PASSED) -->
-<!-- ===================================================== -->
-<% if @ready_for_pickup_inspections.present? && @ready_for_pickup_inspections.any? %>
-  <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
-    <div class="card-header bg-white border-0 pt-4">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-1 fw-bold" style="color: #1e293b;">
-            <i class="bi bi-truck me-2 text-success"></i>
-            Ready for Pickup (QC Passed)
-          </h5>
-          <p class="text-muted small mb-0">Vehicles that have passed QC and are ready to be returned to customers</p>
+  <!-- READY FOR PICKUP (QC PASSED) -->
+  <!-- ===================================================== -->
+  <% if @ready_for_pickup_inspections.present? && @ready_for_pickup_inspections.any? %>
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="border-left: 4px solid #10b981;">
+      <div class="card-header bg-white border-0 pt-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-1 fw-bold" style="color: #1e293b;">
+              <i class="bi bi-truck me-2 text-success"></i>
+              Ready for Pickup (QC Passed)
+            </h5>
+            <p class="text-muted small mb-0">Vehicles that have passed QC and are ready to be returned to customers</p>
+          </div>
+          <span class="badge bg-success px-3 py-2 rounded-pill">
+            <i class="bi bi-check-circle me-1"></i> <%= @ready_for_pickup_inspections&.count || 0 %> Ready
+          </span>
         </div>
-        <span class="badge bg-success px-3 py-2 rounded-pill">
-          <i class="bi bi-check-circle me-1"></i> <%= @ready_for_pickup_inspections&.count || 0 %> Ready
-        </span>
       </div>
-    </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th class="ps-3">Vehicle</th>
-              <th>QC Passed By</th>
-              <th>QC Passed At</th>
-              <th>QC Notes</th>
-              <th class="text-center">Customer Contact</th>
-              <th class="pe-3 text-end">Actions</th>
-             </thead>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-3">Vehicle</th>
+                <th>QC Passed By</th>
+                <th>QC Passed At</th>
+                <th>QC Notes</th>
+                <th class="text-center">Customer Contact</th>
+                <th class="pe-3 text-end">Actions</th>
+              </thead>
             <tbody>
               <% @ready_for_pickup_inspections.each do |inspection| %>
                 <tr data-turbo="false">
@@ -859,10 +907,10 @@
                             data: { confirm: "Send pickup notification email to customer?" } %>
                     </div>
                   </td>
-                 </tr>
+                </tr>
               <% end %>
             </tbody>
-           </table>
+          <table>
         </div>
       </div>
     </div>
@@ -1060,7 +1108,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (confirm('Assign this job to the selected mechanic?')) {
-        // Disable button to prevent double submission
         this.disabled = true;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Assigning...';
         
@@ -1077,13 +1124,10 @@ document.addEventListener('DOMContentLoaded', function() {
           const data = await response.json();
           
           if (data.success) {
-            // Show success message
             const row = document.getElementById(`job-row-${jobId}`);
             if (row) {
               row.style.backgroundColor = '#d1fae5';
-              setTimeout(() => {
-                location.reload();
-              }, 500);
+              setTimeout(() => location.reload(), 500);
             } else {
               location.reload();
             }
@@ -1132,7 +1176,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (confirm(`Assign ${selectedJobs.length} job(s) to the selected mechanic?`)) {
-        // Show loading on button
         this.disabled = true;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Assigning...';
         

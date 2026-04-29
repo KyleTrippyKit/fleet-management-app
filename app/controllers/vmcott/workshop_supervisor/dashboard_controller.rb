@@ -17,8 +17,15 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
     # PHASE 4: Jobs needing creation from diagnosis
     # ========================================
     @pending_job_creation = Inspection
-      .where(status: 'diagnosed')
-      .includes(:vehicle, :findings, :inspection_recommendations)
+      .where(status: ['diagnosed', 'inspected'])
+      .where(diagnosis_completed_at: nil)
+      .includes(
+        :vehicle,
+        :inspector,
+        :assigned_mechanic,
+        findings: :created_by,
+        inspection_recommendations: :inspection_job
+      )
       .order(created_at: :asc)
       .limit(20)
 
@@ -542,18 +549,25 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
 
   def create_jobs
     @inspection = Inspection.find(params[:id])
+    
+    # Get the labor rate from inspection or default to 80
+    labor_rate = @inspection.labor_rate || 80
 
     ActiveRecord::Base.transaction do
       created_jobs = []
       
       if params[:jobs].present?
-        params[:jobs].each_with_index do |job_data, index|
+        params[:jobs].each do |job_data|
           next if job_data[:description].blank?
           
-          # ✅ Use 'draft' - this IS in your simplified enum
+          hours = job_data[:estimated_hours].to_f
+          labor_cost = hours * labor_rate
+          
+          # Create job with calculated labor cost
           job = @inspection.inspection_jobs.create!(
             description: job_data[:description],
-            estimated_hours: job_data[:estimated_hours].to_f,
+            estimated_hours: hours,
+            estimated_labor_cost: labor_cost,  # ← ADD THIS - was missing!
             priority: job_data[:priority] || 'normal',
             status: 'draft',
             recommendation_source: 'supervisor'
@@ -584,18 +598,14 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
   # =====================================================
 
   def customer_quotation
-    @inspection = Inspection.find(params[:id])
+    @inspection = Inspection.find_by(id: params[:id])
     
-    # Load ALL jobs (remove status filter for now to debug)
-    @jobs = @inspection.inspection_jobs
-    
-    Rails.logger.info "=== CUSTOMER QUOTATION DEBUG ==="
-    Rails.logger.info "Inspection ##{@inspection.id}"
-    Rails.logger.info "Jobs found: #{@jobs.count}"
-    @jobs.each do |job|
-      Rails.logger.info "  Job ##{job.id}: #{job.description} - status: #{job.status}"
+    if @inspection.nil?
+      flash[:alert] = "Inspection ##{params[:id]} not found."
+      redirect_to vmcott_workshop_supervisor_dashboard_path and return
     end
     
+    @jobs = @inspection.inspection_jobs
     @labor_rate = @inspection.labor_rate || 80
     @customer_name = @inspection.reception_log&.customer_name || 'Valued Customer'
     
@@ -610,15 +620,27 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       redirect_to vmcott_workshop_supervisor_customer_quotation_path(@inspection) and return
     end
     
+    # DEBUG: Log what we received
+    Rails.logger.info "=== SEND CUSTOMER QUOTATION DEBUG ==="
+    Rails.logger.info "Labor Rate param: #{params[:labor_rate].inspect}"
+    Rails.logger.info "Jobs params: #{params[:jobs].inspect}"
+    
     # Calculate totals from form data
-    total_labor = 0
-    total_parts = 0
+    total_labor = 0.0
+    total_parts = 0.0
     labor_rate = params[:labor_rate].to_f
+    
+    Rails.logger.info "Labor rate after to_f: #{labor_rate}"
     
     # First pass: calculate totals from form data
     params[:jobs].each do |job_id, job_data|
+      Rails.logger.info "Processing job #{job_id}: #{job_data.inspect}"
+      
       hours = job_data[:hours].to_f
-      total_labor += hours * labor_rate
+      job_labor = hours * labor_rate
+      total_labor += job_labor
+      
+      Rails.logger.info "  Hours: #{hours}, Labor: #{job_labor}, Total labor so far: #{total_labor}"
       
       # Calculate parts from form data
       if job_data[:parts].present?
@@ -626,15 +648,22 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           next if part_data[:name].blank?
           quantity = part_data[:quantity].to_i
           unit_price = part_data[:unit_price].to_f
-          total_parts += quantity * unit_price
+          part_total = quantity * unit_price
+          total_parts += part_total
+          Rails.logger.info "  Part: #{part_data[:name]}, Qty: #{quantity}, Price: #{unit_price}, Total: #{part_total}"
         end
       end
     end
     
     grand_total = total_labor + total_parts
     
+    Rails.logger.info "=== TOTALS ==="
+    Rails.logger.info "Total Labor: #{total_labor}"
+    Rails.logger.info "Total Parts: #{total_parts}"
+    Rails.logger.info "Grand Total: #{grand_total}"
+    
     if grand_total <= 0
-      flash[:alert] = "Total is $0. Please add hours or parts."
+      flash[:alert] = "Total is $0. Please add hours or parts. Labor: $#{'%.2f' % total_labor}, Parts: $#{'%.2f' % total_parts}"
       redirect_to vmcott_workshop_supervisor_customer_quotation_path(@inspection) and return
     end
     
@@ -662,7 +691,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
           )
         end
         
-        # 🔥 PROCESS PARTS FROM THE FORM
+        # PROCESS PARTS FROM THE FORM
         if job_data[:parts].present?
           job_data[:parts].each do |part_index, part_data|
             next if part_data[:name].blank?
@@ -705,34 +734,46 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
         end
       end
       
-      # Create or update quotation
       vendor_name = current_user.agency&.name || "VMCOTT Auto Services"
       
-      # Check if quotation already exists
-      quotation = Quotation.find_or_initialize_by(
-        inspection_id: @inspection.id,
-        status: ['draft', 'sent']
-      )
+      # Check if a quotation already exists (status 0=draft or 1=sent)
+      quotation = Quotation.where(inspection_id: @inspection.id, status: [0, 1]).first
       
-      quote_number = if quotation.persisted?
-        quotation.quote_number
+      # Prepare notes value
+      quote_notes = params[:quote_notes].presence
+      
+      if quotation.nil?
+        quote_number = "Q-#{@inspection.id}-#{Time.current.strftime('%Y%m%d%H%M')}"
+        
+        # Create the quotation with ALL attributes at once (including amount)
+        quotation = Quotation.new(
+          inspection_id: @inspection.id,
+          vehicle_id: @inspection.vehicle_id,
+          quote_number: quote_number,
+          amount: grand_total,
+          vendor: vendor_name,
+          valid_from: Date.current,
+          valid_to: 14.days.from_now,
+          status: 1,  # sent
+          notes: quote_notes,
+          created_by_id: current_user.id,
+          agency_id: current_user.agency_id,
+          sent_at: Time.current
+        )
+        quotation.save!
+        Rails.logger.info "Created new quotation with ID #{quotation.id}, amount: #{grand_total}"
       else
-        "Q-#{@inspection.id}-#{Time.current.strftime('%Y%m%d%H%M')}"
+        # Update existing quotation
+        update_attrs = {
+          amount: grand_total,
+          status: 1,  # sent
+          sent_at: Time.current
+        }
+        update_attrs[:notes] = quote_notes if quote_notes.present?
+        quotation.assign_attributes(update_attrs)
+        quotation.save!
+        Rails.logger.info "Updated existing quotation #{quotation.id} with amount: #{grand_total}"
       end
-      
-      quotation.assign_attributes(
-        quote_number: quote_number,
-        amount: grand_total,
-        vendor: vendor_name,
-        valid_from: Date.current,
-        valid_to: 14.days.from_now,
-        status: 1, # sent status
-        notes: params[:quote_notes],
-        created_by_id: current_user.id,
-        agency_id: current_user.agency_id,
-        sent_at: Time.current
-      )
-      quotation.save!
       
       # Delete existing quotation jobs to avoid duplicates
       quotation.quotation_jobs.destroy_all
@@ -754,7 +795,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
         )
         Rails.logger.info "Created quotation job for job #{job.id}"
         
-        # 🔥 ADD PARTS TO QUOTATION JOB
+        # ADD PARTS TO QUOTATION JOB
         if job_data[:parts].present?
           job_data[:parts].each do |part_index, part_data|
             next if part_data[:name].blank?
@@ -806,9 +847,7 @@ class Vmcott::WorkshopSupervisor::DashboardController < ApplicationController
       # Send email notification to customer (if email exists)
       customer_email = @inspection.reception_log&.customer_email
       if customer_email.present?
-        # Send email here (implement CustomerMailer if needed)
         Rails.logger.info "📧 Quotation sent to #{customer_email}"
-        # CustomerMailer.quotation_ready(@inspection, quotation).deliver_later
       end
       
       flash[:notice] = "✅ Quotation sent! Total: $#{'%.2f' % grand_total} (Labor: $#{'%.2f' % total_labor}, Parts: $#{'%.2f' % total_parts})"

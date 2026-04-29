@@ -9,6 +9,9 @@ class CustomerPortalController < ApplicationController
   before_action :set_quotation, only: [:quotation, :approve]
   before_action :authorize_quotation_access, only: [:quotation, :approve]
   
+  # 🔥 NEW: Sanitize any array status params before they cause errors
+  before_action :sanitize_status_params, only: [:quotation, :approve]
+  
   # Helper methods
   helper_method :status_badge_color, :work_progress_percentage, :current_customer_reception
 
@@ -26,6 +29,9 @@ class CustomerPortalController < ApplicationController
     @auto_fill_license_plate = params[:license_plate]
     @auto_fill_receipt_number = params[:receipt_number]
     @auto_filled = params[:auto_filled] == 'true'
+    @vmcott_phone = VMCOTT_PHONE
+    @vmcott_email = VMCOTT_EMAIL
+    @vmcott_address = VMCOTT_ADDRESS
   end
 
   def authenticate
@@ -57,6 +63,8 @@ class CustomerPortalController < ApplicationController
 
   def recover
     # Show recovery form
+    @vmcott_phone = VMCOTT_PHONE
+    @vmcott_email = VMCOTT_EMAIL
   end
 
   def send_recovery
@@ -86,21 +94,39 @@ class CustomerPortalController < ApplicationController
     @inspection = Inspection.find_by(vehicle: @vehicle) if @vehicle
     @jobs = @inspection&.inspection_jobs || []
     @parts_requests = @inspection&.parts_requests || []
-    @quotation = Quotation.find_by(vehicle: @vehicle) if @vehicle
+    
+    # Get pending quotation using integer values (0=draft, 1=sent)
+    if @vehicle
+      @quotation = Quotation
+        .where(vehicle: @vehicle)
+        .where(status: [0, 1])
+        .order(created_at: :desc)
+        .first
+    else
+      @quotation = nil
+    end
+    
     @inspection_progress = work_progress_percentage(@inspection)
     @vmcott_phone = VMCOTT_PHONE
   end
 
   def quotation
+    Rails.logger.info "=== QUOTATION DEBUG ==="
+    Rails.logger.info "Params: #{params.inspect}"
+    
     @quotation = Quotation.find(params[:id])
     @inspection = Inspection.find_by(vehicle: @quotation.vehicle) if @quotation.vehicle
-    @jobs = @quotation.quotation_jobs
+    @jobs = @quotation.quotation_jobs.includes(:quotation_job_parts)
     @parts = @quotation.quotation_jobs.flat_map(&:quotation_job_parts)
     @total_cost = @quotation.amount || @quotation.quotation_jobs.sum(&:total_labor_cost) + @quotation.quotation_job_parts.sum(&:total_price)
+    @vmcott_phone = VMCOTT_PHONE
   end
 
-  # 🔥 FIXED: approve method with better handling of already-approved jobs
+  # Main approval method - handles both "Approve All" and "Approve Selected"
   def approve
+    Rails.logger.info "=== APPROVE DEBUG ==="
+    Rails.logger.info "Params: #{params.inspect}"
+    
     # Make sure we have a valid quotation ID
     if params[:id].blank?
       flash[:alert] = "Quotation ID is missing."
@@ -128,91 +154,162 @@ class CustomerPortalController < ApplicationController
       redirect_to customer_dashboard_path and return
     end
     
+    # Handle "Approve All" button click
     if params[:approve_all].present?
-      begin
-        ActiveRecord::Base.transaction do
-          # Approve all jobs in quotation
-          @quotation.quotation_jobs.update_all(client_approved: true, client_approved_at: Time.current)
-          
-          # Update quotation status to 'accepted'
-          @quotation.update(status: 'accepted', accepted_at: Time.current)
-          
-          # 🔥 FIX: Only update jobs that are NOT already approved
-          @inspection.inspection_jobs.each do |job|
-            if job.status != 'approved'
-              job.approve_internal!
-              Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
-            else
-              Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
-            end
-          end
-          
-          # Update inspection status if still awaiting_approval
-          if @inspection.status == 'awaiting_approval'
-            @inspection.update(status: 'approved', approved_at: Time.current, scope_locked: true)
-          end
-          
-          flash[:notice] = "All jobs approved. Work will begin shortly."
-          Rails.logger.info "Customer approved all jobs for inspection #{@inspection.id}"
-        end
-      rescue => e
-        Rails.logger.error "Error approving all jobs: #{e.message}"
-        Rails.logger.error e.backtrace.join("\n")
-        flash[:alert] = "There was an error approving your quotation. Please contact support."
-        redirect_to customer_quotation_path(@quotation) and return
-      end
+      handle_approve_all
       
+    # Handle "Approve Selected" button click
     elsif params[:approved_jobs].present?
-      approved_ids = params[:approved_jobs]
-      
-      begin
-        ActiveRecord::Base.transaction do
-          # Approve selected jobs
-          @quotation.quotation_jobs.where(id: approved_ids).update_all(
-            client_approved: true, 
-            client_approved_at: Time.current
-          )
-          @quotation.quotation_jobs.where.not(id: approved_ids).update_all(client_approved: false)
-          
-          # Get inspection job IDs that were approved
-          approved_job_ids = @quotation.quotation_jobs.where(id: approved_ids).pluck(:inspection_job_id).compact
-          
-          # 🔥 FIX: Only update jobs that are NOT already approved
-          if approved_job_ids.any?
-            @inspection.inspection_jobs.where(id: approved_job_ids).each do |job|
-              if job.status != 'approved'
-                job.approve_internal!
-                Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
-              else
-                Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
-              end
-            end
-          end
-          
-          # Update quotation status
-          if approved_ids.length == @quotation.quotation_jobs.count
-            @quotation.update(status: 'accepted', accepted_at: Time.current)
-            flash[:notice] = "All jobs approved. Work will begin shortly."
-          else
-            @quotation.update(status: 'partially_rejected')
-            flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining jobs will not be performed."
-          end
-          
-          Rails.logger.info "Customer approved #{approved_ids.length} specific jobs for inspection #{@inspection.id}"
-        end
-      rescue => e
-        Rails.logger.error "Error approving selected jobs: #{e.message}"
-        Rails.logger.error e.backtrace.join("\n")
-        flash[:alert] = "There was an error approving your selection. Please contact support."
-        redirect_to customer_quotation_path(@quotation) and return
-      end
+      handle_approve_selected(params[:approved_jobs])
       
     else
       flash[:alert] = "Please select at least one job to approve."
       redirect_to customer_quotation_path(@quotation) and return
     end
     
-    # Safely notify supervisor
+    # Create notifications for workshop staff
+    create_approval_notifications
+    
+    redirect_to customer_dashboard_path, notice: flash[:notice]
+  end
+  
+  def status
+    @reception = @customer_reception
+    @inspection = Inspection.find_by(vehicle: @reception&.vehicle) if @reception&.vehicle
+    @vehicle = @reception&.vehicle
+    @jobs = @inspection&.inspection_jobs || []
+    @parts_requests = @inspection&.parts_requests || []
+    @timeline = build_timeline(@reception, @inspection)
+    @vmcott_phone = VMCOTT_PHONE
+  end
+
+  def logout
+    session[:customer_token] = nil
+    session[:customer_log_id] = nil
+    redirect_to customer_login_path, notice: "You have been logged out."
+  end
+
+  private
+
+  # 🔥 NEW: Sanitize any array status params
+  def sanitize_status_params
+    # Check if status is being passed as an array
+    if params[:status].is_a?(Array)
+      Rails.logger.warn "Status param is an array: #{params[:status].inspect}, converting to first value"
+      params[:status] = params[:status].first
+    end
+    
+    if params[:quotation].is_a?(Hash) && params[:quotation][:status].is_a?(Array)
+      Rails.logger.warn "Quotation status param is an array: #{params[:quotation][:status].inspect}, converting to first value"
+      params[:quotation][:status] = params[:quotation][:status].first
+    end
+  end
+
+  def handle_approve_all
+    ActiveRecord::Base.transaction do
+      # Approve all jobs in quotation
+      @quotation.quotation_jobs.update_all(
+        client_approved: true, 
+        client_approved_at: Time.current
+      )
+      
+      # Update quotation status to 'accepted'
+      @quotation.update(
+        status: 2,  # accepted (integer value)
+        accepted_at: Time.current
+      )
+      
+      # Update inspection jobs that are NOT already approved
+      approved_count = 0
+      @inspection.inspection_jobs.each do |job|
+        if job.status != 'approved'
+          job.approve_internal!
+          approved_count += 1
+          Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
+        else
+          Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
+        end
+      end
+      
+      # Update inspection status if still awaiting_approval
+      if @inspection.status == 'awaiting_approval'
+        @inspection.update(
+          status: 'approved', 
+          approved_at: Time.current, 
+          scope_locked: true
+        )
+      end
+      
+      flash[:notice] = "All jobs approved. Work will begin shortly."
+      Rails.logger.info "Customer approved all #{approved_count} jobs for inspection #{@inspection.id}"
+    end
+  rescue => e
+    Rails.logger.error "Error approving all jobs: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    flash[:alert] = "There was an error approving your quotation. Please contact support."
+    redirect_to customer_quotation_path(@quotation) and return
+  end
+
+  def handle_approve_selected(approved_jobs_param)
+    # Parse approved jobs - can be array or comma-separated string
+    approved_ids = approved_jobs_param.is_a?(Array) ? approved_jobs_param : approved_jobs_param.split(',')
+    
+    ActiveRecord::Base.transaction do
+      # Approve selected jobs
+      @quotation.quotation_jobs.where(id: approved_ids).update_all(
+        client_approved: true, 
+        client_approved_at: Time.current
+      )
+      
+      # Mark unselected jobs as not approved
+      @quotation.quotation_jobs.where.not(id: approved_ids).update_all(
+        client_approved: false,
+        client_rejected_at: Time.current
+      )
+      
+      # Get inspection job IDs that were approved
+      approved_job_ids = @quotation.quotation_jobs
+        .where(id: approved_ids)
+        .pluck(:inspection_job_id)
+        .compact
+      
+      # Update the corresponding inspection jobs
+      approved_count = 0
+      if approved_job_ids.any?
+        @inspection.inspection_jobs.where(id: approved_job_ids).each do |job|
+          if job.status != 'approved'
+            job.approve_internal!
+            approved_count += 1
+            Rails.logger.info "✅ Job ##{job.id} approved for inspection ##{@inspection.id}"
+          else
+            Rails.logger.info "⏭️ Job ##{job.id} already approved, skipping"
+          end
+        end
+      end
+      
+      # Update quotation status based on how many were approved
+      if approved_ids.length == @quotation.quotation_jobs.count
+        @quotation.update(status: 2, accepted_at: Time.current)  # accepted
+        flash[:notice] = "All jobs approved. Work will begin shortly."
+      elsif approved_ids.length > 0
+        @quotation.update(status: 7)  # partially_accepted (7)
+        flash[:notice] = "#{approved_ids.length} job(s) approved. The remaining #{@quotation.quotation_jobs.count - approved_ids.length} job(s) will not be performed."
+      else
+        @quotation.update(status: 3)  # rejected
+        flash[:notice] = "No jobs were approved."
+      end
+      
+      Rails.logger.info "Customer approved #{approved_count} specific jobs for inspection #{@inspection.id}"
+    end
+  rescue => e
+    Rails.logger.error "Error approving selected jobs: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+    flash[:alert] = "There was an error approving your selection. Please contact support."
+    redirect_to customer_quotation_path(@quotation) and return
+  end
+
+  def create_approval_notifications
+    # Notify workshop supervisors
     supervisor_ids = User.where(role: 'workshop_supervisor').pluck(:id)
     if supervisor_ids.any?
       begin
@@ -231,7 +328,7 @@ class CustomerPortalController < ApplicationController
       end
     end
     
-    # Safely notify mechanics
+    # Notify mechanics about new approved work
     approved_job_count = @inspection.inspection_jobs.where(status: 'approved').count
     if approved_job_count > 0
       mechanic_ids = User.where(role: 'mechanic').pluck(:id)
@@ -253,26 +350,7 @@ class CustomerPortalController < ApplicationController
         Rails.logger.info "Notified #{mechanic_ids.count} mechanics"
       end
     end
-    
-    redirect_to customer_dashboard_path, notice: flash[:notice]
   end
-  
-  def status
-    @reception = @customer_reception
-    @inspection = Inspection.find_by(vehicle: @reception&.vehicle) if @reception&.vehicle
-    @vehicle = @reception&.vehicle
-    @jobs = @inspection&.inspection_jobs || []
-    @parts_requests = @inspection&.parts_requests || []
-    @timeline = build_timeline(@reception, @inspection)
-  end
-
-  def logout
-    session[:customer_token] = nil
-    session[:customer_log_id] = nil
-    redirect_to customer_login_path, notice: "You have been logged out."
-  end
-
-  private
 
   def authenticate_customer
     token = session[:customer_token] || params[:token]
